@@ -1,0 +1,77 @@
+#
+# GNU makefile for EnvTool (MingW/MingW64/TDM-gcc).
+#
+
+FORTIFY_SOURCE = 0
+USE_DEBUG      = 1
+USE_64BIT     ?= 0
+
+CC      = gcc
+CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI=
+LDFLAGS = -Wl,--print-map,--sort-common,--cref
+RCFLAGS = -v --use-temp-file -O COFF
+
+ifeq ($(USE_64BIT),1)
+  CFLAGS  += -m64
+  LDFLAGS += -m64
+  RCFLAGS += --preprocessor-arg=-m64 --target=pe-x86-64
+else
+  CFLAGS  += -m32
+  LDFLAGS += -m32
+  RCFLAGS += --preprocessor-arg=-m32 --target=pe-i386
+endif
+
+ifeq ($(USE_DEBUG),1)
+  CFLAGS  += -O0 -D_DEBUG -g # -gstabs
+  LDFLAGS +=
+else
+  CFLAGS  += -O2
+  LDFLAGS += -s
+endif
+
+ifeq ($(FORTIFY_SOURCE),1)
+  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) # -I$(subst \,/,$(MINGW32))/lib/gcc/mingw32/4.7.2/include/ssp
+  EX_LIBS = -lssp
+endif
+
+EX_LIBS += -limagehlp -lversion
+SOURCES += envtool.c searchpath.c misc.c show_ver.c Everything.c envtool_py.c getopt_long.c
+OBJECTS  = $(SOURCES:.c=.o)
+
+all: envtool.exe
+	cp --update $^ ..
+	@echo '../envtool.exe successfully built.'
+
+envtool.exe: $(OBJECTS) envtool.res
+	$(CC) $(LDFLAGS) -o $@ $^ $(EX_LIBS) > envtool.map
+
+win_glob.exe: win_glob.c misc.c searchpath.c
+	$(CC) $(LDFLAGS) -DTEST -o $@ $^ > win_glob.map
+
+envtool.res: envtool.rc
+	windres $(RCFLAGS) -o envtool.res -i envtool.rc
+
+%.o: %.c
+	$(CC) -c $(CFLAGS) $<
+	@echo
+
+%.i: %.c
+	$(CC) -c -E $(CFLAGS) $< > $@
+	@echo
+
+clean:
+	rm -f *.o .depend.MingW envtool.res envtool.exe envtool.map
+
+vclean: clean
+	rm -f win_glob.exe win_glob.map
+
+REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
+
+depend:
+	$(CC) -MM $(CFLAGS) $(SOURCES) win_glob.c | $(REPLACE) > .depend.MingW
+	echo ''                       >> .depend.MingW
+	echo 'envtool.res: envtool.h' >> .depend.MingW
+
+-include .depend.MingW
+
+

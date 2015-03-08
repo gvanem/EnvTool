@@ -1,0 +1,86 @@
+#
+# EnvTool MSVC makefile.
+#
+
+DEBUG = 0
+
+CC      = cl
+CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 -I. \
+          -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE \
+          -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= # -D_LIBC
+
+LDFLAGS = -nologo -incremental:no
+RCFLAGS = -nologo -D_MSC_VER -r
+MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII -maxcpucount
+EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
+
+!if "$(DEBUG)" == "1"
+CFLAGS  = $(CFLAGS) -MDd -D_DEBUG -Os -EHsc -RTCc
+LDFLAGS = $(LDFLAGS) -debug
+RCFLAGS = $(RCFLAGS) -D_DEBUG
+MSBUILD = $(MSBUILD) -p:Configuration=Debug
+!else
+CFLAGS  = $(CFLAGS) -MD -D_RELEASE -Ot
+LDFLAGS = $(LDFLAGS) -debug
+RCFLAGS = $(RCFLAGS) -D_RELEASE
+MSBUILD = $(MSBUILD) -p:Configuration=Release
+!endif
+
+!if "$(Platform)" == "x64"
+RCFLAGS = $(RCFLAGS) -DWIN64
+!endif
+
+!if "$(CPU)" == "X64"
+RCFLAGS = $(RCFLAGS) -DWIN64
+!endif
+
+OBJECTS = envtool.obj envtool_py.obj searchpath.obj misc.obj \
+          show_ver.obj Everything.obj envtool.res getopt_long.obj # getopt.obj getopt1.obj
+
+all: envtool.exe
+	copy /y $** ..
+	@echo $@ successfully built.
+
+envtool.exe: $(OBJECTS)
+	link $(LDFLAGS) -verbose -out:$@ -map:envtool.map $** $(EX_LIBS) > link.tmp
+	type link.tmp >> envtool.map
+	-del /q link.tmp
+
+envtool.res: envtool.rc
+	rc $(RCFLAGS) -fo $@ envtool.rc
+
+win_glob.exe: win_glob.c misc.c
+	$(CC) $(CFLAGS) -DTEST -c $**
+	link $(LDFLAGS) -out:$@ -map:win_glob.map $(**:.c=.obj)
+
+show_ver.obj: show_ver.c
+	$(CC) $(CFLAGS) -TP -c $*.c
+
+.c.obj:
+	$(CC) $(CFLAGS) -c $*.c
+
+clean vclean:
+	del /q $(OBJECTS) envtool.map envtool.exe envtool.pdb msbuild.log \
+	       win_glob.obj win_glob.exe win_glob.map win_glob.pdb \
+	       *.sbr vc1*.idb vc*.pdb
+
+msbuild:
+	$(MSBUILD) envtool.sln
+	copy /y envtool.exe ..
+	@echo envtool.exe successfully built.
+
+msclean: clean
+	$(MSBUILD) -target:clean envtool.sln
+	-del /q envtool.sdf
+	-rd /q Debug Release
+
+envtool.res:     envtool.h
+envtool.obj:     envtool.c getopt_long.h Everything.h Everything_IPC.h envtool.h envtool_py.h
+envtool_py.obj:  envtool_py.c envtool.h envtool_py.h
+Everything.obj:  Everything.c Everything.h Everything_IPC.h
+getopt_long.obj: getopt_long.c getopt_long.h
+misc.obj:        misc.c envtool.h
+searchpath.obj:  searchpath.c envtool.h
+show_ver.obj:    show_ver.c envtool.h
+win_glob.obj:    win_glob.c envtool.h win_glob.h
+

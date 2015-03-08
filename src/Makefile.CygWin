@@ -1,0 +1,37 @@
+#
+# EnvTool CygWin makefile.
+#
+CC      = gcc-4
+CFLAGS  = -O2 -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI=
+LDFLAGS = -Wl,--print-map,--sort-common,--cref
+EX_LIBS = -limagehlp -lversion
+
+SOURCES = envtool.c envtool_py.c searchpath.c misc.c show_ver.c Everything.c
+OBJECTS = $(SOURCES:.c=.o)
+
+all: envtool.exe
+	cp --update $^ ..
+	@echo '../envtool.exe successfully built.'
+
+envtool.exe: $(OBJECTS) envtool.res
+	$(CC) $(LDFLAGS) -o $@ $^ $(EX_LIBS) > envtool.map
+
+envtool.res: envtool.rc
+	windres -O COFF -o envtool.res -i envtool.rc
+
+%.o: %.c
+	$(CC) -c $(CFLAGS) $<
+	@echo
+
+clean:
+	rm -f $(OBJECTS) envtool.res envtool.exe envtool.map
+
+REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
+
+depend:
+	$(CC) -M $(CFLAGS) $(SOURCES) | $(REPLACE) > .depend.Cygwin
+	echo ''                       >> .depend.Cygwin
+	echo 'envtool.res: envtool.h' >> .depend.Cygwin
+
+-include .depend.Cygwin
+

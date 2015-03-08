@@ -1,0 +1,216 @@
+/* Copyright (C) 2001 DJ Delorie, see COPYING.DJ for details */
+/* Copyright (C) 1999 DJ Delorie, see COPYING.DJ for details */
+/* Copyright (C) 1996 DJ Delorie, see COPYING.DJ for details */
+/* Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details */
+
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
+#include <ctype.h>
+#include <limits.h>
+#include <fcntl.h>
+
+#include "envtool.h"
+
+/* Search '%env_var' for 'file' (not a 'file_spec').
+ * If successful, store the full pathname in static buffer and return a
+ * pointer to it. If not sucessful, return NULL.
+ * This is what the Borland searchpath() library function does.
+ *
+ * \todo: Return the truename (correct casing) for file.
+ *        Like Python's "ntpath.abspath (path)" does.
+ *        Use GetLongPathName() ?
+ */
+char *searchpath (const char *file, const char *env_var)
+{
+  static char found[_MAX_PATH];
+  char   *p, *path, *test_dir;
+  size_t  alloc;
+  int     save_debug = debug;
+
+  if (!file || !*file)
+  {
+    DEBUGF (1, "given a bogus 'file'\n");
+    errno = EINVAL;
+    return (NULL);
+  }
+  if (!env_var || !*env_var)
+  {
+    DEBUGF (1, "given a bogus 'env_var'\n");
+    errno = EINVAL;
+    return (NULL);
+  }
+
+  found[0] = '\0';
+  debug = 0;
+  p = getenv_expand (env_var);
+  debug = save_debug;
+
+  if (!p)
+       alloc = 2;              /* Room for '.' */
+  else alloc = strlen(p) + 3;  /* Room for '.;%env_var' */
+
+  path = CALLOC (alloc, sizeof(char));
+  if (!path)
+  {
+    DEBUGF (1, "calloc() failed");
+    FREE (p);
+    return (NULL);
+  }
+
+  /* Prepend `.' to the $(env_var), so current directory
+   * is always searched first.
+   */
+  path[0] = '.';
+
+  if (p)
+  {
+    char *s, *name_start = 0;
+    int preserve_case = 1;
+
+    path[1] = ';';
+    strcpy (path + 2, p);
+
+    /* switch FOO\BAR to foo/bar, downcase where appropriate */
+    for (s = path + 2, name_start = s; *name_start; s++)
+    {
+      char lname[FILENAME_MAX];
+
+      if (*s == '\\' && show_unix_paths)
+         *s = '/';
+      if (s == name_start)
+         continue;
+
+      if (*s == ':')
+         name_start = s + 1;
+      else if (!preserve_case && (*s == '/' || *s == ';' || *s == '\0'))
+      {
+        memcpy (lname, name_start + 1, s - name_start - 1);
+        lname[s - name_start - 1] = '\0';
+        if (_is_DOS83(lname))
+        {
+          name_start++;
+          while (name_start < s)
+          {
+            if (*name_start >= 'A' && *name_start <= 'Z')
+              *name_start += 'a' - 'A';
+            name_start++;
+          }
+        }
+        else
+          name_start = s;
+      }
+      else if (*s == '\0')
+        break;
+    }
+  }
+
+  /* Borland's version (as of BC 3.1) always disregards the leading
+   * directories and only looks at the file-name component. So, for
+   * example, "foo/bar/baz.exe" could find "c:/bin/baz.exe". But that
+   * doesn't seem right, so we don't follow their lead here.
+   */
+
+  /* If the file name includes slashes or the drive letter, maybe they
+   * already have a good name.
+   */
+  if (strpbrk(file, "/\\:") != 0 && FILE_EXISTS(file))
+  {
+    if (file[0] == '/' || file[0] == '\\' || file[1] == ':' ||
+        (file[0] == '.' && (file[1] == '/' || file[1] == '\\' ||
+         (file[1] == '.' && (file[2] == '/' || file[2] == '\\')))))
+    {
+      /* Either absolute file name or it begins with a "./".  */
+      strcpy (found, file);
+    }
+    else
+    {
+      /* Relative file name: add "./".  */
+      strcpy (found, show_unix_paths ? "./" : ".\\");
+      strcat (found, file);
+    }
+    FREE (p);
+    FREE (path);
+    return (found);
+  }
+
+  test_dir = path;
+
+  do
+  {
+    char *dp = strchr (test_dir, ';');
+
+    if (!dp)
+       dp = test_dir + strlen (test_dir);
+
+    if (dp == test_dir)
+       strcpy (found, file);
+    else
+    {
+      strncpy (found, test_dir, dp - test_dir);
+      found [dp-test_dir] = show_unix_paths ? '/' : '\\';
+      strcpy (found + (dp - test_dir) + 1, file);
+    }
+
+    if (FILE_EXISTS(found))
+    {
+      FREE (p);
+      FREE (path);
+      return (found);
+    }
+
+    if (*dp == 0)
+       break;
+    test_dir = dp + 1;
+  }
+  while (*test_dir);
+
+  FREE (p);
+  FREE (path);
+
+  /* FIXME: perhaps now that we failed to find it, we should try the
+   * basename alone, like BC does?  But let somebody complain about
+   * this first... ;-)
+   */
+  return (NULL);
+}
+
+int _is_DOS83 (const char *fname)
+{
+  const char *s = fname;
+  const char *e;
+  char  c, period_seen = 0;
+
+  if (*s == '.')
+  {
+    if (s[1] == 0)
+       return (1);                       /* "." is valid */
+    if (s[1] == '.' && s[2] == 0)
+       return (1);                       /* ".." is valid */
+    return (0);                          /* starting period invalid */
+  }
+
+  e = s + 8;                             /* end */
+
+  while ((c = *s++) != 0)
+    if (c == '.')
+    {
+      if (period_seen)
+         return (0);                     /* multiple periods invalid */
+      period_seen = 1;
+      e = s + 3;                         /* already one past period */
+    }
+    else if (s > e)
+      return (0);                        /* name component too long */
+
+    if (c >= 'a' && c <= 'z')
+      return (0);                        /* lower case character */
+
+    if (c == '+' || c == ',' ||
+        c == ';' || c == ' ' ||
+        c == '=' || c == '[' || c == ']')
+      return (0);                        /* special non-DOS characters */
+  return (1);                            /* all chars OK */
+}
+

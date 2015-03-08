@@ -1,0 +1,34 @@
+#
+# EnvTool OpenWatcom makefile.
+#
+
+CC      = wcc386
+CPP     = wpp386
+CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul -I. -D_LIBC -DEVERYTHINGUSERAPI=
+LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort global
+EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
+
+OBJECTS = envtool.obj Everything.obj misc.obj searchpath.obj show_ver.obj getopt.obj getopt1.obj
+
+all: envtool.exe
+
+.ERASE
+envtool.exe: $(OBJECTS) envtool.res
+	$(LINK) name $*.exe option res=envtool.res file { $(OBJECTS) } library { $(EX_LIBS) }
+	copy /y $*.exe ..
+	@echo $*.exe successfully built.
+
+.ERASE
+show_ver.obj: show_ver.c
+	$(CPP) $(CFLAGS) $[@
+
+.ERASE
+.c.obj:
+	$(CC) $(CFLAGS) $[@
+
+envtool.res: envtool.rc
+	wrc -D__WATCOMC__ -DRC_INVOKED -r -zm -fo=envtool.res envtool.rc
+
+clean: .SYMBOLIC
+	- rm $(OBJECTS) envtool.map envtool.res envtool.exe
+
