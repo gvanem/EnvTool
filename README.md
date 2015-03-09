@@ -57,20 +57,17 @@ EnvTool v0.94:
 
   E.g. 3: If an *App Paths* registry key has an alias for a command, the target
     program is printed. E.g. if:
-```
-      HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winzip.exe
-```
+    `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winzip.exe`
     points to
 ```    
-      c:\PROGRA~1\WINZIP\winzip32.exe
+c:\PROGRA~1\WINZIP\winzip32.exe
 ```
-    (here `winzip.exe` is an alias for the real program `winzip32.exe`). Hence
-    **envtool --path winzip*** reports:
-```
+(here `winzip.exe` is an alias for the real program `winzip32.exe`). Hence
+**envtool --path winzip*** reports:
+      
   Fri Oct 11 09:10:00 2002: G:\PROGRA~1\WINZIP\winzip.exe !
   Fri Oct 11 09:10:00 2002: G:\PROGRA~1\WINZIP\winzip32.exe !
   (!) - found in registry.
-```
 
   E.g. 4: It's pretty amazing what the *FindFile()* API in Windows can do. E.g.:
     **envtool --path *-?++.exe**
