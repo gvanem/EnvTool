@@ -60,16 +60,12 @@ EnvTool v0.94:
 ```
       HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winzip.exe
 ```
-
     points to
-    
 ```    
       c:\PROGRA~1\WINZIP\winzip32.exe
 ```
-
     (here `winzip.exe` is an alias for the real program `winzip32.exe`). Hence
     **envtool --path winzip*** reports:
-    
 ```
   Fri Oct 11 09:10:00 2002: G:\PROGRA~1\WINZIP\winzip.exe !
   Fri Oct 11 09:10:00 2002: G:\PROGRA~1\WINZIP\winzip32.exe !
@@ -96,4 +92,4 @@ EnvTool v0.94:
 C-source included in ./src. Makefiles for MingW, Watcom and MSVC. Use at own
 risk. Enjoy!
 
-  Gisle Vanem <gvanem@yahoo.no>.  June. 2014.
+  Gisle Vanem <gvanem@yahoo.no>.
