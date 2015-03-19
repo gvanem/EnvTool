@@ -96,51 +96,51 @@ risk. Enjoy!
 
 ---------------------------------------------------------------
 
-## Changes:
+### Changes (ver):
 
-  ver 0.1 : Initial version.
+  0.1:  Initial version.
 
-      0.2 : Added file date/time stamp. Check for suffix or trailing
-            wildcard in file-specification. If not found add a trailing "*".
+  0.2:  Added file date/time stamp. Check for suffix or trailing
+        wildcard in file-specification. If not found add a trailing "*".
 
-      0.3 : Handled the case where an env-var contains the current directory.
-            E.g. when "PATH=./;c:\util", turn the "./" into CWD (using 'getcwd()')
-            for 'stat("/.")' to work. Turn off command-line globbing in MingW
-            ('_CRT_glob = 0').
+  0.3: Handled the case where an env-var contains the current directory.
+        E.g. when "PATH=./;c:\util", turn the "./" into CWD (using 'getcwd()')
+        for 'stat("/.")' to work. Turn off command-line globbing in MingW
+        ('_CRT_glob = 0').
 
-      0.4 : Rudimentary check for Python 'sys.path' searching.
+  0.4:  Rudimentary check for Python 'sys.path' searching.
 
-      0.5 : Add a directory search spec mode ("--dir foo*.bar" searches for
-            directories only). Better handling of file-specs with a sub-directory
-            part. E.g. "envtool --python win32\Demos\Net*".
+  0.5:  Add a directory search spec mode ("--dir foo*.bar" searches for
+        directories only). Better handling of file-specs with a sub-directory
+        part. E.g. "envtool --python win32\Demos\Net*".
 
-      0.6 : Add support for POSIX-style file matching (using fnmatch() from djgpp).
-            E.g. a file-spec can contain things like "foo/[a-d]bar".
-            Note: it doesn't handle ranges on directories. Only ranges on directories
-                  withing Pyhon EGG-files are handled.
+  0.6:  Add support for POSIX-style file matching (using fnmatch() from djgpp).
+        E.g. a file-spec can contain things like "foo/[a-d]bar".
+        Note: it doesn't handle ranges on directories. Only ranges on directories
+              withing Pyhon EGG-files are handled.
 
-            Improved Python 'sys.path' searching. Uses zipinfo.exe and looks inside
-            Python EGG-files (zip files) for a match.
+        Improved Python 'sys.path' searching. Uses zipinfo.exe and looks inside
+        Python EGG-files (zip files) for a match.
 
-      0.7 : Improved Python 'sys.path' searching. Look inside Python EGGs and ZIP-files
-            for a match (this uses the zipinfo external program).
-            Add colour-output option '-C'.
+  0.7:  Improved Python 'sys.path' searching. Look inside Python EGGs and ZIP-files
+        for a match (this uses the zipinfo external program).
+        Add colour-output option '-C'.
 
-      0.8 : New option '--pe' outputs version info from resource-section. E.g.:
-              envtool --path --pe -C vcbuild.*
-              Matches in %PATH:
-                   19 Mar 2010 - 15:02:22: g:\vc_2010\VC\vcpackages\vcbuild.dll
-                   ver 10.0.30319.1
+  0.8:  New option '--pe' outputs version info from resource-section. E.g.:
+          envtool --path --pe -C vcbuild.*
+          Matches in %PATH:
+               19 Mar 2010 - 15:02:22: g:\vc_2010\VC\vcpackages\vcbuild.dll
+               ver 10.0.30319.1
 
-      0.9 : Cosmetic changes in debug-output ('-d') and command-line parsing.
+  0.9:  Cosmetic changes in debug-output ('-d') and command-line parsing.
 
-      0.92: Added option "--evry" to check matches in Everything's database.
-            This option queries the database via IPC.
-            Ref. http://www.voidtools.com/support/everything/
+  0.92: Added option "--evry" to check matches in Everything's database.
+        This option queries the database via IPC.
+        Ref. http://www.voidtools.com/support/everything/
 
-      0.93: The "--python" option now loads Python dynamically (pythonXX.dll)
-            and calls 'PyRun_SimpleString()' to execute Python programs.
+  0.93: The "--python" option now loads Python dynamically (pythonXX.dll)
+        and calls 'PyRun_SimpleString()' to execute Python programs.
 
-      0.94: Fixes for '--evry' (EverThing database) searches.
-            Drop '-i' option.
-            Add  '-r' option.
+  0.94: Fixes for '--evry' (EverThing database) searches.
+        Drop '-i' option.
+        Add  '-r' option.
