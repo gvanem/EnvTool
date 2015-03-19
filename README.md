@@ -97,7 +97,7 @@ risk. Enjoy!
 ---------------------------------------------------------------
 
 ### Changes (ver):
-
+```
   0.1:  Initial version.
 
   0.2:  Added file date/time stamp. Check for suffix or trailing
@@ -144,3 +144,5 @@ risk. Enjoy!
   0.94: Fixes for '--evry' (EverThing database) searches.
         Drop '-i' option.
         Add  '-r' option.
+
+```
