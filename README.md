@@ -13,7 +13,7 @@ The option **--path** also checks these registry keys:
   `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths`
 
 and enumerates all keys for possible programs. E.g. if registry contains this:
-  `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\makensis.exe` = 
+  `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\makensis.exe` =
    `g:\MinGW32\bin\MingW-studio\makensis.exe`,
 
 **envtool --path maken*** will include `g:\MinGW32\bin\MingW-studio\makensis.exe`
@@ -62,7 +62,7 @@ E.g. 3: If an *App Paths* registry key has an alias for a command, the target
 program is printed. E.g. if:
 `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winzip.exe`
 points to `c:\PROGRA~1\WINZIP\winzip32.exe`
-    
+
 (here `winzip.exe` is an alias for the real program `winzip32.exe`). Hence
 **envtool --path winzip*** reports:
 ```
@@ -81,7 +81,7 @@ Wed Mar 09 14:39:05 2011 : g:\CygWin\bin\i686-pc-cygwin-g++.exe
 ```
 
 E.g. 5: If you have Python installed, the **--python** option will search in
-`%PYTHONPATH` and `sys.path[]` for a match. E.g.: 
+`%PYTHONPATH` and `sys.path[]` for a match. E.g.:
 **envtool.exe --python ss*.py**
 ```
 24 Jun 2011 - 11:38:10: g:\ProgramFiler\Python27\lib\ssl.py
@@ -93,3 +93,53 @@ C-source included in ./src. Makefiles for MingW, Watcom and MSVC. Use at own
 risk. Enjoy!
 
   Gisle Vanem <gvanem@yahoo.no>.
+
+---------------------------------------------------------------
+
+Changes:
+  ver 0.1 : Initial version.
+
+      0.2 : Added file date/time stamp. Check for suffix or trailing
+            wildcard in file-specification. If not found add a trailing "*".
+
+      0.3 : Handled the case where an env-var contains the current directory.
+            E.g. when "PATH=./;c:\util", turn the "./" into CWD (using 'getcwd()')
+            for 'stat("/.")' to work. Turn off command-line globbing in MingW
+            ('_CRT_glob = 0').
+
+      0.4 : Rudimentary check for Python 'sys.path' searching.
+
+      0.5 : Add a directory search spec mode ("--dir foo*.bar" searches for
+            directories only). Better handling of file-specs with a sub-directory
+            part. E.g. "envtool --python win32\Demos\Net*".
+
+      0.6 : Add support for POSIX-style file matching (using fnmatch() from djgpp).
+            E.g. a file-spec can contain things like "foo/[a-d]bar".
+            Note: it doesn't handle ranges on directories. Only ranges on directories
+                  withing Pyhon EGG-files are handled.
+
+            Improved Python 'sys.path' searching. Uses zipinfo.exe and looks inside
+            Python EGG-files (zip files) for a match.
+
+      0.7 : Improved Python 'sys.path' searching. Look inside Python EGGs and ZIP-files
+            for a match (this uses the zipinfo external program).
+            Add colour-output option '-C'.
+
+      0.8 : New option '--pe' outputs version info from resource-section. E.g.:
+              envtool --path --pe -C vcbuild.*
+              Matches in %PATH:
+                   19 Mar 2010 - 15:02:22: g:\vc_2010\VC\vcpackages\vcbuild.dll
+                   ver 10.0.30319.1
+
+      0.9 : Cosmetic changes in debug-output ('-d') and command-line parsing.
+
+      0.92: Added option "--evry" to check matches in Everything's database.
+            This option queries the database via IPC.
+            Ref. http://www.voidtools.com/support/everything/
+
+      0.93: The "--python" option now loads Python dynamically (pythonXX.dll)
+            and calls 'PyRun_SimpleString()' to execute Python programs.
+
+      0.94: Fixes for '--evry' (EverThing database) searches.
+            Drop '-i' option.
+            Add  '-r' option.
