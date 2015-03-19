@@ -96,7 +96,8 @@ risk. Enjoy!
 
 ---------------------------------------------------------------
 
-Changes:
+## Changes:
+
   ver 0.1 : Initial version.
 
       0.2 : Added file date/time stamp. Check for suffix or trailing
