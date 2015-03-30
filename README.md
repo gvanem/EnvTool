@@ -14,9 +14,9 @@ The option **--path** also checks these registry keys:
 
 and enumerates all keys for possible programs. E.g. if registry contains this:
   `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\makensis.exe` =
-   `g:\MinGW32\bin\MingW-studio\makensis.exe`,
+   `f:\MinGW32\bin\MingW-studio\makensis.exe`,
 
-**envtool --path maken*** will include `g:\MinGW32\bin\MingW-studio\makensis.exe`
+**envtool --path maken*** will include `f:\MinGW32\bin\MingW-studio\makensis.exe`
 in the result.
 
 Problem with old programs pestering your `PATH` and *Registry* entries can be tricky
@@ -96,7 +96,7 @@ risk. Enjoy!
 
 ---------------------------------------------------------------
 
-### Changes (ver):
+### Changes:
 ```
   0.1:  Initial version.
 
