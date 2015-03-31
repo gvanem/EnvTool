@@ -51,7 +51,7 @@ envtool.res: envtool.rc
 
 win_glob.exe: win_glob.c misc.c
 	$(CC) $(CFLAGS) -DTEST -c $**
-	link $(LDFLAGS) -out:$@ -map:win_glob.map $(**:.c=.obj)
+	link $(LDFLAGS) -out:$@ -map:win_glob.map $(**:.c=.obj) imagehlp.lib
 
 show_ver.obj: show_ver.c
 	$(CC) $(CFLAGS) -TP -c $*.c
