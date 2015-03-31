@@ -1,5 +1,6 @@
 #
 # EnvTool MSVC makefile.
+# (needs NMake).
 #
 
 DEBUG = 0
