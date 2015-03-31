@@ -236,7 +236,7 @@ static void usage (const char *format, ...)
           "%s.\n\n"
           "Usage: %s [-cdDhitTqpuV?] <--mode> <file-spec>\n"
           "  --path:         check and search in %%PATH.\n"
-          "  --python:       check and search in %%PYTHON_PATH and 'sys.path[]'.\n"
+          "  --python:       check and search in %%PYTHONPATH and 'sys.path[]'.\n"
           "  --lib:          check and search in %%LIB and %%LIBRARY_PATH.\n"
           "  --inc:          check and search in %%INCLUDE and paths returned by gcc/g++.\n"
           "  --evry:         check and search in the EveryThing database.\n"
