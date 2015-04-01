@@ -438,7 +438,7 @@ static int process_zip (const char *zfile)
 /*
  * Run python, figure out the 'sys.path[]' array and search along that
  * for matches. If a 'sys.path[]' component contains a ZIP/EGG-file, use
- * 'call_python_func()' to list files inside it for a match.
+ * 'process_zip()' to list files inside it for a match.
  */
 #define PY_PRINT_SYS_PATH  "import sys\n" \
                            "for (i,p) in enumerate(sys.path):\n" \
@@ -463,7 +463,7 @@ int do_check_python (void)
 
   for (index = 0; l; index++)
   {
-    DEBUGF (2, "l: \"%s\", index: %d\n", l, index);
+    DEBUGF (2, "l (index: %2d): \"%s\"\n", l, index);
     if (!add_to_py_array(l, index))
        break;
     l = strtok (NULL, "\n");
