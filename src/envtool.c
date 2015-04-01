@@ -1190,10 +1190,22 @@ int process_dir (const char *path, int num_dup, BOOL exist,
 #if 0
     if (match == FNM_NOMATCH && strchr(file_spec,'~'))
     {
-      /* The case where 'file_spec' is a SFN, fnmatch() doesn't work. What to do?
+      /* The case where 'file_spec' is a SFN, fnmatch() doesn't work.
+       * What to do?
        */
     }
+    else
 #endif
+
+    if (match == FNM_NOMATCH)
+    {
+      /* The case where 'base' is a dotless file, fnmatch() doesn't work.
+       * I.e. if file_spec == 'ratio.*' and base == 'ratio', we qualify this
+       *      as a match.
+       */
+      if (!is_dir && !dir_mode && !strnicmp(base,file_spec,strlen(base)))
+        match = FNM_MATCH;
+    }
 
     DEBUGF (1, "Testing \"%s\". is_dir: %d, %s\n",
                fqfn, is_dir, fnmatch_res(match));
@@ -1242,7 +1254,7 @@ static int do_check_evry (void)
   DWORD       err, num, len, i;
   const char *fspec = file_spec;
 
-  if (!use_regex)
+  if (use_regex == 0)
   {
     char file_spec2 [_MAX_PATH];
 
