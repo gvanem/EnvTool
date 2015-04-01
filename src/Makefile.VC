@@ -16,12 +16,12 @@ MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;
 EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
 
 !if "$(DEBUG)" == "1"
-CFLAGS  = $(CFLAGS) -MDd -D_DEBUG -Os -EHsc -RTCc
+CFLAGS  = $(CFLAGS) -MTd -D_DEBUG -Os -EHsc -RTCc
 LDFLAGS = $(LDFLAGS) -debug
 RCFLAGS = $(RCFLAGS) -D_DEBUG
 MSBUILD = $(MSBUILD) -p:Configuration=Debug
 !else
-CFLAGS  = $(CFLAGS) -MD -D_RELEASE -Ot
+CFLAGS  = $(CFLAGS) -MT -D_RELEASE -Ot
 LDFLAGS = $(LDFLAGS) -debug
 RCFLAGS = $(RCFLAGS) -D_RELEASE
 MSBUILD = $(MSBUILD) -p:Configuration=Release
