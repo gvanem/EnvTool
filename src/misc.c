@@ -993,4 +993,46 @@ int popen_run (const char *cmd, popen_callback callback)
   return (j);
 }
 
+/*
+ * Translate a shell PATTERN to a regular expression.
+ * From:
+ *   https://mail.python.org/pipermail/python-list/2003-August/244415.html
+ */
+char *translate_shell_pattern (const char *pattern)
+{
+  static char res [_MAX_PATH];
+  char       *out = res;
+  size_t      i, len = strlen (pattern);
 
+  *out++ = '^';
+
+  for (i = 0; i < len; i++)
+  {
+     int c = *pattern++;
+
+     switch (c)
+     {
+       case '*':
+            *out++ = '.';
+            *out++ = '*';
+            break;
+       case '.':
+            *out++ = '\\';
+            *out++ = '.';
+            break;
+       case '\\':
+            *out++ = '\\';
+            *out++ = '\\';
+            break;
+       case '?':
+            *out++ = '.';
+            break;
+      default:
+            *out++ = c;
+            break;
+    }
+  }
+  *out++ = '$';
+  *out++ = '\0';
+  return (res);
+}

@@ -177,6 +177,7 @@ extern char *basename      (const char *fname);
 extern int   _is_DOS83     (const char *fname);
 extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
+extern char *translate_shell_pattern (const char *pattern);
 
 struct ver_info {
        unsigned val_1;
