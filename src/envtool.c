@@ -160,8 +160,8 @@ static void  do_tests (void);
  * !!to-do: Check if the same dir is listed multiple times in $PATH, $INC or $LIB.
  *          Warn if this is the case.
  *
- * !!to-do: Check if  a file (in $PATH, $INC or $LIB) is shadowed by
- *          an older file of the same name. Warn if this is the case.
+ * !!to-do: Check if a file (in $PATH, $INC or $LIB) is shadowed by
+ *          an newer file of the same name. Warn if this is the case.
  *
  * !!to-do: Add sort option: on date/time.
  *                           on filename.
@@ -252,7 +252,7 @@ static void usage (const char *format, ...)
           "  -d, --debug:    set debug level (-dd==%%PYTHONVERBOSE=1).\n"
           "  -D, --dir:      looks only for directories matching \"file-spec\".\n"
           "  -h, -?:         show this help.\n"
-          "  -r:             enable \"regex\" in '--evry' searches.\n"
+          "  -r, --regex:    enable \"regex\" in '--evry' searches.\n"
           "  -q, --quiet:    disable warnings.\n"
           "  -t:             do some internal tests.\n"
           "  -T:             show file times in sortable decimal format.\n"
@@ -1229,7 +1229,7 @@ static const char *evry_strerror (DWORD err)
   switch (err)
   {
     case EVERYTHING_OK:
-         return ("None");
+         return ("No error");
     case EVERYTHING_ERROR_MEMORY:
          return ("Memory error");
     case EVERYTHING_ERROR_IPC:
@@ -1251,23 +1251,21 @@ static const char *evry_strerror (DWORD err)
 
 static int do_check_evry (void)
 {
-  DWORD       err, num, len, i;
-  const char *fspec = file_spec;
+  DWORD err, num, len, i;
+  char  query [_MAX_PATH];
 
-  if (use_regex == 0)
-  {
-    char file_spec2 [_MAX_PATH];
+  /* Use user didn't use the '-r/--regex' option, we must convert
+   * file_spec into a RegExp compatible format.
+   * E.g. "ez_*.py" -> "^ez_.*\.py$"
+   */
+  if (use_regex)
+       snprintf (query, sizeof(query), "regex:%s:", file_spec);
+  else snprintf (query, sizeof(query), "regex:%s", translate_shell_pattern(file_spec));
 
-    use_regex = 1;
-    file_spec2[0] = '^';
-    _strlcpy (file_spec2+1, file_spec, sizeof(file_spec2)-3);
-    strcat (file_spec2, "$");
-    fspec = file_spec2;
-  }
+  DEBUGF (1, "Everything_SetSearch (\"%s\").\n", query);
 
-  Everything_SetSearch (fspec);
+  Everything_SetSearch (query);
   Everything_SetMatchCase (0);       /* Ignore case of matches */
-  Everything_SetRegex (use_regex);
   Everything_Query (TRUE);
 
   err = Everything_GetLastError();
@@ -1282,6 +1280,13 @@ static int do_check_evry (void)
   num = Everything_GetNumResults();
   DEBUGF (1, "Everything_GetNumResults() num: %lu, err: %s\n",
           num, evry_strerror(Everything_GetLastError()));
+
+  if (num == 0 && use_regex)
+  {
+    WARN ("Nothing matched your regexp \"%s\". Are you sure it is correct? Try quoting it.\n",
+          file_spec);
+    return (0);
+  }
 
   for (i = 0; i < num; i++)
   {
@@ -1496,7 +1501,8 @@ static const struct option long_options[] = {
            { "pe-check",no_argument, NULL, 0 },    /* 17 */
            { "color",   no_argument, NULL, 'C' },
            { "evry",    no_argument, NULL, 0 },    /* 19 */
-           { NULL,      no_argument, NULL, 0 }
+           { "regex",   no_argument, NULL, 0 },
+           { NULL,      no_argument, NULL, 0 }     /* 19 */
          };
 
 static int *values_tab[] = {
@@ -1519,7 +1525,8 @@ static int *values_tab[] = {
             &verbose,
             &PE_check,       /* 17 */
             &color,
-            &do_evry        /* 19 */
+            &do_evry,        /* 19 */
+            &use_regex
           };
 
 static void set_long_option (int opt)
