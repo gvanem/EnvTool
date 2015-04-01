@@ -463,7 +463,7 @@ int do_check_python (void)
 
   for (index = 0; l; index++)
   {
-    DEBUGF (2, "l (index: %2d): \"%s\"\n", l, index);
+    DEBUGF (2, "l (index: %2d): \"%s\"\n", index, l);
     if (!add_to_py_array(l, index))
        break;
     l = strtok (NULL, "\n");
