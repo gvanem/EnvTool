@@ -6,6 +6,8 @@ FORTIFY_SOURCE = 0
 USE_DEBUG      = 1
 USE_64BIT     ?= 0
 
+MINGW_ROOT = $(realpath $(MINGW32))
+
 CC      = gcc
 CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI=
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
@@ -30,7 +32,7 @@ else
 endif
 
 ifeq ($(FORTIFY_SOURCE),1)
-  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) # -I$(subst \,/,$(MINGW32))/lib/gcc/mingw32/4.7.2/include/ssp
+  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) # -I$(MINGW_ROOT)/lib/gcc/mingw32/4.7.2/include/ssp
   EX_LIBS = -lssp
 endif
 
@@ -47,6 +49,7 @@ envtool.exe: $(OBJECTS) envtool.res
 
 win_glob.exe: win_glob.c misc.c searchpath.c
 	$(CC) $(LDFLAGS) -DTEST -o $@ $^ > win_glob.map
+	rm -f win_glob.o misc.o
 
 envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc
@@ -60,7 +63,7 @@ envtool.res: envtool.rc
 	@echo
 
 clean:
-	rm -f *.o .depend.MingW envtool.res envtool.exe envtool.map
+	rm -f $(OBJECTS) .depend.MingW envtool.res envtool.exe envtool.map
 
 vclean: clean
 	rm -f win_glob.exe win_glob.map
