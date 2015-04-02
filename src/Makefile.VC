@@ -8,11 +8,11 @@ DEBUG = 0
 CC      = cl
 CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 -I. \
           -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE \
-          -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= # -D_LIBC
+          -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI=
 
 LDFLAGS = -nologo -incremental:no
 RCFLAGS = -nologo -D_MSC_VER -r
-MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII -maxcpucount
+MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII
 EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
 
 !if "$(DEBUG)" == "1"
