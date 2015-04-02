@@ -1,9 +1,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "0.94"
+#define VER_STRING  "0.95"
 #define MAJOR_VER   0
-#define MINOR_VER   94
+#define MINOR_VER   95
 
 #define CHECK_PREFIXED_GCC 0
 
