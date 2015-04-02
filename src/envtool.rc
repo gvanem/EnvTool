@@ -20,14 +20,14 @@ BEGIN
   BEGIN
     BLOCK "040904b0"
     BEGIN
-      VALUE "CompanyName",      "Gisle Vanem\0"
-      VALUE "FileDescription",  "EnvTool utility\0"
-      VALUE "FileVersion",      VER_STRING "\0"
-      VALUE "InternalName",     "envtool.exe (" BUILDER ", " WIN_VERSTR ")\0"
-      VALUE "OriginalFilename", "envtool.exe (" BUILDER ", " WIN_VERSTR ")\0"
-      VALUE "ProductName",      "Environment variable and Python 'sys.path[]' search tool.\0"
+      VALUE "CompanyName",      "Gisle Vanem."
+      VALUE "FileDescription",  "EnvTool utility."
+      VALUE "FileVersion",      VER_STRING
+      VALUE "InternalName",     "envtool.exe (" BUILDER ", " WIN_VERSTR ")"
+      VALUE "OriginalFilename", "envtool.exe (" BUILDER ", " WIN_VERSTR ")"
+      VALUE "ProductName",      "Environment variable and Python 'sys.path[]' search tool."
       VALUE "ProductVersion",   VER_STRING "\0"
-      VALUE "LegalCopyright",   "This is a freeware program by " AUTHOR_STR ", 2012-2015.\0"
+      VALUE "LegalCopyright",   "This is a freeware program by " AUTHOR_STR ", 2012-2015."
     END
   END
 
