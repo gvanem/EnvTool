@@ -13,7 +13,8 @@
 
 #include "envtool.h"
 
-/* Search '%env_var' for 'file' (not a 'file_spec').
+/*
+ * Search '%env_var' for 'file' (not a 'file_spec').
  * If successful, store the full pathname in static buffer and return a
  * pointer to it. If not sucessful, return NULL.
  * This is what the Borland searchpath() library function does.
