@@ -103,7 +103,7 @@ static void C_init (void)
  * Set console foreground and optionally background color.
  * FG is in the low 4 bits.
  * BG is in the upper 4 bits of the BYTE.
- * If 'col == NULL', set default console colour.
+ * If 'col == 0', set default console colour.
  */
 static void C_set (WORD col)
 {
