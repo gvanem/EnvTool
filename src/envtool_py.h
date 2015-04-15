@@ -10,10 +10,9 @@ struct python_array {
      };
 
 extern int   do_check_python       (void);
-extern int   get_python_version    (int *major, int *minor, int *micro);
+extern int   get_python_version    (const char **py_exe, int *major, int *minor, int *micro);
 extern int   init_python_embedding (void);
 extern void  exit_python_embedding (void);
-extern char *get_python_dll_name   (void);
 extern char *call_python_func      (const char *py_str);
 extern void  test_python_funcs     (void);
 extern int   test_python_pipe      (void);
