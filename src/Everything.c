@@ -866,7 +866,7 @@ BOOL EVERYTHINGAPI Everything_QueryW(BOOL bWait)
 	return ret;
 }
 
-static int __cdecl _Everything_CompareA(const VOID *a,const VOID *b)
+static int _Everything_CompareA(const VOID *a,const VOID *b)
 {
 	int i;
 
@@ -887,7 +887,7 @@ static int __cdecl _Everything_CompareA(const VOID *a,const VOID *b)
 	}
 }
 
-static int __cdecl _Everything_CompareW(const VOID *a,const VOID *b)
+static int _Everything_CompareW(const VOID *a,const VOID *b)
 {
 	int i;
 
