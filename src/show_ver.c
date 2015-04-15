@@ -429,7 +429,7 @@ static void show_FIXEDFILEINFO (const VS_FIXEDFILEINFO *pValue, struct ver_info 
 
 static void get_version_data (const void *pVer, DWORD size, struct ver_info *ver_p)
 {
-  /* Interpret the VS_VERSIONINFO header pseudo-struct
+  /* Interpret the VS_VERSIONINFO header pseudo-struct.
    */
   const struct VS_VERSIONINFO *pVS = (const struct VS_VERSIONINFO*) pVer;
   const BYTE                  *pVt;
