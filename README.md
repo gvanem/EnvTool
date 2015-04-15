@@ -24,7 +24,7 @@ to diagnose. Here I had an problem with an old version of the "FoxitReader PDF r
 Checking with **envtool --path foxit*.exe**, resulted in:
 ```
   Matches in HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths:
-   (2)  27 Nov 2014 - 10:24:04: g:\ProgramFiler\FoxitReader\FoxitReader.exe
+   (2)  27 Nov 2014 - 10:24:04: f:\ProgramFiler\FoxitReader\FoxitReader.exe
   Matches in %PATH:
         21 Apr 2006 - 17:43:10: f:\util\FoxitReader.exe
    (2): found in "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths".
@@ -84,20 +84,21 @@ E.g. 5: If you have Python installed, the **--python** option will search in
 `%PYTHONPATH` and `sys.path[]` for a match. E.g.:
 **envtool.exe --python ss*.py**
 ```
-24 Jun 2011 - 11:38:10: g:\ProgramFiler\Python27\lib\ssl.py
-16 Feb 2011 - 12:14:28: g:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspi.py
-16 Feb 2011 - 12:14:28: g:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspicon.py
+24 Jun 2011 - 11:38:10: f:\ProgramFiler\Python27\lib\ssl.py
+16 Feb 2011 - 12:14:28: f:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspi.py
+16 Feb 2011 - 12:14:28: f:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspicon.py
 ```
 
-E.g. 6: The **--python** option wil also look inside Python *EGGs (plain ZIP-files) found
-in `sys.path[]`. E.g.: **envtool.exe --python socket.py**
+E.g. 6: The **--python** option wil also look inside Python *EGG*s (plain ZIP-files) found
+in `sys.path[]`. E.g.:
+**envtool.exe --python socket.py**
 ```
 27 Mar 2013 - 16:41:58: stem\socket.py  (%PYTHONHOME\lib\site-packages\stem-1.0.1-py2.7.egg)
 30 Apr 2014 - 09:54:04: f:\Programfiler\Python27\lib\socket.py
 ```
 
 
-C-source included in ./src. Makefiles for MingW, Watcom and MSVC. Use at own
+C-source included in ./src. Makefiles for MingW, Cygwin, Watcom and MSVC. Use at own
 risk. Enjoy!
 
   Gisle Vanem <gvanem@yahoo.no>.
