@@ -1,9 +1,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "0.95"
+#define VER_STRING  "0.96"
 #define MAJOR_VER   0
-#define MINOR_VER   95
+#define MINOR_VER   96
 
 #define CHECK_PREFIXED_GCC 0
 
@@ -90,18 +90,19 @@
 #endif
 
 #if defined(_DEBUG)
-  #define ASSERT(expr) do {                                       \
-                         if (!(expr))                             \
-                           fprintf (stdout,                       \
-                             "%s (%u): Assertion `%s' failed.\n", \
-                             __FILE(), __LINE__, #expr);          \
+  #define ASSERT(expr) do {                                      \
+                         if (!(expr))                            \
+                           fprintf (stdout,                      \
+                             "%s(%u): Assertion `%s' failed.\n", \
+                             __FILE(), __LINE__, #expr);         \
                        } while (0)
 #else
   #define ASSERT(expr) (void) (expr)
 #endif
 
-/* MSVC (in debug?) sometimes returns the full path.
- * Strip the dir part.
+/*
+ * MSVC (in debug) sometimes returns the full path.
+ * Strip the directory part.
  */
 #if defined(_MSC_VER)
   #define __FILE()           basename(__FILE__)
@@ -151,7 +152,7 @@ extern "C" {
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
-extern int   show_unix_paths, add_cwd, color;
+extern int   show_unix_paths, add_cwd, use_colours;
 extern int   debug, quiet, verbose;
 extern char *file_spec;
 
@@ -161,10 +162,13 @@ extern int   process_dir (const char *path, int num_dup, BOOL exist,
 
 /* Stuff in misc.c:
  */
-extern int   debug_printf  (const char *format, ...)            ATTR_PRINTF (1,2);
-extern int   Cputs         (int attr, const char *buf);
-extern int   Cprintf       (int attr, const char *format, ...)  ATTR_PRINTF (2,3);
-extern int   Cvprintf      (int attr, const char *format, va_list args);
+extern int debug_printf  (const char *format, ...) ATTR_PRINTF (1,2);
+
+#if 0  /* Retired functions. See color.h. */
+  extern int Cputs         (int attr, const char *buf);
+  extern int Cprintf       (int attr, const char *format, ...) ATTR_PRINTF (2,3);
+  extern int Cvprintf      (int attr, const char *format, va_list args);
+#endif
 
 extern char *_strlcpy      (char *dst, const char *src, size_t len);
 extern char *strip_nl      (char *s);
@@ -174,11 +178,14 @@ extern char *getenv_expand (const char *variable);
 extern char *_fixpath      (const char *path, char *result);
 extern char *path_ltrim    (const char *p1, const char *p2);
 extern char *basename      (const char *fname);
+extern char *dirname       (const char *fname);
 extern int   _is_DOS83     (const char *fname);
 extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
 extern char *translate_shell_pattern (const char *pattern);
 
+/* For PE-image version in show_version_info().
+ */
 struct ver_info {
        unsigned val_1;
        unsigned val_2;
@@ -207,12 +214,14 @@ extern BOOL        is_wow64_active (void);
 #define MEM_MARKER  0xDEAFBABE
 #define MEM_FREED   0xDEADBEAF
 
+extern void *malloc_at  (size_t size, const char *file, unsigned line);
 extern void *calloc_at  (size_t num, size_t size, const char *file, unsigned line);
 extern void *realloc_at (void *ptr, size_t size, const char *file, unsigned line);
 extern char *strdup_at  (const char *str, const char *file, unsigned line);
 extern void  free_at    (void *ptr, const char *file, unsigned line);
 extern void  mem_report (void);
 
+#define MALLOC(s)      malloc_at (s, __FILE(), __LINE__)
 #define CALLOC(n,s)    calloc_at (n, s, __FILE(), __LINE__)
 #define REALLOC(p,s)   realloc_at (p, s, __FILE(), __LINE__)
 #define STRDUP(s)      strdup_at (s, __FILE(), __LINE__)
@@ -265,16 +274,16 @@ extern char *fnmatch_res (int rc);
 #define COLOUR_BOLD    10  /* Lightgreen foreground */
 #define COLOUR_FAIL    COLOUR_WARN
 
-#define DEBUGF(level, fmt, ...)  do {                                             \
-                                   if (debug >= level) {                          \
-                                     debug_printf ("%s(%4d): " fmt,               \
-                                       __FILE(), __LINE__, ## __VA_ARGS__);       \
-                                   }                                              \
+#define DEBUGF(level, fmt, ...)  do {                                           \
+                                   if (debug >= level) {                        \
+                                     debug_printf ("%s(%u): " fmt,              \
+                                       __FILE(), __LINE__, ## __VA_ARGS__);     \
+                                   }                                            \
                                  } while (0)
 
-#define WARN(fmt, ...)           do {                                             \
-                                   if (!quiet)                                    \
-                                      Cprintf (COLOUR_WARN, fmt, ## __VA_ARGS__); \
+#define WARN(fmt, ...)           do {                                           \
+                                   if (!quiet)                                  \
+                                      C_printf ("~5" fmt "~0", ## __VA_ARGS__); \
                                  } while (0)
 
 
