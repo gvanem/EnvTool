@@ -5,15 +5,19 @@
  *
  */
 
+#include <stddef.h>
 #include <fcntl.h>
 
+#include "color.h"
 #include "envtool.h"
 #include "envtool_py.h"
 
 #define PY_THREAD_SAVE  0
 #define PY_GET_VERSION  "import sys; print (sys.version[:5])"
-#define PY_PIPE_NAME    "\\\\.\\pipe\\envtool"
+#define PY_PIPE_NAME    "\\\\.\\pipe\\EnvTool"
 
+/* No need to include <Python.h> just for this:
+ */
 #define PyObject      void
 #define PyThreadState void
 #define Py_ssize_t    long
@@ -24,10 +28,12 @@ static int       py_major = -1;
 static int       py_minor = -1;
 static int       py_micro = -1;
 
+static char      py_exe_name [_MAX_PATH];  /* python.exe on PATH (or curr dir). */
+static char      py_dll_name [_MAX_PATH];  /* {lib}python*.dll in directory of 'py_exe_name'. */
+
 static PyObject *py_catcher  = NULL;
 static HANDLE    py_pipe_hnd = INVALID_HANDLE_VALUE;
 static HANDLE    py_dll_hnd  = INVALID_HANDLE_VALUE;
-static char      py_dll_name [_MAX_PATH];  /* pythonXX.dll on %PATH. */
 
 #define LOAD_FUNC(f)         do {                                              \
                                f = (func_##f) GetProcAddress (py_dll_hnd, #f); \
@@ -43,17 +49,17 @@ static char      py_dll_name [_MAX_PATH];  /* pythonXX.dll on %PATH. */
 #define DEF_FUNC(ret,f,args) typedef ret (__cdecl *func_##f) args; \
                              static func_##f f
 
-DEF_FUNC (void,           Py_InitializeEx,        (int init_sigs));
-DEF_FUNC (void,           Py_Finalize,            (void));
-DEF_FUNC (void,           Py_SetProgramName,      (char *name));
-DEF_FUNC (int,            PyRun_SimpleString,     (const char *cmd));
-DEF_FUNC (PyObject*,      PyImport_AddModule,     (const char *name));
-DEF_FUNC (PyObject*,      PyObject_GetAttrString, (PyObject *o, char *attr));
-DEF_FUNC (char *,         PyString_AsString,      (PyObject *o));
-DEF_FUNC (Py_ssize_t,     PyString_Size,          (PyObject *o));
-DEF_FUNC (void,           PyObject_Free,          (PyObject *obj));
-DEF_FUNC (void,           Py_DecRef,              (PyObject *obj));
-DEF_FUNC (PyObject*,      PyObject_CallMethod,    (PyObject *o, char *method, char *fmt, ...));
+DEF_FUNC (void,             Py_InitializeEx,        (int init_sigs));
+DEF_FUNC (void,             Py_Finalize,            (void));
+DEF_FUNC (void,             Py_SetProgramName,      (char *name));
+DEF_FUNC (int,              PyRun_SimpleString,     (const char *cmd));
+DEF_FUNC (PyObject*,        PyImport_AddModule,     (const char *name));
+DEF_FUNC (PyObject*,        PyObject_GetAttrString, (PyObject *o, char *attr));
+DEF_FUNC (char *,           PyString_AsString,      (PyObject *o));
+DEF_FUNC (Py_ssize_t,       PyString_Size,          (PyObject *o));
+DEF_FUNC (void,             PyObject_Free,          (PyObject *obj));
+DEF_FUNC (void,             Py_DecRef,              (PyObject *obj));
+DEF_FUNC (PyObject*,        PyObject_CallMethod,    (PyObject *o, char *method, char *fmt, ...));
 
 #if PY_THREAD_SAVE
   DEF_FUNC (void,           PyEval_InitThreads,     (void));
@@ -70,37 +76,118 @@ static int report_py_version (char *output, int line)
   return  (num >= 2);
 }
 
-int get_python_version (int *major, int *minor, int *micro)
+/*
+ * todo: find the newest python*.exe on PATH.
+ */
+static char *get_python_exe_name (void)
 {
-  char cmd[100];
+  const char *p;
 
-  snprintf (cmd, sizeof(cmd), "python.exe -c \"%s\"", PY_GET_VERSION);
+  if (py_exe_name[0])
+     return (py_exe_name);
+
+  p = getenv ("PYTHON");
+  if (!p)
+       p = searchpath ("python.exe", "PATH");
+  else p = slashify (p, '\\');
+
+  _strlcpy (py_exe_name, p ? p : "python.exe", sizeof(py_exe_name));
+
+  if (!FILE_EXISTS(py_exe_name))
+  {
+    WARN ("Failed to find \"%s\".\n", py_exe_name);
+    return (NULL);
+  }
+
+  DEBUGF (2, "Using Python program: \"%s\".\n", py_exe_name);
+  return (py_exe_name);
+}
+
+/*
+ * Find the FQFN of the Python DLL.
+ *
+ * Note: The DLL-name of the official Python is named 'pythonX.Y.dll'.
+ *       Python as distributed with GCC/GDB is named 'libpythonX.Y.dll'.
+ *
+ * Try the offical name first.
+ */
+static char *get_python_dll_name (void)
+{
+  char *dir;
+  char dll1 [_MAX_PATH];
+  char dll2 [_MAX_PATH];
+
+  if (!py_exe_name[0])
+     return (NULL);
+
+  if (!get_python_version(NULL, &py_major, &py_minor, &py_micro))
+     return (NULL);
+
+  dir = dirname (py_exe_name);
+  DEBUGF (2, "dir of py_exe_name \"%s\"\n", dir);
+  if (!dir)
+     return (NULL);
+
+  snprintf (dll1, sizeof(dll1), "%s\\python%d%d.dll", dir, py_major, py_minor);
+  snprintf (dll2, sizeof(dll2), "%s\\libpython%d.%d.dll", dir, py_major, py_minor);
+  FREE (dir);
+
+  DEBUGF (2, "testing dll_name: \"%s\"\n", dll1);
+  DEBUGF (2, "testing dll_name: \"%s\"\n", dll2);
+
+  if (FILE_EXISTS(dll1))
+  {
+    DEBUGF (2, "Found \"%s\"\n", dll1);
+    strcpy (py_dll_name, dll1);
+  }
+  else if (FILE_EXISTS(dll2))
+  {
+    DEBUGF (2, "Found \"%s\"\n", dll2);
+    strcpy (py_dll_name, dll2);
+  }
+  else
+  {
+    DEBUGF (2, "No Python .dll found in \"%s\"\n", dir);
+    return (NULL);
+  }
+  return (py_dll_name);
+}
+
+int get_python_version (const char **py_exe, int *major, int *minor, int *micro)
+{
+  char  cmd[100];
+  char *exe = get_python_exe_name();
+
+  if (!exe)
+     return (0);
+
+  snprintf (cmd, sizeof(cmd), "%s -c \"%s\"", exe, PY_GET_VERSION);
 
   if ((py_major > -1 && py_minor > -1) ||
       popen_run(cmd, report_py_version) >= 1)
   {
-    *major = py_major;
-    *minor = py_minor;
-    *micro = py_micro;
+    if (major)
+       *major  = py_major;
+    if (minor)
+       *minor  = py_minor;
+    if (micro)
+       *micro  = py_micro;
+    if (py_exe)
+       *py_exe = py_exe_name;
     return (1);
   }
   return (0);
 }
 
 /*
- * todo: find the newest Python*.DLL in PATH.
- */
-char *get_python_dll_name (void)
-{
-  if (!get_python_version(&py_major, &py_minor, &py_micro))
-     return (NULL);
-
-  snprintf (py_dll_name, sizeof(py_dll_name), "python%d%d.dll", py_major, py_minor);
-  DEBUGF (2, "py_dll_name: \"%s\"\n", py_dll_name);
-  return (py_dll_name);
-}
-
-/*
+ * Setup a class-instance for catching all output written
+ * using 'sys.stdout'. I.e. 'print' and 'os.write(1, ...)'.
+ * This instance must reside at the global '__main__' level.
+ *
+ * Thus the Python printed strings are retrieved in the C-world by
+ * 'catcher.value'. I.e:
+ *   obj = (*PyObject_GetAttrString) (py_catcher, "value");
+ *
  * Ref:
  *   http://stackoverflow.com/questions/4307187/how-to-catch-python-stdout-in-c-code
  */
@@ -115,8 +202,7 @@ static PyObject *setup_stdout_catcher (void)
                        "  def reset(self):\n"       \
                        "    self.value = ''\n"      \
                        "old_stdout = sys.stdout\n"  \
-                       "catcher = catch_stdout()\n" \
-                       "sys.stdout = catcher\n";
+                       "sys.stdout = catcher = catch_stdout()\n";
 
   PyObject *mod = (*PyImport_AddModule) ("__main__");          /* create main module */
   int       rc  = (*PyRun_SimpleString) (code);                /* invoke code to redirect */
@@ -130,13 +216,14 @@ int init_python_embedding (void)
 {
   char  full_name [_MAX_PATH] = "?";
   char  prog_name [_MAX_PATH] = "?";
-  char *dll;
+  char *exe, *dll;
 
   if (py_dll_hnd != INVALID_HANDLE_VALUE)
      return (1);
 
+  exe = get_python_exe_name();
   dll = get_python_dll_name();
-  if (!dll)
+  if (!exe || !dll)
   {
     WARN ("Failed to find any Python DLLs.\n");
     return (0);
@@ -149,10 +236,12 @@ int init_python_embedding (void)
     return (0);
   }
 
-  if (GetModuleFileName(py_dll_hnd, full_name, sizeof(full_name)))
+#if 0
+  if (GetModuleFileName(py_dll_hnd, py_dll_name, sizeof(py_dll_name)))
      _strlcpy (dll, full_name, sizeof(full_name));  /* Copy full name into py_dll_name[] */
+#endif
 
-  DEBUGF (2, "Full DLL name: \"%s\". Handle: 0x%p\n", full_name, py_dll_hnd);
+  DEBUGF (2, "Full DLL name: \"%s\". Handle: 0x%p\n", py_dll_name, py_dll_hnd);
 
   LOAD_FUNC (Py_InitializeEx);
   LOAD_FUNC (Py_Finalize);
@@ -198,9 +287,11 @@ void exit_python_embedding (void)
 
   if (py_dll_hnd && py_dll_hnd != INVALID_HANDLE_VALUE)
   {
-    DEBUGF (4, "Calling Py_Finalize().\n");
     if (Py_Finalize)
+    {
+      DEBUGF (4, "Calling Py_Finalize().\n");
       (*Py_Finalize)();
+    }
     CloseHandle (py_dll_hnd);
   }
   py_pipe_hnd = py_dll_hnd = INVALID_HANDLE_VALUE;
@@ -222,7 +313,9 @@ char *call_python_func (const char *py_prog)
   DEBUGF (4, "PyEval_SaveThread(): %p\n", thread_state);
 #endif
 
-  DEBUGF (3, "py_prog:\n----------------------\n%s\n----------------------\n", py_prog);
+  DEBUGF (3, "py_prog:\n"
+             "----------------------\n%s\n"
+             "----------------------\n", py_prog);
 
   rc  = (*PyRun_SimpleString) (py_prog);
   obj = (*PyObject_GetAttrString) (py_catcher, "value");
@@ -234,6 +327,10 @@ char *call_python_func (const char *py_prog)
     size = (*PyString_Size) (obj);
     if (size > 0)
        str = STRDUP ((*PyString_AsString)(obj));
+
+    /* Reset the 'py_catcher' buffer value to prepare for next call
+     * to this 'call_python_func()'.
+     */
     (*PyObject_CallMethod) (py_catcher, "reset", NULL);
     DEBUGF (4, "PyString_Size(): %ld\n", size);
   }
@@ -312,7 +409,7 @@ static int add_to_py_array (char *dir, int index)
  *   ^     ^
  *   size  time: YYYYMMDD.HHMMSS
  */
-static int report_zip_file (const char *zip_file, char *output, int line)
+static int report_zip_file (const char *zip_file, char *output)
 {
   static char *py_home = NULL;
   struct tm   tm;
@@ -373,29 +470,36 @@ static int report_zip_file (const char *zip_file, char *output, int line)
        snprintf (report+len, sizeof(report)-len, "%%PYTHONHOME\\%s)", p);
   else snprintf (report+len, sizeof(report)-len, "%s)", zip_file);
 
- /* zipinfo always reports 'file_within_zip' with '/' slashes. But simply slashify the
-  * complete 'report' to use either '\\' or '/'.
-  */
+  /* zipinfo always reports 'file_within_zip' with '/' slashes. But simply slashify the
+   * complete 'report' to use either '\\' or '/'.
+   */
   _strlcpy (report, slashify(report, show_unix_paths ? '/' : '\\'), sizeof(report));
 
   report_file (report, mtime, FALSE, HKEY_PYTHON_EGG);
-  ARGSUSED (line);
   return (1);
 }
 
 /*
  * List a ZIP/EGG-file (file) for a matching file_spec.
+ *
+ * Note:
+ *   'fnmatch.fnmatch ("EGG-INFO/dependency_links.txt", "egg*.txt")' will return True.
+ *   We are not interested in the dir-part. Hence get the basename of 'f.filename'
+ *   first. Thus:
+ *     "EGG-INFO/requires.txt" -> False
+ *     "egg-timer.txt"         -> True
  */
 
 /*
  * This goes into a buffer used in call_python_func().
  */
 #define PY_ZIP_LIST                                                                   \
-          "import os, sys, fnmatch, zipfile\n"                                        \
+          "import os, fnmatch, zipfile\n"                                             \
           "def print_zline (f, debug):\n"                                             \
+          "  base = os.path.basename (f.filename)\n"                                  \
           "  if debug >= 3:\n"                                                        \
-          "     os.write (2, 'egg-file: %%s\\n' %% f.filename)\n"                     \
-          "  if fnmatch.fnmatch (f.filename, '%s'):\n"   /* file_spec */              \
+          "     os.write (2, 'egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"  \
+          "  if fnmatch.fnmatch (base, '%s'):\n"   /* file_spec */                    \
           "    date = \"%%4d%%02d%%02d\"  %% (f.date_time[0:3])\n"                    \
           "    time = \"%%02d%%02d%%02d\" %% (f.date_time[3:6])\n"                    \
           "    str = \"%%d %%s.%%s %%s\"  %% (f.file_size, date, time, f.filename)\n" \
@@ -410,20 +514,20 @@ static int report_zip_file (const char *zip_file, char *output, int line)
 static int process_zip (const char *zfile)
 {
   char  cmd [_MAX_PATH + 1000];
-  char *l, *str;
+  char *line, *str;
   int   found, len;
 
   if (sizeof(cmd) < sizeof(PY_ZIP_LIST) + _MAX_PATH + 100)
-     FATAL ("cmd[] buffer at %s/%u too small.\n", __FILE__, __LINE__-6);
+     FATAL ("cmd[] buffer too small.\n");
 
   len = snprintf (cmd, sizeof(cmd), PY_ZIP_LIST, file_spec, zfile, debug);
   str = call_python_func (cmd);
-  DEBUGF (2, "len: %d, Python output: \"%s\"\n", len, str);
+  DEBUGF (2, "cmd-len: %d, Python output: \"%s\"\n", len, str);
 
-  for (found = 0, l = strtok(str,"\n"); l; l = strtok(NULL,"\n"), found++)
+  for (found = 0, line = strtok(str,"\n"); line; line = strtok(NULL,"\n"), found++)
   {
-    DEBUGF (2, "l: \"%s\", found: %d\n", l, found);
-    if (!report_zip_file(zfile, l, found+1))
+    DEBUGF (2, "l: \"%s\", found: %d\n", line, found);
+    if (!report_zip_file(zfile, line))
        break;
   }
   FREE (str);
@@ -439,6 +543,10 @@ static int process_zip (const char *zfile)
  * Run python, figure out the 'sys.path[]' array and search along that
  * for matches. If a 'sys.path[]' component contains a ZIP/EGG-file, use
  * 'process_zip()' to list files inside it for a match.
+ *
+ * Note:
+ *   not all .egg-files are ZIP-files. 'check_if_zip()' is used to test
+ *   that and set 'py->is_zip' accordingly.
  */
 #define PY_PRINT_SYS_PATH  "import sys\n" \
                            "for (i,p) in enumerate(sys.path):\n" \
@@ -534,7 +642,8 @@ static int fgets_loop (FILE *f, popen_callback callback)
 
 /*
  * Doesn't work as single-threaded :-(
- * Maybe run the Python pipe-test in a separate thread.
+ * Maybe run the Python pipe-test in a separate thread?
+ * Enable this test using 'envtool.exe --python --test'.
  */
 int test_python_pipe (void)
 {
