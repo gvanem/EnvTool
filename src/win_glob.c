@@ -462,12 +462,6 @@ void globfree (glob_t *_pglob)
 
 #if defined(TEST)
 
-#if 0
-  int debug = 0;
-  int show_unix_paths = 0;
-  int use_colours = 0;
-#endif
-
 /* Tell MingW's CRT to turn off command line globbing by default.
  */
 int _CRT_glob = 0;
@@ -476,17 +470,6 @@ int _CRT_glob = 0;
  * Hence this doesn't change that behaviour.
  */
 int _dowildcard = 0;
-
-#if 0
-char *getenv_expand (const char *var)
-{
-  char *e = getenv (var);
-
-  if (e)
-     return STRDUP (e);
-  return (NULL);
-}
-#endif
 
 void usage (void)
 {

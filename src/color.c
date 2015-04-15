@@ -22,21 +22,20 @@
                          } while (0)
 
 
-#define TRACE_BUF_SIZE (2*1024)
+#define C_BUF_SIZE (2*1024)
 
 #ifndef STDOUT_FILENO
 #define STDOUT_FILENO  1
 #endif
 
-extern int use_colours;  /* The app using color.c must set this. */
+/* The program using color.c must set to 1.
+ */
+int use_colours = 0;
 
-static char  trace_buf [TRACE_BUF_SIZE];
-static char *trace_ptr, *trace_end;
-static int   trace_hnd = -1;
-
-static BOOL  tilde_escape = TRUE;
-static BOOL  stdout_redirected = FALSE;
-static BOOL  c_raw = FALSE;
+static char  c_buf [C_BUF_SIZE];
+static char *c_head, *c_tail;
+static int   c_handle = -1;
+static int   c_raw = 0;
 static int   c_binmode = 0;
 
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
@@ -47,8 +46,8 @@ static WORD color_map [6];
 
 static void init_color_map (void)
 {
-  WORD bg = console_info.wAttributes & ~7;
   int  i;
+  WORD bg = console_info.wAttributes & ~7;
 
   for (i = 1; i < DIM(color_map); i++)
       color_map[i] = console_info.wAttributes;
@@ -61,22 +60,29 @@ static void init_color_map (void)
   color_map[5] = (bg + 4) | FOREGROUND_INTENSITY;  /* bright red */
 }
 
-int C_setmode (int raw)
+int C_setraw (int raw)
 {
   int rc = c_raw;
   c_raw = raw;
   return (rc);
 }
 
+int C_setbin (int bin)
+{
+  int rc = c_binmode;
+  c_binmode = bin;
+  return (rc);
+}
+
 static void C_exit (void)
 {
-  trace_ptr = trace_end = NULL;
-  trace_hnd = -1;
+  c_head = c_tail = NULL;
+  c_handle = -1;
 }
 
 static void C_init (void)
 {
-  if (!trace_ptr || trace_hnd == -1)
+  if (!c_head || c_handle == -1)
   {
     BOOL okay;
 
@@ -84,17 +90,13 @@ static void C_init (void)
     okay = (console_hnd != INVALID_HANDLE_VALUE &&
             GetConsoleScreenBufferInfo(console_hnd, &console_info));
 
-    if (!okay || GetFileType(console_hnd) != FILE_TYPE_CHAR)
-    {
-      stdout_redirected = TRUE;
-      use_colours = FALSE;
-    }
-    else
-      init_color_map();
+    if (okay && GetFileType(console_hnd) == FILE_TYPE_CHAR)
+         init_color_map();
+    else use_colours = 0;
 
-    trace_hnd = STDOUT_FILENO;
-    trace_ptr = trace_buf;
-    trace_end = trace_ptr + TRACE_BUF_SIZE - 1;
+    c_handle = STDOUT_FILENO;
+    c_head = c_buf;
+    c_tail = c_head + C_BUF_SIZE - 1;
     atexit (C_exit);
   }
 }
@@ -140,18 +142,18 @@ static void C_set (WORD col)
  */
 static unsigned int C_flush (void)
 {
-  unsigned int len = (unsigned int) (trace_ptr - trace_buf);
+  unsigned int len = (unsigned int) (c_head - c_buf);
 
-  assert (trace_hnd >= 1);
-  len = _write (trace_hnd, trace_buf, len);
+  assert (c_handle >= 1);
+  len = _write (c_handle, c_buf, len);
 
-  trace_ptr = trace_buf;   /* restart buffer */
+  c_head = c_buf;   /* restart buffer */
   return (len);
 }
 
 int C_printf (const char *fmt, ...)
 {
-  char    buf [2*TRACE_BUF_SIZE];
+  char    buf [2*C_BUF_SIZE];
   int     len1, len2;
   va_list args;
 
@@ -162,8 +164,8 @@ int C_printf (const char *fmt, ...)
   len1 = C_puts (buf);
 
   if (len1 < len2)
-    FATAL ("len1: %d, len2: %d. trace_buf: '%.*s',\nbuf: '%s'\n",
-           len1, len2, trace_ptr - trace_buf, trace_buf, buf);
+    FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
+           len1, len2, c_head - c_buf, c_buf, buf);
 
   va_end (args);
   return (len2);
@@ -171,15 +173,15 @@ int C_printf (const char *fmt, ...)
 
 int C_vprintf (const char *fmt, va_list args)
 {
-  char buf [2*TRACE_BUF_SIZE];
+  char buf [2*C_BUF_SIZE];
   int  len1, len2;
 
   buf [sizeof(buf)-1] = '\0';
   len2 = vsnprintf (buf, sizeof(buf)-1, fmt, args);
   len1 = C_puts (buf);
   if (len1 < len2)
-    FATAL ("len1: %d, len2: %d. trace_buf: '%.*s',\nbuf: '%s'\n",
-           len1, len2, trace_ptr - trace_buf, trace_buf, buf);
+    FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
+           len1, len2, c_head - c_buf, c_buf, buf);
 
   return (len2);
 }
@@ -191,12 +193,12 @@ int C_putc (int ch)
 
   C_init();
 
-  assert (trace_ptr);
-  assert (trace_end);
-  assert (trace_ptr >= trace_buf);
-  assert (trace_ptr <= trace_end);
+  assert (c_head);
+  assert (c_tail);
+  assert (c_head >= c_buf);
+  assert (c_head <= c_tail);
 
-  if (tilde_escape && get_color && !c_raw)
+  if (get_color && !c_raw)
   {
     WORD color;
 
@@ -208,16 +210,16 @@ int C_putc (int ch)
     if (i >= 0 && i < DIM(color_map))
       color = color_map [i];
     else
-      FATAL ("Illegal color index %d ('%c'/0x%02X) in trace_buf: '%.*s'\n",
-             i, ch, ch, trace_ptr - trace_buf, trace_buf);
+      FATAL ("Illegal color index %d ('%c'/0x%02X) in c_buf: '%.*s'\n",
+             i, ch, ch, c_head - c_buf, c_buf);
 
     C_flush();
-    if (!stdout_redirected && use_colours)
+    if (use_colours)
        C_set (color);
     return (1);
   }
 
-  if (tilde_escape && ch == '~' && !c_raw)
+  if (ch == '~' && !c_raw)
   {
     get_color = TRUE;
     return (1);
@@ -225,31 +227,30 @@ int C_putc (int ch)
 
   if (ch == '\n' && c_binmode)
   {
-    if ((trace_ptr == trace_buf) ||
-        (trace_ptr > trace_buf && trace_ptr[-1] != '\r'))
+    if ((c_head == c_buf) ||
+        (c_head > c_buf && c_head[-1] != '\r'))
     {
-      *trace_ptr++ = '\r';
+      *c_head++ = '\r';
       rc++;
     }
   }
 
 put_it:
-  *trace_ptr++ = ch;
+  *c_head++ = ch;
   rc++;
 
-  if (ch == '\n' || trace_ptr >= trace_end)
+  if (ch == '\n' || c_head >= c_tail)
      C_flush();
   return (rc);
 }
 
 int C_putc_raw (int ch)
 {
-  BOOL save = tilde_escape;
-  int  rc;
+  int rc, raw = c_raw;
 
-  tilde_escape = FALSE;
+  c_raw = 1;
   rc = C_putc (ch);
-  tilde_escape = save;
+  c_raw = raw;
   return (rc);
 }
 

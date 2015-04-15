@@ -106,7 +106,6 @@ int  decimal_timestamp = 0;
 int  no_sys_env = 0;
 int  no_usr_env = 0;
 int  no_app_path = 0;
-int  use_colours = 0;
 int  quiet = 0;
 int  use_regex = 0;
 int  debug = 0;
@@ -495,6 +494,7 @@ void report_file (const char *file, time_t mtime, BOOL is_dir, HKEY key)
   const char      *note = NULL;
   const char      *filler = "      ";
   char             time [30] = "?";
+  int              raw;
   struct ver_info ver;
   BOOL   chksum_ok = FALSE;
   BOOL   version_ok = FALSE;
@@ -577,7 +577,11 @@ void report_file (const char *file, time_t mtime, BOOL is_dir, HKEY key)
      C_printf ("~3%s~0", report_header);
   report_header = NULL;
 
-  C_printf ("~3%s~0%s: %s", note ? note : filler, time, file);
+  C_printf ("~3%s~0%s: ", note ? note : filler, time);
+
+  raw = C_setraw (1);  /* In case 'file' contains a "~" (SFN), switch to raw mode */
+  C_puts (file);
+  C_setraw (raw);
 
   if (PE_check)
     C_printf ("\n~5%sver %u.%u.%u.%u~0, Chksum %s",
@@ -876,7 +880,7 @@ static int build_registry_array (HKEY top_key, const char *app_path)
   REGSAM acc = read_access();
   DWORD  rc  = RegOpenKeyEx (top_key, app_path, 0, acc, &key);
 
-  DEBUGF (1, "  RegOpenKeyEx (%s\\%s, %s):\n\t\t %s\n",
+  DEBUGF (1, "  RegOpenKeyEx (%s\\%s, %s):\n                   %s\n",
           top_key_name(top_key), app_path, access_name(acc), win_strerror(rc));
 
   for (num = idx = 0; rc == ERROR_SUCCESS; num++)

@@ -16,8 +16,6 @@
 #include "envtool.h"
 
 #define USE_COLOUR_C   1
-#define DEBUG_STREAM   stdout
-#define NORMAL_STREAM  stdout
 
 #define IS_SLASH(c)  ((c) == '\\' || (c) == '/')
 #define TOUPPER(c)   toupper ((int)(c))
@@ -885,11 +883,17 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
   return (buf);
 }
 
+#if (USE_COLOUR_C == 0)
 /*
  * Print to WinConsole using colours.
  */
+#define DEBUG_STREAM   stdout
+#define NORMAL_STREAM  stdout
+
 static HANDLE stdout_hnd = INVALID_HANDLE_VALUE;
 static CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+int use_colours = 0;
 
 static void exit_console (void)
 {
@@ -932,7 +936,6 @@ static void init_console (void)
   DEBUGF (1, "GetConsoleScreenBufferInfo(): rc %d\n", rc);
 }
 
-#if (USE_COLOUR_C == 0)
 /*
  * Retired functions. Use color.c functions instead.
  */
@@ -988,7 +991,8 @@ int Cvprintf (int attr, const char *format, va_list args)
   len = Cputs (attr, buf);
   return (len);
 }
-#endif
+#endif  /* (USE_COLOUR_C == 0) */
+
 
 int debug_printf (const char *format, ...)
 {
@@ -998,9 +1002,9 @@ int debug_printf (const char *format, ...)
   va_start (args, format);
 
 #if (USE_COLOUR_C)
-  raw = C_setmode (1);
+  raw = C_setraw (1);
   rc  = C_vprintf (format, args);
-  C_setmode (raw);
+  C_setraw (raw);
 #else
   rc = vfprintf (DEBUG_STREAM, format, args);
 #endif

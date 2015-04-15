@@ -80,7 +80,8 @@ envtool.obj:     envtool.c getopt_long.h Everything.h Everything_IPC.h envtool.h
 envtool_py.obj:  envtool_py.c envtool.h envtool_py.h
 Everything.obj:  Everything.c Everything.h Everything_IPC.h
 getopt_long.obj: getopt_long.c getopt_long.h
-misc.obj:        misc.c envtool.h
+color.obj:       color.c color.h
+misc.obj:        misc.c envtool.h color.h
 searchpath.obj:  searchpath.c envtool.h
 show_ver.obj:    show_ver.c envtool.h
 win_glob.obj:    win_glob.c envtool.h win_glob.h

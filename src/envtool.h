@@ -152,7 +152,7 @@ extern "C" {
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
-extern int   show_unix_paths, add_cwd, use_colours;
+extern int   show_unix_paths, add_cwd;
 extern int   debug, quiet, verbose;
 extern char *file_spec;
 

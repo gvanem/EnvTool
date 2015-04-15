@@ -515,7 +515,7 @@ static int process_zip (const char *zfile)
 {
   char  cmd [_MAX_PATH + 1000];
   char *line, *str;
-  int   found, len;
+  int   len, found = 0;
 
   if (sizeof(cmd) < sizeof(PY_ZIP_LIST) + _MAX_PATH + 100)
      FATAL ("cmd[] buffer too small.\n");
@@ -524,13 +524,16 @@ static int process_zip (const char *zfile)
   str = call_python_func (cmd);
   DEBUGF (2, "cmd-len: %d, Python output: \"%s\"\n", len, str);
 
-  for (found = 0, line = strtok(str,"\n"); line; line = strtok(NULL,"\n"), found++)
+  if (str)
   {
-    DEBUGF (2, "l: \"%s\", found: %d\n", line, found);
-    if (!report_zip_file(zfile, line))
-       break;
+    for (found = 0, line = strtok(str,"\n"); line; line = strtok(NULL,"\n"), found++)
+    {
+      DEBUGF (2, "line: \"%s\", found: %d\n", line, found);
+      if (!report_zip_file(zfile, line))
+         break;
+    }
+    FREE (str);
   }
-  FREE (str);
 
   if (found == 0)
      DEBUGF (1, "No matches in %s for %s.\n", zfile, file_spec);
