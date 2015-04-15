@@ -1,7 +1,7 @@
 
 /*
  * Various support functions for EnvTool.
- * fnmatch() and basename() are taken from djgpp and modified.
+ * fnmatch(), basename() and dirname() are taken from djgpp and modified.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,8 +12,10 @@
 #include <wincon.h>
 #include <imagehlp.h>
 
+#include "color.h"
 #include "envtool.h"
 
+#define USE_COLOUR_C   1
 #define DEBUG_STREAM   stdout
 #define NORMAL_STREAM  stdout
 
@@ -57,7 +59,6 @@ static void del_from_mem_list (const struct mem_head *m)
   }
 }
 
-
 /*
  * Open a fname and check if there's a "PK" signature in header.
  */
@@ -69,10 +70,10 @@ int check_if_zip (const char *fname)
   FILE  *f;
   int    rc = 0;
 
-  /* Return 0 if extension is not ".egg" or ".zip"
+  /* Return 0 if extension is neither ".egg" nor ".zip"
    */
   ext = get_file_ext (fname);
-  if (stricmp(ext,"egg") && strcmp(ext,"zip"))
+  if (stricmp(ext,"egg") && stricmp(ext,"zip"))
      return (0);
 
   f = fopen (fname, "rb");
@@ -404,7 +405,64 @@ char *basename (const char *fname)
   return (char*) base;
 }
 
-#ifdef NOT_USED
+/*
+ * Return the malloc'ed directory part of a filename.
+ */
+char *dirname (const char *fname)
+{
+  const char *p  = fname;
+  const char *slash = NULL;
+
+  if (fname)
+  {
+    size_t dirlen;
+    char  *dirpart;
+
+    if (*fname && fname[1] == ':')
+    {
+      slash = fname + 1;
+      p += 2;
+    }
+
+    /* Find the rightmost slash.  */
+    while (*p)
+    {
+      if (IS_SLASH(*p))
+         slash = p;
+      p++;
+    }
+
+    if (slash == NULL)
+    {
+      fname = ".";
+      dirlen = 1;
+    }
+    else
+    {
+      /* Remove any trailing slashes.  */
+      while (slash > fname && (IS_SLASH(slash[-1])))
+          slash--;
+
+      /* How long is the directory we will return?  */
+      dirlen = slash - fname + (slash == fname || slash[-1] == ':');
+      if (*slash == ':' && dirlen == 1)
+         dirlen += 2;
+    }
+
+    dirpart = MALLOC (dirlen + 1);
+    if (dirpart)
+    {
+      strncpy (dirpart, fname, dirlen);
+      if (slash && *slash == ':' && dirlen == 3)
+         dirpart[2] = '.';      /* for "x:foo" return "x:." */
+      dirpart[dirlen] = '\0';
+    }
+    return (dirpart);
+  }
+  return (NULL);
+}
+
+#if defined(NOT_USED) || 1
 /*
  * Split a 'path' into a 'dir' and 'name'.
  * If e.g. 'path' = "c:\\Windows\\System32\\", 'file' becomes "".
@@ -417,7 +475,7 @@ int split_path (const char *path, char *dir, char *file)
      *dir = '\0';
 
   if (file)
-    *file = '\0';
+     *file = '\0';
 
   if (!slash)
      slash = strrchr (path, '\\');
@@ -476,16 +534,11 @@ const char *get_file_ext (const char *file)
 {
   const char *end, *dot;
 
-#if 0
-  assert (file);
-  file = basename (file);
-#else
   const char *s;
 
   assert (file);
   while ((s = strpbrk(file, ":/\\")) != NULL)  /* step over drive/path part */
      file = s + 1;
-#endif
 
   end = strrchr (file, '\0');
   dot = strrchr (file, '.');
@@ -504,7 +557,7 @@ char *create_temp_file (void)
     char *t = STRDUP (tmp);
     DEBUGF (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
     free (tmp);
-    return (t);     /* Caller must free() */
+    return (t);     /* Caller must FREE() */
   }
   DEBUGF (2, " %s() _tempname() failed: %s\n", __FUNCTION__, strerror(errno));
   return (NULL);
@@ -637,9 +690,36 @@ char *strdup_at (const char *str, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = len;
   add_to_mem_list (head, file, line);
-  mem_max += sizeof(*head) + head->size;
+  mem_max += len;
   mem_allocs++;
   return (char*) (head+1);
+}
+
+/*
+ * A malloc() that fails if no memory. It's pretty hopeless to continue
+ * this program if strdup() fails.
+ */
+void *malloc_at (size_t size, const char *file, unsigned line)
+{
+  struct mem_head *head;
+
+  size += sizeof(*head);
+
+#if defined(_CRTDBG_MAP_ALLOC)     /* cl -MDd .. */
+  head = _malloc_dbg (size, _NORMAL_BLOCK, file, line);
+#else
+  head = malloc (size);
+#endif
+
+  if (!head)
+     FATAL ("malloc() failed at %s, line %u\n", file, line);
+
+  head->marker = MEM_MARKER;
+  head->size   = size;
+  add_to_mem_list (head, file, line);
+  mem_max += size;
+  mem_allocs++;
+  return (head+1);
 }
 
 /*
@@ -664,7 +744,7 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = size;
   add_to_mem_list (head, file, line);
-  mem_max += sizeof(*head) + size;
+  mem_max += size;
   mem_allocs++;
   return (head+1);
 }
@@ -695,7 +775,7 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
   {
     del_from_mem_list (p);
     add_to_mem_list (head, file, line);
-    mem_max += sizeof(*head) + size;
+    mem_max += size;
     mem_allocs++;
   }
   return (p);
@@ -716,7 +796,7 @@ void free_at (void *ptr, const char *file, unsigned line)
      FATAL ("free() of unknown block at %s, line %u\n", file, line);
 
   head->marker = MEM_FREED;
-  mem_max -= sizeof(*head) + head->size;
+  mem_max -= head->size;
   mem_frees++;
   del_from_mem_list (head);
   free (head);
@@ -727,19 +807,18 @@ void mem_report (void)
   const struct mem_head *m;
   unsigned     num;
 
-  Cprintf (COLOUR_REPORT, "  Max memory at one time: %u bytes.\n", (unsigned int)mem_max);
-  Cprintf (COLOUR_REPORT, "  Total # of allocations: %u.\n", (unsigned int)mem_allocs);
-  Cprintf (COLOUR_REPORT, "  Total # of frees:       %u.\n", (unsigned int)mem_frees);
-
+  C_printf ("~0  Max memory at one time: %u bytes.\n", (unsigned int)mem_max);
+  C_printf ("  Total # of allocations: %u.\n", (unsigned int)mem_allocs);
+  C_printf ("  Total # of frees:       %u.\n", (unsigned int)mem_frees);
   if (!mem_list)
-     Cprintf (COLOUR_REPORT, "  No un-freed memory.\n");
+     C_printf ("  No un-freed memory.\n");
 
   for (m = mem_list, num = 0; m; m = m->next, num++)
   {
-    Cprintf (COLOUR_REPORT, "  Un-freed memory 0x%p at %s (%u)\n", m+1, m->file, m->line);
+    C_printf ("  Un-freed memory 0x%p at %s (%u)\n", m+1, m->file, m->line);
     if (num > 20)
     {
-      Cprintf (COLOUR_REPORT, "  ..and more.\n");
+      C_printf ("  ..and more.\n");
       break;
     }
   }
@@ -812,7 +891,7 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
 static HANDLE stdout_hnd = INVALID_HANDLE_VALUE;
 static CONSOLE_SCREEN_BUFFER_INFO csbi;
 
-static void __cdecl exit_console (void)
+static void exit_console (void)
 {
   if (stdout_hnd != INVALID_HANDLE_VALUE)
   {
@@ -829,11 +908,11 @@ static void init_console (void)
 
   stdout_hnd = INVALID_HANDLE_VALUE;
 
-  /* Don't use WinCon if stdout is redirected.
+  /* Use colours only if stdout is a terminal (no pipe/redirection).
    */
   if (!isatty(STDOUT_FILENO))
   {
-    color = FALSE;
+    use_colours = FALSE;
     return;
   }
 
@@ -853,12 +932,16 @@ static void init_console (void)
   DEBUGF (1, "GetConsoleScreenBufferInfo(): rc %d\n", rc);
 }
 
+#if (USE_COLOUR_C == 0)
+/*
+ * Retired functions. Use color.c functions instead.
+ */
 int Cputs (int attr, const char *buf)
 {
   static BOOL init = FALSE;
   int         rc;
 
-  if (color && !init)
+  if (use_colours && !init)
   {
     init_console();
     atexit (exit_console);
@@ -905,14 +988,23 @@ int Cvprintf (int attr, const char *format, va_list args)
   len = Cputs (attr, buf);
   return (len);
 }
+#endif
 
 int debug_printf (const char *format, ...)
 {
-  int      rc;
+  int     raw, rc;
   va_list args;
 
   va_start (args, format);
+
+#if (USE_COLOUR_C)
+  raw = C_setmode (1);
+  rc  = C_vprintf (format, args);
+  C_setmode (raw);
+#else
   rc = vfprintf (DEBUG_STREAM, format, args);
+#endif
+
   va_end (args);
   return (rc);
 }
@@ -935,11 +1027,11 @@ int popen_run (const char *cmd, popen_callback callback)
   char  *env = getenv ("COMSPEC");
   char  *cmd2;
   const char *comspec = "";
-  const char *setdos = "";
+  const char *setdos  = "";
 
   /*
    * OpenWatcom's popen() always uses cmd.exe regardles of %COMSPEC.
-   * If we're using 4NT shell, set all variable expansion to off
+   * If we're using 4NT/TCC shell, set all variable expansion to off
    * by prepending "setdos /x-3" to 'cmd' buffer.
    */
   if (env)
@@ -947,7 +1039,7 @@ int popen_run (const char *cmd, popen_callback callback)
     DEBUGF (1, "%%COMSPEC: %s.\n", env);
     strupr (env);
 #if !defined(__WATCOMC__)
-    if (strstr(env,"4NT.EXE"))
+    if (strstr(env,"4NT.EXE") || strstr(env,"TCC.EXE"))
        setdos = "setdos /x-3 &";
 #endif
   }
@@ -1003,10 +1095,11 @@ char *translate_shell_pattern (const char *pattern)
   static char res [_MAX_PATH];
   char       *out = res;
   size_t      i, len = strlen (pattern);
+  size_t      i_max  = sizeof(res) - 2;
 
   *out++ = '^';
 
-  for (i = 0; i < len; i++)
+  for (i = 0; i < len && i < i_max; i++)
   {
      int c = *pattern++;
 
