@@ -1,6 +1,5 @@
 #
-# EnvTool MSVC makefile.
-# (needs NMake).
+# EnvTool MSVC Nmake makefile.
 #
 
 DEBUG = 0
@@ -36,7 +35,7 @@ RCFLAGS = $(RCFLAGS) -DWIN64
 !endif
 
 OBJECTS = envtool.obj envtool_py.obj searchpath.obj misc.obj \
-          show_ver.obj Everything.obj envtool.res getopt_long.obj # getopt.obj getopt1.obj
+          color.obj show_ver.obj Everything.obj envtool.res getopt_long.obj
 
 all: envtool.exe
 	copy /y $** ..

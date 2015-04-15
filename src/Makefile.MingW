@@ -32,13 +32,14 @@ else
 endif
 
 ifeq ($(FORTIFY_SOURCE),1)
-  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) # -I$(MINGW_ROOT)/lib/gcc/mingw32/4.7.2/include/ssp
+  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE)
   EX_LIBS = -lssp
 endif
 
 EX_LIBS += -limagehlp -lversion
-SOURCES += envtool.c searchpath.c misc.c show_ver.c Everything.c envtool_py.c getopt_long.c
-OBJECTS  = $(SOURCES:.c=.o)
+
+SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c envtool_py.c getopt_long.c
+OBJECTS = $(SOURCES:.c=.o)
 
 all: envtool.exe
 	cp --update $^ ..

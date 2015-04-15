@@ -8,7 +8,8 @@ CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul -I. -D_LIBC -DEVERYTHINGUSE
 LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort global
 EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
 
-OBJECTS = envtool.obj Everything.obj misc.obj searchpath.obj show_ver.obj getopt.obj getopt1.obj
+OBJECTS = envtool.obj  envtool_py.obj Everything.obj color.obj misc.obj searchpath.obj &
+          show_ver.obj getopt_long.obj
 
 all: envtool.exe
 

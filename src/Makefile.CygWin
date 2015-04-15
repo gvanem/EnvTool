@@ -6,7 +6,7 @@ CFLAGS  = -O2 -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI=
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
 EX_LIBS = -limagehlp -lversion
 
-SOURCES = envtool.c envtool_py.c searchpath.c misc.c show_ver.c Everything.c
+SOURCES = envtool.c envtool_py.c color.c searchpath.c misc.c show_ver.c Everything.c
 OBJECTS = $(SOURCES:.c=.o)
 
 all: envtool.exe
