@@ -1,4 +1,4 @@
-EnvTool v0.94:
+EnvTool v0.96:
 --------------
 
 A simple tool that I initially put together in day and a half (but the
@@ -36,7 +36,7 @@ newer (27 Nov 2014) `FoxitReader` launched. But if you say `FoxitReader` in your
 
 Other examples:
 
- E.g. 1: *envtool --path notepad*.exe** first checks the `%PATH%` env-var
+ E.g. 1: **envtool --path notepad*.exe** first checks the `%PATH%` env-var
  for consistency (reports missing directories in `%PATH%`) and prints
  all the locations of **notepad*.exe**. On my box the result is:
 ```
@@ -88,6 +88,14 @@ E.g. 5: If you have Python installed, the **--python** option will search in
 16 Feb 2011 - 12:14:28: g:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspi.py
 16 Feb 2011 - 12:14:28: g:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspicon.py
 ```
+
+E.g. 6: The **--python** option wil also look inside Python *EGGs (plain ZIP-files) found
+in `sys.path[]`. E.g.: **envtool.exe --python socket.py**
+```
+27 Mar 2013 - 16:41:58: stem\socket.py  (%PYTHONHOME\lib\site-packages\stem-1.0.1-py2.7.egg)
+30 Apr 2014 - 09:54:04: f:\Programfiler\Python27\lib\socket.py
+```
+
 
 C-source included in ./src. Makefiles for MingW, Watcom and MSVC. Use at own
 risk. Enjoy!
@@ -144,5 +152,13 @@ risk. Enjoy!
   0.94: Fixes for '--evry' (EverThing database) searches.
         Drop '-i' option.
         Add  '-r' option.
+
+  0.95: Tweaks for better 'fnmatch()' matches.
+        Improved '--evry' Regular Expression (--regex) searches.
+        Build the MSVC-version using '-MT' (drop the dependency on MSVC1*.DLL)
+
+  0.96: Better Python embedding; lookup python.exe in env-var %PYTHON, then on
+        %PATH. Test for correct Python DLL. Report full name of python.exe in
+        "envtool -V".
 
 ```
