@@ -34,7 +34,7 @@ int use_colours = 0;
 
 static char  c_buf [C_BUF_SIZE];
 static char *c_head, *c_tail;
-static int   c_handle = -1;
+static FILE *c_out = NULL;
 static int   c_raw = 0;
 static int   c_binmode = 0;
 
@@ -77,12 +77,12 @@ int C_setbin (int bin)
 static void C_exit (void)
 {
   c_head = c_tail = NULL;
-  c_handle = -1;
+  c_out = NULL;
 }
 
 static void C_init (void)
 {
-  if (!c_head || c_handle == -1)
+  if (!c_head || !c_out)
   {
     BOOL okay;
 
@@ -94,7 +94,7 @@ static void C_init (void)
          init_color_map();
     else use_colours = 0;
 
-    c_handle = STDOUT_FILENO;
+    c_out  = stdout;
     c_head = c_buf;
     c_tail = c_head + C_BUF_SIZE - 1;
     atexit (C_exit);
@@ -140,12 +140,15 @@ static void C_set (WORD col)
 /*
  * Write out the trace-buffer.
  */
-static unsigned int C_flush (void)
+size_t C_flush (void)
 {
-  unsigned int len = (unsigned int) (c_head - c_buf);
+  size_t len = (unsigned int) (c_head - c_buf);
 
-  assert (c_handle >= 1);
-  len = _write (c_handle, c_buf, len);
+  if (len == 0)
+     return (0);
+
+  assert (c_out);
+  len = _write (_fileno(c_out), c_buf, len);
 
   c_head = c_buf;   /* restart buffer */
   return (len);
@@ -153,36 +156,37 @@ static unsigned int C_flush (void)
 
 int C_printf (const char *fmt, ...)
 {
-  char    buf [2*C_BUF_SIZE];
-  int     len1, len2;
+  int     len;
   va_list args;
 
   va_start (args, fmt);
-
-  buf [sizeof(buf)-1] = '\0';
-  len2 = vsnprintf (buf, sizeof(buf)-1, fmt, args);
-  len1 = C_puts (buf);
-
-  if (len1 < len2)
-    FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
-           len1, len2, c_head - c_buf, c_buf, buf);
-
+  len = C_vprintf (fmt, args);
   va_end (args);
-  return (len2);
+  return (len);
 }
 
 int C_vprintf (const char *fmt, va_list args)
 {
-  char buf [2*C_BUF_SIZE];
-  int  len1, len2;
+  int len1, len2;
 
-  buf [sizeof(buf)-1] = '\0';
-  len2 = vsnprintf (buf, sizeof(buf)-1, fmt, args);
-  len1 = C_puts (buf);
-  if (len1 < len2)
-    FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
-           len1, len2, c_head - c_buf, c_buf, buf);
+  if (c_raw)
+  {
+    C_init();
+    C_flush();
+    len2 = vfprintf (c_out, fmt, args);
+    fflush (c_out);
+  }
+  else
+  {
+    char buf [2*C_BUF_SIZE];
 
+    buf [sizeof(buf)-1] = '\0';
+    len2 = vsnprintf (buf, sizeof(buf)-1, fmt, args);
+    len1 = C_puts (buf);
+    if (len1 < len2)
+      FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
+             len1, len2, c_head - c_buf, c_buf, buf);
+  }
   return (len2);
 }
 

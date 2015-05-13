@@ -18,12 +18,13 @@ extern int C_printf  (const char *fmt, ...)
   #endif
    ;
 
-extern int C_vprintf  (const char *fmt, va_list args);
-extern int C_puts     (const char *str);
-extern int C_putc     (int ch);
-extern int C_putc_raw (int ch);
-extern int C_setraw   (int raw);
-extern int C_setbin   (int bin);
+extern int    C_vprintf  (const char *fmt, va_list args);
+extern int    C_puts     (const char *str);
+extern int    C_putc     (int ch);
+extern int    C_putc_raw (int ch);
+extern int    C_setraw   (int raw);
+extern int    C_setbin   (int bin);
+extern size_t C_flush    (void);
 
 #ifdef __cplusplus
 };
