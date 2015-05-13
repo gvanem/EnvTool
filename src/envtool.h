@@ -90,11 +90,9 @@
 #endif
 
 #if defined(_DEBUG)
-  #define ASSERT(expr) do {                                      \
-                         if (!(expr))                            \
-                           fprintf (stdout,                      \
-                             "%s(%u): Assertion `%s' failed.\n", \
-                             __FILE(), __LINE__, #expr);         \
+  #define ASSERT(expr) do {                                            \
+                         if (!(expr))                                  \
+                            FATAL ("Assertion `%s' failed.\n", #expr); \
                        } while (0)
 #else
   #define ASSERT(expr) (void) (expr)
@@ -105,7 +103,7 @@
  * Strip the directory part.
  */
 #if defined(_MSC_VER)
-  #define __FILE()           basename(__FILE__)
+  #define __FILE()           basename (__FILE__)
   #define snprintf           _snprintf
 #else
   #define __FILE()           __FILE__
@@ -184,7 +182,7 @@ extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
 extern char *translate_shell_pattern (const char *pattern);
 
-/* For PE-image version in show_version_info().
+/* For PE-image version in get_version_info().
  */
 struct ver_info {
        unsigned val_1;
@@ -204,13 +202,16 @@ extern const char *flags_decode (DWORD flags, const struct search_list *list, in
 
 extern const char *get_file_ext (const char *file);
 extern char       *create_temp_file (void);
-extern void        hex_dump (const void *data_p, size_t datalen);
-extern int         show_version_info (const char *file, struct ver_info *ver);
+extern int         get_version_info (const char *file, struct ver_info *ver);
+extern char       *get_version_info_buf (void);
+extern void        get_version_info_free (void);
 extern int         check_if_zip (const char *fname);
-extern int         check_if_pe (const char *fname);
+extern int         check_if_PE (const char *fname);
 extern int         verify_pe_checksum (const char *fname);
 extern BOOL        is_wow64_active (void);
 
+/* Simple debug-malloc functions:
+ */
 #define MEM_MARKER  0xDEAFBABE
 #define MEM_FREED   0xDEADBEAF
 
@@ -265,15 +266,6 @@ extern char *fnmatch_res (int rc);
   #endif
 #endif
 
-/* Console debug/warn (in colour)
- */
-#define COLOUR_REPORT  0   /* Default foreground */
-#define COLOUR_OKAY    10  /* Lightgreen foreground */
-#define COLOUR_WARN    12  /* Lightred foreground */
-#define COLOUR_NOTE    14  /* Yellow foreground */
-#define COLOUR_BOLD    10  /* Lightgreen foreground */
-#define COLOUR_FAIL    COLOUR_WARN
-
 #define DEBUGF(level, fmt, ...)  do {                                           \
                                    if (debug >= level) {                        \
                                      debug_printf ("%s(%u): " fmt,              \
@@ -286,11 +278,22 @@ extern char *fnmatch_res (int rc);
                                       C_printf ("~5" fmt "~0", ## __VA_ARGS__); \
                                  } while (0)
 
+#if 0
+  #define FATAL(fmt, ...)        do {                                              \
+                                   fprintf (stderr, "Fatal: "fmt, ## __VA_ARGS__); \
+                                   exit (1);                                       \
+                                 } while (0)
 
-#define FATAL(fmt, ...)           do {                                              \
-                                    fprintf (stderr, "Fatal: "fmt, ## __VA_ARGS__); \
-                                    exit (1);                                       \
-                                  } while (0)
+#else
+  #define FATAL(fmt, ...)        do {                                        \
+                                   fprintf (stderr, "\nFatal: %s(%u): " fmt, \
+                                            __FILE(), __LINE__,              \
+                                            ## __VA_ARGS__);                 \
+                                   if (IsDebuggerPresent())                  \
+                                        abort();                             \
+                                   else ExitProcess (GetCurrentProcessId()); \
+                                 } while (0)
+#endif
 
 #ifdef __cplusplus
 };
