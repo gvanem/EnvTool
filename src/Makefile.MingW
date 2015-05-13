@@ -52,6 +52,10 @@ win_glob.exe: win_glob.c misc.c searchpath.c
 	$(CC) $(LDFLAGS) -DTEST -o $@ $^ > win_glob.map
 	rm -f win_glob.o misc.o
 
+mem_test.exe: misc.c color.c
+	$(CC) $(LDFLAGS) -DTEST -o $@ $^ $(EX_LIBS) > mem_test.map
+	rm -f misc.o
+
 envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc
 
@@ -67,7 +71,7 @@ clean:
 	rm -f $(OBJECTS) .depend.MingW envtool.res envtool.exe envtool.map
 
 vclean: clean
-	rm -f win_glob.exe win_glob.map
+	rm -f win_glob.exe win_glob.map mem_test.exe mem_test.map
 
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
