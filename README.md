@@ -66,18 +66,18 @@ points to `c:\PROGRA~1\WINZIP\winzip32.exe`
 (here `winzip.exe` is an alias for the real program `winzip32.exe`). Hence
 **envtool --path winzip*** reports:
 ```
-Fri Oct 11 09:10:00 2002: G:\PROGRA~1\WINZIP\winzip.exe !
-Fri Oct 11 09:10:00 2002: G:\PROGRA~1\WINZIP\winzip32.exe !
+Fri Oct 11 09:10:00 2002: f:\PROGRA~1\WINZIP\winzip.exe !
+Fri Oct 11 09:10:00 2002: f:\PROGRA~1\WINZIP\winzip32.exe !
 (!) - found in registry.
 ```
 
 E.g. 4: It's pretty amazing what the *FindFile()* API in Windows can do. E.g.:
 **envtool --path *-?++.exe**
 ```
-Tue Nov 19 12:01:38 2002 : g:\Mingw32\bin\mingw32-c++.exe
-Tue Nov 19 12:01:38 2002 : g:\Mingw32\bin\mingw32-g++.exe
-Wed Mar 09 14:39:05 2011 : g:\CygWin\bin\i686-pc-cygwin-c++.exe
-Wed Mar 09 14:39:05 2011 : g:\CygWin\bin\i686-pc-cygwin-g++.exe
+Tue Nov 19 12:01:38 2002 : f:\Mingw32\bin\mingw32-c++.exe
+Tue Nov 19 12:01:38 2002 : f:\Mingw32\bin\mingw32-g++.exe
+Wed Mar 09 14:39:05 2011 : f:\CygWin\bin\i686-pc-cygwin-c++.exe
+Wed Mar 09 14:39:05 2011 : f:\CygWin\bin\i686-pc-cygwin-g++.exe
 ```
 
 E.g. 5: If you have Python installed, the **--python** option will search in
@@ -96,6 +96,18 @@ in `sys.path[]`. E.g.:
 27 Mar 2013 - 16:41:58: stem\socket.py  (%PYTHONHOME\lib\site-packages\stem-1.0.1-py2.7.egg)
 30 Apr 2014 - 09:54:04: f:\Programfiler\Python27\lib\socket.py
 ```
+
+E.g. 7: The **--evry** option combined with the **--regex** is quite powerful. To find
+all directories with Unix man-pages, you can do this:
+**envtool.exe --evry -r "man[1-9]$"**
+```
+<DIR> 03 Jun 2014 - 17:50:36: f:\CygWin\lib\perl5\5.14\Parse-Yapp-1.05\blib\man1\
+<DIR> 03 Jun 2014 - 17:54:06: f:\CygWin\usr\man\man1\
+<DIR> 03 Jun 2014 - 17:56:08: f:\CygWin\usr\share\man\man1\
+<DIR> 03 Jun 2014 - 17:55:58: f:\CygWin\usr\share\man\bg\man1\
+```
+
+Which is probably a lot more directories than you have in you `%MANPATH%`.
 
 
 C-source included in ./src. Makefiles for MingW, Cygwin, Watcom and MSVC. Use at own
