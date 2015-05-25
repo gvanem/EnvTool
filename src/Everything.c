@@ -386,7 +386,7 @@ DWORD EVERYTHINGAPI Everything_GetReplyID(VOID)
 }
 
 // custom window proc
-static LRESULT EVERYTHINGAPI _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+static LRESULT __stdcall _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch(msg)
 	{
@@ -540,7 +540,7 @@ static VOID _Everything_GetSearchTextA(LPSTR buf)
 	*buf = 0;
 }
 
-static DWORD EVERYTHINGAPI _Everything_thread_proc(VOID *param)
+static DWORD __stdcall _Everything_thread_proc(VOID *param)
 {
 	HWND everything_hwnd;
 	COPYDATASTRUCT cds;
