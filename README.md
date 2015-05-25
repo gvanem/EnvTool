@@ -1,18 +1,13 @@
 EnvTool v0.96:
 --------------
 
-A tool to search along various environment variables for files (or a wildcard).
-It handles these environment variables:
+A tool to search along various environment variables for files (or a wildcard). The following options handles these environment variables:
 
-====================== ======================================================
-Env Var                Option
-====================== ======================================================
-`%PATH%`                                                   `--path`.
-`%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%` `--inc`.
-`%LIBRARY_PATH%` and `%LIB%`                               `--lib`.
-`%PYTHONPATH%`                                             `--python`.
-[EveryThing](http://www.voidtools.com/support/everything/) Database `--evry`.
-====================== ======================================================
+* `--path`:   &nbsp;&nbsp;&nbsp;&nbsp;             `%PATH%`.
+* `--inc`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
+* `--lib`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%LIBRARY_PATH%` and `%LIB%`.
+* `--python`: &nbsp;                               `%PYTHONPATH%`.
+* `--evry`:   &nbsp;&nbsp;&nbsp;&nbsp;             [EveryThing](http://www.voidtools.com/support/everything/) Database.
 
 It also checks for missing directories along the above env-variables.
 
@@ -44,7 +39,7 @@ newer (27 Nov 2014) `FoxitReader` launched. But if you say `FoxitReader` in your
 
 Other examples:
 
- E.g. 1: **envtool --path notepad*.exe** first checks the `%PATH%` env-var
+E.g. 1: **envtool --path notepad*.exe** first checks the `%PATH%` env-var
  for consistency (reports missing directories in `%PATH%`) and prints
  all the locations of **notepad*.exe**. On my box the result is:
 ```
@@ -127,6 +122,7 @@ risk. Enjoy!
 
 ### Changes:
 ```
+
   0.1:  Initial version.
 
   0.2:  Added file date/time stamp. Check for suffix or trailing
@@ -183,3 +179,6 @@ risk. Enjoy!
         "envtool -V".
 
 ```
+
+PS. This file is written with the aid of [MarkdownPad](http://www.markdownpad.com/).
+A real time-saver. 
