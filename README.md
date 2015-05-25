@@ -1,12 +1,17 @@
 EnvTool v0.96:
 --------------
 
-A simple tool that I initially put together in day and a half (but the
-features grew). It's purpose is simply to search and check various environment
-variables for missing directories. And check where a specific file (or wildcard)
-is in a corresponding environment variable. The `%PATH%`, `%INCLUDE%`,
-`%C_INCLUDE_PATH%`, `%CPLUS_INCLUDE_PATH%`, `%LIBRARY_PATH%`, `%LIB%` and/or
-`%PYTHONPATH%` variables are checked.
+A tool to search along various environment variables for files (or a wildcard).
+It handles these environment variables:
+-----------|----------------------|----------
+- | ** Env Var ** | Option
+* :arrow_forward  | `%PATH%`                                                   | `--path`.
+* :arrow_forward  | `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%` | `--inc`.
+* :arrow_forward  | `%LIBRARY_PATH%` and `%LIB%`                               | `--lib`.
+* :arrow_forward  | `%PYTHONPATH%`                                             | `--python`.
+* :arrow_forward  | [EveryThing](http://www.voidtools.com/support/everything/) Database | `--evry`.
+
+It also checks for missing directories along the above env-variables.
 
 The option **--path** also checks these registry keys:
   `HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths` and
