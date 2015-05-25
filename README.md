@@ -3,13 +3,14 @@ EnvTool v0.96:
 
 A tool to search along various environment variables for files (or a wildcard).
 It handles these environment variables:
------------|----------------------|----------
-- | ** Env Var ** | Option
-* :arrow_forward  | `%PATH%`                                                   | `--path`.
-* :arrow_forward  | `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%` | `--inc`.
-* :arrow_forward  | `%LIBRARY_PATH%` and `%LIB%`                               | `--lib`.
-* :arrow_forward  | `%PYTHONPATH%`                                             | `--python`.
-* :arrow_forward  | [EveryThing](http://www.voidtools.com/support/everything/) Database | `--evry`.
+
+-----------|--------------------------
+** Env Var **                                                | **Option**
+* `%PATH%`                                                   | `--path`.
+* `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%` | `--inc`.
+* `%LIBRARY_PATH%` and `%LIB%`                               | `--lib`.
+* `%PYTHONPATH%`                                             | `--python`.
+*  [EveryThing](http://www.voidtools.com/support/everything/) Database | `--evry`.
 
 It also checks for missing directories along the above env-variables.
 
