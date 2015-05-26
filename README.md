@@ -6,7 +6,7 @@ A tool to search along various environment variables for files (or a wildcard). 
 * `--path`:   &nbsp;&nbsp;&nbsp;&nbsp;             `%PATH%`.
 * `--inc`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
 * `--lib`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%LIB%` and `%LIBRARY_PATH%`. 
-* `--python`: &nbsp;                               `%PYTHONPATH%`.
+* `--python`: &nbsp;                               `%PYTHONPATH%` and `sys.path[]`.
 * `--evry`:   &nbsp;&nbsp;&nbsp;&nbsp;             [EveryThing](http://www.voidtools.com/support/everything/) file database.
 
 It also checks for missing directories along the above env-variables.
@@ -75,7 +75,7 @@ Fri Oct 11 09:10:00 2002: f:\PROGRA~1\WINZIP\winzip32.exe !
 ```
 
 E.g. 4: It's pretty amazing what the *FindFile()* API in Windows can do. E.g.:
-`envtool --path *-?++.exe`
+`envtool --path *-?++.exe`:
 ```
 Tue Nov 19 12:01:38 2002 : f:\Mingw32\bin\mingw32-c++.exe
 Tue Nov 19 12:01:38 2002 : f:\Mingw32\bin\mingw32-g++.exe
@@ -85,7 +85,7 @@ Wed Mar 09 14:39:05 2011 : f:\CygWin\bin\i686-pc-cygwin-g++.exe
 
 E.g. 5: If you have Python installed, the `--python` option will search in
 `%PYTHONPATH` and `sys.path[]` for a match. E.g.:
-`envtool.exe --python ss*.py`
+`envtool.exe --python ss*.py`:
 ```
 24 Jun 2011 - 11:38:10: f:\ProgramFiler\Python27\lib\ssl.py
 16 Feb 2011 - 12:14:28: f:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspi.py
@@ -94,7 +94,7 @@ E.g. 5: If you have Python installed, the `--python` option will search in
 
 E.g. 6: The `--python` option wil also look inside Python *EGG*s (plain ZIP-files) found
 in `sys.path[]`. E.g.:
-`envtool.exe --python socket.py`
+`envtool.exe --python socket.py`:
 ```
 27 Mar 2013 - 16:41:58: stem\socket.py  (%PYTHONHOME\lib\site-packages\stem-1.0.1-py2.7.egg)
 30 Apr 2014 - 09:54:04: f:\Programfiler\Python27\lib\socket.py
@@ -102,7 +102,7 @@ in `sys.path[]`. E.g.:
 
 E.g. 7: The `--evry` option combined with the `--regex` (or `-r`) is quite powerful. To find
 all directories with Unix man-pages, you can do this:
-`envtool.exe --evry -r "man[1-9]$"`
+`envtool.exe --evry -r "man[1-9]$"`:
 ```
 <DIR> 03 Jun 2014 - 17:50:36: f:\CygWin\lib\perl5\5.14\Parse-Yapp-1.05\blib\man1\
 <DIR> 03 Jun 2014 - 17:54:06: f:\CygWin\usr\man\man1\
@@ -118,7 +118,7 @@ risk. Enjoy!
 
   Gisle Vanem <gvanem@yahoo.no>.
 
----------------------------------------------------------------
+-------------------------------------------------------------------
 
 ### Changes:
 ```
