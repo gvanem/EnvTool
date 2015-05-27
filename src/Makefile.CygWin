@@ -4,27 +4,34 @@
 CC      = gcc-4
 CFLAGS  = -O2 -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI=
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
+RCFLAGS = -O COFF
 EX_LIBS = -limagehlp -lversion
 
-SOURCES = envtool.c envtool_py.c color.c searchpath.c misc.c show_ver.c Everything.c
+SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c envtool_py.c getopt_long.c
 OBJECTS = $(SOURCES:.c=.o)
 
-all: envtool.exe
-	cp --update $^ ..
+all: cflags_CygWin.h ldflags_CygWin.h envtool.exe
+	cp --update envtool.exe ..
 	@echo '../envtool.exe successfully built.'
 
 envtool.exe: $(OBJECTS) envtool.res
 	$(CC) $(LDFLAGS) -o $@ $^ $(EX_LIBS) > envtool.map
 
 envtool.res: envtool.rc
-	windres -O COFF -o envtool.res -i envtool.rc
+	windres $(RCFLAGS) -o envtool.res -i envtool.rc
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) $<
 	@echo
 
+cflags_CygWin.h: Makefile.CygWin
+	@echo "const char *cflags = \"$(CC) $(CFLAGS)\";" > $@
+
+ldflags_CygWin.h: Makefile.CygWin
+	@echo "const char *ldflags = \"$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) \";" > $@
+
 clean:
-	rm -f $(OBJECTS) envtool.res envtool.exe envtool.map
+	rm -f $(OBJECTS) envtool.res envtool.exe envtool.map cflags_Cygwin.h ldflags_Cygwin.h
 
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
