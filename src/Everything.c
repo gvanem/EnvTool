@@ -13,11 +13,21 @@
 #endif
 
 // include
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "Everything.h"
 #include "Everything_IPC.h"
+
+#if defined(__CYGWIN__)
+static int _wcsicmp ( const wchar_t *s1 __attribute__((notused)),
+                      const wchar_t *s2 __attribute__((notused)) )
+{
+  fprintf (stderr, "CygWin doesn't have '_wcsicmp()'. Exiting\n");
+  exit(1);
+}
+#endif
 
 // return copydata code
 #define _EVERYTHING_COPYDATA_QUERYCOMPLETEA	0
