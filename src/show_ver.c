@@ -17,8 +17,6 @@
  * Use at your own risk!
  */
 
-#include <windows.h>
-
 #include "envtool.h"
 
 struct VS_VERSIONINFO {
@@ -96,24 +94,90 @@ static BOOL  print_it = FALSE;
 #define VER_ERROR(fname)  do {                                                  \
                             last_err = GetLastError();                          \
                             DEBUGF (1, "Unable to access file \"%s\":\n  %s\n", \
-                                    fname, win_strerror(last_err));            \
+                                    fname, win_strerror(last_err));             \
                           } while (0)
+
+static char *trace_buf  = NULL;
+static char *trace_head = NULL;
+
+char *get_version_info_buf (void)
+{
+  return (trace_buf);
+}
+
+void get_version_info_free (void)
+{
+  FREE (trace_buf);
+  trace_buf = trace_head = NULL;
+}
 
 static void do_printf (const char *fmt, ...) ATTR_PRINTF (1,2);
 
 static void do_printf (const char *fmt, ...)
 {
+  static  size_t left = 1000;
+  static  size_t size = 1000;
   va_list args;
 
   if (!print_it)
      return;
 
+  if (!trace_buf || left < 100)
+  {
+    size_t delta = trace_head - trace_buf;
+    if (left < 100)
+         size *= 2;
+    else size = 1000;
+    trace_buf = (char*) REALLOC (trace_buf, size);
+    trace_head = trace_buf + delta;
+  }
+
   va_start (args, fmt);
-  vprintf (fmt, args);
+  left = size - (trace_head - trace_buf);
+  trace_head += vsnprintf (trace_head, left, fmt, args);
+  left = size - (trace_head - trace_buf);
   va_end (args);
 }
 
-static const char *showFileFlags (DWORD dwFileFlags)
+static void hex_dump (const void *data_p, size_t datalen)
+{
+  const BYTE *data = (const BYTE*) data_p;
+  UINT  ofs;
+
+  for (ofs = 0; ofs < datalen; ofs += 16)
+  {
+    UINT j;
+
+    if (ofs == 0)
+         do_printf ("%u:%s%04X: ", (unsigned int)datalen,
+                    datalen > 9999 ? " "    :
+                    datalen > 999  ? "  "   :
+                    datalen > 99   ? "   "  :
+                    datalen > 9    ? "    " :
+                                     "     ",
+                    ofs);
+    else do_printf ("       %04X: ", ofs);
+
+    for (j = 0; j < 16 && j+ofs < datalen; j++)
+        do_printf ("%02X%c", (unsigned)data[j+ofs],
+                   j == 7 && j+ofs < datalen-1 ? '-' : ' ');
+
+    for ( ; j < 16; j++)       /* pad line to 16 positions */
+        do_printf ("   ");
+
+    for (j = 0; j < 16 && j+ofs < datalen; j++)
+    {
+      int ch = data[j+ofs];
+
+      if (ch < ' ')            /* non-printable */
+           do_printf (".");
+      else do_printf ("%c", ch);
+    }
+    do_printf ("\n");
+  }
+}
+
+static const char *show_file_flags (DWORD dwFileFlags)
 {
   static char s[200];
   int pos = 0;
@@ -137,7 +201,7 @@ static const char *showFileFlags (DWORD dwFileFlags)
       memcpy (&s[pos], " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_DEBUG, sizeof (S_VS_FF_DEBUG));
+    memcpy (&s[pos], S_VS_FF_DEBUG, sizeof(S_VS_FF_DEBUG));
     pos += sizeof (S_VS_FF_DEBUG) - 1;
   }
 
@@ -148,7 +212,7 @@ static const char *showFileFlags (DWORD dwFileFlags)
       memcpy (&s[pos], " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_PRERELEASE, sizeof (S_VS_FF_PRERELEASE));
+    memcpy (&s[pos], S_VS_FF_PRERELEASE, sizeof(S_VS_FF_PRERELEASE));
     pos += sizeof (S_VS_FF_PRERELEASE) - 1;
   }
 
@@ -159,7 +223,7 @@ static const char *showFileFlags (DWORD dwFileFlags)
       memcpy (&s[pos], " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_PATCHED, sizeof (S_VS_FF_PATCHED));
+    memcpy (&s[pos], S_VS_FF_PATCHED, sizeof(S_VS_FF_PATCHED));
     pos += sizeof (S_VS_FF_PATCHED) - 1;
   }
 
@@ -170,7 +234,7 @@ static const char *showFileFlags (DWORD dwFileFlags)
       memcpy (&s[pos], " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_PRIVATEBUILD, sizeof (S_VS_FF_PRIVATEBUILD));
+    memcpy (&s[pos], S_VS_FF_PRIVATEBUILD, sizeof(S_VS_FF_PRIVATEBUILD));
     pos += sizeof (S_VS_FF_PRIVATEBUILD) - 1;
   }
 
@@ -181,7 +245,7 @@ static const char *showFileFlags (DWORD dwFileFlags)
       memcpy (&s[pos], " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_INFOINFERRED, sizeof (S_VS_FF_INFOINFERRED));
+    memcpy (&s[pos], S_VS_FF_INFOINFERRED, sizeof(S_VS_FF_INFOINFERRED));
     pos += sizeof (S_VS_FF_INFOINFERRED) - 1;
   }
 
@@ -192,13 +256,13 @@ static const char *showFileFlags (DWORD dwFileFlags)
       memcpy (&s[pos], " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_SPECIALBUILD, sizeof (S_VS_FF_SPECIALBUILD));
+    memcpy (&s[pos], S_VS_FF_SPECIALBUILD, sizeof(S_VS_FF_SPECIALBUILD));
     pos += sizeof (S_VS_FF_SPECIALBUILD) - 1;
   }
 
   if (!pos)
     memcpy (s, "0", 2);
-  return s;
+  return (s);
 }
 
 /* ----- VS_VERSION.dwFileOS ----- */
@@ -220,7 +284,7 @@ static const char *showFileFlags (DWORD dwFileFlags)
 #define S_VOS_OS232_PM32          "VOS_OS232_PM32"
 #define S_VOS_NT_WINDOWS32        "VOS_NT_WINDOWS32"
 
-static const char *showFileOS (DWORD dwFileOS)
+static const char *show_file_OS (DWORD dwFileOS)
 {
   switch (dwFileOS)
   {
@@ -272,31 +336,7 @@ static const char *showFileOS (DWORD dwFileOS)
 #define S_VFT_VXD          "VFT_VXD"
 #define S_VFT_STATIC_LIB   "VFT_STATIC_LIB"
 
-#if 0
-static const char *showFileType (DWORD dwFileType)
-{
-  switch (dwFileType)
-  {
-    case VFT_UNKNOWN:
-         return S_VFT_UNKNOWN;
-    case VFT_APP:
-         return S_VFT_APP;
-    case VFT_DLL:
-         return S_VFT_DLL;
-    case VFT_DRV:
-         return S_VFT_DRV;
-    case VFT_FONT:
-         return S_VFT_FONT;
-    case VFT_VXD:
-         return S_VFT_VXD;
-    case VFT_STATIC_LIB:
-         return S_VFT_STATIC_LIB;
-    default:
-         return ("Unknown FileType");
-  }
-}
-#else
-static const char *showFileType (DWORD type)
+static const char *show_file_type (DWORD type)
 {
   return (type == VFT_UNKNOWN    ? "VFT_UNKNOWN"    :
           type == VFT_APP        ? "VFT_APP"        :
@@ -307,7 +347,6 @@ static const char *showFileType (DWORD type)
           type == VFT_STATIC_LIB ? "VFT_STATIC_LIB" :
                                    "Unknown FileType");
 }
-#endif
 
 /* ----- VS_VERSION.dwFileSubtype for VFT_WINDOWS_DRV ----- */
 #define S_VFT2_UNKNOWN         "VFT2_UNKNOWN"
@@ -328,7 +367,7 @@ static const char *showFileType (DWORD type)
 #define S_VFT2_FONT_VECTOR     "VFT2_FONT_VECTOR"
 #define S_VFT2_FONT_TRUETYPE   "VFT2_FONT_TRUETYPE"
 
-static const char *showFileSubtype (DWORD dwFileType, DWORD dwFileSubtype)
+static const char *show_file_subtype (DWORD dwFileType, DWORD dwFileSubtype)
 {
   static char s[50];
 
@@ -414,12 +453,12 @@ static void show_FIXEDFILEINFO (const VS_FIXEDFILEINFO *pValue, struct ver_info 
   do_printf ("  FileFlagsMask:  0x%lX\n", pValue->dwFileFlagsMask);
 
   if (pValue->dwFileFlags)
-       do_printf ("  FileFlags:      0x%lX (%s)\n", pValue->dwFileFlags, showFileFlags(pValue->dwFileFlags));
+       do_printf ("  FileFlags:      0x%lX (%s)\n", pValue->dwFileFlags, show_file_flags(pValue->dwFileFlags));
   else do_printf ("  FileFlags:      0\n");
 
-  do_printf ("  FileOS:         %s\n", showFileOS (pValue->dwFileOS));
-  do_printf ("  FileType:       %s%s\n", showFileType (pValue->dwFileType),
-                                      showFileSubtype (pValue->dwFileType, pValue->dwFileSubtype));
+  do_printf ("  FileOS:         %s\n", show_file_OS (pValue->dwFileOS));
+  do_printf ("  FileType:       %s%s\n", show_file_type (pValue->dwFileType),
+                                      show_file_subtype (pValue->dwFileType, pValue->dwFileSubtype));
   do_printf ("  FileDate:       %lX.%lX\n", pValue->dwFileDateMS, pValue->dwFileDateLS);
 }
 
@@ -527,7 +566,7 @@ static void get_version_data (const void *pVer, DWORD size, struct ver_info *ver
   ASSERT ((const BYTE*)pSFI == ROUND_POS ((const BYTE*)pVS + pVS->wLength, pVS, 4));
 }
 
-int show_version_info (const char *file, struct ver_info *ver)
+int get_version_info (const char *file, struct ver_info *ver)
 {
   DWORD  dummy = 0;
   DWORD  size = GetFileVersionInfoSizeA (file, &dummy);
@@ -542,7 +581,9 @@ int show_version_info (const char *file, struct ver_info *ver)
     return (0);
   }
 
-  ver_data = CALLOC (size,1);
+  DEBUGF (1, "size: %lu\n", size);
+
+  ver_data = CALLOC (size, 1);
   if (!GetFileVersionInfoA(file, 0, size, ver_data))
   {
     VER_ERROR (file);
@@ -550,13 +591,13 @@ int show_version_info (const char *file, struct ver_info *ver)
     return (0);
   }
 
-  print_it = (verbose >= 3);
+  print_it = (opt.verbose >= 3);
 
   do_printf ("VERSIONINFO dump for file \"%s\":\n", file);
   if (print_it)
      hex_dump (ver_data, size);
 
-  print_it = (verbose >= 1);
+  print_it = (opt.verbose >= 1);
 
   do_printf ("VERSIONINFO: ");
   get_version_data (ver_data, size, ver);
@@ -564,5 +605,3 @@ int show_version_info (const char *file, struct ver_info *ver)
   FREE (ver_data);
   return (1);
 }
-
-
