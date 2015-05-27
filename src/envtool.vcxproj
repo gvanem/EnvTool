@@ -78,8 +78,7 @@
       <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE
-/DWIN32_LEAN_AND_MEAN %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -107,8 +106,8 @@
     <ClCompile Include="envtool.c" />
     <ClCompile Include="envtool_py.c" />
     <ClCompile Include="Everything.c" />
-    <ClCompile Include="getopt.c" />
-    <ClCompile Include="getopt1.c" />
+    <ClCompile Include="getopt_long.c" />
+    <ClCompile Include="color.c" />
     <ClCompile Include="misc.c" />
     <ClCompile Include="searchpath.c" />
     <ClCompile Include="show_ver.c">
@@ -119,8 +118,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="envtool.h" />
-    <ClInclude Include="getopt.h" />
-    <ClInclude Include="getopt_int.h" />
+    <ClInclude Include="getopt_long.h" />
     <ClInclude Include="win_glob.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
