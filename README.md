@@ -1,11 +1,11 @@
-EnvTool v0.96:
+EnvTool v0.97:
 ==============
 
 A tool to search along various environment variables for files (or a wildcard). The following options handles these environment variables:
 
 * `--path`:   &nbsp;&nbsp;&nbsp;&nbsp;             `%PATH%`.
 * `--inc`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
-* `--lib`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%LIB%` and `%LIBRARY_PATH%`. 
+* `--lib`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%LIB%` and `%LIBRARY_PATH%`.
 * `--python`: &nbsp;                               `%PYTHONPATH%` and `sys.path[]`.
 * `--evry`:   &nbsp;&nbsp;&nbsp;&nbsp;             [EveryThing](http://www.voidtools.com/support/everything/) file database.
 
@@ -181,4 +181,4 @@ risk. Enjoy!
 ```
 
 PS. This file is written with the aid of [MarkdownPad](http://www.markdownpad.com/).
-A real time-saver. 
+A real time-saver.
