@@ -508,9 +508,9 @@ start:
 		if (!*place)
 			++optind;
 #ifdef GNU_COMPATIBLE
-		if (PRINT_ERROR)
-			warnx(posixly_correct ? illoptchar : gnuoptchar,
-			      optchar);
+		if (PRINT_ERROR) {
+			warnx(posixly_correct ? illoptchar : gnuoptchar, optchar);
+		}
 #else
 		if (PRINT_ERROR)
 			warnx(illoptchar, optchar);
