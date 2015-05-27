@@ -7,10 +7,61 @@
 
 #include <stddef.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include "color.h"
 #include "envtool.h"
 #include "envtool_py.h"
+
+enum python_variants which_python = DEFAULT_PYTHON;
+
+struct python_info {
+
+  /* The basename of the specific Python interpreter.
+   */
+  const char *program;
+
+  /* The list of formats for the expected .DLLs for this specific Python.
+   */
+  const char *libraries[4];
+
+  /* The FQFN of 'program'.
+   */
+  char exe_name [_MAX_PATH];
+
+  /* it's FQFN .dll that matches the first above 'libraries[]' format.
+   * This dll_name is used in LoadLibrary() during init_python_embedding().
+   */
+  char dll_name [_MAX_PATH];
+
+  /* The 'sys.path[]' array of 'program'.
+   * \todo: Use realloc()?
+   */
+  struct python_array py_array [500];
+
+  /* The version info.
+   */
+  int ver_major, ver_minor, ver_micro;
+};
+
+static struct python_info all_py_programs[] = {
+   /* CPython */
+   { "python.exe",  { "python%d%d.dll", "libpython%d.%d.dll", NULL }, },
+   { "python2.exe", { "python%d%d.dll", "libpython%d.%d.dll", NULL }, },
+   { "python3.exe", { "python%d%d.dll", "libpython%d.%d.dll", NULL }, },
+
+   /* IronPython */
+   { "ipy.exe",     { "IronPython.dll", NULL }, },
+   { "ipy3.exe",    { "IronPython.dll", NULL }, },
+   { "ipy64.exe",   { "IronPython.dll", NULL }, },
+   { "ipy3_64.exe", { "IronPython.dll", NULL }, },
+
+   /* PyPy */
+   { "pypy.exe",    { "libpypy-c.dll", NULL }, },
+
+   /* JavaPython */
+   { "jython.exe",  { "jpython.dll", NULL }, }
+ };
 
 #define PY_THREAD_SAVE  0
 #define PY_GET_VERSION  "import sys; print (sys.version[:5])"
@@ -77,7 +128,8 @@ static int report_py_version (char *output, int line)
 }
 
 /*
- * todo: find the newest python*.exe on PATH.
+ * \todo: find the newest python*.exe on PATH.
+ * \todo: find all supported Python interpreters on PATH.
  */
 static char *get_python_exe_name (void)
 {
@@ -106,16 +158,21 @@ static char *get_python_exe_name (void)
 /*
  * Find the FQFN of the Python DLL.
  *
- * Note: The DLL-name of the official Python is named 'pythonX.Y.dll'.
+ * Note: The DLL-name of the official Python is named 'pythonXY.dll'.
  *       Python as distributed with GCC/GDB is named 'libpythonX.Y.dll'.
+ *       This latter never seems to be in System-directory.
  *
  * Try the offical name first.
+ *
+ * \todo: Rewrite and use scan_for_libs() below.
  */
 static char *get_python_dll_name (void)
 {
   char *dir;
   char dll1 [_MAX_PATH];
   char dll2 [_MAX_PATH];
+  char dll3 [_MAX_PATH];
+  char sdir  [_MAX_PATH];
 
   if (!py_exe_name[0])
      return (NULL);
@@ -128,34 +185,42 @@ static char *get_python_dll_name (void)
   if (!dir)
      return (NULL);
 
-  snprintf (dll1, sizeof(dll1), "%s\\python%d%d.dll", dir, py_major, py_minor);
-  snprintf (dll2, sizeof(dll2), "%s\\libpython%d.%d.dll", dir, py_major, py_minor);
-  FREE (dir);
+  if (GetSystemDirectory(sdir, sizeof(sdir)))
+       snprintf (dll1, sizeof(dll1), "%s\\python%d%d.dll", sdir, py_major, py_minor);  /* pri 1 */
+  else strcpy (dll1, "??");
 
-  DEBUGF (2, "testing dll_name: \"%s\"\n", dll1);
-  DEBUGF (2, "testing dll_name: \"%s\"\n", dll2);
+  snprintf (dll2, sizeof(dll2), "%s\\python%d%d.dll", dir, py_major, py_minor);        /* pri 2 */
+  snprintf (dll3, sizeof(dll3), "%s\\libpython%d.%d.dll", dir, py_major, py_minor);    /* pri 3 */
+
+  DEBUGF (2, "checking for:\n  \"%s\"\n  \"%s\"\n  \"%s\"\n", dll1, dll2, dll3);
 
   if (FILE_EXISTS(dll1))
   {
+    FREE (dir);
     DEBUGF (2, "Found \"%s\"\n", dll1);
-    strcpy (py_dll_name, dll1);
+    return strcpy (py_dll_name, dll1);
   }
-  else if (FILE_EXISTS(dll2))
+  if (FILE_EXISTS(dll2))
   {
+    FREE (dir);
     DEBUGF (2, "Found \"%s\"\n", dll2);
-    strcpy (py_dll_name, dll2);
+    return strcpy (py_dll_name, dll2);
   }
-  else
+  if (FILE_EXISTS(dll3))
   {
-    DEBUGF (2, "No Python .dll found in \"%s\"\n", dir);
-    return (NULL);
+    FREE (dir);
+    DEBUGF (2, "Found \"%s\"\n", dll3);
+    return strcpy (py_dll_name, dll3);
   }
-  return (py_dll_name);
+
+  DEBUGF (2, "No Python .dll found where python.exe is (\"%s\")\n", dir);
+  FREE (dir);
+  return (NULL);
 }
 
 int get_python_version (const char **py_exe, int *major, int *minor, int *micro)
 {
-  char  cmd[100];
+  char  cmd [_MAX_PATH + sizeof(PY_GET_VERSION) + 10];
   char *exe = get_python_exe_name();
 
   if (!exe)
@@ -214,7 +279,6 @@ static PyObject *setup_stdout_catcher (void)
 
 int init_python_embedding (void)
 {
-  char  full_name [_MAX_PATH] = "?";
   char  prog_name [_MAX_PATH] = "?";
   char *exe, *dll;
 
@@ -235,11 +299,6 @@ int init_python_embedding (void)
     WARN ("Failed to load %s; %s\n", dll, win_strerror(GetLastError()));
     return (0);
   }
-
-#if 0
-  if (GetModuleFileName(py_dll_hnd, py_dll_name, sizeof(py_dll_name)))
-     _strlcpy (dll, full_name, sizeof(full_name));  /* Copy full name into py_dll_name[] */
-#endif
 
   DEBUGF (2, "Full DLL name: \"%s\". Handle: 0x%p\n", py_dll_name, py_dll_hnd);
 
@@ -350,6 +409,11 @@ void test_python_funcs (void)
                      "  print (\"  Hello world\")\n";
   char *str;
 
+#if 0
+  test_all_pythons();
+
+#else
+
   if (!init_python_embedding())
      return;
 
@@ -367,6 +431,7 @@ void test_python_funcs (void)
   printf ("Captured output of Python now:\n** %s **\n", str);
   if (str)
      FREE (str);
+#endif
 }
 
 /*
@@ -417,6 +482,7 @@ static int report_zip_file (const char *zip_file, char *output)
   char   report [1024];
   int    num, len;
   time_t mtime;
+  long   fsize;
 
   space = strrchr (output, ' ');
   if (!space)
@@ -424,6 +490,7 @@ static int report_zip_file (const char *zip_file, char *output)
     WARN (" (1) Unexpected zipinfo line: %s\n", output);
     return (0);
   }
+
   file_within_zip = space + 1;
   p = space - 1;
   while (p > output && *p != ' ')
@@ -437,9 +504,10 @@ static int report_zip_file (const char *zip_file, char *output)
 
   p++;
   memset (&tm, 0, sizeof(tm));
-  num = sscanf (p, "%4u%2u%2u.%2u%2u%2u", &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
-                                          &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
-  if (num != 6)
+  num = sscanf (output, "%ld %4u%2u%2u.%2u%2u%2u",
+                &fsize, &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+                        &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
+  if (num != 7)
   {
     WARN (" (3) Unexpected zipinfo line: %s\n", output);
     return (0);
@@ -459,7 +527,14 @@ static int report_zip_file (const char *zip_file, char *output)
   }
 
   if (!py_home)
-     py_home = getenv ("PYTHONHOME");
+  {
+    static BOOL do_warn = TRUE;
+
+    py_home = getenv ("PYTHONHOME");
+    if (do_warn && !FILE_EXISTS(py_home))
+       WARN ("%%PYTHONHOME points to non-existing directory: \"%s\".\n", py_home);
+    do_warn = FALSE;
+  }
 
   len = snprintf (report, sizeof(report), "%s  (", file_within_zip);
 
@@ -467,15 +542,18 @@ static int report_zip_file (const char *zip_file, char *output)
    */
   p = py_home ? path_ltrim (zip_file, py_home) : zip_file;
   if (p > zip_file)
-       snprintf (report+len, sizeof(report)-len, "%%PYTHONHOME\\%s)", p);
+       snprintf (report+len, sizeof(report)-len, "%%PYTHONHOME%%\\%s)", p);
   else snprintf (report+len, sizeof(report)-len, "%s)", zip_file);
 
   /* zipinfo always reports 'file_within_zip' with '/' slashes. But simply slashify the
    * complete 'report' to use either '\\' or '/'.
    */
-  _strlcpy (report, slashify(report, show_unix_paths ? '/' : '\\'), sizeof(report));
+  _strlcpy (report, slashify(report, opt.show_unix_paths ? '/' : '\\'), sizeof(report));
 
-  report_file (report, mtime, FALSE, HKEY_PYTHON_EGG);
+  /* \todo: incase '--pe-check' is specified and 'report' file is a .pyd-file,
+   *        we should save the .pyd to a %TMP-file and examine it in report_file().
+   */
+  report_file (report, mtime, fsize, FALSE, HKEY_PYTHON_EGG);
   return (1);
 }
 
@@ -499,7 +577,7 @@ static int report_zip_file (const char *zip_file, char *output)
           "  base = os.path.basename (f.filename)\n"                                  \
           "  if debug >= 3:\n"                                                        \
           "     os.write (2, 'egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"  \
-          "  if fnmatch.fnmatch (base, '%s'):\n"   /* file_spec */                    \
+          "  if fnmatch.fnmatch (base, '%s'):\n"   /* opt.file_spec */                \
           "    date = \"%%4d%%02d%%02d\"  %% (f.date_time[0:3])\n"                    \
           "    time = \"%%02d%%02d%%02d\" %% (f.date_time[3:6])\n"                    \
           "    str = \"%%d %%s.%%s %%s\"  %% (f.file_size, date, time, f.filename)\n" \
@@ -509,7 +587,7 @@ static int report_zip_file (const char *zip_file, char *output)
           "\n"                                                                        \
           "zf = zipfile.ZipFile (r\"%s\", 'r')\n"        /* zfile */                  \
           "for f in zf.infolist():\n"                                                 \
-          "  print_zline (f, %d)\n"                      /* debug */
+          "  print_zline (f, %d)\n"                      /* opt.debug */
 
 static int process_zip (const char *zfile)
 {
@@ -520,7 +598,7 @@ static int process_zip (const char *zfile)
   if (sizeof(cmd) < sizeof(PY_ZIP_LIST) + _MAX_PATH + 100)
      FATAL ("cmd[] buffer too small.\n");
 
-  len = snprintf (cmd, sizeof(cmd), PY_ZIP_LIST, file_spec, zfile, debug);
+  len = snprintf (cmd, sizeof(cmd), PY_ZIP_LIST, opt.file_spec, zfile, opt.debug);
   str = call_python_func (cmd);
   DEBUGF (2, "cmd-len: %d, Python output: \"%s\"\n", len, str);
 
@@ -536,9 +614,8 @@ static int process_zip (const char *zfile)
   }
 
   if (found == 0)
-     DEBUGF (1, "No matches in %s for %s.\n", zfile, file_spec);
+     DEBUGF (1, "No matches in %s for %s.\n", zfile, opt.file_spec);
 
-  ARGSUSED (len);
   return (found);
 }
 
@@ -584,7 +661,7 @@ int do_check_python (void)
   {
     /* Don't warn on missing .zip files in 'sys.path[]' (unless in debug-mode)
      */
-    if (!debug && !py->exist && !stricmp(get_file_ext(py->dir), "zip"))
+    if (!opt.debug && !py->exist && !stricmp(get_file_ext(py->dir), "zip"))
        py->exist = py->is_dir = TRUE;
 
     if (py->is_zip)
@@ -616,7 +693,7 @@ static int fgets_loop (FILE *f, popen_callback callback)
   int   j = 0;
   int   ch;
 
-  DEBUGF (2, "fileno(f): %d\n", _fileno(f));
+  DEBUGF (2, "_fileno(f): %d\n", _fileno(f));
 
 #if 1
   while ((ch = fgetc(f)) != -1)
@@ -651,6 +728,8 @@ static int fgets_loop (FILE *f, popen_callback callback)
 int test_python_pipe (void)
 {
   int   rc = 0;
+
+#if !defined(__CYGWIN__)
   int   fd = -1;
   char  py_cmd [500];
   FILE *f  = NULL;
@@ -696,14 +775,137 @@ int test_python_pipe (void)
   if (rc == 0)
      rc = fgets_loop (f, add_to_py_array);
   fclose (f);
+#endif  /* __CYGWIN__ */
+
   return (rc);
 }
 
 
+static int this_py_major = -1;
+static int this_py_minor = -1;
+static int this_py_micro = -1;
 
+static int report_this_py_version_cb (char *output, int line)
+{
+  int num = sscanf (output, "%d.%d.%d", &this_py_major, &this_py_minor, &this_py_micro);
+  return  (num >= 2);
+}
 
+/*
+ * \todo: find the newest 'py_exe' on PATH.
+ */
+static char *get_this_python_exe_name (const char *py_exe)
+{
+  const char *p = searchpath (py_exe, "PATH");
 
+  if (!p || !FILE_EXISTS(p))
+     return (NULL);
 
+  /* Returns allocated memory
+   */
+  return _fixpath (p, NULL);
+}
 
+/*
+ * \todo:
+ *  If multiple DLLs with same name are found (in 'dirname(exe)' and/or
+ *  SystemDir/PATH), report a warning. Check PE-version and/or MD5 finger-
+ *  print?
+ */
+static const char *scan_for_libs (const char *exe, int major, int minor,
+                                  const char **libs, size_t num)
+{
+  char  *path = dirname (exe);
+  const  char *lib, *rc = NULL;
+  static char dll [_MAX_PATH];
+  size_t i;
 
+  for (i = 0, lib = libs[0]; lib && i < num; lib = libs[++i])
+  {
+    if (strchr(lib,'%'))
+    {
+      char lib2 [_MAX_PATH];
+      snprintf (lib2, sizeof(lib2), lib, major, minor);
+      lib = lib2;
+    }
+    snprintf (dll, sizeof(dll), "%s\\%s", path, lib);
+    if (FILE_EXISTS(dll))
+    {
+      rc = dll;
+      break;
+    }
+    DEBUGF (2, "dll: %s, rc: %s.\n", dll, rc);
+  }
+  FREE (path);
+  return (rc);
+}
 
+static int print_sys_path_cb (char *output, int line)
+{
+  printf ("line %d: %s\n", line, output);
+  return (0);
+}
+
+static void print_sys_path (const struct python_info *py)
+{
+  #define PY_PRINT_SYS_PATH2  "import os, sys; " \
+                              "[os.write(1,'%s\\n' % p) for (i,p) in enumerate(sys.path)]"
+
+  char  cmd [_MAX_PATH + sizeof(PY_PRINT_SYS_PATH2) + 10];
+
+  snprintf (cmd, sizeof(cmd), "%s -c \"%s\"", py->exe_name, PY_PRINT_SYS_PATH2);
+  popen_run (cmd, print_sys_path_cb);
+}
+
+int test_all_pythons (void)
+{
+  struct python_info *py;
+  int    i, found = 0;
+
+  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); i++, py = all_py_programs+i)
+  {
+    char  cmd [_MAX_PATH + sizeof(PY_GET_VERSION) + 10];
+    char *dll, *exe = get_this_python_exe_name (py->program);
+    int   save, popen_rc;
+
+    py->ver_major = py->ver_minor = py->ver_micro = -1;
+    if (!exe)
+    {
+      DEBUGF (0, "%d: \"%s\" not found\n", i, py->program);
+      continue;
+    }
+
+    _strlcpy (py->exe_name, exe, sizeof(py->exe_name));
+    FREE (exe);
+
+    _strlcpy (py->dll_name, "<unknown>", sizeof(py->dll_name));
+
+    save = opt.debug;
+    opt.debug = 0;
+    snprintf (cmd, sizeof(cmd), "%s -c \"%s\"", py->exe_name, PY_GET_VERSION);
+    popen_rc = popen_run (cmd, report_this_py_version_cb);
+    opt.debug = save;
+
+    if (popen_rc >= 1)
+    {
+      py->ver_major = this_py_major;
+      py->ver_minor = this_py_minor;
+      py->ver_micro = this_py_micro;
+
+      dll = scan_for_libs (py->exe_name, py->ver_major, py->ver_minor,
+                           py->libraries, DIM(py->libraries));
+      if (dll)
+        _strlcpy (py->dll_name, dll, sizeof(py->dll_name));
+
+      print_sys_path (py);
+      found++;
+    }
+
+    DEBUGF (0, "%d: \"%s\" found -> \"%s\".\n"
+               "    DLL: %s\n"
+               "    ver. %d.%d.%d\n\n",
+            i, py->program, py->exe_name, py->dll_name,
+            py->ver_major, py->ver_minor, py->ver_micro);
+  }
+  return (found);
+}
