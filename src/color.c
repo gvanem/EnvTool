@@ -28,7 +28,7 @@
 #define STDOUT_FILENO  1
 #endif
 
-/* The program using color.c must set to 1.
+/* The program using color.c must set this to 1.
  */
 int use_colours = 0;
 
@@ -42,7 +42,7 @@ static CONSOLE_SCREEN_BUFFER_INFO console_info;
 
 static HANDLE console_hnd = INVALID_HANDLE_VALUE;
 
-static WORD color_map [6];
+static WORD color_map [7];
 
 static void init_color_map (void)
 {
@@ -58,6 +58,7 @@ static void init_color_map (void)
   color_map[3] = (bg + 6) | FOREGROUND_INTENSITY;  /* bright yellow */
   color_map[4] = (bg + 5);                         /* magenta */
   color_map[5] = (bg + 4) | FOREGROUND_INTENSITY;  /* bright red */
+  color_map[6] = (bg + 7) | FOREGROUND_INTENSITY;  /* bright white */
 }
 
 int C_setraw (int raw)
@@ -88,9 +89,10 @@ static void C_init (void)
 
     console_hnd = GetStdHandle (STD_OUTPUT_HANDLE);
     okay = (console_hnd != INVALID_HANDLE_VALUE &&
-            GetConsoleScreenBufferInfo(console_hnd, &console_info));
+            GetConsoleScreenBufferInfo(console_hnd, &console_info) &&
+            GetFileType(console_hnd) == FILE_TYPE_CHAR);
 
-    if (okay && GetFileType(console_hnd) == FILE_TYPE_CHAR)
+    if (okay)
          init_color_map();
     else use_colours = 0;
 
@@ -266,4 +268,15 @@ int C_puts (const char *str)
       rc += C_putc (ch);
   return (rc);
 }
+
+int C_putsn (const char *str, size_t len)
+{
+  int    rc = 0;
+  size_t i;
+
+  for (i = 0; i < len; i++)
+      rc += C_putc (*str++);
+  return (rc);
+}
+
 

@@ -20,6 +20,7 @@ extern int C_printf  (const char *fmt, ...)
 
 extern int    C_vprintf  (const char *fmt, va_list args);
 extern int    C_puts     (const char *str);
+extern int    C_putsn    (const char *str, size_t len);
 extern int    C_putc     (int ch);
 extern int    C_putc_raw (int ch);
 extern int    C_setraw   (int raw);
