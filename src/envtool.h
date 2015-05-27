@@ -1,11 +1,11 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "0.96"
+#define VER_STRING  "0.97"
 #define MAJOR_VER   0
-#define MINOR_VER   96
+#define MINOR_VER   97
 
-#define CHECK_PREFIXED_GCC 0
+#define CHECK_PREFIXED_GCC 1
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 
@@ -70,17 +70,19 @@
  /*
   * <limits.h> defines PATH_MAX to 4096. That seems excessive for our use.
   */
-  #define _MAX_PATH    _POSIX_PATH_MAX   /* 256 */
-  #define _S_ISDIR(m)  S_ISDIR (m)
-  #define _S_ISREG(m)  S_ISREG (m)
-  #define _popen(c,m)  popen (c,m)
-  #define _pclose(f)   pclose (f)
+  #define _MAX_PATH          _POSIX_PATH_MAX   /* 256 */
+  #define _S_ISDIR(mode)     S_ISDIR (mode)
+  #define _S_ISREG(mode)     S_ISREG (mode)
+  #define _popen(cmd, mode)  popen (cmd, mode)
+  #define _pclose(fil)       pclose (fil)
+  #define _fileno(f)         fileno (f)
 
   #include <unistd.h>
   #include <alloca.h>
   #include <sys/cygwin.h>
 #else
   #include <direct.h>
+  #define  stat _stati64
 #endif
 
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -118,11 +120,11 @@
 #endif
 
 #ifndef _S_ISDIR
-  #define _S_ISDIR(m)        (((m) & _S_IFMT) == _S_IFDIR)
+  #define _S_ISDIR(mode)     (((mode) & _S_IFMT) == _S_IFDIR)
 #endif
 
 #ifndef _S_ISREG
-  #define _S_ISREG(m)        (((m) & _S_IFMT) == _S_IFREG)
+  #define _S_ISREG(mode)     (((mode) & _S_IFMT) == _S_IFREG)
 #endif
 
 #ifdef __GNUC__
@@ -132,9 +134,11 @@
 #endif
 
 #ifdef __CYGWIN__
-  #define S64_FMT "%lld"
+  #define S64_FMT "lld"
+  #define U64_FMT "llu"
 #else
-  #define S64_FMT "%I64d"
+  #define S64_FMT "I64d"
+  #define U64_FMT "I64u"
 #endif
 
 #ifndef STDOUT_FILENO
@@ -150,13 +154,39 @@ extern "C" {
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
-extern int   show_unix_paths, add_cwd;
-extern int   debug, quiet, verbose;
-extern char *file_spec;
+struct prog_options {
+       int   debug;
+       int   verbose;
+       int   quiet;
+       int   add_cwd;
+       int   show_unix_paths;
+       int   decimal_timestamp;
+       int   no_sys_env;
+       int   no_usr_env;
+       int   no_app_path;
+       int   use_regex;
+       int   dir_mode;
+       int   PE_check;
+       int   do_test;
+       int   help;
+       int   show_size;
+       int   no_gcc;
+       int   no_gpp;
+       int   do_evry;
+       int   do_version;
+       int   do_path;
+       int   do_lib;
+       int   do_include;
+       int   do_python;
+       int   conv_cygdrive;
+       char *file_spec;
+     };
 
-extern void  report_file (const char *file, time_t mtime, BOOL is_dir, HKEY key);
-extern int   process_dir (const char *path, int num_dup, BOOL exist,
-                          BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key);
+extern struct prog_options opt;
+
+extern int  report_file (const char *file, time_t mtime, __int64 fsize, BOOL is_dir, HKEY key);
+extern int  process_dir (const char *path, int num_dup, BOOL exist,
+                         BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key);
 
 /* Stuff in misc.c:
  */
@@ -180,7 +210,12 @@ extern char *dirname       (const char *fname);
 extern int   _is_DOS83     (const char *fname);
 extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
+
+extern const char *qword_str (unsigned __int64 val);
+extern const char *dword_str (DWORD val);
+
 extern char *translate_shell_pattern (const char *pattern);
+
 
 /* For PE-image version in get_version_info().
  */
@@ -228,7 +263,7 @@ extern void  mem_report (void);
 #define STRDUP(s)      strdup_at (s, __FILE(), __LINE__)
 #define FREE(p)        (p ? (void) (free_at(p, __FILE(), __LINE__), p = NULL) : (void)0)
 
-typedef int (popen_callback) (char *buf, int index);
+typedef int (*popen_callback) (char *buf, int index);
 
 int popen_run (const char *cmd, popen_callback callback);
 
@@ -255,7 +290,8 @@ extern char *fnmatch_res (int rc);
      * With '-RTCc' in debug-mode, this generates
      *   Run-Time Check Failure #1 - A cast to a smaller
      *   data type has caused a loss of data.  If this was intentional, you should
-     *   mask the source of the cast with the appropriate bitmask.  For example:
+     *   mask the source of the cast with the appropriate bitmask.
+     *   For example:
      *     char c = (i & 0xFF);
      */
     #define loBYTE(w)   ((BYTE) ((w) & 255))
@@ -266,26 +302,19 @@ extern char *fnmatch_res (int rc);
   #endif
 #endif
 
-#define DEBUGF(level, fmt, ...)  do {                                           \
-                                   if (debug >= level) {                        \
-                                     debug_printf ("%s(%u): " fmt,              \
-                                       __FILE(), __LINE__, ## __VA_ARGS__);     \
-                                   }                                            \
+#define DEBUGF(level, fmt, ...)  do {                                          \
+                                   if (opt.debug >= level) {                   \
+                                     debug_printf ("%s(%u): " fmt,             \
+                                       __FILE(), __LINE__, ##__VA_ARGS__);     \
+                                   }                                           \
                                  } while (0)
 
-#define WARN(fmt, ...)           do {                                           \
-                                   if (!quiet)                                  \
-                                      C_printf ("~5" fmt "~0", ## __VA_ARGS__); \
+#define WARN(fmt, ...)           do {                                          \
+                                   if (!opt.quiet)                             \
+                                      C_printf ("~5" fmt "~0", ##__VA_ARGS__); \
                                  } while (0)
 
-#if 0
-  #define FATAL(fmt, ...)        do {                                              \
-                                   fprintf (stderr, "Fatal: "fmt, ## __VA_ARGS__); \
-                                   exit (1);                                       \
-                                 } while (0)
-
-#else
-  #define FATAL(fmt, ...)        do {                                        \
+#define FATAL(fmt, ...)          do {                                        \
                                    fprintf (stderr, "\nFatal: %s(%u): " fmt, \
                                             __FILE(), __LINE__,              \
                                             ## __VA_ARGS__);                 \
@@ -293,7 +322,6 @@ extern char *fnmatch_res (int rc);
                                         abort();                             \
                                    else ExitProcess (GetCurrentProcessId()); \
                                  } while (0)
-#endif
 
 #ifdef __cplusplus
 };
