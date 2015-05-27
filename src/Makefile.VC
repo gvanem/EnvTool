@@ -7,7 +7,7 @@ DEBUG = 0
 CC      = cl
 CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 -I. \
           -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE \
-          -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI=
+          -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl
 
 LDFLAGS = -nologo -incremental:no
 RCFLAGS = -nologo -D_MSC_VER -r
@@ -37,8 +37,8 @@ RCFLAGS = $(RCFLAGS) -DWIN64
 OBJECTS = envtool.obj envtool_py.obj searchpath.obj misc.obj \
           color.obj show_ver.obj Everything.obj envtool.res getopt_long.obj
 
-all: envtool.exe
-	copy /y $** ..
+all: cflags_MSVC.h ldflags_MSVC.h envtool.exe
+	copy /y envtool.exe ..
 	@echo $@ successfully built.
 
 envtool.exe: $(OBJECTS)
@@ -49,13 +49,13 @@ envtool.exe: $(OBJECTS)
 envtool.res: envtool.rc
 	rc $(RCFLAGS) -fo $@ envtool.rc
 
-win_glob.exe: win_glob.c misc.c
-	$(CC) $(CFLAGS) -DTEST -c $**
+win_glob.exe: win_glob.c misc.c color.c
+	$(CC) $(CFLAGS) -DGLOB_TEST -c $**
 	link $(LDFLAGS) -out:$@ -map:win_glob.map $(**:.c=.obj) imagehlp.lib
 	del /q win_glob.obj misc.obj
 
 mem_test.exe: misc.c color.c
-	$(CC) $(CFLAGS) -DTEST -c $**
+	$(CC) $(CFLAGS) -DMEM_TEST -c $**
 	link $(LDFLAGS) -out:$@ -map:mem_test.map $(**:.c=.obj) imagehlp.lib
 	del /q misc.obj
 
@@ -65,12 +65,18 @@ show_ver.obj: show_ver.c
 .c.obj:
 	$(CC) $(CFLAGS) -c $*.c
 
+cflags_MSVC.h: Makefile.VC
+	@echo const char *cflags = "$(CC) $(CFLAGS)"; > $@
+
+ldflags_MSVC.h: Makefile.VC
+	@echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe -map:envtool.map $(OBJECTS) $(EX_LIBS)"; > $@
+
 clean vclean:
 	del /q $(OBJECTS) envtool.map envtool.exe envtool.pdb msbuild.log \
 	       mem_test.exe mem_test.map mem_test.pdb win_glob.obj win_glob.exe \
-	       win_glob.map win_glob.pdb *.sbr vc1*.idb vc*.pdb
+	       win_glob.map win_glob.pdb *.sbr vc1*.idb vc*.pdb cflags_MSVC.h ldflags_MSVC.h
 
-msbuild:
+msbuild: cflags_MSVC.h ldflags_MSVC.h
 	$(MSBUILD) envtool.sln
 	copy /y envtool.exe ..
 	@echo envtool.exe successfully built.

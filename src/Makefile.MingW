@@ -4,14 +4,19 @@
 
 FORTIFY_SOURCE = 0
 USE_DEBUG      = 1
+USE_UNICODE   ?= 0
 USE_64BIT     ?= 0
 
 MINGW_ROOT = $(realpath $(MINGW32))
 
 CC      = gcc
-CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI=
+CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
-RCFLAGS = -v --use-temp-file -O COFF
+RCFLAGS = -O COFF
+
+ifeq ($(USE_UNICODE),1)
+  CFLAGS += -DUNICODE -D_UNICODE
+endif
 
 ifeq ($(USE_64BIT),1)
   CFLAGS  += -m64
@@ -24,7 +29,7 @@ else
 endif
 
 ifeq ($(USE_DEBUG),1)
-  CFLAGS  += -O0 -D_DEBUG -g # -gstabs
+  CFLAGS  += -O0 -D_DEBUG -ggdb
   LDFLAGS +=
 else
   CFLAGS  += -O2
@@ -41,19 +46,19 @@ EX_LIBS += -limagehlp -lversion
 SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c envtool_py.c getopt_long.c
 OBJECTS = $(SOURCES:.c=.o)
 
-all: envtool.exe
-	cp --update $^ ..
+all: cflags_MingW.h ldflags_MingW.h envtool.exe
+	cp --update envtool.exe ..
 	@echo '../envtool.exe successfully built.'
 
 envtool.exe: $(OBJECTS) envtool.res
 	$(CC) $(LDFLAGS) -o $@ $^ $(EX_LIBS) > envtool.map
 
-win_glob.exe: win_glob.c misc.c searchpath.c
-	$(CC) $(LDFLAGS) -DTEST -o $@ $^ > win_glob.map
+win_glob.exe: win_glob.c misc.c color.c
+	$(CC) $(LDFLAGS) -DGLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o misc.o
 
 mem_test.exe: misc.c color.c
-	$(CC) $(LDFLAGS) -DTEST -o $@ $^ $(EX_LIBS) > mem_test.map
+	$(CC) $(LDFLAGS) -DMEM_TEST -o $@ $^ $(EX_LIBS) > mem_test.map
 	rm -f misc.o
 
 envtool.res: envtool.rc
@@ -68,10 +73,16 @@ envtool.res: envtool.rc
 	@echo
 
 clean:
-	rm -f $(OBJECTS) .depend.MingW envtool.res envtool.exe envtool.map
+	rm -f $(OBJECTS) .depend.MingW envtool.res envtool.exe envtool.map cflags_MingW.h ldflags_MingW.h
 
 vclean: clean
 	rm -f win_glob.exe win_glob.map mem_test.exe mem_test.map
+
+cflags_MingW.h: Makefile.MingW
+	@echo "const char *cflags = \"$(CC) $(CFLAGS)\";" > $@
+
+ldflags_MingW.h: Makefile.MingW
+	@echo "const char *ldflags = \"$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) \";" > $@
 
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
