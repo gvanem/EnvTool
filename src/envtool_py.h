@@ -9,6 +9,19 @@ struct python_array {
        int   num_dup;       /* # of duplicates elsewhere in %VAR? */
      };
 
+enum python_variants {
+     DEFAULT_PYTHON,
+     PY2_PYTHON,
+     PY3_PYTHON,
+     IRON2_PYTHON,
+     IRON3_PYTHON,
+     PYPY_PYTHON,
+     JYTHON_PYTHON,
+     ALL_PYTHONS
+   };
+
+extern enum python_variants which_python;
+
 extern int   do_check_python       (void);
 extern int   get_python_version    (const char **py_exe, int *major, int *minor, int *micro);
 extern int   init_python_embedding (void);
@@ -16,6 +29,7 @@ extern void  exit_python_embedding (void);
 extern char *call_python_func      (const char *py_str);
 extern void  test_python_funcs     (void);
 extern int   test_python_pipe      (void);
+extern int   test_all_pythons      (void);
 
 #endif  /* _ENVTOOL_PY_H */
 
