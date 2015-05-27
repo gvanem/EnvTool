@@ -15,47 +15,73 @@
 #include "color.h"
 #include "envtool.h"
 
-#define USE_COLOUR_C   1
+#define USE_COLOUR_C  1
 
-#define IS_SLASH(c)  ((c) == '\\' || (c) == '/')
-#define TOUPPER(c)   toupper ((int)(c))
+#define IS_SLASH(c)   ((c) == '\\' || (c) == '/')
+#define TOUPPER(c)    toupper ((int)(c))
+#define TOLOWER(c)    tolower ((int)(c))
 
 struct mem_head {
        unsigned long    marker;
        size_t           size;
        char             file [20];  /* allocated at file/line */
        unsigned         line;
-       struct mem_head *next;
+       struct mem_head *next;       /* 36 bytes = 24h */
      };
 
 static struct mem_head *mem_list = NULL;
 
-static size_t mem_max    = 0;  /* Max bytes allocated at one time */
-static size_t mem_allocs = 0;  /* # of allocations */
-static size_t mem_frees  = 0;  /* # of mem-frees */
+static DWORD  mem_max      = 0;  /* Max bytes allocated at one time */
+static size_t mem_allocs   = 0;  /* # of allocations */
+static size_t mem_reallocs = 0;  /* # of realloc() */
+static size_t mem_frees    = 0;  /* # of mem-frees */
 
 static void add_to_mem_list (struct mem_head *m, const char *file, unsigned line)
 {
   m->next = mem_list;
   m->line = line;
-  _strlcpy (m->file,file, sizeof(m->file));
+  _strlcpy (m->file, file, sizeof(m->file));
   mem_list = m;
 }
 
-static void del_from_mem_list (const struct mem_head *m)
+#define IS_MARKER(m) ( ( (m)->marker == MEM_MARKER) || ( (m)->marker == MEM_FREED) )
+
+static void del_from_mem_list (const struct mem_head *m, unsigned line)
 {
   struct mem_head *m1, *prev;
+  unsigned i, max_loops = mem_allocs - mem_frees;
 
-  for (m1 = prev = mem_list; m1; m1 = m1->next)
+  ASSERT (max_loops > 0);
+
+  for (m1 = prev = mem_list, i = 1; m1 && i <= max_loops; m1 = m1->next, i++)
   {
+    if (!IS_MARKER(m1))
+       FATAL ("m->marker: 0x%08lX munged from line %u!?\n", m1->marker, line);
+
     if (m1 != m)
        continue;
+
     if (m == mem_list)
          mem_list   = m1->next;
     else prev->next = m1->next;
     break;
   }
+  if (i > max_loops)
+     FATAL ("max-loops (%u) exceeded. mem_list munged from line %u!?\n",
+            max_loops, line);
 }
+
+#ifdef NOT_USED
+static struct mem_head *mem_list_get_head (void *ptr)
+{
+  struct mem_head *m;
+
+  for (m = mem_list; m; m = m->next)
+      if (m == ptr)
+         return (m);
+  return (NULL);
+}
+#endif
 
 /*
  * Open a fname and check if there's a "PK" signature in header.
@@ -95,7 +121,7 @@ static const IMAGE_DOS_HEADER *dos;
 static const IMAGE_NT_HEADERS *nt;
 static char  file_buf [sizeof(*dos) + sizeof(*nt)];
 
-int check_if_pe (const char *fname)
+int check_if_PE (const char *fname)
 {
   BOOL   is_exe, is_pe;
   size_t len = 0;
@@ -118,11 +144,15 @@ int check_if_pe (const char *fname)
   /* Probably not a PE-file at all.
    */
   if ((char*)nt > file_buf + sizeof(file_buf))
-     return (FALSE);
+  {
+    DEBUGF (3, "%s: NT-header at wild offset.\n", fname);
+    return (FALSE);
+  }
 
   is_exe = (LOBYTE(dos->e_magic) == 'M' && HIBYTE(dos->e_magic) == 'Z');
   is_pe  = (nt->Signature == IMAGE_NT_SIGNATURE);   /* 'PE\0\0 ' */
 
+  DEBUGF (3, "%s: is_exe: %d, is_pe: %d.\n", fname, is_exe, is_pe);
   return (is_exe && is_pe);
 }
 
@@ -195,7 +225,7 @@ char *strip_nl (char *s)
   return (s);
 }
 
-/**
+/*
  * Trim leading and trailing blanks (space/tab) from a string.
  */
 char *str_trim (char *s)
@@ -231,6 +261,33 @@ char *path_ltrim (const char *p1, const char *p2)
        break;
   }
   return (char*) p1;
+}
+
+/**
+ * Return nicely formatted string "xx,xxx,xxx"
+ * with thousand separators (left adjusted).
+ */
+const char *qword_str (unsigned __int64 val)
+{
+  static char buf [30];
+  char   tmp [30], *p;
+  int    i, j, len = snprintf (tmp, sizeof(tmp), "%" U64_FMT, val);
+
+  p = buf + len;
+  *p-- = '\0';
+
+  for (i = len, j = -1; i >= 0; i--, j++)
+  {
+    if (j > 0 && (j % 3) == 0)
+      *p-- = ',';
+    *p-- = tmp[i];
+  }
+  return (p+1);
+}
+
+const char *dword_str (DWORD val)
+{
+  return qword_str ((unsigned __int64)val);
 }
 
 static const char *find_slash (const char *s)
@@ -460,7 +517,6 @@ char *dirname (const char *fname)
   return (NULL);
 }
 
-#if defined(NOT_USED) || 1
 /*
  * Split a 'path' into a 'dir' and 'name'.
  * If e.g. 'path' = "c:\\Windows\\System32\\", 'file' becomes "".
@@ -468,6 +524,9 @@ char *dirname (const char *fname)
 int split_path (const char *path, char *dir, char *file)
 {
   const char *slash = strrchr (path, '/');
+
+  if (!slash)
+     slash = strrchr (path, '\\');
 
   if (dir)
      *dir = '\0';
@@ -482,7 +541,6 @@ int split_path (const char *path, char *dir, char *file)
      ;
   return (0);
 }
-#endif
 
 /*
  * Canonize file and paths names. E.g. convert this:
@@ -497,6 +555,8 @@ int split_path (const char *path, char *dir, char *file)
  */
 char *_fixpath (const char *path, char *result)
 {
+  size_t len;
+
   if (!path || !*path)
   {
     DEBUGF (1, "given a bogus 'path'\n");
@@ -509,6 +569,7 @@ char *_fixpath (const char *path, char *result)
 
  /* GetFullPathName() doesn't seems to handle
   * '/' in 'path'. Convert to '\\'.
+  *
   * Note: the 'result' file or path may not exists.
   *       Use 'FILE_EXISTS()' to test.
   *
@@ -521,6 +582,13 @@ char *_fixpath (const char *path, char *result)
             path, win_strerror(GetLastError()));
     _strlcpy (result, path, _MAX_PATH);
   }
+
+  /* For consistency, report drive-letter in lower case.
+   */
+  len = strlen (result);
+  if (len >= 3 && result[1] == ':' && IS_SLASH(result[2]))
+     result[0] = TOLOWER (result[0]);
+
   return (result);
 }
 
@@ -530,9 +598,7 @@ char *_fixpath (const char *path, char *result)
  */
 const char *get_file_ext (const char *file)
 {
-  const char *end, *dot;
-
-  const char *s;
+  const char *end, *dot, *s;
 
   assert (file);
   while ((s = strpbrk(file, ":/\\")) != NULL)  /* step over drive/path part */
@@ -566,15 +632,18 @@ char *create_temp_file (void)
  */
 char *_strlcpy (char *dst, const char *src, size_t len)
 {
+  size_t slen;
+
   assert (src != NULL);
   assert (dst != NULL);
   assert (len > 0);
 
-  if (strlen(src) < len)
+  slen = strlen (src);
+  if (slen < len)
      return strcpy (dst, src);
 
-  memcpy (dst, src, len);
-  dst [len-1] = '\0';
+  memcpy (dst, src, slen);
+  dst [slen] = '\0';
   return (dst);
 }
 
@@ -607,9 +676,13 @@ char *slashify (const char *path, char use)
 }
 
 /*
- * Heristic alert! return 1 if file-A is newer than file-B.
+ * Heristic alert!
+ *
+ * Return 1 if file A is newer than file B.
  * Based on modification times 'mtime_a', 'mtime_b' and file-versions
  * returned from show_version_info().
+ *
+ * Currently not used.
  */
 int compare_file_time_ver (time_t mtime_a, time_t mtime_b,
                            struct ver_info ver_a, struct ver_info ver_b)
@@ -630,7 +703,6 @@ static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
     rc = FormatMessageA (FORMAT_MESSAGE_FROM_HMODULE,
                          mod, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                          buf, buf_len, NULL);
-   //FreeLibrary (mod);
   }
   return (rc);
 }
@@ -751,33 +823,69 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
  * A realloc() that fails if no memory. It's pretty hopeless to continue
  * this program if realloc() fails.
  */
+#define USE_REALLOC 0
+
+#if USE_REALLOC
 void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
 {
   struct mem_head *head = (struct mem_head*) ptr;
-  void  *p;
+
+  if (head)
+     head--;
 
   size += sizeof(*head);
 
-#if defined(_CRTDBG_MAP_ALLOC)  /* cl -MDd .. */
-  p = _realloc_dbg (head, size, _NORMAL_BLOCK, file, line);
+#if defined(_CRTDBG_MAP_ALLOC)     /* cl -MDd .. */
+  head = _realloc_dbg (head, size, _NORMAL_BLOCK, file, line);
 #else
-  p = realloc (head, size);
+  head = realloc (head, size);
 #endif
 
-  if (!p)
+  if (!head)
      FATAL ("realloc() failed at %s, line %u\n", file, line);
 
   head->marker = MEM_MARKER;
   head->size   = size;
-  if (p != head)
-  {
-    del_from_mem_list (p);
-    add_to_mem_list (head, file, line);
-    mem_max += size;
-    mem_allocs++;
-  }
-  return (p);
+//add_to_mem_list (head, file, line);
+  mem_max += size;
+  mem_reallocs++;
+//mem_allocs++;
+  return (head+1);
 }
+#else
+
+void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
+{
+  struct mem_head *p;
+
+  if (ptr == NULL)
+     return malloc_at (size, file, line);
+
+  if (size == 0)
+  {
+    free_at (ptr, file, line);
+    return (NULL);
+  }
+
+  p = (struct mem_head*) ptr;
+  p--;
+
+  if (p->marker != MEM_MARKER)
+     FATAL ("realloc() of unknown block at %s, line %u\n", file, line);
+
+  if (p->size - sizeof(*p) < size)
+  {
+    ptr = malloc_at (size, file, line);
+    size = p->size - sizeof(*p);
+    memmove (ptr, p+1, size);        /* Since memory could be overlapping */
+    del_from_mem_list (p, __LINE__);
+    mem_max -= p->size;
+    mem_reallocs++;
+    free (p);
+  }
+  return (ptr);
+}
+#endif  /* USE_REALLOC==1 */
 
 /*
  * A free() that checks the 'ptr' and decrements the 'mem_frees' value.
@@ -795,8 +903,8 @@ void free_at (void *ptr, const char *file, unsigned line)
 
   head->marker = MEM_FREED;
   mem_max -= head->size;
+  del_from_mem_list (head, __LINE__);
   mem_frees++;
-  del_from_mem_list (head);
   free (head);
 }
 
@@ -805,59 +913,24 @@ void mem_report (void)
   const struct mem_head *m;
   unsigned     num;
 
-  C_printf ("~0  Max memory at one time: %u bytes.\n", (unsigned int)mem_max);
+  C_printf ("~0  Max memory at one time: %lu bytes.\n", mem_max);
   C_printf ("  Total # of allocations: %u.\n", (unsigned int)mem_allocs);
+  C_printf ("  Total # of realloc():   %u.\n", (unsigned int)mem_reallocs);
   C_printf ("  Total # of frees:       %u.\n", (unsigned int)mem_frees);
-  if (!mem_list)
-     C_printf ("  No un-freed memory.\n");
 
   for (m = mem_list, num = 0; m; m = m->next, num++)
   {
-    C_printf ("  Un-freed memory 0x%p at %s (%u)\n", m+1, m->file, m->line);
+    C_printf ("  Un-freed memory 0x%p at %s (%u). %u bytes\n",
+              m+1, m->file, m->line, m->size);
     if (num > 20)
     {
       C_printf ("  ..and more.\n");
       break;
     }
   }
-}
-
-void hex_dump (const void *data_p, size_t datalen)
-{
-  const BYTE *data = (const BYTE*) data_p;
-  UINT  ofs;
-
-  for (ofs = 0; ofs < datalen; ofs += 16)
-  {
-    UINT j;
-
-    if (ofs == 0)
-         printf ("%u:%s%04X: ", (unsigned int)datalen,
-                 datalen > 9999 ? " "    :
-                 datalen > 999  ? "  "   :
-                 datalen > 99   ? "   "  :
-                 datalen > 9    ? "    " :
-                                  "     ",
-                 ofs);
-    else printf ("       %04X: ", ofs);
-
-    for (j = 0; j < 16 && j+ofs < datalen; j++)
-        printf ("%02X%c", (unsigned)data[j+ofs],
-                j == 7 ? '-' : ' ');  /* no beeps */
-
-    for ( ; j < 16; j++)       /* pad line to 16 positions */
-        fputs ("   ", stdout);
-
-    for (j = 0; j < 16 && j+ofs < datalen; j++)
-    {
-      int ch = data[j+ofs];
-
-      if (ch < ' ')            /* non-printable */
-           putchar ('.');
-      else putchar (ch);
-    }
-    putchar ('\n');
-  }
+  if (num == 0)
+     C_printf ("  No un-freed memory.\n");
+  C_flush();
 }
 
 const char *flags_decode (DWORD flags, const struct search_list *list, int num)
@@ -1007,6 +1080,7 @@ int debug_printf (const char *format, ...)
   C_setraw (raw);
 #else
   rc = vfprintf (DEBUG_STREAM, format, args);
+  ARGSUSED (raw);
 #endif
 
   va_end (args);
@@ -1041,9 +1115,9 @@ int popen_run (const char *cmd, popen_callback callback)
   if (env)
   {
     DEBUGF (1, "%%COMSPEC: %s.\n", env);
-    strupr (env);
 #if !defined(__WATCOMC__)
-    if (strstr(env,"4NT.EXE") || strstr(env,"TCC.EXE"))
+    env = strlwr (basename(env));
+    if (!strcmp(env,"4nt.exe") || !strcmp(env,"tcc.exe"))
        setdos = "setdos /x-3 &";
 #endif
   }
@@ -1078,7 +1152,7 @@ int popen_run (const char *cmd, popen_callback callback)
 
     strip_nl (buf);
     DEBUGF (2, " _popen() buf: '%s'\n", buf);
-    if (!buf[0])
+    if (!buf[0] || !callback)
        continue;
     rc = (*callback) (buf, i++);
     if (rc < 0)
@@ -1090,7 +1164,7 @@ int popen_run (const char *cmd, popen_callback callback)
 }
 
 /*
- * Translate a shell PATTERN to a regular expression.
+ * Translate a shell-pattern to a regular expression.
  * From:
  *   https://mail.python.org/pipermail/python-list/2003-August/244415.html
  */
@@ -1099,9 +1173,7 @@ char *translate_shell_pattern (const char *pattern)
   static char res [_MAX_PATH];
   char       *out = res;
   size_t      i, len = strlen (pattern);
-  size_t      i_max  = sizeof(res) - 2;
-
-  *out++ = '^';
+  size_t      i_max  = sizeof(res) - 1;
 
   for (i = 0; i < len && i < i_max; i++)
   {
@@ -1113,23 +1185,149 @@ char *translate_shell_pattern (const char *pattern)
             *out++ = '.';
             *out++ = '*';
             break;
+
        case '.':
             *out++ = '\\';
             *out++ = '.';
             break;
+
+#if 0
+       /* Since this function is only used from do_check_evry() and Everything_SetSearchA()
+        * needs DOS-slashes.
+        */
+       case '/':
+#endif
        case '\\':
             *out++ = '\\';
             *out++ = '\\';
             break;
+
        case '?':
             *out++ = '.';
             break;
+
       default:
             *out++ = c;
             break;
     }
   }
-  *out++ = '$';
-  *out++ = '\0';
+  *out = '\0';
   return (res);
 }
+
+#if defined(MEM_TEST)
+
+static void hex_dump (const void *data_p, size_t datalen)
+{
+  const BYTE *data = (const BYTE*) data_p;
+  UINT  ofs;
+
+  for (ofs = 0; ofs < datalen; ofs += 16)
+  {
+    UINT j;
+
+    if (ofs == 0)
+         printf ("%u:%s%04X: ", (unsigned int)datalen,
+                 datalen > 9999 ? " "    :
+                 datalen > 999  ? "  "   :
+                 datalen > 99   ? "   "  :
+                 datalen > 9    ? "    " :
+                                  "     ",
+                 ofs);
+    else printf ("       %04X: ", ofs);
+
+    for (j = 0; j < 16 && j+ofs < datalen; j++)
+        printf ("%02X%c", (unsigned)data[j+ofs],
+                j == 7 && j+ofs < datalen-1 ? '-' : ' ');
+
+    for ( ; j < 16; j++)       /* pad line to 16 positions */
+        fputs ("   ", stdout);
+
+    for (j = 0; j < 16 && j+ofs < datalen; j++)
+    {
+      int ch = data[j+ofs];
+
+      if (ch < ' ')            /* non-printable */
+           putc ('.', stdout);
+      else putc (ch, stdout);
+    }
+    putc ('\n', stdout);
+  }
+}
+
+struct prog_options opt;
+
+char *make_data (int size)
+{
+  static char data[] = "0123456789ABCDEFGHIJKLMNOPQRSTVWXYZ";
+  char *p = MALLOC (size);
+  int   i;
+
+  for (i = 0; i < size; i++)
+      p[i] = data [i % sizeof(data)];
+  return (p);
+}
+
+void dump_data (const char *p, size_t size)
+{
+#if 0
+  hex_dump (p - sizeof(struct mem_head), size + sizeof(struct mem_head));
+#else
+  hex_dump (p, size);
+#endif
+  putc ('\n', stdout);
+}
+
+int main (void)
+{
+  char *data, *p = NULL;
+  int   i, j;
+  int   loops = 4, data_size = 20;
+
+  data = make_data (data_size);
+  opt.debug = 4;
+
+  for (i = 1; i <= loops; i++)
+  {
+    p = REALLOC (p, i*data_size);
+    printf ("i: %d, p: %p\n", i, p);
+    for (j = 0; j < i; j++)
+       memcpy (p + j*data_size, data, data_size);
+    dump_data (p, i*data_size);
+  }
+
+  for (i = loops; i >= 0; i--)
+  {
+    p = REALLOC (p, i*data_size);
+    printf ("i: %d, p: %p\n", i, p);
+    for (j = 0; j < i; j++)
+       memcpy (p + j*data_size, data, data_size);
+    dump_data (p, i*data_size);
+  }
+
+  FREE (p);
+
+  for (i = 1; i <= loops; i++)
+  {
+    p = realloc (p, i*data_size);
+    printf ("i: %d, p: %p\n", i, p);
+    for (j = 0; j < i; j++)
+       memcpy (p + j*data_size, data, data_size);
+    dump_data (p, i*data_size);
+  }
+
+  for (i = loops; i >= 0; i--)
+  {
+    p = realloc (p, i*data_size);
+    printf ("i: %d, p: %p\n", i, p);
+    for (j = 0; j < i; j++)
+       memcpy (p + j*data_size, data, data_size);
+    dump_data (p, i*data_size);
+  }
+  fflush (stdout);
+
+  FREE (data);
+  mem_report();
+  return (0);
+}
+#endif  /* MEM_TEST */
