@@ -28,7 +28,7 @@ char *searchpath (const char *file, const char *env_var)
   static char found[_MAX_PATH];
   char   *p, *path, *test_dir;
   size_t  alloc;
-  int     save_debug = debug;
+  int     save_debug = opt.debug;
 
   if (!file || !*file)
   {
@@ -44,9 +44,9 @@ char *searchpath (const char *file, const char *env_var)
   }
 
   found[0] = '\0';
-  debug = 0;
+  opt.debug = 0;
   p = getenv_expand (env_var);
-  debug = save_debug;
+  opt.debug = save_debug;
 
   if (!p)
        alloc = 2;              /* Room for '.' */
@@ -78,7 +78,7 @@ char *searchpath (const char *file, const char *env_var)
     {
       char lname[FILENAME_MAX];
 
-      if (*s == '\\' && show_unix_paths)
+      if (*s == '\\' && opt.show_unix_paths)
          *s = '/';
       if (s == name_start)
          continue;
@@ -128,7 +128,7 @@ char *searchpath (const char *file, const char *env_var)
     else
     {
       /* Relative file name: add "./".  */
-      strcpy (found, show_unix_paths ? "./" : ".\\");
+      strcpy (found, opt.show_unix_paths ? "./" : ".\\");
       strcat (found, file);
     }
     FREE (p);
@@ -150,7 +150,7 @@ char *searchpath (const char *file, const char *env_var)
     else
     {
       strncpy (found, test_dir, dp - test_dir);
-      found [dp-test_dir] = show_unix_paths ? '/' : '\\';
+      found [dp-test_dir] = opt.show_unix_paths ? '/' : '\\';
       strcpy (found + (dp - test_dir) + 1, file);
     }
 
