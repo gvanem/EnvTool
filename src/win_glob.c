@@ -204,9 +204,9 @@ static int glob_dirs (const char *rest, char *epathbuf,
 static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* the slash */
 {
   struct ffblk ff;
-  const char *pp, *pslash;
-  char *bp, *my_pattern;
-  int   done, attr;
+  const char  *pp, *pslash;
+  char        *bp, *my_pattern;
+  int          done, attr;
 
   if (strcmp(pattern, "...") == 0)
      return glob_dirs (pattern+3, epathbuf, 1);
@@ -460,7 +460,7 @@ void globfree (glob_t *_pglob)
   FREE (_pglob->gl_pathv);
 }
 
-#if defined(TEST)
+#if defined(GLOB_TEST)
 
 /* Tell MingW's CRT to turn off command line globbing by default.
  */
@@ -470,6 +470,8 @@ int _CRT_glob = 0;
  * Hence this doesn't change that behaviour.
  */
 int _dowildcard = 0;
+
+struct prog_options opt;
 
 void usage (void)
 {
@@ -488,7 +490,7 @@ int main (int argc, char **argv)
      usage();
 
   if (!strcmp(argv[1],"-d"))
-    debug++, argv++;
+    opt.debug++, argv++;
 
   rc = glob (argv[1], GLOB_NOSORT | GLOB_MARK | GLOB_NOCHECK, NULL, &res);
   if (rc != 0)
@@ -500,7 +502,7 @@ int main (int argc, char **argv)
       printf ("%2d: %s -> %s\n", cnt, *p, _fixpath(*p,fp));
     }
 
-  if (debug > 0)
+  if (opt.debug > 0)
   {
     printf ("Before globfree()\n");
     mem_report();
@@ -508,7 +510,7 @@ int main (int argc, char **argv)
 
   globfree (&res);
 
-  if (debug > 0)
+  if (opt.debug > 0)
   {
     printf ("After globfree()\n");
     mem_report();
@@ -516,4 +518,4 @@ int main (int argc, char **argv)
 
   return (0);
 }
-#endif
+#endif  /* GLOB_TEST */
