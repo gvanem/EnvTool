@@ -14,6 +14,7 @@
 #include <malloc.h>
 #include <io.h>
 #include <windows.h>
+#include <shlobj.h>
 
 #include "envtool.h"
 #include "win_glob.h"
@@ -72,6 +73,51 @@ static int findnext (struct ffblk *ffblk)
   return (rc ? 0 : 1);
 }
 
+#define ADD_VALUE(v)  { v, #v }
+
+static const struct search_list sh_folders[] = {
+                    ADD_VALUE (CSIDL_PROFILE),
+                    ADD_VALUE (CSIDL_APPDATA),    /* Use this as HOME-dir ("~/") */
+                    ADD_VALUE (CSIDL_LOCAL_APPDATA),
+                    ADD_VALUE (CSIDL_STARTUP),
+                    ADD_VALUE (CSIDL_BITBUCKET),  /* Recycle Bin */
+                    ADD_VALUE (CSIDL_COMMON_ALTSTARTUP),
+                    ADD_VALUE (CSIDL_COMMON_FAVORITES),
+                    ADD_VALUE (CSIDL_ADMINTOOLS),
+                    ADD_VALUE (CSIDL_COOKIES)
+                  };
+
+static const struct search_list sh_flags[] = {
+                    ADD_VALUE (SHGFP_TYPE_CURRENT),
+                    ADD_VALUE (SHGFP_TYPE_DEFAULT)
+                  };
+
+static void get_shell_folder (const struct search_list *folder, DWORD flag)
+{
+  char        path [MAX_PATH];
+  char        path2 [_MAX_PATH];
+  const char *fmt = " %-25s (%s) -> '%s'\n";
+  HRESULT     rc = SHGetFolderPathA (NULL, folder->value, NULL, flag, path);
+
+  if (rc >= 0)
+       _fixpath (path, path2);
+  else strcpy (path2, "<fail>");
+
+  if (opt.debug > 0)
+     debug_printf (fmt, folder->name, list_lookup_name(flag,sh_flags,DIM(sh_flags)), path2);
+}
+
+static void get_shell_folders (void)
+{
+  int i;
+
+  for (i = 0; i < DIM(sh_folders); i++)
+  {
+    get_shell_folder (sh_folders+i, SHGFP_TYPE_CURRENT);
+    get_shell_folder (sh_folders+i, SHGFP_TYPE_DEFAULT);
+  }
+}
+
 typedef struct Save {
         struct Save *prev;
         char        *entry;
@@ -92,7 +138,7 @@ static int str_compare (const void *va, const void *vb);
 
 /* `tolower' might depend on the locale.  We don't want to.
  */
-static int msdos_tolower_fname (int c)
+int msdos_tolower_fname (int c)
 {
   return (c >= 'A' && c <= 'Z') ? c + 'a' - 'A' : c;
 }
@@ -115,7 +161,7 @@ static int add (const char *path, unsigned line)
     FREE (sp);
     return (1);
   }
-  DEBUGF (1, "add: `%s' (from line %u)\n", sp->entry, line);
+  DEBUGF (2, "add: `%s' (from line %u)\n", sp->entry, line);
 
   sp->prev = save_list;
   save_list = sp;
@@ -129,7 +175,7 @@ static int glob_dirs (const char *rest, char *epathbuf,
   struct ffblk ff;
   int    done;
 
-  DEBUGF (1, "glob_dirs[%d]: rest=`%s' %c epathbuf=`%s' %c pathbuf=`%s'\n",
+  DEBUGF (2, "glob_dirs[%d]: rest=`%s' %c epathbuf=`%s' %c pathbuf=`%s'\n",
              wildcard_nesting, rest, *rest, epathbuf, *epathbuf, pathbuf);
 
   if (first)
@@ -144,7 +190,7 @@ static int glob_dirs (const char *rest, char *epathbuf,
       char sl = epathbuf[-1];
 
       *epathbuf = '\0';
-      DEBUGF (1, "end, checking `%s'\n", pathbuf);
+      DEBUGF (2, "end, checking `%s'\n", pathbuf);
       if (epathbuf == pathbuf)
       {
         epathbuf[0] = '.';
@@ -234,7 +280,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
       {
         if (*pp != ':')
            slash = *pp;
-        DEBUGF (1, "glob2: dots at `%s'\n", pp);
+        DEBUGF (2, "glob2: dots at `%s'\n", pp);
         *bp++ = *pp++;
         break;
       }
@@ -258,7 +304,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   if (bp >= pathbuf_end && *pp)
      return (0);
 
-  DEBUGF (1, "glob2: pp: `%s'\n", pp);
+  DEBUGF (2, "glob2: pp: `%s'\n", pp);
 
   if (*pp == 0) /* end of pattern? */
   {
@@ -285,8 +331,8 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
     return (0);
   }
 
-  DEBUGF (1, "glob2(): initial segment is `%s', wildcard_nesting: %d\n",
-             pathbuf, wildcard_nesting);
+  DEBUGF (2, "glob2(): initial segment is `%s', wildcard_nesting: %d\n",
+          pathbuf, wildcard_nesting);
 
   if (wildcard_nesting)
   {
@@ -338,7 +384,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
 
           *tp++ = *pslash;
           *tp = 0;
-          DEBUGF (1, "nest: `%s' `%s'\n", pslash+1, pathbuf);
+          DEBUGF (2, "nest: `%s' `%s'\n", pslash+1, pathbuf);
           wildcard_nesting++;
           if (glob2(pslash+1, tp) == GLOB_NOSPACE)
              return (GLOB_NOSPACE);
@@ -369,6 +415,21 @@ static int str_compare (const void *va, const void *vb)
   return stricmp (*(const char * const *)va, *(const char * const *)vb);
 }
 
+static const char *glob_flags (unsigned flag)
+{
+  static const struct search_list flags[] = {
+                      ADD_VALUE (GLOB_APPEND),
+                      ADD_VALUE (GLOB_DOOFFS),
+                      ADD_VALUE (GLOB_ERR),
+                      ADD_VALUE (GLOB_MARK),
+                      ADD_VALUE (GLOB_NOCHECK),
+                      ADD_VALUE (GLOB_NOESCAPE),
+                      ADD_VALUE (GLOB_NOSORT),
+                      ADD_VALUE (GLOB_TILDE)
+                   };
+  return flags_decode (flag, flags, DIM(flags));
+}
+
 int glob (const char *_pattern, int _flags,
           int (*_errfunc)(const char *_epath, int _eerrno),
           glob_t *_pglob)
@@ -385,6 +446,10 @@ int glob (const char *_pattern, int _flags,
   save_list = 0;
   use_lfn = 1;
   slash = '/';
+
+  path_buffer[1] = '\0';
+
+  DEBUGF (1, "flags: %s\n", glob_flags(flags));
 
   if (!(_flags & GLOB_APPEND))
   {
@@ -479,6 +544,10 @@ void usage (void)
   exit (-1);
 }
 
+/*
+ * Syntax for a recursive glob() is e.g. ".../*.c". Will search
+ * for .c-files in current dir and in directories below it.
+ */
 int main (int argc, char **argv)
 {
   glob_t res;
@@ -492,7 +561,9 @@ int main (int argc, char **argv)
   if (!strcmp(argv[1],"-d"))
     opt.debug++, argv++;
 
-  rc = glob (argv[1], GLOB_NOSORT | GLOB_MARK | GLOB_NOCHECK, NULL, &res);
+  get_shell_folders();
+
+  rc = glob (argv[1], GLOB_NOSORT | GLOB_MARK | GLOB_NOCHECK | GLOB_TILDE, NULL, &res);
   if (rc != 0)
     printf ("glob() failed: %d\n", rc);
   else
