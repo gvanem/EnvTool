@@ -537,8 +537,10 @@ int split_path (const char *path, char *dir, char *file)
   if (!slash)
      slash = strrchr (path, '\\');
 
+#if 0
   if (!slash || *(slash+1) == '\0')
      ;
+#endif
   return (0);
 }
 
@@ -670,6 +672,7 @@ char *slashify (const char *path, char use)
     }
     else
       *s++ = *p;
+    ASSERT (s < buf + sizeof(buf));
   }
   *s = '\0';
   return (buf);
@@ -687,6 +690,10 @@ char *slashify (const char *path, char use)
 int compare_file_time_ver (time_t mtime_a, time_t mtime_b,
                            struct ver_info ver_a, struct ver_info ver_b)
 {
+  ARGSUSED (mtime_a);
+  ARGSUSED (mtime_b);
+  ARGSUSED (ver_a);
+  ARGSUSED (ver_b);
   return (0);  /* \todo */
 }
 
@@ -738,6 +745,8 @@ char *win_strerror (unsigned long err)
   return (buf);
 }
 
+#if !defined(_CRTDBG_MAP_ALLOC)
+
 /*
  * A strdup() that fails if no memory. It's pretty hopeless to continue
  * this program if strdup() fails.
@@ -747,11 +756,7 @@ char *strdup_at (const char *str, const char *file, unsigned line)
   struct mem_head *head;
   size_t len = strlen (str) + 1 + sizeof(*head);
 
-#if defined(_CRTDBG_MAP_ALLOC)     /* cl -MDd .. */
-  head = _malloc_dbg (len, _NORMAL_BLOCK, file, line);
-#else
   head = malloc (len);
-#endif
 
   if (!head)
      FATAL ("strdup() failed at %s, line %u\n", file, line);
@@ -775,11 +780,7 @@ void *malloc_at (size_t size, const char *file, unsigned line)
 
   size += sizeof(*head);
 
-#if defined(_CRTDBG_MAP_ALLOC)     /* cl -MDd .. */
-  head = _malloc_dbg (size, _NORMAL_BLOCK, file, line);
-#else
   head = malloc (size);
-#endif
 
   if (!head)
      FATAL ("malloc() failed at %s, line %u\n", file, line);
@@ -802,11 +803,7 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
 
   size = (size * num) + sizeof(*head);
 
-#if defined(_CRTDBG_MAP_ALLOC)     /* cl -MDd .. */
-  head = _calloc_dbg (1, size, _NORMAL_BLOCK, file, line);
-#else
   head = calloc (1, size);
-#endif
 
   if (!head)
      FATAL ("calloc() failed at %s, line %u\n", file, line);
@@ -835,11 +832,7 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
 
   size += sizeof(*head);
 
-#if defined(_CRTDBG_MAP_ALLOC)     /* cl -MDd .. */
-  head = _realloc_dbg (head, size, _NORMAL_BLOCK, file, line);
-#else
   head = realloc (head, size);
-#endif
 
   if (!head)
      FATAL ("realloc() failed at %s, line %u\n", file, line);
@@ -899,7 +892,7 @@ void free_at (void *ptr, const char *file, unsigned line)
      FATAL ("double free() of block detected at %s, line %u\n", file, line);
 
   if (head->marker != MEM_MARKER)
-     FATAL ("free() of unknown block at %s, line %u\n", file, line);
+     FATAL ("free() of unknown block at %s, line %u:\n  data: %s\n", file, line);
 
   head->marker = MEM_FREED;
   mem_max -= head->size;
@@ -907,9 +900,11 @@ void free_at (void *ptr, const char *file, unsigned line)
   mem_frees++;
   free (head);
 }
+#endif  /* _CRTDBG_MAP_ALLOC */
 
 void mem_report (void)
 {
+#if !defined(_CRTDBG_MAP_ALLOC)
   const struct mem_head *m;
   unsigned     num;
 
@@ -931,6 +926,78 @@ void mem_report (void)
   if (num == 0)
      C_printf ("  No un-freed memory.\n");
   C_flush();
+#endif
+}
+
+/*
+ * strftime() under MSVC sometimes crashes misterously. Use this
+ * home-grown version.
+ */
+#define USE_STRFTIME 0
+
+const char *get_time_str (time_t t)
+{
+  static char      res [50];
+  const struct tm *tm = localtime (&t);
+
+  if (!tm)
+     return ("??");
+
+#if USE_STRFTIME
+  if (opt.decimal_timestamp)
+       strftime (res, sizeof(res), "%Y%m%d.%H%M%S", tm);
+  else strftime (res, sizeof(res), "%d %b %Y - %H:%M:%S", tm);
+#else
+
+  const  char *_month;
+  static const char *months [12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+                                   };
+  if (opt.decimal_timestamp)
+     snprintf (res, sizeof(res), "%04d%02d%02d.%02d%02d%02d",
+               1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+  else
+  {
+    if (tm->tm_mon >= 0 && tm->tm_mon < DIM(months))
+         _month = months [tm->tm_mon];
+    else _month = "???";
+    snprintf (res, sizeof(res), "%02d %s %04d - %02d:%02d:%02d",
+              tm->tm_mday, _month, 1900+tm->tm_year, tm->tm_hour, tm->tm_min, tm->tm_sec);
+  }
+#endif
+  return (res);
+}
+
+/*
+ * Search 'list' for 'value' and return it's name.
+ */
+const char *list_lookup_name (unsigned value, const struct search_list *list, int num)
+{
+  static char buf[10];
+
+  while (num > 0 && list->name)
+  {
+    if (list->value == value)
+       return (list->name);
+    num--;
+    list++;
+  }
+  return _itoa (value,buf,10);
+}
+
+/*
+ * Search 'list' for 'name' and return it's 'value'.
+ */
+unsigned list_lookup_value (const char *name, const struct search_list *list, int num)
+{
+  while (num > 0 && list->name)
+  {
+    if (!stricmp(name,list->name))
+       return (list->value);
+    num--;
+    list++;
+  }
+  return (UINT_MAX);
 }
 
 const char *flags_decode (DWORD flags, const struct search_list *list, int num)
@@ -1114,7 +1181,7 @@ int popen_run (const char *cmd, popen_callback callback)
    */
   if (env)
   {
-    DEBUGF (1, "%%COMSPEC: %s.\n", env);
+    DEBUGF (2, "%%COMSPEC: %s.\n", env);
 #if !defined(__WATCOMC__)
     env = strlwr (basename(env));
     if (!strcmp(env,"4nt.exe") || !strcmp(env,"tcc.exe"))
@@ -1129,7 +1196,7 @@ int popen_run (const char *cmd, popen_callback callback)
   strcat (cmd2, comspec);
   strcat (cmd2, cmd);
 
-  DEBUGF (1, "Trying to run '%s'\n", cmd2);
+  DEBUGF (3, "Trying to run '%s'\n", cmd2);
 
 #ifdef __CYGWIN__
   if (!system(NULL))
@@ -1151,7 +1218,7 @@ int popen_run (const char *cmd, popen_callback callback)
     int rc;
 
     strip_nl (buf);
-    DEBUGF (2, " _popen() buf: '%s'\n", buf);
+    DEBUGF (3, " _popen() buf: '%s'\n", buf);
     if (!buf[0] || !callback)
        continue;
     rc = (*callback) (buf, i++);
@@ -1211,13 +1278,14 @@ char *translate_shell_pattern (const char *pattern)
             break;
     }
   }
+
+  if (i == i_max)
+     WARN ("'pattern' in translate_shell_pattern() is too large (%d bytes).\n", len);
   *out = '\0';
   return (res);
 }
 
-#if defined(MEM_TEST)
-
-static void hex_dump (const void *data_p, size_t datalen)
+void hex_dump (const void *data_p, size_t datalen)
 {
   const BYTE *data = (const BYTE*) data_p;
   UINT  ofs;
@@ -1254,6 +1322,8 @@ static void hex_dump (const void *data_p, size_t datalen)
     putc ('\n', stdout);
   }
 }
+
+#if defined(MEM_TEST)
 
 struct prog_options opt;
 
