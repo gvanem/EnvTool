@@ -45,10 +45,14 @@
 #if !defined(RC_INVOKED)  /* rest of file */
 
 #if defined(__MINGW32__) && defined(_FORTIFY_SOURCE)
-  #if (_FORTIFY_SOURCE == 1)
-    #pragma message ("Using _FORTIFY_SOURCE==1")
-  #elif (_FORTIFY_SOURCE == 2)
-    #pragma message ("Using _FORTIFY_SOURCE==2")
+  /*
+   * Enable GNU LibSSP; "Stack Smashing Protector".
+   * Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
+   */
+  #if (_FORTIFY_SOURCE == 1) && defined(INSIDE_ENVOOL_C)
+    #pragma message ("Using _FORTIFY_SOURCE=1")
+  #elif (_FORTIFY_SOURCE == 2) && defined(INSIDE_ENVOOL_C)
+    #pragma message ("Using _FORTIFY_SOURCE=2")
   #endif
   #include <ssp/stdio.h>
   #include <ssp/string.h>
@@ -129,8 +133,10 @@
 
 #ifdef __GNUC__
   #define ATTR_PRINTF(_1,_2) __attribute__((format(printf,_1,_2)))
+  #define ATTR_UNUSED()      __attribute__((unused)))
 #else
   #define ATTR_PRINTF(_1,_2)
+  #define ATTR_UNUSED()
 #endif
 
 #ifdef __CYGWIN__
@@ -202,6 +208,7 @@ extern char *_strlcpy      (char *dst, const char *src, size_t len);
 extern char *strip_nl      (char *s);
 extern char *str_trim      (char *s);
 extern char *searchpath    (const char *file, const char *env_var);
+extern int   searchpath_pos(void);
 extern char *getenv_expand (const char *variable);
 extern char *_fixpath      (const char *path, char *result);
 extern char *path_ltrim    (const char *p1, const char *p2);
@@ -215,6 +222,7 @@ extern const char *qword_str (unsigned __int64 val);
 extern const char *dword_str (DWORD val);
 
 extern char *translate_shell_pattern (const char *pattern);
+extern void  hex_dump (const void *data_p, size_t datalen);
 
 
 /* For PE-image version in get_version_info().
@@ -233,8 +241,10 @@ struct search_list {
        const char *name;
      };
 
+extern const char *list_lookup_name (unsigned value, const struct search_list *list, int num);
+extern unsigned    list_lookup_value (const char *name, const struct search_list *list, int num);
 extern const char *flags_decode (DWORD flags, const struct search_list *list, int num);
-
+extern const char *get_time_str (time_t t);
 extern const char *get_file_ext (const char *file);
 extern char       *create_temp_file (void);
 extern int         get_version_info (const char *file, struct ver_info *ver);
@@ -257,11 +267,19 @@ extern char *strdup_at  (const char *str, const char *file, unsigned line);
 extern void  free_at    (void *ptr, const char *file, unsigned line);
 extern void  mem_report (void);
 
-#define MALLOC(s)      malloc_at (s, __FILE(), __LINE__)
-#define CALLOC(n,s)    calloc_at (n, s, __FILE(), __LINE__)
-#define REALLOC(p,s)   realloc_at (p, s, __FILE(), __LINE__)
-#define STRDUP(s)      strdup_at (s, __FILE(), __LINE__)
-#define FREE(p)        (p ? (void) (free_at(p, __FILE(), __LINE__), p = NULL) : (void)0)
+#if defined(_CRTDBG_MAP_ALLOC)
+  #define MALLOC        malloc
+  #define CALLOC        calloc
+  #define REALLOC       realloc
+  #define STRDUP        strdup
+  #define FREE          free
+#else
+  #define MALLOC(s)     malloc_at (s, __FILE(), __LINE__)
+  #define CALLOC(n,s)   calloc_at (n, s, __FILE(), __LINE__)
+  #define REALLOC(p,s)  realloc_at (p, s, __FILE(), __LINE__)
+  #define STRDUP(s)     strdup_at (s, __FILE(), __LINE__)
+  #define FREE(p)       (p ? (void) (free_at(p, __FILE(), __LINE__), p = NULL) : (void)0)
+#endif
 
 typedef int (*popen_callback) (char *buf, int index);
 
