@@ -139,7 +139,7 @@ static void do_printf (const char *fmt, ...)
   va_end (args);
 }
 
-static void hex_dump (const void *data_p, size_t datalen)
+static void hex_dump2 (const void *data_p, size_t datalen)
 {
   const BYTE *data = (const BYTE*) data_p;
   UINT  ofs;
@@ -470,13 +470,14 @@ static void get_version_data (const void *pVer, DWORD size, struct ver_info *ver
 {
   /* Interpret the VS_VERSIONINFO header pseudo-struct.
    */
-  const struct VS_VERSIONINFO *pVS = (const struct VS_VERSIONINFO*) pVer;
+  const struct VS_VERSIONINFO *pVS     = (const struct VS_VERSIONINFO*) pVer;
+  const BYTE                  *pVS_max = (const BYTE*) pVer + size;
   const BYTE                  *pVt;
 
 #if 0
-  BYTE* nEndRaw   = ROUND_POS((((BYTE*)pVer) + size), pVer, 4);
-  BYTE* nEndNamed = ROUND_POS((((BYTE*) pVS) + pVS->wLength), pVS, 4);
-  ASSERT (nEndRaw == nEndNamed); // size reported from GetFileVersionInfoSize is much padded for some reason...
+  BYTE* nEndRaw   = ROUND_POS ((((BYTE*)pVer) + size), pVer, 4);
+  BYTE* nEndNamed = ROUND_POS ((((BYTE*) pVS) + pVS->wLength), pVS, 4);
+  ASSERT (nEndRaw == nEndNamed); /* size reported from GetFileVersionInfoSize is much padded for some reason. */
 #endif
 
   ASSERT (!wcscmp(pVS->szKey, L"VS_VERSION_INFO"));
@@ -559,6 +560,12 @@ static void get_version_data (const void *pVer, DWORD size, struct ver_info *ver
           WORD w2 = wpos[1];
           do_printf ("%04X%04X ", w1, w2);
         }
+
+        if ((const BYTE*)pV >= pVS_max)
+        {
+          do_printf ("Bogus ver-data.\n");
+          return;
+        }
         do_printf ("\n");
       }
     }
@@ -595,7 +602,7 @@ int get_version_info (const char *file, struct ver_info *ver)
 
   do_printf ("VERSIONINFO dump for file \"%s\":\n", file);
   if (print_it)
-     hex_dump (ver_data, size);
+     hex_dump2 (ver_data, size);
 
   print_it = (opt.verbose >= 1);
 
