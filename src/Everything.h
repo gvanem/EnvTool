@@ -79,6 +79,9 @@ EVERYTHINGUSERAPI LPCSTR EVERYTHINGAPI Everything_GetResultPathA(DWORD nIndex);
 EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_GetResultFullPathNameA(DWORD nIndex,LPSTR buf,DWORD bufsize);
 EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_GetResultFullPathNameW(DWORD nIndex,LPWSTR wbuf,DWORD wbuf_size_in_wchars);
 
+// reset state and free any allocated memory
+EVERYTHINGUSERAPI void EVERYTHINGAPI Everything_Reset(void);
+
 #ifdef UNICODE
 #define Everything_SetSearch Everything_SetSearchW
 #define Everything_GetSearch Everything_GetSearchW

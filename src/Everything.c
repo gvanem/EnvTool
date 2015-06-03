@@ -20,11 +20,11 @@
 #include "Everything.h"
 #include "Everything_IPC.h"
 
-#if defined(__CYGWIN__)
-static int _wcsicmp ( const wchar_t *s1 __attribute__((notused)),
-                      const wchar_t *s2 __attribute__((notused)) )
+#if defined(__CYGWIN__) && 0
+static int wcsicmp ( const wchar_t *s1 __attribute__((notused)),
+                     const wchar_t *s2 __attribute__((notused)) )
 {
-  fprintf (stderr, "CygWin doesn't have '_wcsicmp()'. Exiting\n");
+  fprintf (stderr, "CygWin doesn't have 'wcsicmp()'. Exiting\n");
   exit(1);
 }
 #endif
@@ -901,11 +901,11 @@ static int _Everything_CompareW(const VOID *a,const VOID *b)
 {
 	int i;
 
-	i = _wcsicmp(EVERYTHING_IPC_ITEMPATHW(_Everything_List,a),EVERYTHING_IPC_ITEMPATHW(_Everything_List,b));
+	i = wcsicmp(EVERYTHING_IPC_ITEMPATHW(_Everything_List,a),EVERYTHING_IPC_ITEMPATHW(_Everything_List,b));
 
 	if (!i)
 	{
-		return _wcsicmp(EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,a),EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,b));
+		return wcsicmp(EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,a),EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,b));
 	}
 	else
 	if (i > 0)
