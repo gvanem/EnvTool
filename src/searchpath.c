@@ -13,8 +13,19 @@
 
 #include "envtool.h"
 
+static int last_pos = -1;
+
 /*
- * Search '%env_var' for 'file' (not a 'file_spec').
+ * Return the last position in 'env_var' for last successfull
+ * 'searchpath()' call.
+ */
+int searchpath_pos (void)
+{
+  return (last_pos);
+}
+
+/*
+ * Search '%env_var' for the first 'file' (not a 'file_spec').
  * If successful, store the full pathname in static buffer and return a
  * pointer to it. If not sucessful, return NULL.
  * This is what the Borland searchpath() library function does.
@@ -29,6 +40,8 @@ char *searchpath (const char *file, const char *env_var)
   char   *p, *path, *test_dir;
   size_t  alloc;
   int     save_debug = opt.debug;
+
+  last_pos = -1;
 
   if (!file || !*file)
   {
@@ -52,7 +65,7 @@ char *searchpath (const char *file, const char *env_var)
        alloc = 2;              /* Room for '.' */
   else alloc = strlen(p) + 3;  /* Room for '.;%env_var' */
 
-  path = CALLOC (alloc, sizeof(char));
+  path = CALLOC (alloc, 1);
   if (!path)
   {
     DEBUGF (1, "calloc() failed");
@@ -68,15 +81,16 @@ char *searchpath (const char *file, const char *env_var)
   if (p)
   {
     char *s, *name_start = 0;
-    int preserve_case = 1;
+    int   preserve_case = 1;
 
     path[1] = ';';
     strcpy (path + 2, p);
 
-    /* switch FOO\BAR to foo/bar, downcase where appropriate */
+    /* switch FOO\BAR to foo/bar, downcase where appropriate.
+     */
     for (s = path + 2, name_start = s; *name_start; s++)
     {
-      char lname[FILENAME_MAX];
+      char lname [FILENAME_MAX];
 
       if (*s == '\\' && opt.show_unix_paths)
          *s = '/';
@@ -87,8 +101,8 @@ char *searchpath (const char *file, const char *env_var)
          name_start = s + 1;
       else if (!preserve_case && (*s == '/' || *s == ';' || *s == '\0'))
       {
-        memcpy (lname, name_start + 1, s - name_start - 1);
-        lname[s - name_start - 1] = '\0';
+        memcpy (lname, name_start+1, s-name_start-1);
+        lname [s-name_start-1] = '\0';
         if (_is_DOS83(lname))
         {
           name_start++;
@@ -133,10 +147,12 @@ char *searchpath (const char *file, const char *env_var)
     }
     FREE (p);
     FREE (path);
+    last_pos = 0;
     return (found);
   }
 
   test_dir = path;
+  last_pos = 0;     /* Assume it will be found in 1st position */
 
   do
   {
@@ -164,6 +180,7 @@ char *searchpath (const char *file, const char *env_var)
     if (*dp == 0)
        break;
     test_dir = dp + 1;
+    last_pos++;
   }
   while (*test_dir);
 
@@ -174,6 +191,7 @@ char *searchpath (const char *file, const char *env_var)
    * basename alone, like BC does?  But let somebody complain about
    * this first... ;-)
    */
+  last_pos = -1;
   return (NULL);
 }
 
