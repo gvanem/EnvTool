@@ -29,6 +29,8 @@
 #include <windows.h>
 #include <shlobj.h>
 
+#define INSIDE_ENVOOL_C
+
 #include "getopt_long.h"
 #include "Everything.h"
 #include "Everything_IPC.h"
@@ -131,11 +133,9 @@ static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 
 /*
- * \todo: Check if the same dir is listed multiple times in %PATH, %INCLUDE or %LIB.
+ * \todo: In 'report_file()', test if a file (in %PATH, %INCLUDE or %LIB) is
+ *        shadowed by an older file of the same name (ahead of the newer file).
  *        Warn if this is the case.
- *
- * \todo: Check if a file (in %PATH, %INCLUDE or %LIB) is shadowed by
- *        an newer file of the same name. Warn if this is the case.
  *
  * \todo: Add sort option: on date/time.
  *                           on filename.
@@ -182,7 +182,7 @@ static void show_version (void)
   /* \todo: report all detected Python programs and their versions. */
 
   int py_ver_major, py_ver_minor, py_ver_micro;
-  int py = get_python_version (&py_exe, &py_ver_major, &py_ver_minor, &py_ver_micro);
+  int py = get_python_info (&py_exe, NULL, &py_ver_major, &py_ver_minor, &py_ver_micro);
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s)~0 by %s. %s~0\n",
           who_am_I, VER_STRING, BUILDER, WIN_VERSTR, AUTHOR_STR,
@@ -193,7 +193,7 @@ static void show_version (void)
   else C_printf ("  Everything search engine not found\n");
 
   if (py)
-       C_printf ("  Python %d.%d.%d detected (%s).\n", py_ver_major, py_ver_minor, py_ver_micro, py_exe);
+       C_printf ("  Python %d.%d.%d detected -> ~6%s~0.\n", py_ver_major, py_ver_minor, py_ver_micro, py_exe);
   else C_printf ("  Python ~5not~0 found.\n");
 
   if (opt.do_version >= 2)
@@ -208,6 +208,9 @@ static void show_version (void)
 
     C_puts ("\n  Link command and ~3LDFLAGS~0:");
     print_build_ldflags();
+
+    C_printf ("\n  Pythons on ~3PATH~0:\n");
+    searchpath_pythons();
   }
   exit (0);
 }
@@ -266,7 +269,7 @@ static void show_help (void)
             "      '~6pypy~0'   use a PyPy program only.\n"
             "      '~6jython~0' use a Jython program only.\n"
             "      '~6all~0'    use all of the above Python programs.\n"
-            "               otherwise use Python only.\n"
+            "               otherwise use only first Python found on PATH (i.e. the default).\n"
             "\n"
             "  ~2[2]~0  Unless '~6--no-gcc~0' and/or '~6--no-g++~0' is used, the\n"
             "       ~3%%C_INCLUDE_PATH%%~0 and ~3%%CPLUS_INCLUDE_PATH%%~0 are also found by spawning '*gcc.exe' and '*g++.exe'.\n"
@@ -282,7 +285,7 @@ static void show_help (void)
             "  'file-spec' matches both files and directories. If '--dir' or '-D' is used, only\n"
             "   matching directories are reported.\n"
             "   Commonly used options can be put in ~3%%ENVTOOL_OPTIONS%%~0.\n");
-  exit (-1);
+  exit (0);
 }
 
 
@@ -580,10 +583,8 @@ static const char *fsize_str (unsigned __int64 size)
 
 int report_file (const char *file, time_t mtime, __int64 fsize, BOOL is_dir, HKEY key)
 {
-  const struct tm *tm     = localtime (&mtime);
   const char      *note   = NULL;
   const char      *filler = "      ";
-  char             Time [30] = "?";
   char             size [30] = "?";
   int              raw;
 
@@ -626,10 +627,6 @@ int report_file (const char *file, time_t mtime, __int64 fsize, BOOL is_dir, HKE
   if (!is_dir && opt.dir_mode)
     return (0);
 
-  if (opt.decimal_timestamp)
-       strftime (Time, sizeof(Time), "%Y%m%d.%H%M%S", tm);
-  else strftime (Time, sizeof(Time), "%d %b %Y - %H:%M:%S", tm);
-
   if (opt.show_size && fsize > 0)
        snprintf (size, sizeof(size), " - %s", fsize_str((unsigned __int64)fsize));
   else size[0] = '\0';
@@ -649,12 +646,11 @@ int report_file (const char *file, time_t mtime, __int64 fsize, BOOL is_dir, HKE
 
   report_header = NULL;
 
-  C_printf ("~3%s~0%s%s: ", note ? note : filler, Time, size);
+  C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
 
   /* In case 'file' contains a "~" (SFN), we switch to raw mode.
    */
   raw = C_setraw (1);
-
   C_puts (file);
   C_setraw (raw);
 
@@ -775,6 +771,7 @@ static char *fix_filespec (char **sub_dir)
   * Since FindFirstFile() doesn't work with POSIX ranges, replace
   * the range part in 'fspec' with a '*'. This could leave a '**' in
   * 'fspec', but that doesn't hurt.
+  *
   * Note: we still must use 'opt.file_spec' in 'fnmatch()' for a POSIX
   *       range to work below.
   */
@@ -1353,15 +1350,19 @@ static const char *evry_strerror (DWORD err)
 static int do_check_evry (void)
 {
   DWORD err, num, len, i;
-  char  query [_MAX_PATH];
-  char *dir = NULL;
+  char  query [_MAX_PATH+8];
+  char *dir   = NULL;
+  char *base  = NULL;
   int   found = 0;
 
-  /* EvryThing seems to need '\\' only. Must split the 'opt.file_spec'
+  /* EveryThing seems to need '\\' only. Must split the 'opt.file_spec'
    * into a 'dir' and 'base' part.
    */
   if (strpbrk(opt.file_spec, "/\\"))
-     dir = dirname (opt.file_spec);
+  {
+    dir  = dirname (opt.file_spec);   /* Allocates memory */
+    base = basename (opt.file_spec);
+  }
 
   /* If user didn't use the '-r/--regex' option, we must convert
    * 'opt.file_spec into' a RegExp compatible format.
@@ -1370,7 +1371,7 @@ static int do_check_evry (void)
   if (opt.use_regex)
        snprintf (query, sizeof(query), "regex:%s", opt.file_spec);
   else if (dir)
-       snprintf (query, sizeof(query), "regex:%s\\\\%s", dir, basename(opt.file_spec));
+       snprintf (query, sizeof(query), "regex:%s\\\\%s", dir, base);
   else snprintf (query, sizeof(query), "regex:^%s$", translate_shell_pattern(opt.file_spec));
 
   DEBUGF (1, "Everything_SetSearch (\"%s\").\n", query);
@@ -1643,7 +1644,9 @@ static void searchpath_compilers (const char **cc, size_t num)
   {
     found = searchpath (cc[i], "PATH");
     len = strlen (cc[i]);
-    C_printf ("    %s: %*s -> %s\n", cc[i], longest_cc-len, "",  found ? found : "Not found");
+    C_printf ("    %s: %*s -> ~%c%s~0\n",
+              cc[i], longest_cc-len, "",
+              found ? '6' : '5', found ? found : "Not found");
   }
 }
 
@@ -1669,7 +1672,7 @@ static void searchpath_watcom (void)
 
 static int do_check_gcc_includes (void)
 {
-  char report [200];
+  char report [_MAX_PATH+50];
   int  i, found = 0;
 
   for (i = 0; i < DIM(gcc); i++)
@@ -1688,8 +1691,8 @@ static int do_check_gcc_includes (void)
 
 static int do_check_gpp_includes (void)
 {
-  char report [200];
-  int i, found = 0;
+  char report [_MAX_PATH+50];
+  int  i, found = 0;
 
   for (i = 0; i < DIM(gpp); i++)
       if (setup_gcc_includes(gpp[i]) > 0)
@@ -1708,6 +1711,7 @@ static int do_check_gpp_includes (void)
 static int do_check_gcc_library_paths (void)
 {
   int found = 0;
+
   if (setup_gcc_library_path("gcc.exe") > 0)
   {
 #if 0
@@ -1778,7 +1782,7 @@ static int *values_tab[] = {
             &opt.show_size       /* 21 */
           };
 
-static void set_python_option (const char *o)
+static void set_python_variant (const char *o)
 {
   DEBUGF (2, "optarg: '%s'\n", o);
 
@@ -1790,6 +1794,9 @@ static void set_python_option (const char *o)
 
   else if (!strcmp("py3",o))
      which_python = PY3_PYTHON;
+
+  else if (!strcmp("ipy",o))
+     which_python = IRON2_PYTHON;
 
   else if (!strcmp("ipy2",o))
      which_python = IRON2_PYTHON;
@@ -1873,7 +1880,7 @@ static void set_long_option (int o)
   DEBUGF (2, "got long option \"--%s\".\n", long_options[o].name);
 
   if (!strcmp("python",long_options[o].name))
-     set_python_option (optarg);
+     set_python_variant (optarg);
 
   else if (optarg && !strcmp("debug",long_options[o].name))
      opt.debug = atoi (optarg);
@@ -1892,17 +1899,6 @@ static char *parse_args (int argc, char *const *argv)
   char *env = getenv_expand ("ENVTOOL_OPTIONS");
   char *ext;
 
-#if 0
-  if (!program_name)
-  {
-    const char *cp = strrchr (argv[0], '/');
-
-    if (cp)
-         program_name = cp + 1;
-    else program_name = argv[0];
-  }
-#endif
-
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
   else who_am_I = STRDUP (argv[0]);
@@ -1919,19 +1915,19 @@ static char *parse_args (int argc, char *const *argv)
 
     memset (new_argv, '\0', sizeof(new_argv));
     new_argv[0] = STRDUP (argv[0]);
-    new_argc = 1;
-    for (i = 1; s && i < DIM(new_argv)-1; i++, new_argc++)
+    for (i = 1; s && i < DIM(new_argv)-1; i++)
     {
       new_argv[i] = STRDUP (s);
       s = strtok (NULL, "\t ");
     }
+    new_argc = i;
 
-    for (j = i, i = 1; i < argc && j < DIM(new_argv)-1; i++, j++)
-        new_argv [j] = STRDUP (argv[i]);  /* allocate original into new_argv[] */
+    for (j = new_argc, i = 1; i < argc && j < DIM(new_argv)-1; i++, j++, new_argc++)
+       new_argv [j] = STRDUP (argv[i]);  /* allocate original into new_argv[] */
 
-    if (j == DIM(new_argv)-1)
+    if (new_argc == DIM(new_argv)-1)
        WARN ("Too many arguments (%d) in %%ENVTOOL_OPTIONS%%.\n", i);
-    argc = j;
+    argc = new_argc;
     argv = new_argv;
 
     DEBUGF (3, "argc: %d\n", argc);
@@ -1951,6 +1947,8 @@ static char *parse_args (int argc, char *const *argv)
     else if (c == -1)
        break;
   }
+
+  init_python();
 
   if (opt.do_version > 0)
      show_version();
@@ -1985,9 +1983,9 @@ static void crtdbug_init (void)
 void crtdbg_exit (void)
 {
   _CrtCheckMemory();
-  _CrtMemDumpAllObjectsSince (&last_state);
   if (opt.debug)
-    _CrtMemDumpStatistics (&last_state);
+       _CrtMemDumpStatistics (&last_state);
+  else _CrtMemDumpAllObjectsSince (&last_state);
   _CrtDumpMemoryLeaks();
 }
 #endif
@@ -2000,7 +1998,7 @@ static void cleanup (void)
    * That will crash in Py_Finalize().
    */
   if (halt_flag == 0)
-     exit_python_embedding();
+     exit_python();
 
   free_dir_array();
   FREE (who_am_I);
@@ -2014,7 +2012,7 @@ static void cleanup (void)
   FREE (user_env_inc);
 
   for (i = 0; i < new_argc && i < DIM(new_argv)-1; i++)
-     FREE (new_argv[i]);
+      FREE (new_argv[i]);
 
   if (halt_flag == 0 && opt.debug > 0)
      mem_report();
@@ -2025,31 +2023,49 @@ static void cleanup (void)
 }
 
 /*
- * This ^C handler gets called in another thread.
+ * This signal-handler gets called in another thread.
  */
 static void halt (int sig)
 {
-  extern VOID EVERYTHINGAPI Everything_Reset (VOID);
   extern HANDLE Everything_hthread;
 
-  (void) sig;
   halt_flag++;
 
   if (opt.do_evry)
   {
-    if (Everything_hthread)
-       TerminateThread (Everything_hthread, 1);
+    if (Everything_hthread && Everything_hthread != INVALID_HANDLE_VALUE)
+    {
+      TerminateThread (Everything_hthread, 1);
+      CloseHandle (Everything_hthread);
+    }
+    Everything_hthread = INVALID_HANDLE_VALUE;
     Everything_Reset();
   }
-  C_puts ("~5Quitting.\n~0");
+
+  if (sig == SIGILL)
+       C_puts ("\n~5Illegal instruction.~0\n");
+  else C_puts ("~5Quitting.\n~0");
+
   cleanup();
   ExitProcess (GetCurrentProcessId());
 }
 
-static void  init_opt (void)
+static void init (void)
 {
+  atexit (cleanup);
+
+#if defined(_MSC_VER) && defined(_DEBUG)
+  crtdbug_init();
+#endif
+
+  tzset();
   memset (&opt, 0, sizeof(opt));
   opt.add_cwd = 1;
+
+  g_current_dir[0] = '.';
+  g_current_dir[1] = DIR_SEP;
+  g_current_dir[2] = '\0';
+  getcwd (g_current_dir, sizeof(g_current_dir));
 }
 
 int main (int argc, char **argv)
@@ -2057,31 +2073,14 @@ int main (int argc, char **argv)
   int   found = 0;
   char *end, *ext;
 
-#if defined(_MSC_VER) && defined(_DEBUG)
-  crtdbug_init();
-#endif
-
-  atexit (cleanup);
-  init_opt();
+  init();
 
   opt.file_spec = parse_args (argc, argv);
-
-  g_current_dir[0] = '.';
-  g_current_dir[1] = DIR_SEP;
-  g_current_dir[2] = '\0';
-  getcwd (g_current_dir, sizeof(g_current_dir));
 
   /* Sometimes the IPC connection to the EveryThing Database will hang.
    * Clean up if user presses ^C.
    */
   signal (SIGINT, halt);
-
-  if (opt.do_test && opt.do_python)
-  {
-    if (/* test_python_pipe() && */ !halt_flag)
-       test_python_funcs();
-    return (0);
-  }
 
   if (opt.do_test)
   {
@@ -2159,7 +2158,12 @@ int main (int argc, char **argv)
 
   if (opt.do_python)
   {
-    report_header = "Matches in Python's sys.path[]:\n";
+    char        report [_MAX_PATH+50];
+    const char *py_exe = NULL;
+
+    get_python_info (&py_exe, NULL, NULL, NULL, NULL);
+    snprintf (report, sizeof(report), "Matches in \"%s\" sys.path[]:\n", py_exe);
+    report_header = report;
     found += do_check_python();
   }
 
@@ -2270,7 +2274,7 @@ void test_split_env_cygwin (const char *env)
   C_printf ("\n~3%s():~0 ", __FUNCTION__);
   C_printf (" testing 'split_env_var (\"%s\",\"%%%s\")':\n", env, env);
 
-  value = getenv_expand (env);
+  value  = getenv_expand (env);
   needed = cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, NULL, 0);
   cyg_value = alloca (needed+1);
   DEBUGF (2, "cygwin_conv_path_list(): needed %d\n", needed);
@@ -2280,7 +2284,7 @@ void test_split_env_cygwin (const char *env)
 
   path_separator = ':';
   opt.conv_cygdrive = 0;
-  arr0  = split_env_var (env, cyg_value);
+  arr0 = split_env_var (env, cyg_value);
 
   for (arr = arr0, i = 0; arr->dir; i++, arr++)
   {
@@ -2323,6 +2327,8 @@ struct test_table1 {
 
 static const struct test_table1 tab1[] = {
                   { "kernel32.dll",      "PATH" },
+                  { "notepad.exe",       "PATH" },
+                  { "./envtool.c",       "FOO-BAR" },      /* CWD should always be at pos 0 regarless of env-var. */
                   { "msvcrt.lib",        "LIB" },
                   { "libgc.a",           "LIBRARY_PATH" },  /* TDM-MingW doesn't have this */
                   { "libgmon.a",         "LIBRARY_PATH" },
@@ -2339,9 +2345,12 @@ static const struct test_table1 tab1[] = {
                    */
                   { "NDIS.SYS",          "%WinDir%\\sysnative\\drivers" },
 
-                  { "c:\\NTLDR",         "c:\\" },  /* test if searchpath() finds hidden files. */
-               // { "c:\\NTLDR",         "" },      /* test if searchpath() handles non-env-vars too. */
-                  { "\\\\localhost\\$C", "PATH" }   /* Does it work on a share too? */
+                  { "c:\\NTLDR",         "c:\\" },  /* test if searchpath() finds hidden files. (Win-XP) */
+                  { "c:\\BOOTMGR",       "c:\\" },  /* test if searchpath() finds hidden files. (Win-8+) */
+                  { "c:\\BOOTMGR",       "" },      /* test if searchpath() handles non-env-vars too. */
+                  { "\\\\localhost\\$C", "PATH" },  /* Does it work on a share too? */
+                  { "CLOCK$",            "PATH" },  /* Does it handle device names? */
+                  { "PRN",               "PATH" }
                 };
 
 static void test_searchpath (void)
@@ -2357,10 +2366,14 @@ static void test_searchpath (void)
     char  buf [_MAX_PATH];
 
     len = strlen (t->file);
+    if (strstr(t->file,"~~"))
+       len--;
+#if 0
     if (found)
        found = _fixpath (found, buf);
-    C_printf ("  %s:%*s -> %s\n",
-              t->file, 15-len, "", found ? found : strerror(errno));
+#endif
+    C_printf ("  %s:%*s -> %s, pos: %d\n",
+              t->file, 15-len, "", found ? found : strerror(errno), searchpath_pos());
   }
 }
 
@@ -2459,7 +2472,7 @@ static void test_fixpath (void)
     "c:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",   /* doesn't exist here */
   };
   const char *f;
-  char *rc;
+  char *rc1;
   int   i, rc2, rc3;
 
   C_printf ("\n~3%s():~0\n", __FUNCTION__);
@@ -2467,20 +2480,22 @@ static void test_fixpath (void)
   for (i = 0; i < DIM(files); i++)
   {
     struct stat st;
+    char   buf [_MAX_PATH];
     BOOL   is_dir;
 
     f = files [i];
-    rc = _fixpath (f, NULL);
-    ASSERT (rc);
-    rc2 = FILE_EXISTS (rc);
-    rc3 = (stat(rc, &st) == 0);
+    rc1 = _fixpath (f, buf);
+    rc2 = FILE_EXISTS (buf);
+    rc3 = (stat(rc1, &st) == 0);
     is_dir = (rc3 && _S_ISDIR(st.st_mode));
 
-    C_printf ("  _fixpath (\"%s\")\n     -> \"%s\" ", f, rc);
+    if (opt.show_unix_paths)
+       rc1 = slashify (buf, '/');
+
+    C_printf ("  _fixpath (\"%s\")\n     -> \"%s\" ", f, rc1);
     if (!rc2)
          C_printf ("~5exists 0, is_dir %d~0\n\n", is_dir);
     else C_printf ("exists 1, is_dir %d~0\n\n", is_dir);
-    FREE (rc);
   }
 }
 
@@ -2498,11 +2513,63 @@ static void test_SHGetFolderPath (void)
 #endif
 }
 
+/*
+ * When run as:
+    gdb -args envtool.exe -t
+
+  the output is something like:
+
+  test_libssp():
+  10:    0000: 00 00 00 00 00 00 00 00-00 00                   ..........
+  10:    0000: 48 65 6C 6C 6F 20 77 6F-72 6C                   Hello worl
+  *** stack smashing detected ***:  terminated
+
+  Program received signal SIGILL, Illegal instruction.
+  0x68ac12d4 in ?? () from f:\MingW32\bin\libssp-0.dll
+  (gdb) bt
+  #0  0x68ac12d4 in ?? () from f:\MingW32\bin\libssp-0.dll
+  #1  0x68ac132e in libssp-0!__stack_chk_fail () from f:\MingW32\bin\libssp-0.dll
+  #2  0x0040724f in _fu117____stack_chk_guard () at envtool.c:2518
+  #3  0x004072eb in _fu118____stack_chk_guard () at envtool.c:2552
+  #4  0x0040653d in _fu100____stack_chk_guard () at envtool.c:2081
+  (gdb)
+ */
+static void test_libssp (void)
+{
+#if defined(_FORTIFY_SOURCE) && (_FORTIFY_SOURCE > 0)
+   static const char buf1[] = "Hello world.\n\n";
+   char buf2 [sizeof(buf1)-2] = { 0 };
+
+   C_printf ("\n~3%s():~0\n", __FUNCTION__);
+
+   hex_dump (&buf1, sizeof(buf1));
+   memcpy (buf2, buf1, sizeof(buf1));
+
+#if 0
+   C_printf (buf2);   /* vulnerable data */
+   C_flush();
+#endif
+
+   hex_dump (&buf2, sizeof(buf2));
+#endif
+}
+
 static void do_tests (void)
 {
+  if (opt.do_python)
+  {
+    if (/* test_python_pipe() && */ !halt_flag)
+    {
+      test_pythons();
+      test_python_funcs();
+    }
+    return;
+  }
+
   test_split_env ("PATH");
   test_split_env ("MANPATH");
-#if 0
+
+#if 1
   test_split_env ("LIB");
   test_split_env ("INCLUDE");
 
@@ -2519,6 +2586,9 @@ static void do_tests (void)
   test_slashify();
   test_fixpath();
   test_SHGetFolderPath();
+
+  signal (SIGILL, halt);
+  test_libssp();
 }
 
 /*
@@ -2553,7 +2623,7 @@ static void format_and_print_line (const char *line)
     remaining_chars -= strlen (token) + 1;  /* account for " " */
     token = strtok (NULL, " ");
   }
-  C_puts ("\n");
+  C_putc ('\n');
   free (line_dup);
 }
 
