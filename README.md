@@ -83,6 +83,10 @@ Wed Mar 09 14:39:05 2011 : f:\CygWin\bin\i686-pc-cygwin-c++.exe
 Wed Mar 09 14:39:05 2011 : f:\CygWin\bin\i686-pc-cygwin-g++.exe
 ```
 
+Although not as powerful as "POSIX-style file matching" which is also built-in
+via the `fnmatch()` function.
+
+
 E.g. 5: If you have Python installed, the `--python` option will search in
 `%PYTHONPATH` and `sys.path[]` for a match. E.g.:
 `envtool.exe --python ss*.py`:
@@ -177,6 +181,9 @@ risk. Enjoy!
   0.96: Better Python embedding; lookup python.exe in env-var %PYTHON, then on
         %PATH. Test for correct Python DLL. Report full name of python.exe in
         "envtool -V".
+
+  0.97: Lots of improvements. Print more details on "envtool -VV" (compiler and
+        linker flags).
 
 ```
 
