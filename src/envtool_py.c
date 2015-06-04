@@ -523,6 +523,8 @@ static int add_sys_path (char *dir, int index)
 static int report_zip_file (const char *zip_file, char *output)
 {
   static char *py_home = NULL;
+  static char *sys_prefix = NULL;
+  static BOOL do_warn = TRUE;
   struct tm   tm;
   const  char *space, *p, *file_within_zip;
   char   report [1024];
@@ -572,16 +574,15 @@ static int report_zip_file (const char *zip_file, char *output)
     return (0);
   }
 
-  if (!py_home)
+  if (!py_home && do_warn)
   {
-    static BOOL do_warn = TRUE;
-
+    sys_prefix = "%PYTHONHOME%";
     py_home = getenv ("PYTHONHOME");
-    if (do_warn && py_home && !FILE_EXISTS(py_home))
-       WARN ("%%PYTHONHOME points to non-existing directory: \"%s\".\n", py_home);
+    if (!py_home)
+       py_home = sys_prefix = g_py->home;
+    if (!FILE_EXISTS(py_home))
+       WARN ("%s points to non-existing directory: \"%s\".\n", sys_prefix, py_home);
     do_warn = FALSE;
-    if (!py_home && g_py && g_py->home)
-       py_home = g_py->home;
   }
 
   len = snprintf (report, sizeof(report), "%s  (", file_within_zip);
@@ -590,7 +591,7 @@ static int report_zip_file (const char *zip_file, char *output)
    */
   p = py_home ? path_ltrim (zip_file, py_home) : zip_file;
   if (p > zip_file)
-       snprintf (report+len, sizeof(report)-len, "%%PYTHONHOME%%\\%s)", p);
+       snprintf (report+len, sizeof(report)-len, "%s\\%s)", sys_prefix, p);
   else snprintf (report+len, sizeof(report)-len, "%s)", zip_file);
 
   /* zipinfo always reports 'file_within_zip' with '/' slashes. But simply slashify the
