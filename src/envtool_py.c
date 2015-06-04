@@ -577,9 +577,11 @@ static int report_zip_file (const char *zip_file, char *output)
     static BOOL do_warn = TRUE;
 
     py_home = getenv ("PYTHONHOME");
-    if (do_warn && !FILE_EXISTS(py_home))
+    if (do_warn && py_home && !FILE_EXISTS(py_home))
        WARN ("%%PYTHONHOME points to non-existing directory: \"%s\".\n", py_home);
     do_warn = FALSE;
+    if (!py_home && g_py && g_py->home)
+       py_home = g_py->home;
   }
 
   len = snprintf (report, sizeof(report), "%s  (", file_within_zip);
