@@ -892,7 +892,7 @@ void free_at (void *ptr, const char *file, unsigned line)
      FATAL ("double free() of block detected at %s, line %u\n", file, line);
 
   if (head->marker != MEM_MARKER)
-     FATAL ("free() of unknown block at %s, line %u:\n  data: %s\n", file, line);
+     FATAL ("free() of unknown block at %s, line %u.\n", file, line);
 
   head->marker = MEM_FREED;
   mem_max -= head->size;
