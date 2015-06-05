@@ -2,7 +2,7 @@
 # GNU makefile for EnvTool (MingW/MingW64/TDM-gcc).
 #
 
-FORTIFY_SOURCE ?= 0
+FORTIFY_SOURCE ?= 2
 USE_DEBUG      ?= 1
 USE_UNICODE    ?= 0
 USE_64BIT      ?= 0
@@ -38,7 +38,7 @@ endif
 
 ifneq ($(FORTIFY_SOURCE),0)
   CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) -fstack-protector-all -Wstack-protector
-  EX_LIBS = -lssp
+  EX_LIBS = $(MINGW_ROOT)/lib/libssp.a
 endif
 
 EX_LIBS += -limagehlp -lversion
