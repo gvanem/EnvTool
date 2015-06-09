@@ -37,7 +37,7 @@ RCFLAGS = $(RCFLAGS) -DWIN64
 
 OBJECTS = envtool.obj envtool_py.obj searchpath.obj misc.obj \
           color.obj show_ver.obj Everything.obj getopt_long.obj\
-          envtool.res
+          envtool.res win_ver.obj
 
 all: cflags_MSVC.h ldflags_MSVC.h envtool.exe
 	copy /y envtool.exe ..
@@ -54,7 +54,12 @@ envtool.res: envtool.rc
 win_glob.exe: win_glob.c misc.c color.c
 	$(CC) $(CFLAGS) -DGLOB_TEST -c $**
 	link $(LDFLAGS) -out:$@ -map:win_glob.map $(**:.c=.obj) imagehlp.lib shell32.lib
-	del /q win_glob.obj misc.obj
+	del /q win_glob.obj
+
+win_ver.exe: win_ver.c misc.c color.c
+	$(CC) $(CFLAGS) -DWIN_VER_TEST -c $**
+	link $(LDFLAGS) -out:$@ -map:win_ver.map $(**:.c=.obj) imagehlp.lib shell32.lib
+	del /q win_ver.obj
 
 mem_test.exe: misc.c color.c
 	$(CC) $(CFLAGS) -DMEM_TEST -c $**
