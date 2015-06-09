@@ -64,6 +64,7 @@ static void init_color_map (void)
 int C_setraw (int raw)
 {
   int rc = c_raw;
+
   c_raw = raw;
   return (rc);
 }
@@ -71,12 +72,15 @@ int C_setraw (int raw)
 int C_setbin (int bin)
 {
   int rc = c_binmode;
+
   c_binmode = bin;
   return (rc);
 }
 
 static void C_exit (void)
 {
+  if (c_out)
+     C_flush();
   c_head = c_tail = NULL;
   c_out = NULL;
 }
@@ -150,7 +154,7 @@ size_t C_flush (void)
      return (0);
 
   assert (c_out);
-  len = _write (_fileno(c_out), c_buf, len);
+  len = _write (_fileno(c_out), c_buf, (unsigned int)len);
 
   c_head = c_buf;   /* restart buffer */
   return (len);
@@ -187,7 +191,7 @@ int C_vprintf (const char *fmt, va_list args)
     len1 = C_puts (buf);
     if (len1 < len2)
       FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
-             len1, len2, c_head - c_buf, c_buf, buf);
+             len1, len2, (int)(c_head - c_buf), c_buf, buf);
   }
   return (len2);
 }
@@ -217,7 +221,7 @@ int C_putc (int ch)
       color = color_map [i];
     else
       FATAL ("Illegal color index %d ('%c'/0x%02X) in c_buf: '%.*s'\n",
-             i, ch, ch, c_head - c_buf, c_buf);
+             i, ch, ch, (int)(c_head - c_buf), c_buf);
 
     C_flush();
     if (use_colours)
