@@ -7,7 +7,7 @@ USE_DEBUG      ?= 1
 USE_UNICODE    ?= 0
 USE_64BIT      ?= 0
 
-MINGW_ROOT = $(realpath $(MINGW32))
+# MINGW_ROOT = $(realpath $(MINGW32)) # No need
 
 CC      = gcc
 CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl -D_WIN32_IE=0x500
@@ -37,13 +37,24 @@ else
 endif
 
 ifneq ($(FORTIFY_SOURCE),0)
+  ifneq ($(USE_DEBUG),1)
+    $(error $$(FORTIFY_SOURCE) needs 'USE_DEBUG=1')
+  endif
+
   CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) -fstack-protector-all -Wstack-protector
-  EX_LIBS = $(MINGW_ROOT)/lib/libssp.a
+
+  #
+  # Use the static 'libssp.a'
+  #
+  LDFLAGS += -Wl,-static
+  EX_LIBS  = -lssp
 endif
 
 EX_LIBS += -limagehlp -lversion
 
-SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c envtool_py.c getopt_long.c
+SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c envtool_py.c \
+          getopt_long.c win_ver.c
+
 OBJECTS = $(SOURCES:.c=.o)
 
 all: cflags_MingW.h ldflags_MingW.h envtool.exe
@@ -53,13 +64,17 @@ all: cflags_MingW.h ldflags_MingW.h envtool.exe
 envtool.exe: $(OBJECTS) envtool.res
 	$(CC) $(LDFLAGS) -o $@ $^ $(EX_LIBS) > envtool.map
 
-win_glob.exe: win_glob.c misc.c color.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -DGLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
-	rm -f win_glob.o misc.o
-
 mem_test.exe: misc.c color.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DMEM_TEST -o $@ $^ $(EX_LIBS) > mem_test.map
 	rm -f misc.o
+
+win_glob.exe: win_glob.c misc.c color.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DGLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
+	rm -f win_glob.o
+
+win_ver.exe: win_ver.c misc.c color.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
+	rm -f win_ver.o
 
 envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc
@@ -74,15 +89,18 @@ envtool.res: envtool.rc
 
 clean:
 	rm -f $(OBJECTS) .depend.MingW envtool.res envtool.exe envtool.map cflags_MingW.h ldflags_MingW.h
+	@echo
 
 vclean: clean
 	rm -f win_glob.exe win_glob.map mem_test.exe mem_test.map
 
 cflags_MingW.h: Makefile.MingW
-	@echo "const char *cflags = \"$(CC) $(CFLAGS)\";" > $@
+	echo "const char *cflags = \"$(CC) $(CFLAGS)\";" > $@
+	@echo
 
 ldflags_MingW.h: Makefile.MingW
-	@echo "const char *ldflags = \"$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) \";" > $@
+	echo "const char *ldflags = \"$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) \";" > $@
+	@echo
 
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
