@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include "Everything.h"
 #include "Everything_IPC.h"
@@ -28,6 +29,12 @@ static int wcsicmp ( const wchar_t *s1 __attribute__((notused)),
   exit(1);
 }
 #endif
+
+/*
+ * From 'gcc -m64':
+ *   Everything.c:33:26: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+ */
+#define HWND_32BIT(h)  ( (*(DWORD*) &(h)) & ULONG_MAX)
 
 // return copydata code
 #define _EVERYTHING_COPYDATA_QUERYCOMPLETEA	0
@@ -624,7 +631,7 @@ static DWORD __stdcall _Everything_thread_proc(VOID *param)
 					q.queryW->offset = _Everything_Offset;
 					q.queryW->reply_copydata_message = _EVERYTHING_COPYDATA_QUERYCOMPLETEW;
 					q.queryW->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
-					q.queryW->reply_hwnd = (DWORD)hwnd;
+					q.queryW->reply_hwnd = HWND_32BIT (hwnd);
 
 					_Everything_GetSearchTextW(q.queryW->search_string);
 				}
@@ -634,7 +641,7 @@ static DWORD __stdcall _Everything_thread_proc(VOID *param)
 					q.queryA->offset = _Everything_Offset;
 					q.queryA->reply_copydata_message = _EVERYTHING_COPYDATA_QUERYCOMPLETEA;
 					q.queryA->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
-					q.queryA->reply_hwnd = (DWORD)hwnd;
+					q.queryA->reply_hwnd = HWND_32BIT (hwnd);
 
 					_Everything_GetSearchTextA(q.queryA->search_string);
 				}
@@ -784,7 +791,7 @@ BOOL _Everything_SendIPCQuery(BOOL bUnicode)
 				q.queryW->offset = _Everything_Offset;
 				q.queryW->reply_copydata_message = _Everything_ReplyID;
 				q.queryW->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
-				q.queryW->reply_hwnd = (DWORD)_Everything_ReplyWindow;
+				q.queryW->reply_hwnd = HWND_32BIT (_Everything_ReplyWindow);
 
 				_Everything_GetSearchTextW(q.queryW->search_string);
 			}
@@ -794,7 +801,7 @@ BOOL _Everything_SendIPCQuery(BOOL bUnicode)
 				q.queryA->offset = _Everything_Offset;
 				q.queryA->reply_copydata_message = _Everything_ReplyID;
 				q.queryA->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
-				q.queryA->reply_hwnd = (DWORD)_Everything_ReplyWindow;
+				q.queryA->reply_hwnd = HWND_32BIT (_Everything_ReplyWindow);
 
 				_Everything_GetSearchTextA(q.queryA->search_string);
 			}
