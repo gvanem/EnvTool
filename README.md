@@ -8,7 +8,7 @@ environment variables:
 * `--inc`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
 * `--lib`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%LIB%` and `%LIBRARY_PATH%`.
 * `--cmake`:  &nbsp;&nbsp;                         `%CMAKE_MODULE_PATH%`.
-* `--man`:    &nbsp;&nbsp;                         `%MANPATH%`.
+* `--man`:    &nbsp;&nbsp;&nbsp;                   `%MANPATH%`.
 * `--python`: &nbsp;                               `%PYTHONPATH%` and `sys.path[]`.
 * `--evry`:   &nbsp;&nbsp;&nbsp;&nbsp;             [EveryThing](http://www.voidtools.com/support/everything/) file database.
 
