@@ -1,11 +1,14 @@
-EnvTool v0.97:
+EnvTool v0.98:
 ==============
 
-A tool to search along various environment variables for files (or a wildcard). The following options handles these environment variables:
+A tool to search along various environment variables for files (or a wildcard). The following option-modes handles these
+environment variables:
 
 * `--path`:   &nbsp;&nbsp;&nbsp;&nbsp;             `%PATH%`.
 * `--inc`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
 * `--lib`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%LIB%` and `%LIBRARY_PATH%`.
+* `--cmake`:  &nbsp;&nbsp;                         `%CMAKE_MODULE_PATH%`.
+* `--man`:    &nbsp;&nbsp;                         `%MANPATH%`.
 * `--python`: &nbsp;                               `%PYTHONPATH%` and `sys.path[]`.
 * `--evry`:   &nbsp;&nbsp;&nbsp;&nbsp;             [EveryThing](http://www.voidtools.com/support/everything/) file database.
 
@@ -116,6 +119,22 @@ all directories with Unix man-pages, you can do this:
 
 Which is probably a lot more directories than you have in you `%MANPATH%`.
 
+E.g. 8: More than one option-mode can combined. For example:
+`envtool.exe --man --evry gzip*.[1-9]*`:
+```
+Matches in %MANPATH:
+      13 Mar 2011 - 19:47:43: f:\CygWin\usr\share\man\man1\gzip.1.gz
+      09 Dec 1997 - 17:55:20: e:\djgpp\share\man\man1\gzip.1
+      15 Dec 2004 - 02:06:32: e:\djgpp\share\man\cat1\gzip.1
+Matches from EveryThing:
+<DIR> 24 May 2014 - 12:48:16: e:\DJGPP\gnu\gzip-1.3-3\
+      15 Dec 2004 - 02:06:32: e:\DJGPP\share\man\cat1\gzip.1
+      09 Dec 1997 - 17:55:20: e:\DJGPP\share\man\man1\gzip.1
+      13 Mar 2011 - 19:47:43: f:\CygWin\usr\share\man\man1\gzip.1.gz
+      11 Nov 2013 - 14:05:46: f:\MingW32\msys32\usr\share\man\man1\gzip.1.gz
+<DIR> 01 Sep 2014 - 17:49:32: f:\MingW32\msys32\var\lib\pacman\local\gzip-1.6-1\
+      30 Sep 2013 - 13:07:53: f:\MingW32\var\cache\mingw-get\packages\gzip-1.3.12-2-msys-1.0.13-bin.tar.lzma
+```
 
 C-source included in ./src. Makefiles for MingW, Cygwin, Watcom and MSVC. Use at own
 risk. Enjoy!
@@ -184,6 +203,13 @@ risk. Enjoy!
 
   0.97: Lots of improvements. Print more details on "envtool -VV" (compiler and
         linker flags).
+
+  0.98: Added option "--man" to search for matches in all *subdir* of %MANPATH%.
+        E.g. subdirs "man[1-9]" and "cat[1-9]".
+
+        Added option "--cmake" to search for matches along the built-in Cmake
+        module path and '%CMAKE_MODULE_PATH%'.
+
 
 ```
 
