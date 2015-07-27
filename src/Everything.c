@@ -21,13 +21,17 @@
 #include "Everything.h"
 #include "Everything_IPC.h"
 
-#if defined(__CYGWIN__) && 0
-static int wcsicmp ( const wchar_t *s1 __attribute__((notused)),
-                     const wchar_t *s2 __attribute__((notused)) )
-{
-  fprintf (stderr, "CygWin doesn't have 'wcsicmp()'. Exiting\n");
-  exit(1);
-}
+#if defined(__CYGWIN__)
+  #define stricmp(s1, s2)  strcasecmp (s1, s2)
+
+  #if 1
+    static int wcsicmp ( const wchar_t *s1 __attribute__((unused)),
+                         const wchar_t *s2 __attribute__((unused)) )
+    {
+      fprintf (stderr, "CygWin doesn't have 'wcsicmp()'. Exiting\n");
+      exit(1);
+    }
+  #endif
 #endif
 
 /*
