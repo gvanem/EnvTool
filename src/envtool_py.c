@@ -88,6 +88,11 @@ static struct python_info all_py_programs[] = {
     { "python2.exe", PY2_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
     { "python3.exe", PY3_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
 
+#if defined(__CYGWIN__)
+    { "python2.7.exe", PY2_PYTHON,  TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
+    { "python3.5.exe", PY3_PYTHON,  TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
+#endif
+
     /* PyPy */
     { "pypy.exe",    PYPY_PYTHON,   FALSE, { "~\\libpypy-c.dll", NULL }, },
 
@@ -117,7 +122,7 @@ static struct python_info *g_py;  /* The global Python instance data. */
                                   goto failed;                                     \
                                 }                                                  \
                                 DEBUGF (3, "Function %s(): %*s 0x%p\n",            \
-                                           #f, 23-strlen(#f), "", f);              \
+                                           #f, 23-(int)strlen(#f), "", f);         \
                               } while (0)
 
 #define DEF_FUNC(ret,f,args)  typedef ret (__cdecl *func_##f) args; \
@@ -159,6 +164,71 @@ static const char *python_variant_name (enum python_variants v)
           v == PYPY_PYTHON    ? "PyPy"        :
           v == JYTHON_PYTHON  ? "JPython"     :
           v == ALL_PYTHONS    ? "All"         : "??");
+}
+
+static int compare_strings (const void *_s1, const void *_s2)
+{
+  const char *s1 = *(const char**) _s1;
+  const char *s2 = *(const char**) _s2;
+  return stricmp (s1, s2);
+}
+
+const char **python_get_variants (void)
+{
+  static char *result [DIM(all_py_programs)+1];
+  const struct python_info *py;
+  int   i, j;
+
+  for (i = j = 0, py = all_py_programs; i < DIM(all_py_programs); i++, py = all_py_programs+i)
+  {
+    switch (py->variant)
+    {
+      case PY2_PYTHON:
+           result [j++] = "py2";
+           break;
+      case PY3_PYTHON:
+           result [j++] = "py3";
+           break;
+      case IRON2_PYTHON:
+           result [j++] = "ipy2";
+           break;
+      case IRON3_PYTHON:
+           result [j++] = "ipy3";
+           break;
+      case PYPY_PYTHON:
+           result [j++] = "pypy";
+           break;
+      case JYTHON_PYTHON:
+           result [j++] = "jython";
+           break;
+      case DEFAULT_PYTHON:
+      case PY2or3_PYTHON:
+           result [j++] = "py";
+           break;
+      default:
+           FATAL ("What?");
+           break;
+    }
+  }
+
+  DEBUGF (3, "j: %d\n", j);
+  for (i = 0; i < DIM(result); i++)
+     DEBUGF (3, "python_get_variants(); result[%d] = %s\n", i, result[i]);
+
+  qsort (&result[0], j, sizeof(char*), compare_strings);
+
+  /* Make a unique result list.
+   */
+  for (i = 0; i < j; i++)
+    if (i > 0 && result[i] && !strcmp(result[i],result[i-1]))
+       memmove (&result[i-1], &result[i], (DIM(result) - i) * sizeof(const char*));
+
+  DEBUGF (3, "\n");
+  for (i = 0; i < DIM(result); i++)
+     DEBUGF (3, "python_get_variants(); result[%d] = %s\n", i, result[i]);
+
+  result [j] = NULL;
+  return (const char**) result;
 }
 
 /*
@@ -217,9 +287,25 @@ static void free_sys_path (struct python_info *py)
 /*
  * This should be the same as 'sys.prefix'.
  * The allocated string (ASCII or Unicode) is freed in 'exit_python()'.
+ *
+ * It seems CygWin64's Python fail to find the site.py file w/o setting
+ * the PYTONPATH explicitly!
  */
-static void set_python_home (struct python_info *py)
+static void get_python_home (struct python_info *py)
 {
+#if defined(__CYGWIN__) && 0
+  char home[_MAX_PATH];
+
+  snprintf (home, sizeof(home), "/usr/lib/python%d.%d", py->ver_major, py->ver_minor);
+  py->home = (void*) strdup (home);
+
+  snprintf (home, sizeof(home), "PYTHONPATH=%s", (char*)py->home);
+  putenv (home);
+
+#elif defined(__CYGWIN__)
+  py->home = (void*) strdup ("/usr/lib");
+
+#else
   char *dir = dirname (py->exe_name);
 
   if (py->ver_major >= 3)
@@ -237,6 +323,37 @@ static void set_python_home (struct python_info *py)
     py->home = (void*) strdup (dir);
   }
   FREE (dir);
+#endif
+}
+
+static const char *get_prog_name_ascii (void)
+{
+  static char prog_name [_MAX_PATH] = "?";
+  static char cyg_name [_MAX_PATH];
+
+  GetModuleFileNameA (NULL, prog_name, DIM(prog_name));
+
+#if defined(__CYGWIN__)
+  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, prog_name, cyg_name, sizeof(cyg_name)) == 0)
+     return (cyg_name);
+#endif
+  ARGSUSED (cyg_name);
+  return (prog_name);
+}
+
+static const wchar_t *get_prog_name_wchar (void)
+{
+  static wchar_t prog_name [_MAX_PATH] = L"?";
+  static wchar_t cyg_name [_MAX_PATH];
+
+  GetModuleFileNameW (NULL, prog_name, DIM(prog_name));
+
+#if defined(__CYGWIN__)
+  if (cygwin_conv_path(CCP_WIN_W_TO_POSIX, prog_name, cyg_name, DIM(cyg_name)) == 0)
+     return (cyg_name);
+#endif
+  ARGSUSED (cyg_name);
+  return (prog_name);
 }
 
 static void exit_python_embedding (void)
@@ -274,7 +391,7 @@ void exit_python (void)
   for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py = &all_py_programs[++i])
   {
     if (py->home)
-       free (py->home);
+       free (py->home);  /* Do not use FREE() since it could have been allocated using _wcsdup(). */
   }
 }
 
@@ -364,31 +481,30 @@ static int init_python_embedding (void)
 
   if (g_py->ver_major >= 3)
   {
-    wchar_t prog_name [_MAX_PATH] = L"?";
+    const wchar_t *name = get_prog_name_wchar();
 
     PyString_AsString = PyBytes_AsString;
     PyString_Size     = PyBytes_Size;
 
-    GetModuleFileNameW (NULL, prog_name, DIM(prog_name));
-    DEBUGF (2, "Py_SetProgramName (\"%S\")\n", prog_name);
-    (*Py_SetProgramName) ((char*)prog_name);
+    DEBUGF (2, "Py_SetProgramName (\"%S\")\n", name);
+    (*Py_SetProgramName) ((char*)name);
 
     DEBUGF (2, "Py_SetPythonHome (\"%S\")\n", (wchar_t*)g_py->home);
     (*Py_SetPythonHome) (g_py->home);
   }
   else
   {
-    char prog_name [_MAX_PATH] = "?";
+    const char *name = get_prog_name_ascii();
 
-    GetModuleFileNameA (NULL, prog_name, DIM(prog_name));
-    DEBUGF (2, "Py_SetProgramName (\"%s\")\n", prog_name);
-    (*Py_SetProgramName) (prog_name);
+    DEBUGF (2, "Py_SetProgramName (\"%s\")\n", name);
+    (*Py_SetProgramName) ((char*)name);
 
     DEBUGF (2, "Py_SetPythonHome (\"%s\")\n", (char*)g_py->home);
     (*Py_SetPythonHome) (g_py->home);
   }
 
   (*Py_InitializeEx) (0);
+  DEBUGF (3, "Py_InitializeEx (0) passed\n");
 
 #if PY_THREAD_SAVE
   (*PyEval_InitThreads)();
@@ -523,9 +639,9 @@ static int add_sys_path (char *dir, int index)
 static int report_zip_file (const char *zip_file, char *output)
 {
   static char *py_home = NULL;
-  static char *sys_prefix = NULL;
-  static BOOL do_warn = TRUE;
-  struct tm   tm;
+  static char *sys_prefix = "$PYTHONHOME";
+  static BOOL  do_warn = TRUE;
+  struct tm    tm;
   const  char *space, *p, *file_within_zip;
   char   report [1024];
   int    num, len;
@@ -576,10 +692,9 @@ static int report_zip_file (const char *zip_file, char *output)
 
   if (!py_home && do_warn)
   {
-    sys_prefix = "%PYTHONHOME%";
     py_home = getenv ("PYTHONHOME");
     if (!py_home)
-       py_home = sys_prefix = g_py->home;
+       py_home = g_py->home;
     if (!FILE_EXISTS(py_home))
        WARN ("%s points to non-existing directory: \"%s\".\n", sys_prefix, py_home);
     do_warn = FALSE;
@@ -587,10 +702,16 @@ static int report_zip_file (const char *zip_file, char *output)
 
   len = snprintf (report, sizeof(report), "%s  (", file_within_zip);
 
-  /* Figure out if and where in %PYTHONHOME 'zip_file' is equal.
+  /* Figure out if and where 'py_home' and 'zip_file' overlaps.
    */
   p = py_home ? path_ltrim (zip_file, py_home) : zip_file;
-  if (p > zip_file)
+
+  if (IS_SLASH(*p))  /* if 'py_home' doesn't end in a slash. */
+     p++;
+
+  DEBUGF (1, "p: '%s', py_home: '%s', zip_file: '%s'\n", p, py_home, zip_file);
+
+  if (p != zip_file && !strnicmp(zip_file,py_home,strlen(py_home)))
        snprintf (report+len, sizeof(report)-len, "%s\\%s)", sys_prefix, p);
   else snprintf (report+len, sizeof(report)-len, "%s)", zip_file);
 
@@ -626,7 +747,7 @@ static int report_zip_file (const char *zip_file, char *output)
           "  base = os.path.basename (f.filename)\n"                                  \
           "  if debug >= 3:\n"                                                        \
           "     os.write (2, 'egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"  \
-          "  if fnmatch.fnmatch (base, '%s'):\n"   /* opt.file_spec */                \
+          "  if fnmatch.fnmatch (f.filename, '%s'):\n"   /* opt.file_spec */          \
           "    date = \"%%4d%%02d%%02d\"  %% (f.date_time[0:3])\n"                    \
           "    time = \"%%02d%%02d%%02d\" %% (f.date_time[3:6])\n"                    \
           "    str = \"%%d %%s.%%s %%s\"  %% (f.file_size, date, time, f.filename)\n" \
@@ -777,6 +898,8 @@ int do_check_python (void)
   return (found);
 }
 
+#if !defined(__CYGWIN__)
+
 #define PY_PIPE_WRITE_PROG                                                                   \
         "import time, win32pipe, win32file\n"                                                \
         "handle = win32file.CreateFile (r'%s',\n"                                            \
@@ -819,8 +942,11 @@ static int fgets_loop (FILE *f, popen_callback callback)
     j += rc;
 #endif
   }
+  ARGSUSED (i);
+  ARGSUSED (buf);
   return (j);
 }
+#endif
 
 /*
  * Doesn't work as single-threaded :-(
@@ -901,7 +1027,7 @@ static char *get_python_exe_name (struct python_info *py)
   if (!prog || !FILE_EXISTS(prog))
      return (NULL);
 
-  _fixpath (prog, py->exe_name);
+  _fix_path (prog, py->exe_name);
   py->path_pos = searchpath_pos();
   DEBUGF (1, "\n");
   DEBUGF (1, "python_exe_name: %s, path_pos: %d\n", py->exe_name, py->path_pos);
@@ -922,15 +1048,11 @@ static int get_python_dll_name (struct python_info *py)
   char        dll2 [_MAX_PATH] = { '\0' };
   char       *use_this = NULL;
   const char *newest = NULL;
-  static char sys_dir [_MAX_PATH] = { '\0' };
   struct stat st1, st2, *use_st = NULL;
   BOOL       _st1, _st2, equal;
   size_t      i, num = DIM (py->libraries);
 
   _st1 = _st2 = FALSE;
-
-  if (!sys_dir[0])
-     GetSystemDirectory (sys_dir, sizeof(sys_dir));
 
   for (i = 0, lib_fmt = libs[0]; lib_fmt && i < num; lib_fmt = libs[++i])
   {
@@ -991,7 +1113,7 @@ static int get_python_dll_name (struct python_info *py)
 
   if (newest)
   {
-    _fixpath (newest, py->dll_name);
+    _fix_path (newest, py->dll_name);
     DEBUGF (1, "Found newest DLL: \"%s\", \"%s\"\n", newest, get_time_str(use_st->st_mtime));
   }
 
@@ -1045,23 +1167,39 @@ void searchpath_pythons (void)
   const struct python_info *py;
   size_t       i;
   BOOL         has_default = FALSE;
+  char         version [12];
 
   for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py = &all_py_programs[++i])
   {
+    char fname [_MAX_PATH];
+
+    if (py->ver_major > -1 && py->ver_minor > -1 && py->ver_micro > -1)
+         snprintf (version, sizeof(version), "(%d.%d.%d)", py->ver_major, py->ver_minor, py->ver_micro);
+    else if (py->exe_name[0])
+         _strlcpy (version, "(ver: ?)", sizeof(version));
+    else version[0] = '\0';
+
     if (py->is_default)
        has_default = TRUE;
-    C_printf ("   %s %s: %*s -> ~%c%s~0\n",
+
+    _strlcpy (fname, slashify(py->exe_name, opt.show_unix_paths ? '/' : '\\'), sizeof(fname));
+
+    C_printf ("   %s %s%*s %-7s -> ~%c%s~0\n",
               py->is_default ? "~3(1)~0" : "   ", py->program,
-              longest_py_program - strlen(py->program), "",
-              py->exe_name[0] ? '6' : '5',
-              py->exe_name[0] ? py->exe_name : "Not found");
+              (int)(longest_py_program - strlen(py->program)), "", version,
+              fname[0] ? '6' : '5',
+              fname[0] ? fname : "Not found");
 
     if (py->dll_name[0])
-       C_printf ("%*s%s (%sembeddable)\n",
-                 longest_py_program + 10, "", py->dll_name, py->is_embeddable ? "": "not ");
+    {
+      _strlcpy (fname, slashify(py->exe_name, opt.show_unix_paths ? '/' : '\\'), sizeof(fname));
+      C_printf ("%*s%s (%sembeddable)\n",
+                (int)(longest_py_program + 19), "",
+                fname, py->is_embeddable ? "": "not ");
+     }
   }
   if (has_default)
-     C_puts ("   ~3(1)~0 Default Python (first found on PATH).\n");
+     C_puts ("   ~3(1)~0 Default Python (found first on PATH).\n");
 }
 
 int init_python (void)
@@ -1094,7 +1232,7 @@ int init_python (void)
 
     if (get_python_exe_name(py) && get_python_version(py) && get_python_dll_name(py))
     {
-      set_python_home (g_py);
+      get_python_home (g_py);
       num++;
     }
   }
@@ -1119,13 +1257,11 @@ int init_python (void)
   for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py = &all_py_programs[++i])
   {
     DEBUGF (1, "%d: \"%s\" %*s -> \"%s\".\n"
-                 "                    DLL:     %-8s -> \"%s\"\n"
-                 "                    Variant: %-8s -> %s %s\n",
-              i, py->program, longest_py_program - strlen(py->program),
-              "", py->exe_name,
-              "", py->dll_name,
-              "", python_variant_name(py->variant),
-              py->is_default ? "(Default)" : "");
+               "                    DLL:     %-8s -> \"%s\"\n"
+               "                    Variant: %-8s -> %s %s\n",
+            (int)i, py->program, (int)(longest_py_program - strlen(py->program)), "", py->exe_name,
+            "", py->dll_name,
+            "", python_variant_name(py->variant), py->is_default ? "(Default)" : "");
   }
   g_py = NULL;
   return (num);
