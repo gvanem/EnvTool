@@ -8,6 +8,12 @@
 
 #include "color.h"
 
+#ifdef __CYGWIN__
+  #include <unistd.h>
+  #define _fileno(f)         fileno (f)
+  #define _write(f,buf,len)  write (f,buf,len)
+#endif
+
 #define loBYTE(w)     (BYTE)(w)
 #define hiBYTE(w)     (BYTE)((WORD)(w) >> 8)
 #define DIM(x)        (int) (sizeof(x) / sizeof((x)[0]))
