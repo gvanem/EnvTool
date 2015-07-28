@@ -1,16 +1,15 @@
 #
-# GNU makefile for EnvTool (MingW/MingW64/TDM-gcc).
+# GNU makefile for EnvTool (MinGW/MinGW64/TDM-gcc).
 #
 
 FORTIFY_SOURCE ?= 2
 USE_DEBUG      ?= 1
 USE_UNICODE    ?= 0
-USE_64BIT      ?= 0
-
-# MINGW_ROOT = $(realpath $(MINGW32)) # No need
+USE_64BIT      ?= 1
 
 CC      = gcc
-CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl -D_WIN32_IE=0x500
+CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
+          -D_WIN32_IE=0x500 -DCHECK_PREFIXED_GCC=0
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
 RCFLAGS = -O COFF
 
@@ -52,12 +51,12 @@ endif
 
 EX_LIBS += -limagehlp -lversion
 
-SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c envtool_py.c \
-          getopt_long.c win_ver.c
+SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c \
+          envtool_py.c getopt_long.c win_ver.c
 
 OBJECTS = $(SOURCES:.c=.o)
 
-all: cflags_MingW.h ldflags_MingW.h envtool.exe
+all: cflags_MinGW.h ldflags_MinGW.h envtool.exe
 	cp --update envtool.exe ..
 	@echo '../envtool.exe successfully built.'
 
@@ -88,27 +87,27 @@ envtool.res: envtool.rc
 	@echo
 
 clean:
-	rm -f $(OBJECTS) .depend.MingW envtool.res envtool.exe envtool.map cflags_MingW.h ldflags_MingW.h
+	rm -f $(OBJECTS) .depend.MinGW envtool.res envtool.exe envtool.map cflags_MinGW.h ldflags_MinGW.h
 	@echo
 
 vclean: clean
 	rm -f win_glob.exe win_glob.map mem_test.exe mem_test.map
 
-cflags_MingW.h: Makefile.MingW
+cflags_MinGW.h: Makefile.MinGW
 	echo "const char *cflags = \"$(CC) $(CFLAGS)\";" > $@
 	@echo
 
-ldflags_MingW.h: Makefile.MingW
+ldflags_MinGW.h: Makefile.MinGW
 	echo "const char *ldflags = \"$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) \";" > $@
 	@echo
 
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
 depend:
-	$(CC) -MM $(CFLAGS) $(SOURCES) win_glob.c | $(REPLACE) > .depend.MingW
-	echo ''                       >> .depend.MingW
-	echo 'envtool.res: envtool.h' >> .depend.MingW
+	$(CC) -MM $(CFLAGS) $(SOURCES) win_glob.c | $(REPLACE) > .depend.MinGW
+	echo ''                       >> .depend.MinGW
+	echo 'envtool.res: envtool.h' >> .depend.MinGW
 
--include .depend.MingW
+-include .depend.MinGW
 
 
