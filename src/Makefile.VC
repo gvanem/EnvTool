@@ -2,13 +2,14 @@
 # EnvTool MSVC Nmake makefile.
 #
 
-DEBUG = 0
+DEBUG  = 0
+STATIC = 1
 
 CC      = cl
-CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 -I. \
+CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 \
           -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE \
-          -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
-          -D_WIN32_IE=0x500
+          -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -D_WIN32_IE=0x500 \
+          -DCHECK_PREFIXED_GCC=1   # -DEVERYTHINGAPI=__cdecl
 
 LDFLAGS = -nologo -incremental:no
 RCFLAGS = -nologo -D_MSC_VER -r
@@ -16,15 +17,23 @@ MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;
 EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
 
 !if "$(DEBUG)" == "1"
-CFLAGS  = $(CFLAGS) -MTd -D_DEBUG -Os -EHsc -RTCc
+D       = d
+CFLAGS  = $(CFLAGS) -Os -EHsc -RTCc
 LDFLAGS = $(LDFLAGS) -debug
 RCFLAGS = $(RCFLAGS) -D_DEBUG
 MSBUILD = $(MSBUILD) -p:Configuration=Debug
 !else
-CFLAGS  = $(CFLAGS) -MT -D_RELEASE -Ot
+D       =
+CFLAGS  = $(CFLAGS) -Ot
 LDFLAGS = $(LDFLAGS) -debug
 RCFLAGS = $(RCFLAGS) -D_RELEASE
 MSBUILD = $(MSBUILD) -p:Configuration=Release
+!endif
+
+!if "$(STATIC)" == "1"
+CFLAGS = -MT$(D) $(CFLAGS)
+!else
+CFLAGS = -MD$(D) $(CFLAGS)
 !endif
 
 !if "$(Platform)" == "x64"
