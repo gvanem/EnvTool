@@ -31,7 +31,12 @@
 
 #define INSIDE_ENVOOL_C
 
-#include "getopt_long.h"
+#if defined(__CYGWIN__)
+  #include <getopt.h>
+#else
+  #include "getopt_long.h"
+#endif
+
 #include "Everything.h"
 #include "Everything_IPC.h"
 
@@ -48,7 +53,7 @@
 
 #ifdef __MINGW32__
   /*
-   * Tell MingW's CRT to turn off command line globbing by default.
+   * Tell MinGW's CRT to turn off command line globbing by default.
    */
   int _CRT_glob = 0;
 
@@ -61,7 +66,8 @@
 #endif
 #endif
 
-/* For getopt_long.c.
+/*
+ * For getopt_long.c.
  */
 char *program_name = NULL;
 
@@ -80,9 +86,10 @@ char *program_name = NULL;
 
 struct directory_array {
        char *dir;           /* FQDN of this entry */
+       char *cyg_dir;       /* The Cygwin POSIX form of the above */
        int   exist;         /* does it exist? */
        int   is_dir;        /* and is it a dir; _S_ISDIR() */
-       int   is_cwd;        /* and is equal to g_current_dir[] */
+       int   is_cwd;        /* and is equal to current_dir[] */
        int   exp_ok;        /* ExpandEnvironmentStrings() returned with no '%'? */
        int   num_dup;       /* is duplicated elsewhere in %VAR? */
      };
@@ -93,7 +100,7 @@ struct registry_array {
        char   *path;        /* path of this entry */
        int     exist;       /* does it exist? */
        time_t  mtime;       /* file modification time */
-       __int64 fsize;       /* file size */
+       UINT64  fsize;       /* file size */
        HKEY    key;
      };
 
@@ -101,6 +108,9 @@ struct directory_array dir_array [MAX_PATHS];
 struct registry_array  reg_array [MAX_PATHS];
 
 struct prog_options opt;
+
+char   sys_dir        [_MAX_PATH];
+char   sys_native_dir [_MAX_PATH];
 
 static int   num_version_ok = 0;
 
@@ -119,16 +129,13 @@ static char *new_argv [MAX_ARGS];  /* argv[0...] + contents of "%ENVTOOL_OPTIONS
 static int   new_argc;             /* 1... to highest allocated cmd-line component */
 
 static int   path_separator = ';';
-static char  file_spec_buf [_MAX_PATH];
-static char  g_current_dir [_MAX_PATH];
+static char  current_dir [_MAX_PATH];
 
 static volatile int halt_flag;
 
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
-static void  do_tests (void);
-static void  searchpath_gnu (void);
-static void  searchpath_msvc (void);
-static void  searchpath_watcom (void);
+static int   do_tests (void);
+static void  searchpath_all_cc (void);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 
@@ -161,7 +168,8 @@ static void show_evry_version (HWND wnd)
   char    buf [3*DIM(indexed)+2], *p = buf;
 
   C_printf ("  Everything search engine ver. %ld.%ld.%ld.%ld (c) David Carpenter; %s\n",
-            major, minor, revision, build, "http://www.voidtools.com/");
+            (long)major, (long)minor, (long)revision, (long)build,
+            "http://www.voidtools.com/");
 
   for (d = 0; d < DIM(indexed); d++)
       indexed[d] = (int) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_NTFS_DRIVE_INDEXED, d);
@@ -174,34 +182,74 @@ static void show_evry_version (HWND wnd)
   C_printf ("  These drives are indexed: ~3%s~0\n", buf);
 }
 
-static void show_version (void)
+#if defined(_MSC_FULL_VER)
+  /*
+   * Ref. http://msdn.microsoft.com/en-us/library/b0084kay(v=vs.120).aspx
+   *
+   * E.g. "cl /?" prints:
+   *    Microsoft (R) C/C++ Optimizing Compiler Version 18.00.31101 for x86
+   *                       = _MSC_FULL_VER - 180000000  ^----
+   */
+  static const char *msvc_get_micro_ver (void)
+  {
+    static char buf[10];
+
+    buf[0] = '\0';
+
+  #if (_MSC_FULL_VER > 190000000)
+    buf[0] = '.';
+    _ultoa (_MSC_FULL_VER-190000000, buf+1, 10);
+  #elif (_MSC_FULL_VER > 180000000)
+    buf[0] = '.';
+    _ultoa (_MSC_FULL_VER-180000000, buf+1, 10);
+  #endif
+    return (buf);
+  }
+
+  static const char *msvc_get_ver (void)
+  {
+    static char buf[40];
+
+  #ifdef _DEBUG
+    #define DBG_REL "debug"
+  #else
+    #define DBG_REL "release"
+  #endif
+
+    snprintf (buf, sizeof(buf), "Visual-C ver %d.%d%s, %s",
+              (_MSC_VER / 100), _MSC_VER % 100, msvc_get_micro_ver(), DBG_REL);
+    return (buf);
+  }
+  #undef  BUILDER
+  #define BUILDER msvc_get_ver()
+#endif   /* _MSC_FULL_VER */
+
+static int show_version (void)
 {
+  extern const char *os_name (void);
   const char *py_exe;
   HWND        wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
 
-  /* \todo: report all detected Python programs and their versions. */
-
   int py_ver_major, py_ver_minor, py_ver_micro;
-  int py = get_python_info (&py_exe, NULL, &py_ver_major, &py_ver_minor, &py_ver_micro);
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s)~0 by %s. %s~0\n",
-          who_am_I, VER_STRING, BUILDER, WIN_VERSTR, AUTHOR_STR,
-          is_wow64_active() ? "~1WOW64." : "");
+            who_am_I, VER_STRING, BUILDER,
+            WIN_VERSTR, AUTHOR_STR, is_wow64_active() ? "~1WOW64." : "");
 
   if (wnd)
        show_evry_version (wnd);
   else C_printf ("  Everything search engine not found\n");
 
-  if (py)
+  C_printf ("Checking Python programs...");    init_python();
+  C_printf ("\r                         \r");
+
+  if (get_python_info(&py_exe, NULL, &py_ver_major, &py_ver_minor, &py_ver_micro))
        C_printf ("  Python %d.%d.%d detected -> ~6%s~0.\n", py_ver_major, py_ver_minor, py_ver_micro, py_exe);
   else C_printf ("  Python ~5not~0 found.\n");
 
   if (opt.do_version >= 2)
   {
-    C_printf ("\n  Compilers on ~3PATH~0:\n");
-    searchpath_gnu();
-    searchpath_msvc();
-    searchpath_watcom();
+    C_printf ("\n  OS-version: %s.\n", os_name());
 
     C_puts ("\n  Compile command and ~3CFLAGS~0:");
     print_build_cflags();
@@ -209,10 +257,13 @@ static void show_version (void)
     C_puts ("\n  Link command and ~3LDFLAGS~0:");
     print_build_ldflags();
 
+    C_printf ("\n  Compilers on ~3PATH~0:\n");
+    searchpath_all_cc();
+
     C_printf ("\n  Pythons on ~3PATH~0:\n");
     searchpath_pythons();
   }
-  exit (0);
+  return (0);
 }
 
 static void usage (const char *fmt, ...)
@@ -225,28 +276,32 @@ static void usage (const char *fmt, ...)
   exit (-1);
 }
 
-static void show_help (void)
+static int show_help (void)
 {
   C_printf ("Environment check & search tool.\n"
             "%s.\n\n"
             "Usage: %s [-cdDhitTrsqpuV?] ~6<--mode>~0 ~6<file-spec>~0\n"
-            "  ~6<--mode>~0 can be one of these:\n"
+            "  ~6<--mode>~0 can be one or more of these:\n"
             "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
-            "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and '~3sys.path[]~0'. ~2[1]~0.\n"
-            "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0                      ~2[2]~0.\n"
-            "    ~6--lib~0:          check and search in ~3%%LIB%%~0 and ~3%%LIBRARY_PATH%%~0.      ~2[3]~0.\n"
+            "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and '~3sys.path[]~0' ~2[1]~0.\n"
+            "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0                     ~2[2]~0.\n"
+            "    ~6--lib~0:          check and search in ~3%%LIB%%~0 and ~3%%LIBRARY_PATH%%~0.     ~2[3]~0.\n"
+            "    ~6--man~0:          check and search in ~3%%MANPATH%%~0.\n"
+            "    ~6--cmake~0:        check and search in ~3%%CMAKE_MODULE_PATH%%~0 and the built-in module-path.\n"
             "    ~6--evry~0:         check and search in the EveryThing database.\n"
             "\n"
             "  Other options:\n"
-            "    ~6--no-gcc~0:       do not spawn '*gcc.exe' prior to checking          ~2[2,3]~0.\n"
-            "    ~6--no-g++~0:       do not spawn '*g++.exe' prior to checking          ~2[2,3]~0.\n"
+            "    ~6--no-gcc~0:       do not spawn '*gcc.exe' prior to checking         ~2[2,3]~0.\n"
+            "    ~6--no-g++~0:       do not spawn '*g++.exe' prior to checking         ~2[2,3]~0.\n"
+            "    ~6--no-prefix~0:    do not check all prefixed '*gcc/*g++.exe' programs.\n"
             "    ~6--no-sys~0:       do not scan '~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0'.\n"
             "    ~6--no-usr~0:       do not scan '~3HKCU\\Environment~0'.\n"
             "    ~6--no-app~0:       do not scan '~3HKCU\\" REG_APP_PATH "~0' and\n"
             "                                '~3HKLM\\" REG_APP_PATH "~0'.\n"
+            "    ~6--no-colour~0:    do not print using colours.\n"
             "    ~6--pe-check~0:     print checksum and version-info for PE-files.\n"
+            "    ~6--m64~0:          tell '*gcc.exe' to return only 64-bit libs in ~6--lib~0 mode.\n"
             "    ~6-c~0:             don't add current directory to search-list.\n"
-            "    ~6-C~0, ~6--color~0:    print using colours to Windows console.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
             "    ~6-D~0, ~6--dir~0:      looks only for directories matching \"file-spec\".\n",
             AUTHOR_STR, who_am_I);
@@ -285,7 +340,7 @@ static void show_help (void)
             "  'file-spec' matches both files and directories. If '--dir' or '-D' is used, only\n"
             "   matching directories are reported.\n"
             "   Commonly used options can be put in ~3%%ENVTOOL_OPTIONS%%~0.\n");
-  exit (0);
+  return (0);
 }
 
 
@@ -303,11 +358,21 @@ void add_to_dir_array (const char *dir, int i, int is_cwd)
   int    j, exp_ok = (*dir != '%');
 
   memset (&st, 0, sizeof(st));
-  d->dir    = STRDUP (dir);
-  d->exp_ok = exp_ok;
-  d->exist  = exp_ok && (stat(dir, &st) == 0);
-  d->is_dir = _S_ISDIR (st.st_mode);
-  d->is_cwd = is_cwd;
+  d->cyg_dir = NULL;
+  d->dir     = STRDUP (dir);
+  d->exp_ok  = exp_ok;
+  d->exist   = exp_ok && (stat(dir, &st) == 0);
+  d->is_dir  = _S_ISDIR (st.st_mode);
+  d->is_cwd  = is_cwd;
+
+#if defined(__CYGWIN__)
+  char cyg_dir [_MAX_PATH];
+  int  rc = cygwin_conv_path (CCP_WIN_A_TO_POSIX, d->dir, cyg_dir, sizeof(cyg_dir));
+
+  if (rc == 0)
+     d->cyg_dir = STRDUP (cyg_dir);
+  DEBUGF (2, "cygwin_conv_path(): rc: %d, '%s'\n", rc, cyg_dir);
+#endif
 
   if (is_cwd || !exp_ok)
      return;
@@ -315,6 +380,77 @@ void add_to_dir_array (const char *dir, int i, int is_cwd)
   for (j = 0; j < i; j++)
       if (!stricmp(dir,dir_array[j].dir))
          d->num_dup++;
+}
+
+static void dump_dir_array (const char *where)
+{
+  const struct directory_array *d = dir_array;
+  int   i;
+
+  DEBUGF (3, "%s now\n", where);
+  for (i = 0; i < DIM(dir_array); i++, d++)
+  {
+    DEBUGF (3, "  dir_array[%d]: exist:%d, num_dup:%d, %s  %s\n",
+            i, d->exist, d->num_dup, d->dir, d->cyg_dir ? d->cyg_dir : "");
+    if (!d->dir)
+       break;
+  }
+}
+
+static int equal_dir_array (const struct directory_array *a,
+                            const struct directory_array *b)
+{
+  if (!a->dir || !b->dir)
+     return (0);
+  return (stricmp(a->dir,b->dir) == 0);
+}
+
+/*
+ * The GNU-C report of directories is a mess. Especially all the duplicates and
+ * non-canonical names. CygWin is more messy than others. So just remove the
+ * duplicates.
+ *
+ * Allocate a local '_new' and copy into 'dir_array[]' all
+ * unique items.
+ */
+static void unique_dir_array (const char *where, int top)
+{
+  struct directory_array *_new = CALLOC (top+1, sizeof(*_new));
+  struct directory_array *d = _new;
+  int    i, j;
+
+  dump_dir_array (where);
+
+  if (!_new || top <= 1)
+     goto quit;
+
+  for (i = 0; i < top; i++)
+  {
+    for (j = 0; j < i; j++)
+        if (equal_dir_array(&dir_array[j], &dir_array[i]))
+           break;
+    if (i == j)
+       memcpy (d++, &dir_array[j], sizeof(*d));
+  }
+  memcpy (&dir_array, _new, (top+1) * sizeof(*_new));
+  dump_dir_array (where);
+quit:
+  FREE (_new);
+}
+
+static struct directory_array *arr0 = NULL;
+
+static void free_dir_array (void)
+{
+  struct directory_array *arr;
+
+  for (arr = arr0; arr && arr->dir; arr++)
+  {
+    FREE (arr->dir);
+    FREE (arr->cyg_dir);
+  }
+  arr0 = NULL;
+  memset (&dir_array, '\0', sizeof(dir_array));
 }
 
 /*
@@ -332,8 +468,6 @@ static void add_to_reg_array (int *idx, HKEY key, const char *fname, const char 
   struct registry_array *reg;
   struct stat  st;
   const  char *base;
-  char   path [_MAX_PATH];
-  size_t len;
   int    rc, i = *idx;
 
   reg = reg_array + i;
@@ -351,13 +485,12 @@ static void add_to_reg_array (int *idx, HKEY key, const char *fname, const char 
     return;
   }
 
-  len = base - fqdn;
   rc  = stat (fqdn, &st);
   reg->mtime      = st.st_mtime;
   reg->fsize      = st.st_size;
   reg->fname      = STRDUP (fname);
   reg->real_fname = STRDUP (base);
-  reg->path       = STRDUP (_strlcpy(path,fqdn,len));
+  reg->path       = dirname (fqdn);
   reg->exist      = (rc == 0) && FILE_EXISTS (fqdn);
   reg->key        = key;
   *idx = ++i;
@@ -392,37 +525,47 @@ static void sort_reg_array (int num)
 #if DO_SORT
   int i, slash = (opt.show_unix_paths ? '/' : '\\');
 
-  DEBUGF (1, "before qsort():\n");
+  DEBUGF (3, "before qsort():\n");
   for (i = 0; i < num; i++)
-     DEBUGF (1, "%2d: FQDN: %s%c%s.\n", i, reg_array[i].path, slash, reg_array[i].real_fname);
+     DEBUGF (3, "%2d: FQDN: %s%c%s.\n", i, reg_array[i].path, slash, reg_array[i].real_fname);
 
   qsort (&reg_array, num, sizeof(reg_array[0]), (CmpFunc)reg_array_compare);
 
-  DEBUGF (1, "after qsort():\n");
+  DEBUGF (3, "after qsort():\n");
   for (i = 0; i < num; i++)
-     DEBUGF (1, "%2d: FQDN: %s%c%s.\n", i, reg_array[i].path, slash, reg_array[i].real_fname);
+     DEBUGF (3, "%2d: FQDN: %s%c%s.\n", i, reg_array[i].path, slash, reg_array[i].real_fname);
 #endif
 }
 
 /*
  * Parses an environment string and returns all components as an array of
- * 'struct directory_array'. Add current working directory first if
- * 'opt.add_cwd' is TRUE.
+ * 'struct directory_array' pointing into the global 'dir_array[]'.
+ * This works since  we handle only one env-var at a time. The 'dir_array[]'
+ * gets cleared in 'free_dir_array()' first (in case it was used already).
+ *
+ * Add current working directory first if 'opt.add_cwd' is TRUE.
  *
  * Convert CygWin style paths to Windows paths: "/cygdrive/x/.." -> "x:/.."
  */
 static struct directory_array *split_env_var (const char *env_name, const char *value)
 {
-  char *tok, *val = STRDUP (value);
+  char *tok, *val;
   int   is_cwd, i;
   char  sep [2];
 
+  if (!value)
+  {
+    DEBUGF (1, "split_env_var(\"%s\", NULL)' called!\n", env_name);
+    return (NULL);
+  }
+
+  val = STRDUP (value);
+  free_dir_array();
+
   sep[0] = path_separator;
-  sep[1] = 0;
+  sep[1] = '\0';
 
   tok = strtok (val, sep);
-  memset (dir_array, 0, sizeof(dir_array));
-
   is_cwd = !strcmp(val,".") || !strcmp(val,".\\") || !strcmp(val,"./");
 
   DEBUGF (1, "'val': \"%s\". 'tok': \"%s\", is_cwd: %d\n", val, tok, is_cwd);
@@ -436,12 +579,12 @@ static struct directory_array *split_env_var (const char *env_name, const char *
   */
   i = 0;
   if (opt.add_cwd && !is_cwd)
-     add_to_dir_array (g_current_dir, i++, 1);
+     add_to_dir_array (current_dir, i++, 1);
 
   for ( ; i < DIM(dir_array)-1 && tok; i++)
   {
     /* Remove trailing '\\' or '/' from environment component
-     * unless it's a "c:\".
+     * unless it's a simple "c:\".
      */
     char *p, *end = strchr (tok, '\0');
 
@@ -456,6 +599,13 @@ static struct directory_array *split_env_var (const char *env_name, const char *
       p = strchr (tok, ' ');
       if (p && (*tok != '"' || end[-1] != '"'))
          WARN ("%s: \"%s\" needs to be enclosed in quotes.\n", env_name, tok);
+
+#if !defined(__CYGWIN__)
+      /* Check for missing drive-letter ('x:') in component.
+       */
+      if (!is_cwd && IS_SLASH(tok[0]))
+         WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
+#endif
     }
 
     p = strchr (tok, '%');
@@ -468,7 +618,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
       end[-1] = '\0';
     }
 
-    /* _stati64(".") doesn't work. Hence turn "." into 'g_current_dir'.
+    /* _stati64(".") doesn't work. Hence turn "." into 'current_dir'.
      */
     is_cwd = !strcmp(tok,".") || !strcmp(tok,".\\") || !strcmp(tok,"./");
     if (is_cwd)
@@ -476,7 +626,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
       if (i > 0)
          WARN ("Having \"%s\" not first in \"%s\" is asking for trouble.\n",
                tok, env_name);
-      tok = g_current_dir;
+      tok = current_dir;
     }
     else if (opt.conv_cygdrive && strlen(tok) >= 12 && !strnicmp(tok,"/cygdrive/",10))
     {
@@ -487,7 +637,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
       tok = buf;
     }
 
-    add_to_dir_array (tok, i, !stricmp(tok,g_current_dir));
+    add_to_dir_array (tok, i, !stricmp(tok,current_dir));
 
     tok = strtok (NULL, sep);
   }
@@ -512,6 +662,59 @@ static int found_in_python_egg = 0;
 static int found_in_default_env = 0;
 static int found_in_everything_db = 0;
 
+
+/*
+
+ Improve dissection of .sys-files. E.g.:
+
+envtool.exe --evry -d --pe-check pwdspio.sys
+envtool.c(2218): file_spec: pwdspio.sys
+envtool.c(1383): Everything_SetSearch ("regex:^pwdspio\.sys$").
+envtool.c(1392): Everything_Query: No error
+envtool.c(1402): Everything_GetNumResults() num: 3, err: No error
+Matches from EveryThing:
+      01 Jan 1970 - 00:00:00: c:\Windows\System32\pwdspio.sys   <<< access this via 'c:\Windows\Sysnative\pwdspio.sys'
+      Not a PE-image.
+      30 Sep 2013 - 17:26:48: f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x64\x64\pwdspio.sysmisc.c(168): Opt magic: 0x020B, file_sum: 0x7
+3647770
+misc.c(171): rc: 0, 0x0000F9D7, 0x0000F9D7
+show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x64\x64\pwdspio.sys":
+  1813 Finner ikke den angitte ressurstypen i avbildningsfilen
+
+      ver 0.0.0.0, Chksum OK
+      19 Jun 2014 - 15:34:10: f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x86\pwdspio.sysmisc.c(168): Opt magic: 0x010B, file_sum: 0x00000
+000
+misc.c(171): rc: 0, 0x0000328A, 0x0000328A
+show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x86\pwdspio.sys":
+  1813 Finner ikke den angitte ressurstypen i avbildningsfilen
+
+      ver 0.0.0.0, Chksum OK
+3 matches found for "pwdspio.sys". 0 have PE-version info.
+  Max memory at one time: 0 bytes.
+  Total # of allocations: 9.
+  Total # of realloc():   0.
+  Total # of frees:       9.
+  No un-freed memory.
+
+-----------------------------
+
+ Add crypto check for PE-files using Crypt32.dll (dynamically).
+ One of these?
+
+   CertOpenStore
+   CertCloseStore
+   CertEnumCertificatesInStore
+   CertFreeCertificateContext
+   CertGetNameStringW
+   CertAddCertificateContextToStore
+   CertGetValidUsages
+   CryptSIPLoad
+   CryptSIPRetrieveSubjectGuidForCatalogFile
+   CertGetCertificateContextProperty
+   CertDuplicateCertificateContext
+   CertOIDToAlgId
+
+ */
 static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
                            const struct ver_info *ver)
 {
@@ -555,38 +758,12 @@ static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
   }
 }
 
-static const char *fsize_str (unsigned __int64 size)
+int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY key)
 {
-  const char *suffix = "";
-  unsigned __int64 divisor;
-  static char buf [10];
-
-  if (size < 1024)
-    divisor = 1, suffix = " B ";
-
-  else if (size < 1024*1024)
-    divisor = 1024, suffix = " kB";
-
-  else if (size < 1024ULL*1024ULL*1024ULL)
-    divisor = 1024*1024, suffix = " MB";
-
-  else if (size < 1024ULL*1024ULL*1024ULL*1024ULL)
-    divisor = 1024*1024*1024, suffix = " GB";
-
-  else
-    divisor = 1024ULL*1024ULL*1024ULL*1024ULL, suffix = " PB";
-
-  size /= divisor;
-  snprintf (buf, sizeof(buf), "%4" U64_FMT "%s", size, suffix);
-  return (buf);
-}
-
-int report_file (const char *file, time_t mtime, __int64 fsize, BOOL is_dir, HKEY key)
-{
-  const char      *note   = NULL;
-  const char      *filler = "      ";
-  char             size [30] = "?";
-  int              raw;
+  const char *note   = NULL;
+  const char *filler = "      ";
+  char        size [30] = "?";
+  int         raw;
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -625,17 +802,17 @@ int report_file (const char *file, time_t mtime, __int64 fsize, BOOL is_dir, HKE
   }
 
   if (!is_dir && opt.dir_mode)
-    return (0);
+     return (0);
 
   if (opt.show_size && fsize > 0)
-       snprintf (size, sizeof(size), " - %s", fsize_str((unsigned __int64)fsize));
+       snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
   else size[0] = '\0';
 
   if (key != HKEY_PYTHON_EGG)
   {
     char buf [_MAX_PATH];
 
-    _fixpath (file, buf);  /* Has '\\' slashes */
+    _fix_path (file, buf);  /* Has '\\' slashes */
     file = buf;
     if (opt.show_unix_paths)
        file = slashify (file, '/');
@@ -847,30 +1024,33 @@ static const char *access_name (REGSAM acc)
 
 static REGSAM read_access (void)
 {
-  static BOOL init     = FALSE;
   static BOOL is_wow64 = FALSE;
   REGSAM access = KEY_READ;
 
 #if defined(KEY_WOW64_32KEY) && defined(KEY_WOW64_64KEY)
 #if (IS_WIN64)
   access |= KEY_WOW64_32KEY;
+
 #else
+  static BOOL init = FALSE;
+
   if (!init)
      is_wow64 = is_wow64_active();
   if (is_wow64)
      access |= KEY_WOW64_64KEY;
+  init = TRUE;
 #endif
 #endif  /* KEY_WOW32_64KEY && KEY_WOW64_64KEY */
 
   ARGSUSED (is_wow64);
-  init = TRUE;
   return (access);
 }
 
 static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **ret)
 {
   HKEY   key = NULL;
-  DWORD  num, rc;
+  u_long num;
+  DWORD  rc;
   REGSAM acc = read_access();
   const char *ext = strrchr (key_name, '.');
 
@@ -883,7 +1063,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
   if (rc != ERROR_SUCCESS)
   {
     WARN ("    Error opening registry key \"%s\\%s\", rc=%lu\n",
-          top_key_name(top_key), key_name, rc);
+          top_key_name(top_key), key_name, (u_long)rc);
     return (FALSE);
   }
 
@@ -910,7 +1090,8 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
       char  exp_buf [MAX_ENV_VAR] = "<none>";
       DWORD ret = ExpandEnvironmentStrings (data, exp_buf, sizeof(exp_buf));
 
-      DEBUGF (1, "    ExpandEnvironmentStrings(): ret: %lu, exp_buf: \"%s\"\n", ret, exp_buf);
+      DEBUGF (1, "    ExpandEnvironmentStrings(): ret: %lu, exp_buf: \"%s\"\n",
+              (u_long)ret, exp_buf);
 
       if (ret > 0)
          _strlcpy (data, exp_buf, sizeof(data));
@@ -948,7 +1129,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
 
       case REG_DWORD:
            DEBUGF (1, "    num: %lu, %s, value: \"%s\", data: %lu\n",
-                      num, reg_type_name(type), value[0] ? value : "(no value)", val32);
+                      num, reg_type_name(type), value[0] ? value : "(no value)", (u_long)val32);
            break;
 
       case REG_QWORD:
@@ -960,7 +1141,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
            break;
 
       default:
-           DEBUGF (1, "    num: %lu, unknown REG_type %lu\n", num, type);
+           DEBUGF (1, "    num: %lu, unknown REG_type %lu\n", num, (u_long)type);
            break;
     }
   }
@@ -1073,26 +1254,18 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
        *lib = STRDUP (value);
 
 #if 0
-    DEBUGF (1, "num %2lu, %s, %s=%.40s%s\n", num, reg_type_name(type), name, value,
-               strlen(value) > 40 ? "..." : "");
+    DEBUGF (1, "num %2lu, %s, %s=%.40s%s\n",
+            (u_long)num, reg_type_name(type), name, value,
+            strlen(value) > 40 ? "..." : "");
 #else
-    DEBUGF (1, "num %2lu, %s, %s=%s\n", num, reg_type_name(type), name, value);
+    DEBUGF (1, "num %2lu, %s, %s=%s\n",
+            (u_long)num, reg_type_name(type), name, value);
 #endif
   }
   if (key)
      RegCloseKey (key);
 
   DEBUGF (1, "\n");
-}
-
-static struct directory_array *arr0;
-
-static void free_dir_array (void)
-{
-  struct directory_array *arr;
-
-  for (arr = arr0; arr && arr->dir; arr++)
-      FREE (arr->dir);
 }
 
 static int do_check_env2 (HKEY key, const char *env, const char *value)
@@ -1165,9 +1338,14 @@ static int report_registry (const char *reg_key, int num)
 
     snprintf (fqdn, sizeof(fqdn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
 
+    DEBUGF (1, "i=%2d: exist=%d, match=%d, key=%s, fname=%s, path=%s\n",
+            i, arr->exist, match, top_key_name(arr->key), arr->fname, arr->path);
+
     if (!arr->exist)
-       WARN ("\"%s\\%s\" points to\n  \"%s\". But this file does not exist.\n\n",
-             top_key_name(arr->key), reg_key, fqdn);
+    {
+      WARN ("\"%s\\%s\" points to\n  \"%s\". But this file does not exist.\n\n",
+            top_key_name(arr->key), reg_key, arr->path);
+    }
     else
     {
       match = fnmatch (opt.file_spec, arr->fname, FNM_FLAG_NOCASE);
@@ -1177,8 +1355,6 @@ static int report_registry (const char *reg_key, int num)
            found++;
       }
     }
-    DEBUGF (1, "i=%2d: exist=%d, match=%d, key=%s, fname=%s, path=%s\n",
-               i, arr->exist, match, top_key_name(arr->key), arr->fname, arr->path);
   }
 
   for (arr = reg_array; arr->fname; arr++)
@@ -1343,8 +1519,69 @@ static const char *evry_strerror (DWORD err)
     case EVERYTHING_ERROR_INVALIDCALL:
          return ("Invalid call");
   }
-  snprintf (buf, sizeof(buf), "Unknown error %lu", err);
+  snprintf (buf, sizeof(buf), "Unknown error %lu", (u_long)err);
   return (buf);
+}
+
+static void check_sys_dirs (void)
+{
+  struct stat st;
+
+  if (stat(sys_dir, &st) == 0 && _S_ISDIR(st.st_mode))
+       DEBUGF (1, "sys_dir: '%s' okay\n", sys_dir);
+  else DEBUGF (1, "sys_dir: '%s', errno: %d\n", sys_dir, errno);
+
+  if (stat(sys_native_dir, &st) == 0 && _S_ISDIR(st.st_mode))
+       DEBUGF (1, "sys_native_dir: '%s'\n", sys_native_dir);
+  else DEBUGF (1, "sys_native_dir: '%s', errno: %d\n", sys_native_dir, errno);
+}
+
+static const char *get_sysnative_file (const char *file, time_t *mtime, UINT64 *fsize)
+{
+#if (IS_WIN64 == 0)
+  if (!strnicmp(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
+  {
+    static char shaddow [_MAX_PATH];
+    struct stat st;
+
+    snprintf (shaddow, sizeof(shaddow), "%s\\%s", sys_native_dir, file+strlen(sys_dir));
+    DEBUGF (1, "shaddow: '%s' -> '%s'\n", file, shaddow);
+
+    if (stat(shaddow, &st) == 0)
+    {
+      *mtime = st.st_mtime;
+      *fsize = st.st_size;
+    }
+    else
+    {
+      *mtime = 0;
+      *fsize = 0;
+    }
+    return (shaddow);
+  }
+#endif
+  return (file);
+}
+
+static int report_evry_file (const char *file)
+{
+  struct stat st;
+  time_t mtime = 0;
+  UINT64 fsize = 0;
+  int    is_dir = 0;
+
+  if (stat(file, &st) == 0)
+  {
+    mtime  = st.st_mtime;
+    fsize  = st.st_size;
+    is_dir = _S_ISDIR (st.st_mode);
+    DEBUGF (3, "st.st_nlink: %d\n", st.st_nlink);
+  }
+  else
+  if (errno == ENOENT)
+     file = get_sysnative_file (file, &mtime, &fsize);
+
+  return report_file (file, mtime, fsize, is_dir, HKEY_EVERYTHING);
 }
 
 static int do_check_evry (void)
@@ -1393,7 +1630,7 @@ static int do_check_evry (void)
 
   num = Everything_GetNumResults();
   DEBUGF (1, "Everything_GetNumResults() num: %lu, err: %s\n",
-          num, evry_strerror(Everything_GetLastError()));
+          (u_long)num, evry_strerror(Everything_GetLastError()));
 
   if (num == 0)
   {
@@ -1404,7 +1641,7 @@ static int do_check_evry (void)
                         "Are you sure all NTFS disks are indexed by EveryThing? Try adding folders manually.\n";
     char buf [5000];
 
-    snprintf (buf, sizeof(buf), fmt, opt.file_spec);
+    snprintf (buf, sizeof(buf), fmt, opt.use_regex ? opt.file_spec_re : opt.file_spec);
     WARN ("%s", buf);
     return (0);
   }
@@ -1415,11 +1652,7 @@ static int do_check_evry (void)
 
   for (i = 0; i < num; i++)
   {
-    struct stat st;
-    char   file [_MAX_PATH];
-    time_t mtime = 0;
-    __int64 fsize = 0;
-    int    is_dir = 0;
+    char file [_MAX_PATH];
 
     len = Everything_GetResultFullPathName (i, file, sizeof(file));
     err = Everything_GetLastError();
@@ -1429,14 +1662,7 @@ static int do_check_evry (void)
               evry_strerror(err));
       break;
     }
-
-    if (stat(file, &st) == 0)
-    {
-      mtime  = st.st_mtime;
-      fsize  = st.st_size;
-      is_dir = _S_ISDIR (st.st_mode);
-    }
-    if (report_file(file, mtime, fsize, is_dir, HKEY_EVERYTHING))
+    if (report_evry_file(file))
        found++;
   }
   return (found);
@@ -1452,7 +1678,7 @@ static int do_check_env (const char *env_name)
   char  *orig_e;
 
   orig_e = getenv_expand (env_name);
-  arr0   = orig_e ? split_env_var(env_name,orig_e) : NULL;
+  arr0   = orig_e ? split_env_var (env_name, orig_e) : NULL;
   if (!arr0)
   {
     DEBUGF (1, "Env-var %s not defined.\n", env_name);
@@ -1468,18 +1694,163 @@ static int do_check_env (const char *env_name)
 }
 
 /*
+ * The MANPATH checking needs to be recursive (1 level); check all
+ * 'man*' and 'cat*' directories under each directory in %MANPATH.
+ *
+ * If ".\\" (or "./") is in MANPATH, just test for existence in
+ * 'current_dir'.
+ */
+static int do_check_manpath (void)
+{
+  struct directory_array *arr;
+  int    i, found = 0;
+  char  *orig_e;
+  char   subdir [_MAX_PATH];
+  char   report[300];
+  static const char env_name[] = "MANPATH";
+  static const char *sub_dirs[] = { "cat1", "cat2", "cat3", "cat4", "cat5",
+                                    "cat6", "cat7", "cat8", "cat9",
+                                    "man1", "man2", "man3", "man4", "man5",
+                                    "man6", "man7", "man8", "man9", "mann"
+                                  };
+
+  orig_e = getenv_expand (env_name);
+  arr0   = orig_e ? split_env_var (env_name, orig_e) : NULL;
+  if (!arr0)
+  {
+    DEBUGF (1, "Env-var %s not defined.\n", env_name);
+    return (0);
+  }
+
+  snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
+  report_header = report;
+
+  for (arr = arr0; arr->dir; arr++)
+  {
+    DEBUGF (2, "Checking in dir '%s'\n", arr->dir);
+    if (!arr->exist)
+    {
+      WARN ("%s: directory \"%s\" doesn't exist.\n", env_name, arr->dir);
+      continue;
+    }
+
+    if (!stricmp(arr->dir,current_dir))
+    {
+      found += process_dir (".\\", 0, TRUE, 1, TRUE, env_name, NULL);
+      continue;
+    }
+
+    for (i = 0; i < DIM(sub_dirs); i++)
+    {
+      snprintf (subdir, sizeof(subdir), "%s\\%s", arr->dir, sub_dirs[i]);
+      if (FILE_EXISTS(subdir))
+         found += process_dir (subdir, 0, TRUE, 1, TRUE, env_name, NULL);
+    }
+  }
+  free_dir_array();
+  FREE (orig_e);
+  return (found);
+}
+
+/*
+ * Before checking the CMAKE_MODULE_PATH, we need to find the version and location
+ * of cmake.exe (on PATH). Then assume it's built-in Module-path is relative to this.
+ * E.g:
+ *   cmake.exe     -> f:\MinGW32\bin\CMake\bin\cmake.exe.
+ *   built-in path -> f:\MinGW32\bin\CMake\share\cmake-X.Y\Modules
+ */
+static int cmake_major, cmake_minor, cmake_micro;
+
+static int find_cmake_version_cb (char *buf, int index)
+{
+  static char prefix[] = "cmake version ";
+
+  if (!strncmp(buf,prefix,sizeof(prefix)-1) && strlen(buf) > sizeof(prefix)+4)
+  {
+    char *p = buf + sizeof(prefix) - 1;
+
+    sscanf (p, "%d.%d.%d", &cmake_major, &cmake_minor, &cmake_micro);
+    return (1);
+  }
+  ARGSUSED (index);
+  return (0);
+}
+
+static int do_check_cmake (void)
+{
+  const char *cmake_bin = searchpath ("cmake.exe", "PATH");
+  const char *env_name = "CMAKE_MODULE_PATH";
+  int         found = 0;
+  BOOL        check_env = TRUE;
+  char        report [_MAX_PATH+50];
+
+  cmake_major = cmake_minor = cmake_micro = -1;
+
+  if (!getenv(env_name))
+  {
+    WARN ("Env-var %s not defined.\n", env_name);
+    check_env = FALSE;
+  }
+
+  if (cmake_bin)
+  {
+    char  cmd [1000];
+    char *cmake_root = dirname (cmake_bin);
+
+    DEBUGF (3, "cmake -> '%s', cmake_root: '%s'\n", cmake_bin, cmake_root);
+    snprintf (cmd, sizeof(cmd), "%s -version 2>&1", cmake_bin);
+
+    if (popen_run(slashify(cmd,'\\'), find_cmake_version_cb) > 0)
+    {
+      char dir [_MAX_PATH];
+      char report [300];
+
+      snprintf (dir, sizeof(dir), "%s\\..\\share\\cmake-%d.%d\\Modules",
+                cmake_root, cmake_major, cmake_minor);
+      DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
+              cmake_major, cmake_minor, cmake_micro, dir);
+
+      snprintf (report, sizeof(report), "Matches among built-in Cmake modules:\n");
+      report_header = report;
+      found = process_dir (dir, 0, TRUE, 1, TRUE, env_name, NULL);
+    }
+    else
+      WARN ("Calling %s failed.\n", cmake_bin);
+
+    FREE (cmake_root);
+  }
+  else
+    WARN ("cmake.exe not found on PATH. Checking %%%s anyway.\n", env_name);
+
+  if (check_env)
+  {
+    snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
+    report_header = report;
+    found += do_check_env ("CMAKE_MODULE_PATH");
+  }
+  return (found);
+}
+
+/*
  * Having several gcc compilers installed makes it nearly impossible to
  * set C_INCLUDE_PATH to the desired compiler's include-dir. So EnvTool
  * simply asks *gcc.exe for what it think is the include search-path.
  * Do that by spawning the *gcc.exe and parsing the include paths.
+ *
+ * Same goes for the LIBRARY_PATH.
  */
+static BOOL looks_like_cygwin = FALSE;
 static BOOL found_search_line = FALSE;
 static int  found_index = 0;
 
+static const char cyg_usr[] = "/usr/";
+static const char cyg_drv[] = "/cygdrive/";
+
 static int find_include_path_cb (char *buf, int index)
 {
-  static char start[] = "#include <...> search starts here:";
-  static char end[]   = "End of search list.";
+  static const char start[] = "#include <...> search starts here:";
+  static const char end[]   = "End of search list.";
+  const  char *p;
 
   if (found_index >= DIM(dir_array))
   {
@@ -1495,98 +1866,194 @@ static int find_include_path_cb (char *buf, int index)
 
   if (found_search_line)
   {
-    if (memcmp(buf,&end,sizeof(end)-1))  /* Not reached "End of search list" */
-    {
-      char  buf2 [_MAX_PATH];
-      const char *p = _fixpath (str_trim(buf), buf2);
+    p = buf;
+    while (isspace((int)p[0]) && p[1])
+         p++;
+    if (!memcmp(p,&cyg_usr,sizeof(cyg_usr)-1) || !memcmp(p,&cyg_drv,sizeof(cyg_drv)-1))
+       looks_like_cygwin = TRUE;
 
-      add_to_dir_array (p, found_index++, !stricmp(g_current_dir,p));
-      DEBUGF (2, "line: '%s'\n", p);
-      return (1);
+    if (!memcmp(buf,&end,sizeof(end)-1)) /* got: "End of search list.". No more paths excepted. */
+    {
+      found_search_line = FALSE;
+      return (-1);
     }
-    found_search_line = FALSE; /* got: "End of search list.". No more paths excepted. */
-    return (-1);
+
+#if defined(__CYGWIN__)
+    if (looks_like_cygwin)
+    {
+      char result [_MAX_PATH];
+      int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, p, result, sizeof(result));
+
+      if (rc == 0)
+      {
+        DEBUGF (2, "CygWin path detected. Converting '%s' -> '%s'\n", p, result);
+        p = _fix_drive (result);
+      }
+      /* otherwise add 'p' as-is */
+    }
+    else
+#endif
+    {
+      char buf2 [_MAX_PATH];
+      p = _fix_path (str_trim(buf), buf2);
+    }
+
+    add_to_dir_array (p, found_index++, !stricmp(current_dir,p));
+    DEBUGF (2, "line: '%s'\n", p);
+    return (1);
   }
+
   ARGSUSED (index);
   return (0);
 }
 
 static int find_library_path_cb (char *buf, int index)
 {
-  static char prefix[] = "LIBRARY_PATH=";
+  static const char prefix[] = "LIBRARY_PATH=";
   char   buf2 [_MAX_PATH];
-  char   sep[2], *p, *tok, *rc;
-  int    i;
+  char   sep[2], *p, *tok, *rc, *end;
+  int    i = 0;
 
-  sep[0] = path_separator;
-  sep[1] = 0;
+  if (strncmp(buf,prefix,sizeof(prefix)-1) || strlen(buf) <= sizeof(prefix))
+     return (0);
 
-  if (!strncmp(buf,prefix,sizeof(prefix)-1) && strlen(buf) > sizeof(prefix))
+  p = buf + sizeof(prefix) - 1;
+
+  if (!memcmp(p,&cyg_usr,sizeof(cyg_usr)-1) || !memcmp(p,&cyg_drv,sizeof(cyg_drv)-1))
+     looks_like_cygwin = TRUE;
+
+  sep[0] = looks_like_cygwin ? ':' : ';';
+  sep[1] = '\0';
+
+  for (i = 0, tok = strtok(p,sep); tok; tok = strtok(NULL,sep), i++)
   {
-    p = buf + sizeof(prefix) - 1;
-    for (i = 0, tok = strtok(p,sep); tok; tok = strtok(NULL,sep), i++)
+#if defined(__CYGWIN__)
+    if (looks_like_cygwin)
     {
-      rc = _fixpath (tok, buf2);
-      DEBUGF (2, "tok %d: '%s'\n", i, rc);
+      char result [_MAX_PATH];
+      int  rc1 = cygwin_conv_path (CCP_POSIX_TO_WIN_A, tok, result, sizeof(result));
+
+      if (rc1 == 0)
+           rc = _fix_drive (result);
+      else rc = tok;  /* otherwise add 'tok' as-is */
     }
-    return (1);
+    else
+#endif
+    {
+      rc = _fix_path (tok, buf2);
+      end = rc ? strrchr(rc,'\\') : NULL;
+      if (end)
+         *end = '\0';
+    }
+    DEBUGF (2, "tok %d: '%s'\n", i, rc);
+
+    add_to_dir_array (rc, found_index++, FALSE);
+
+    if (found_index >= DIM(dir_array))
+    {
+      WARN ("'dir_array[]' too small. Max %d\n", DIM(dir_array));
+      break;
+    }
   }
   ARGSUSED (index);
-  return (0);
+  return (i);
 }
+
+#if defined(__CYGWIN__)
+  #define GCC_DUMP_FMT "%s %s -v -dM -xc -c - < /dev/null 2>&1"
+#else
+  #define GCC_DUMP_FMT "%s %s -o NUL -v -dM -xc -c - < NUL 2>&1"
+#endif
 
 static int setup_gcc_includes (const char *gcc)
 {
   char cmd [1000];
   int  found;
 
+  free_dir_array();
+
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
    * Hence redirect stderr + stdout into the same pipe for us to read.
    * Also assume that the '*gcc' is on PATH.
    */
-  snprintf (cmd, sizeof(cmd), "%s -v -dM -c nul.c 2>&1", gcc);
+  snprintf (cmd, sizeof(cmd), GCC_DUMP_FMT, gcc, "");
   found_index = 0;
   found_search_line = FALSE;
+  looks_like_cygwin = FALSE;
+
   found = popen_run (cmd, find_include_path_cb);
   if (found > 0)
        DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
-  else WARN ("Calling %s failed.\n", gcc);
+  else WARN ("Calling %s returned %d.\n", gcc, found);
   return (found);
 }
 
 static int setup_gcc_library_path (const char *gcc)
 {
-  char cmd [1000];
-  int  found;
+  const char *m_cpu;
+  char  cmd [1000];
+  int   found;
+
+  free_dir_array();
+
+  /* This assumes all 'gcc' support at least '-m32' (32-bit).
+   */
+  m_cpu = opt.gcc_64bit ? "-m64" : "-m32";
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
    * Hence redirect stderr + stdout into the same pipe for us to read.
    * Also assume that the '*gcc' is on PATH.
    */
-  snprintf (cmd, sizeof(cmd), "%s -v -dM -c nul.c 2>&1", gcc);
+  snprintf (cmd, sizeof(cmd), GCC_DUMP_FMT, gcc, m_cpu);
+
   found_index = 0;
   found_search_line = FALSE;
+  looks_like_cygwin = FALSE;
+
   found = popen_run (cmd, find_library_path_cb);
-  if (found > 0)
-       DEBUGF (1, "found %d library paths for %s.\n", found, gcc);
-  else WARN ("Calling %s failed.\n", gcc);
+  if (found <= 0)
+  {
+    WARN ("Calling %s returned %d.\n", gcc, found);
+    return (found);
+  }
+
+  DEBUGF (1, "found %d library paths for %s.\n", found, gcc);
+
+#if defined(__CYGWIN__)
+  /*
+   * The Windows-API lib-dir isn't among the defaults. Just add it
+   * at the end of list anyway. In case it was already reported, we'll
+   * remove it below.
+   */
+  if (looks_like_cygwin)
+  {
+    char result [_MAX_PATH];
+    int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, "/usr/lib/w32api", result, sizeof(result));
+
+    if (rc == 0)
+       add_to_dir_array (result, found_index++, FALSE);
+  }
+#endif
+
+  unique_dir_array ("library paths", found_index);
   return (found);
 }
 
 /*
- * Check include-paths found above.
+ * Check include/library-paths found above.
  */
-static int process_gcc_includes (const char *gcc)
+static int process_gcc_dirs (const char *gcc)
 {
   struct directory_array *arr;
   int    found = 0;
 
   for (arr = dir_array; arr->dir; arr++)
-      found += process_dir (arr->dir, arr->num_dup, arr->exist,
-                            arr->is_dir, arr->exp_ok, gcc, NULL);
-
-  for (arr = dir_array; arr->dir; arr++)
-      FREE (arr->dir);
+  {
+    DEBUGF (2, "dir: %s\n", arr->dir);
+    found += process_dir (arr->dir, arr->num_dup, arr->exist,
+                          arr->is_dir, arr->exp_ok, gcc, NULL);
+  }
+  free_dir_array();
   return (found);
 }
 
@@ -1595,7 +2062,8 @@ static const char *gcc[] = { "gcc.exe",
 #if CHECK_PREFIXED_GCC
                              "x86_64-w64-mingw32-gcc.exe",
                              "i386-mingw32-gcc.exe",
-                             "i686-w64-mingw32-gcc.exe"
+                             "i686-w64-mingw32-gcc.exe",
+                             "avr-gcc.exe"
 #endif
                              /* Add more gcc programs here?
                               *
@@ -1644,43 +2112,47 @@ static void searchpath_compilers (const char **cc, size_t num)
   {
     found = searchpath (cc[i], "PATH");
     len = strlen (cc[i]);
-    C_printf ("    %s: %*s -> ~%c%s~0\n",
-              cc[i], longest_cc-len, "",
+    C_printf ("    %s%*s -> ~%c%s~0\n",
+              cc[i], (int)(longest_cc-len), "",
               found ? '6' : '5', found ? found : "Not found");
   }
 }
 
-static void searchpath_gnu (void)
+static size_t num_gcc (void)
 {
-  get_longest (gcc, DIM(gcc));
-  get_longest (gpp, DIM(gpp));
-  searchpath_compilers (gcc, DIM(gcc));
-  searchpath_compilers (gpp, DIM(gpp));
+  return (opt.gcc_no_prefixed ? 1 : DIM(gcc));
 }
 
-static void searchpath_msvc (void)
+static size_t num_gpp (void)
 {
-  get_longest (cl, DIM(cl));
-  searchpath_compilers (cl, DIM(cl));
+  return (opt.gcc_no_prefixed ? 1 : DIM(gpp));
 }
 
-static void searchpath_watcom (void)
+static void searchpath_all_cc (void)
 {
+  get_longest (gcc, num_gcc());
+  get_longest (gpp, num_gpp());
+  get_longest (cl,  DIM(cl));
   get_longest (wcc, DIM(wcc));
+
+  searchpath_compilers (gcc, num_gcc());
+  searchpath_compilers (gpp, num_gpp());
+  searchpath_compilers (cl,  DIM(cl));
   searchpath_compilers (wcc, DIM(wcc));
 }
 
 static int do_check_gcc_includes (void)
 {
-  char report [_MAX_PATH+50];
-  int  i, found = 0;
+  char   report [_MAX_PATH+50];
+  int    found = 0;
+  size_t i;
 
-  for (i = 0; i < DIM(gcc); i++)
+  for (i = 0; i < num_gcc(); i++)
       if (setup_gcc_includes(gcc[i]) > 0)
       {
         snprintf (report, sizeof(report), "Matches in %s %%C_INCLUDE_PATH%% path:\n", gcc[i]);
         report_header = report;
-        found += process_gcc_includes (gcc[i]);
+        found += process_gcc_dirs (gcc[i]);
       }
 
   if (found == 0)  /* Impossible? */
@@ -1691,15 +2163,16 @@ static int do_check_gcc_includes (void)
 
 static int do_check_gpp_includes (void)
 {
-  char report [_MAX_PATH+50];
-  int  i, found = 0;
+  char   report [_MAX_PATH+50];
+  int    found = 0;
+  size_t i;
 
-  for (i = 0; i < DIM(gpp); i++)
+  for (i = 0; i < num_gpp(); i++)
       if (setup_gcc_includes(gpp[i]) > 0)
       {
         snprintf (report, sizeof(report), "Matches in %s %%CPLUS_INCLUDE_PATH%% path:\n", gpp[i]);
         report_header = report;
-        found += process_gcc_includes (gpp[i]);
+        found += process_gcc_dirs (gpp[i]);
       }
 
   if (found == 0)  /* Impossible? */
@@ -1710,17 +2183,18 @@ static int do_check_gpp_includes (void)
 
 static int do_check_gcc_library_paths (void)
 {
-  int found = 0;
+  char   report [_MAX_PATH+50];
+  int    found = 0;
+  size_t i;
 
-  if (setup_gcc_library_path("gcc.exe") > 0)
-  {
-#if 0
-    char report [200];
-    snprintf (report, sizeof(report), "Matches in gcc %%LIBRARY_PATH%% path:\n");
-    report_header = report;
-    found += process_gcc_includes (gcc[i]);
-#endif
-  }
+  for (i = 0; i < num_gcc(); i++)
+      if (setup_gcc_library_path(gcc[i]) > 0)
+      {
+        snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", gcc[i]);
+        report_header = report;
+        found += process_gcc_dirs (gcc[i]);
+      }
+
   if (found == 0)  /* Impossible? */
      WARN ("No gcc.exe programs returned any LIBRARY_PATH paths!?.\n");
 
@@ -1732,54 +2206,62 @@ static int do_check_gcc_library_paths (void)
  * getopt_long() processing.
  */
 static const struct option long_options[] = {
-           { "help",    no_argument,       NULL, 'h' },
-           { "help",    no_argument,       NULL, '?' },  /* 1 */
-           { "version", no_argument,       NULL, 'V' },
-           { "inc",     no_argument,       NULL, 0 },    /* 3 */
-           { "path",    no_argument,       NULL, 0 },
-           { "lib",     no_argument,       NULL, 0 },    /* 5 */
-           { "python",  optional_argument, NULL, 0 },
-           { "dir",     no_argument,       NULL, 'D' },  /* 7 */
-           { "debug",   optional_argument, NULL, 'd' },
-           { "no-sys",  no_argument,       NULL, 0 },    /* 9 */
-           { "no-usr",  no_argument,       NULL, 0 },
-           { "no-app",  no_argument,       NULL, 0 },    /* 11 */
-           { "test",    no_argument,       NULL, 't' },
-           { "quiet",   no_argument,       NULL, 'q' },  /* 13 */
-           { "no-gcc",  no_argument,       NULL, 0 },
-           { "no-g++",  no_argument,       NULL, 0 },    /* 15 */
-           { "verbose", no_argument,       NULL, 'v' },
-           { "pe-check",no_argument,       NULL, 0 },    /* 17 */
-           { "color",   no_argument,       NULL, 'C' },
-           { "evry",    no_argument,       NULL, 0 },    /* 19 */
-           { "regex",   no_argument,       NULL, 0 },
-           { "size",    no_argument,       NULL, 0 },    /* 21 */
-           { NULL,      no_argument,       NULL, 0 }
+           { "help",      no_argument,       NULL, 'h' },
+           { "help",      no_argument,       NULL, '?' },  /* 1 */
+           { "version",   no_argument,       NULL, 'V' },
+           { "inc",       no_argument,       NULL, 0 },    /* 3 */
+           { "path",      no_argument,       NULL, 0 },
+           { "lib",       no_argument,       NULL, 0 },    /* 5 */
+           { "python",    optional_argument, NULL, 0 },
+           { "dir",       no_argument,       NULL, 'D' },  /* 7 */
+           { "debug",     optional_argument, NULL, 'd' },
+           { "no-sys",    no_argument,       NULL, 0 },    /* 9 */
+           { "no-usr",    no_argument,       NULL, 0 },
+           { "no-app",    no_argument,       NULL, 0 },    /* 11 */
+           { "test",      no_argument,       NULL, 't' },
+           { "quiet",     no_argument,       NULL, 'q' },  /* 13 */
+           { "no-gcc",    no_argument,       NULL, 0 },
+           { "no-g++",    no_argument,       NULL, 0 },    /* 15 */
+           { "verbose",   no_argument,       NULL, 'v' },
+           { "pe-check",  no_argument,       NULL, 0 },    /* 17 */
+           { "no-colour", no_argument,       NULL, 0 },
+           { "evry",      no_argument,       NULL, 0 },    /* 19 */
+           { "regex",     no_argument,       NULL, 0 },
+           { "size",      no_argument,       NULL, 0 },    /* 21 */
+           { "man",       no_argument,       NULL, 0 },
+           { "cmake",     no_argument,       NULL, 0 },    /* 23 */
+           { "m64",       no_argument,       NULL, 0 },
+           { "no-prefix", no_argument,       NULL, 0 },    /* 25 */
+           { NULL,        no_argument,       NULL, 0 }
          };
 
 static int *values_tab[] = {
             NULL,
-            NULL,                /* 1 */
+            NULL,                 /* 1 */
             NULL,
-            &opt.do_include,     /* 3 */
+            &opt.do_include,      /* 3 */
             &opt.do_path,
-            &opt.do_lib,         /* 5 */
+            &opt.do_lib,          /* 5 */
             &opt.do_python,
-            &opt.dir_mode,       /* 7 */
+            &opt.dir_mode,        /* 7 */
             NULL,
-            &opt.no_sys_env,     /* 9 */
+            &opt.no_sys_env,      /* 9 */
             &opt.no_usr_env,
-            &opt.no_app_path,    /* 11 */
+            &opt.no_app_path,     /* 11 */
             NULL,
-            NULL,                /* 13 */
+            NULL,                 /* 13 */
             &opt.no_gcc,
-            &opt.no_gpp,         /* 15 */
+            &opt.no_gpp,          /* 15 */
             &opt.verbose,
-            &opt.PE_check,       /* 17 */
-            &use_colours,
-            &opt.do_evry,        /* 19 */
+            &opt.PE_check,        /* 17 */
+            &opt.no_colours,
+            &opt.do_evry,         /* 19 */
             &opt.use_regex,
-            &opt.show_size       /* 21 */
+            &opt.show_size,       /* 21 */
+            &opt.do_man,
+            &opt.do_cmake,        /* 23 */
+            &opt.gcc_64bit,
+            &opt.gcc_no_prefixed  /* 25 */
           };
 
 static void set_python_variant (const char *o)
@@ -1814,7 +2296,21 @@ static void set_python_variant (const char *o)
      which_python = ALL_PYTHONS;
 
   else
-     usage ("Illegal '--python' option: '%s'\n", o);
+  {
+    const char **py = python_get_variants();
+    char buf [100], *p = buf;
+    int  i, left = sizeof(buf)-1;
+
+    for (i = 0; *py && left > 4; i++, py++)
+    {
+      p += snprintf (p, left, "\"%s\", ", *py);
+      left = sizeof(buf) - (p - buf);
+    }
+    if (p > buf+2)
+       p[-2] = '\0';
+    usage ("Illegal '--python' option: '%s'.\n"
+           "Use one of these: %s.\n", o, buf);
+  }
 }
 
 static void set_short_option (int c)
@@ -1840,9 +2336,6 @@ static void set_short_option (int c)
          break;
     case 'c':
          opt.add_cwd = 0;
-         break;
-    case 'C':
-         use_colours = 1;
          break;
     case 'r':
          opt.use_regex = 1;
@@ -1873,27 +2366,27 @@ static void set_short_option (int c)
 
 static void set_long_option (int o)
 {
-  int *val;
+  int *val_ptr;
+
+  DEBUGF (2, "got long option \"--%s\".\n", long_options[o].name);
 
   ASSERT (values_tab[o]);
   ASSERT (long_options[o].name);
-  DEBUGF (2, "got long option \"--%s\".\n", long_options[o].name);
+
+  ASSERT (o >= 0);
+  ASSERT (o < DIM(values_tab));
 
   if (!strcmp("python",long_options[o].name))
      set_python_variant (optarg);
 
   else if (optarg && !strcmp("debug",long_options[o].name))
-     opt.debug = atoi (optarg);
+    opt.debug = atoi (optarg);
 
-  val = values_tab [o];
-#if 0
-  *val ^= 1;
-#else
-  *val = 1;
-#endif
+  val_ptr = values_tab [o];
+  *val_ptr = 1;
 }
 
-static char *parse_args (int argc, char *const *argv)
+static void parse_args (int argc, char *const *argv, char **fspec)
 {
   char  buf [_MAX_PATH];
   char *env = getenv_expand ("ENVTOOL_OPTIONS");
@@ -1904,6 +2397,7 @@ static char *parse_args (int argc, char *const *argv)
   else who_am_I = STRDUP (argv[0]);
 
   program_name = who_am_I;
+  *fspec = NULL;
 
   ext = (char*) get_file_ext (who_am_I);
   strlwr (ext);
@@ -1912,6 +2406,9 @@ static char *parse_args (int argc, char *const *argv)
   {
     char *s = strtok (env, "\t ");
     int   i, j;
+
+    if (strstr(env,"-d"))  /* Since getopt_long() hasn't been called yet. */
+       opt.debug = 1;
 
     memset (new_argv, '\0', sizeof(new_argv));
     new_argv[0] = STRDUP (argv[0]);
@@ -1922,23 +2419,27 @@ static char *parse_args (int argc, char *const *argv)
     }
     new_argc = i;
 
-    for (j = new_argc, i = 1; i < argc && j < DIM(new_argv)-1; i++, j++, new_argc++)
+    for (j = new_argc, i = 1; i < argc && j < DIM(new_argv)-1; i++, j++)
        new_argv [j] = STRDUP (argv[i]);  /* allocate original into new_argv[] */
 
+    new_argc = j;
     if (new_argc == DIM(new_argv)-1)
        WARN ("Too many arguments (%d) in %%ENVTOOL_OPTIONS%%.\n", i);
     argc = new_argc;
     argv = new_argv;
 
-    DEBUGF (3, "argc: %d\n", argc);
+    DEBUGF (1, "argc: %d\n", argc);
     for (i = 0; i < argc; i++)
-        DEBUGF (3, "argv[%d]: \"%s\"\n", i, argv[i]);
+        DEBUGF (1, "argv[%d]: \"%s\"\n", i, argv[i]);
     FREE (env);
   }
 
+  opt.debug = 0;
+
   while (1)
   {
-    int opt_index = 0, c = getopt_long (argc, argv, "cChvVdDrstTuq", long_options, &opt_index);
+    int opt_index = 0;
+    int c = getopt_long (argc, argv, "chvVdDrstTuq", long_options, &opt_index);
 
     if (c == 0)
        set_long_option (opt_index);
@@ -1948,17 +2449,11 @@ static char *parse_args (int argc, char *const *argv)
        break;
   }
 
-  init_python();
+  if (opt.no_colours)
+     use_colours = 0;
 
-  if (opt.do_version > 0)
-     show_version();
-
-  if (argc < 2 || opt.help)
-     show_help();
-
-  if (argv[optind])
-      return _strlcpy (file_spec_buf, argv[optind], sizeof(file_spec_buf));
-   return (NULL);
+  if (argc >= 2 && argv[optind])
+    *fspec = STRDUP (argv[optind]);
 }
 
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -1980,7 +2475,7 @@ static void crtdbug_init (void)
   _CrtMemCheckpoint (&last_state);
 }
 
-void crtdbg_exit (void)
+static void crtdbg_exit (void)
 {
   _CrtCheckMemory();
   if (opt.debug)
@@ -2010,6 +2505,9 @@ static void cleanup (void)
   FREE (user_env_path);
   FREE (user_env_lib);
   FREE (user_env_inc);
+  if (opt.file_spec_re && opt.file_spec_re != opt.file_spec)
+     FREE (opt.file_spec_re);
+  FREE (opt.file_spec);
 
   for (i = 0; i < new_argc && i < DIM(new_argv)-1; i++)
       FREE (new_argv[i]);
@@ -2042,6 +2540,12 @@ static void halt (int sig)
     Everything_Reset();
   }
 
+#ifdef SIGTRAP
+  if (sig == SIGTRAP)
+     C_puts ("\n~5Got SIGTRAP.~0\n");
+  else
+#endif
+
   if (sig == SIGILL)
        C_puts ("\n~5Illegal instruction.~0\n");
   else C_puts ("~5Quitting.\n~0");
@@ -2050,7 +2554,7 @@ static void halt (int sig)
   ExitProcess (GetCurrentProcessId());
 }
 
-static void init (void)
+static void init_all (void)
 {
   atexit (cleanup);
 
@@ -2061,11 +2565,26 @@ static void init (void)
   tzset();
   memset (&opt, 0, sizeof(opt));
   opt.add_cwd = 1;
+  use_colours = 1;  /* Turned off by "--no-colour" */
 
-  g_current_dir[0] = '.';
-  g_current_dir[1] = DIR_SEP;
-  g_current_dir[2] = '\0';
-  getcwd (g_current_dir, sizeof(g_current_dir));
+#ifdef __CYGWIN__
+  opt.conv_cygdrive = 1;
+#endif
+
+  current_dir[0] = '.';
+  current_dir[1] = DIR_SEP;
+  current_dir[2] = '\0';
+  getcwd (current_dir, sizeof(current_dir));
+
+  sys_dir[0] = sys_native_dir[0] = '\0';
+  if (GetSystemDirectory(sys_dir,sizeof(sys_dir)))
+  {
+    const char *rslash = strrchr (sys_dir,'\\');
+
+    if (rslash)
+       snprintf (sys_native_dir, sizeof(sys_native_dir), "%.*s\\sysnative",
+                 (int)(rslash - sys_dir), sys_dir);
+  }
 }
 
 int main (int argc, char **argv)
@@ -2073,32 +2592,56 @@ int main (int argc, char **argv)
   int   found = 0;
   char *end, *ext;
 
-  init();
+  init_all();
 
-  opt.file_spec = parse_args (argc, argv);
+  parse_args (argc, argv, &opt.file_spec);
 
   /* Sometimes the IPC connection to the EveryThing Database will hang.
    * Clean up if user presses ^C.
+   * SIGILL handler is needed for test_libssp().
    */
   signal (SIGINT, halt);
+  signal (SIGILL, halt);
+#ifdef SIGTRAP
+//signal (SIGTRAP, halt);
+#endif
+
+  check_sys_dirs();
+
+  if (opt.help)
+     return show_help();
+
+  if (opt.do_version)
+     return show_version();
+
+  if (opt.do_python)
+     init_python();
 
   if (opt.do_test)
-  {
-    do_tests();
-    return (0);
-  }
+     return do_tests();
 
   if (opt.do_evry && !opt.do_path)
      opt.no_sys_env = opt.no_usr_env = opt.no_app_path = 1;
 
-  if (!opt.do_path && !opt.do_include && !opt.do_lib && !opt.do_python && !opt.do_evry)
-     usage ("Use at least one of; \"--inc\", \"--lib\", \"--evry\", \"--python\" and/or \"--path\".\n");
+  if (!(opt.do_path || opt.do_lib || opt.do_include))
+     opt.no_sys_env = opt.no_usr_env = 1;
+
+  if (!opt.do_path && !opt.do_include && !opt.do_lib && !opt.do_python &&
+      !opt.do_evry && !opt.do_man && !opt.do_cmake)
+     usage ("Use at least one of; \"--inc\", \"--lib\", \"--evry\", \"--cmake\", "
+            "\"--man\", \"--python\" and/or \"--path\".\n");
 
   if (!opt.file_spec)
      usage ("You must give a ~1filespec~0 to search for.\n");
 
   if (strchr(opt.file_spec,'~') > opt.file_spec)
-     opt.file_spec = _fixpath (opt.file_spec, file_spec_buf);
+  {
+    char *fspec = opt.file_spec;
+    opt.file_spec = _fix_path (fspec, NULL);
+    FREE (fspec);
+  }
+
+  opt.file_spec_re = opt.file_spec;
 
   end = strchr (opt.file_spec, '\0');
   ext = (char*) get_file_ext (opt.file_spec);
@@ -2110,18 +2653,13 @@ int main (int argc, char **argv)
     end[2] = '\0';
   }
 
-  DEBUGF (1, "file_spec: %s\n", opt.file_spec);
+  DEBUGF (1, "file_spec: %s, file_spec_re: %s\n", opt.file_spec, opt.file_spec_re);
 
-  /* Scan registry values unless only '--python' is specified.
-   */
-  if (!opt.do_python && !(opt.do_path && opt.do_lib && opt.do_include))
-  {
-    if (!opt.no_sys_env)
-       found += scan_system_env();
+  if (!opt.no_sys_env)
+     found += scan_system_env();
 
-    if (!opt.no_usr_env)
-       found += scan_user_env();
-  }
+  if (!opt.no_usr_env)
+     found += scan_user_env();
 
   if (opt.do_path)
   {
@@ -2137,11 +2675,7 @@ int main (int argc, char **argv)
     report_header = "Matches in %LIB:\n";
     found += do_check_env ("LIB");
     if (!opt.no_gcc && !opt.no_gpp)
-    {
-      report_header = "Matches in %LIBRARY_PATH:\n";
-      found += do_check_gcc_library_paths();
-      found += do_check_env ("LIBRARY_PATH");
-    }
+       found += do_check_gcc_library_paths();
   }
 
   if (opt.do_include)
@@ -2155,6 +2689,12 @@ int main (int argc, char **argv)
     if (!opt.no_gpp)
        found += do_check_gpp_includes();
   }
+
+  if (opt.do_cmake)
+     found += do_check_cmake();
+
+  if (opt.do_man)
+     found += do_check_manpath();
 
   if (opt.do_python)
   {
@@ -2182,8 +2722,8 @@ int main (int argc, char **argv)
  * Stolen from curl. But I wrote the Win32 part of it...
  *
  * E.g. If "INCLUDE=c:\VC\include;%C_INCLUDE_PATH%" and
- * "C_INCLUDE_PATH=c:\MingW\include", the expansion returns
- * "c:\VC\include;c:\MingW\include".
+ * "C_INCLUDE_PATH=c:\MinGW\include", the expansion returns
+ * "c:\VC\include;c:\MinGW\include".
  *
  * Note: Windows (cmd only?) requires a trailing '%' in
  *       "%C_INCLUDE_PATH".
@@ -2234,42 +2774,49 @@ void test_split_env (const char *env)
   value = getenv_expand (env);
   arr0  = split_env_var (env, value);
 
-  for (arr = arr0, i = 0; arr->dir; i++, arr++)
+  for (arr = arr0, i = 0; arr && arr->dir; i++, arr++)
   {
     char *dir = arr->dir;
     char  buf [_MAX_PATH];
 
     if (arr->exist && arr->is_dir)
-       dir = _fixpath (dir, buf);
+       dir = _fix_path (dir, buf);
 
     if (opt.show_unix_paths)
        dir = slashify (dir, '/');
 
-    C_printf ("  arr[%2d]: %s", i, dir);
+    C_printf ("  arr[%2d]: %-65s", i, dir);
+
+    if (arr->cyg_dir)
+       C_printf (" %s", arr->cyg_dir);
 
     if (arr->num_dup > 0)
        C_puts ("  ~3**duplicated**~0");
     if (!arr->exist)
        C_puts ("  ~5**not existing**~0");
-    if (!arr->is_dir)
+    else if (!arr->is_dir)
        C_puts ("  **not a dir**");
+
     C_putc ('\n');
   }
   C_printf ("  ~3%d elements~0\n", i);
 
-  for (arr = arr0; arr->dir; arr++)
-      FREE (arr->dir);
+  free_dir_array();
   FREE (value);
 }
 
 
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__)
+
+#pragma GCC diagnostic ignored  "-Wstack-protector"
 
 void test_split_env_cygwin (const char *env)
 {
   struct directory_array *arr, *arr0;
   char  *value, *cyg_value;
   int    i, rc, needed, save = opt.conv_cygdrive;
+
+  free_dir_array();
 
   C_printf ("\n~3%s():~0 ", __FUNCTION__);
   C_printf (" testing 'split_env_var (\"%s\",\"%%%s\")':\n", env, env);
@@ -2308,14 +2855,50 @@ void test_split_env_cygwin (const char *env)
   }
   C_printf ("~0  %d elements\n", i);
 
-  for (arr = arr0; arr->dir; arr++)
-      FREE (arr->dir);
+  free_dir_array();
   FREE (value);
 
   path_separator = ';';
   opt.conv_cygdrive = save;
 }
-#endif
+
+/*
+ * Test the POSIX to Windows Path functions.
+ */
+void test_posix_to_win_cygwin (void)
+{
+  int i, rc, raw, save = opt.conv_cygdrive;
+  static const char *cyg_paths[] = {
+                    "/usr/bin",
+                    "/usr/lib",
+                    "/etc/profile.d",
+                    "~/home",
+                    "/cygdrive/c"
+                  };
+
+  C_puts ("\n  POSIX to Windows paths:\n");
+
+  path_separator = ':';
+  opt.conv_cygdrive = 0;
+
+  for (i = 0; i < DIM(cyg_paths); i++)
+  {
+    const char *dir = cyg_paths[i], *file;
+    char result [_MAX_PATH];
+
+    rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, dir, result, sizeof(result));
+    DEBUGF (2, "cygwin_conv_path(CCP_POSIX_TO_WIN_A): rc: %d, '%s'\n", rc, result);
+
+    raw = C_setraw (1);  /* In case result contains a "~". */
+
+    file = slashify (_fix_drive(result), opt.show_unix_paths ? '/' : '\\');
+    C_printf ("    %-20s -> %s\n", cyg_paths[i], file);
+    C_setraw (raw);
+  }
+  path_separator = ';';
+  opt.conv_cygdrive = save;
+}
+#endif  /* __CYGWIN__ */
 
 /*
  * Tests for searchpath().
@@ -2328,26 +2911,25 @@ struct test_table1 {
 static const struct test_table1 tab1[] = {
                   { "kernel32.dll",      "PATH" },
                   { "notepad.exe",       "PATH" },
-                  { "./envtool.c",       "FOO-BAR" },      /* CWD should always be at pos 0 regarless of env-var. */
+                  { "./envtool.c",       "FOO-BAR" },       /* CWD should always be at pos 0 regarless of env-var. */
                   { "msvcrt.lib",        "LIB" },
-                  { "libgc.a",           "LIBRARY_PATH" },  /* TDM-MingW doesn't have this */
+                  { "libgcc.a",          "LIBRARY_PATH" },  /* MinGW-w64 doesn't seems to have libgcc.a */
                   { "libgmon.a",         "LIBRARY_PATH" },
                   { "stdio.h",           "INCLUDE" },
                   { "os.py",             "PYTHONPATH" },
 
-                  /* test if _fixpath() works for SFN. (%WinDir\systems32\PresentationHost.exe).
+                  /* test if _fix_path() works for SFN. (%WinDir\systems32\PresentationHost.exe).
                    * SFN seems not to be available on Win-7+.
                    * "PRESEN~~1.EXE" = "PRESEN~1.EXE" since C_printf() is used.
                    */
                   { "PRESEN~~1.EXE",      "PATH" },
 
-                  /* test if _fixpath() works with "%WinDir%\sysnative" on Win-7+
+                  /* test if _fix_path() works with "%WinDir%\sysnative" on Win-7+
                    */
                   { "NDIS.SYS",          "%WinDir%\\sysnative\\drivers" },
 
                   { "c:\\NTLDR",         "c:\\" },  /* test if searchpath() finds hidden files. (Win-XP) */
                   { "c:\\BOOTMGR",       "c:\\" },  /* test if searchpath() finds hidden files. (Win-8+) */
-                  { "c:\\BOOTMGR",       "" },      /* test if searchpath() handles non-env-vars too. */
                   { "\\\\localhost\\$C", "PATH" },  /* Does it work on a share too? */
                   { "CLOCK$",            "PATH" },  /* Does it handle device names? */
                   { "PRN",               "PATH" }
@@ -2363,17 +2945,19 @@ static void test_searchpath (void)
   for (t = tab1; i < DIM(tab1); t++, i++)
   {
     const char *found = searchpath (t->file, t->env);
-    char  buf [_MAX_PATH];
 
     len = strlen (t->file);
     if (strstr(t->file,"~~"))
        len--;
 #if 0
     if (found)
-       found = _fixpath (found, buf);
+    {
+      char buf [_MAX_PATH];
+      found = _fix_path (found, buf);
+    }
 #endif
     C_printf ("  %s:%*s -> %s, pos: %d\n",
-              t->file, 15-len, "", found ? found : strerror(errno), searchpath_pos());
+              t->file, (int)(15-len), "", found ? found : strerror(errno), searchpath_pos());
   }
 }
 
@@ -2418,7 +3002,7 @@ static void test_fnmatch (void)
     C_puts (rc == t->expect ? "~2  OK  ~0" : "~5  FAIL~0");
 
     C_printf (" fnmatch (\"%s\", %*s \"%s\", %*s 0x%02X): %s\n",
-              t->pattern, 15-len1, "", t->fname, 15-len2, "",
+              t->pattern, (int)(15-len1), "", t->fname, (int)(15-len2), "",
               t->flags, fnmatch_res(rc));
   }
 }
@@ -2458,18 +3042,19 @@ static void test_slashify (void)
 }
 
 /*
- * Tests for _fixpath().
+ * Tests for _fix_path().
  * Canonize the horrendous pathnames reported from "gcc -v".
- * It doesn't matter if these paths or files exists or not. _fixpath()
+ * It doesn't matter if these paths or files exists or not. _fix_path()
  * (i.e. GetFullPathName()) should canonizes these regardless.
  */
-static void test_fixpath (void)
+static void test_fix_path (void)
 {
   const char *files[] = {
-    "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include",                              /* exists here */
-    "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include\\ssp\\ssp.h",                  /* exists here */
-    "f:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",   /* exists here */
-    "c:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",   /* doesn't exist here */
+    "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include",                             /* exists here */
+    "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include\\ssp\\ssp.h",                 /* exists here */
+    "f:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",  /* exists here */
+    "c:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",  /* doesn't exist here */
+    "/usr/lib/gcc/x86_64-pc-cygwin/4.9.2/../../../../include/w32api"                             /* CygWin output, exists here */
   };
   const char *f;
   char *rc1;
@@ -2484,7 +3069,7 @@ static void test_fixpath (void)
     BOOL   is_dir;
 
     f = files [i];
-    rc1 = _fixpath (f, buf);
+    rc1 = _fix_path (f, buf);
     rc2 = FILE_EXISTS (buf);
     rc3 = (stat(rc1, &st) == 0);
     is_dir = (rc3 && _S_ISDIR(st.st_mode));
@@ -2492,10 +3077,16 @@ static void test_fixpath (void)
     if (opt.show_unix_paths)
        rc1 = slashify (buf, '/');
 
-    C_printf ("  _fixpath (\"%s\")\n     -> \"%s\" ", f, rc1);
+    C_printf ("  _fix_path (\"%s\")\n     -> \"%s\" ", f, rc1);
     if (!rc2)
-         C_printf ("~5exists 0, is_dir %d~0\n\n", is_dir);
-    else C_printf ("exists 1, is_dir %d~0\n\n", is_dir);
+         C_printf ("~5exists 0, is_dir %d~0", is_dir);
+    else C_printf ("exists 1, is_dir %d~0", is_dir);
+
+#if defined(__CYGWIN__)
+    C_printf (", ~2cyg-exists: %d~0", FILE_EXISTS(f));
+#endif
+
+    C_puts ("\n\n");
   }
 }
 
@@ -2508,31 +3099,39 @@ static void test_SHGetFolderPath (void)
   char dirr [MAX_PATH];
   int rc;
 
+  if (opt.verbose > 0)
+  {
+    get_shell_folders();
+    return;
+  }
+
   rc = SHGetFolderPath (NULL, CSIDL_PERSONAL, NULL, SHGFP_TYPE_CURRENT, dir);
   if (rc != S_OK) ;
 #endif
 }
 
 /*
+ * Code for MinGW only:
+ *
  * When run as:
-    gdb -args envtool.exe -t
-
-  the output is something like:
-
-  test_libssp():
-  10:    0000: 00 00 00 00 00 00 00 00-00 00                   ..........
-  10:    0000: 48 65 6C 6C 6F 20 77 6F-72 6C                   Hello worl
-  *** stack smashing detected ***:  terminated
-
-  Program received signal SIGILL, Illegal instruction.
-  0x68ac12d4 in ?? () from f:\MingW32\bin\libssp-0.dll
-  (gdb) bt
-  #0  0x68ac12d4 in ?? () from f:\MingW32\bin\libssp-0.dll
-  #1  0x68ac132e in libssp-0!__stack_chk_fail () from f:\MingW32\bin\libssp-0.dll
-  #2  0x0040724f in _fu117____stack_chk_guard () at envtool.c:2518
-  #3  0x004072eb in _fu118____stack_chk_guard () at envtool.c:2552
-  #4  0x0040653d in _fu100____stack_chk_guard () at envtool.c:2081
-  (gdb)
+ *   gdb -args envtool.exe -t
+ *
+ * the output is something like:
+ *
+ * test_libssp():
+ * 10:    0000: 00 00 00 00 00 00 00 00-00 00                   ..........
+ * 10:    0000: 48 65 6C 6C 6F 20 77 6F-72 6C                   Hello worl
+ * *** stack smashing detected ***:  terminated
+ *
+ * Program received signal SIGILL, Illegal instruction.
+ * 0x68ac12d4 in ?? () from f:\MinGW32\bin\libssp-0.dll
+ * (gdb) bt
+ * #0  0x68ac12d4 in ?? () from f:\MinGW32\bin\libssp-0.dll
+ * #1  0x68ac132e in libssp-0!__stack_chk_fail () from f:\MinGW32\bin\libssp-0.dll
+ * #2  0x0040724f in _fu117____stack_chk_guard () at envtool.c:2518
+ * #3  0x004072eb in _fu118____stack_chk_guard () at envtool.c:2552
+ * #4  0x0040653d in _fu100____stack_chk_guard () at envtool.c:2081
+ * (gdb)
  */
 static void test_libssp (void)
 {
@@ -2554,7 +3153,7 @@ static void test_libssp (void)
 #endif
 }
 
-static void do_tests (void)
+static int do_tests (void)
 {
   if (opt.do_python)
   {
@@ -2563,11 +3162,16 @@ static void do_tests (void)
       test_pythons();
       test_python_funcs();
     }
-    return;
+    return (0);
   }
 
   test_split_env ("PATH");
   test_split_env ("MANPATH");
+
+#ifdef __CYGWIN__
+  // test_split_env_cygwin ("PATH");
+  test_posix_to_win_cygwin();
+#endif
 
 #if 1
   test_split_env ("LIB");
@@ -2577,59 +3181,20 @@ static void do_tests (void)
   test_split_env ("FOO");
 #endif
 
-#ifdef __CYGWIN__
-  test_split_env_cygwin ("PATH");
-#endif
-
   test_searchpath();
   test_fnmatch();
   test_slashify();
-  test_fixpath();
+  test_fix_path();
   test_SHGetFolderPath();
 
-  signal (SIGILL, halt);
   test_libssp();
+  return (0);
 }
 
-/*
- * Function that prints the line argument while limiting it
- * to at most 'MAX_CHARS_PER_LINE'. An appropriate number
- * of spaces are added on subsequent lines.
- *
- * Stolen from Wget (main.c) and simplified.
- */
-#define MAX_CHARS_PER_LINE 80
-#define TABULATION         4
-
-static void format_and_print_line (const char *line)
-{
-  char *token, *line_dup = strdup (line);
-  int   remaining_chars = 0;
-
-  /* We break on spaces.
-   */
-  token = strtok (line_dup, " ");
-  while (token)
-  {
-    /* If a token is much larger than the maximum
-     * line length, we print the token on the next line.
-     */
-    if (remaining_chars <= (int)strlen(token))
-    {
-      C_printf ("\n%*c", TABULATION, ' ');
-      remaining_chars = MAX_CHARS_PER_LINE - TABULATION;
-    }
-    C_printf ("%s ", token);
-    remaining_chars -= strlen (token) + 1;  /* account for " " */
-    token = strtok (NULL, " ");
-  }
-  C_putc ('\n');
-  free (line_dup);
-}
 
 #if defined(__MINGW32__)
-  #define CFLAGS   "cflags_MingW.h"
-  #define LDFLAGS  "ldflags_MingW.h"
+  #define CFLAGS   "cflags_MinGW.h"
+  #define LDFLAGS  "ldflags_MinGW.h"
 
 #elif defined(_MSC_VER)
   #define CFLAGS   "cflags_MSVC.h"
@@ -2648,9 +3213,9 @@ static void print_build_cflags (void)
 {
 #if defined(CFLAGS)
   #include CFLAGS
-  format_and_print_line (cflags);
+  format_and_print_line (cflags, 4);
 #else
-  format_and_print_line ("Unknown");
+  format_and_print_line ("Unknown", 4);
 #endif
 }
 
@@ -2658,8 +3223,8 @@ static void print_build_ldflags (void)
 {
 #if defined(LDFLAGS)
   #include LDFLAGS
-  format_and_print_line (ldflags);
+  format_and_print_line (ldflags, 4);
 #else
-  format_and_print_line ("Unknown");
+  format_and_print_line ("Unknown", 4);
 #endif
 }

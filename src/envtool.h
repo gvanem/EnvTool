@@ -1,13 +1,15 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "0.97"
+#define VER_STRING  "0.98"
 #define MAJOR_VER   0
-#define MINOR_VER   97
-
-#define CHECK_PREFIXED_GCC 1
+#define MINOR_VER   98
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
+
+#ifndef CHECK_PREFIXED_GCC
+#define CHECK_PREFIXED_GCC 0
+#endif
 
 #if defined(_MSC_VER)
   #ifdef _DEBUG
@@ -16,14 +18,14 @@
     #define BUILDER  "Visual-C, release"
   #endif
 
-#elif defined(__MINGW64_VERSION_MAJOR)
-  #define BUILDER  "MingW64/TDM-gcc"
-
-#elif defined(__MINGW32__)
-  #define BUILDER  "MingW"
-
 #elif defined(__CYGWIN__)
   #define BUILDER  "CygWin"
+
+#elif defined(__MINGW64_VERSION_MAJOR)
+  #define BUILDER  "MinGW64/TDM-gcc"
+
+#elif defined(__MINGW32__)
+  #define BUILDER  "MinGW"
 
 #elif defined(__WATCOMC__)
   #define BUILDER  "OpenWatcom"
@@ -47,7 +49,7 @@
 #if defined(__MINGW32__) && defined(_FORTIFY_SOURCE)
   /*
    * Enable GNU LibSSP; "Stack Smashing Protector".
-   * Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
+   *   Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
    */
   #if (_FORTIFY_SOURCE == 1) && defined(INSIDE_ENVOOL_C)
     #pragma message ("Using _FORTIFY_SOURCE=1")
@@ -61,6 +63,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 #include <malloc.h>
@@ -70,23 +73,41 @@
 #include <sys/stat.h>
 #include <windows.h>
 
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__)
  /*
   * <limits.h> defines PATH_MAX to 4096. That seems excessive for our use.
+  * Note that 'long' on CygWin64 is 8 bytes. Hence the cast using '(u_long)'
+  * in many places where 'printf ("%lu", dword_value)' is used. A 'DWORD'
+  * on CygWin64 is still 32-bit.
   */
-  #define _MAX_PATH          _POSIX_PATH_MAX   /* 256 */
-  #define _S_ISDIR(mode)     S_ISDIR (mode)
-  #define _S_ISREG(mode)     S_ISREG (mode)
-  #define _popen(cmd, mode)  popen (cmd, mode)
-  #define _pclose(fil)       pclose (fil)
-  #define _fileno(f)         fileno (f)
-
   #include <unistd.h>
   #include <alloca.h>
+  #include <wchar.h>
+  #include <sys/types.h>
   #include <sys/cygwin.h>
+
+  #define _MAX_PATH              _POSIX_PATH_MAX   /* 256 */
+  #define _S_ISDIR(mode)         S_ISDIR (mode)
+  #define _S_ISREG(mode)         S_ISREG (mode)
+  #define _popen(cmd, mode)      popen (cmd, mode)
+  #define _pclose(fil)           pclose (fil)
+  #define _fileno(f)             fileno (f)
+  #define _tempnam(dir,prefix)   tempnam (dir,prefix)
+  #define _wcsdup(s)             wcsdup(s)
+
+  #define stricmp(s1, s2)        strcasecmp (s1, s2)
+  #define strnicmp(s1, s2, len)  strncasecmp (s1, s2, len)
+
+  extern char *_itoa (int value, char *buf, int radix);
+
 #else
   #include <direct.h>
   #define  stat _stati64
+
+  #if !defined(_WINSOCK2API_) && !defined(_WINSOCK2_H) && !defined(_BSDTYPES_DEFINED)
+    #define u_long unsigned long
+    #define _BSDTYPES_DEFINED
+  #endif
 #endif
 
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -131,6 +152,8 @@
   #define _S_ISREG(mode)     (((mode) & _S_IFMT) == _S_IFREG)
 #endif
 
+#define IS_SLASH(c)          ((c) == '\\' || (c) == '/')
+
 #ifdef __GNUC__
   #define ATTR_PRINTF(_1,_2) __attribute__((format(printf,_1,_2)))
   #define ATTR_UNUSED()      __attribute__((unused)))
@@ -147,8 +170,32 @@
   #define U64_FMT "I64u"
 #endif
 
+/*
+ * Format for printing an hex linear address.
+ * E.g. printf (buf, "0x%"ADDR_FMT, ADDR_CAST(ptr));
+ */
+#if defined(__x86_64__) || defined(_M_X64)  /* 64-bit targets */
+  #if defined(_MSC_VER) || defined(__MINGW32__)
+    #define ADDR_FMT      "016I64X"
+  #elif defined(__CYGWIN__)
+    #define ADDR_FMT     "016llX"
+  #else
+    #error "Unsupported compiler"
+  #endif
+  #define ADDR_CAST(x)  ((unsigned long long)(x))
+
+#else                                       /* 32-bit targets */
+  #define ADDR_FMT     "08lX"
+  #define ADDR_CAST(x)  ((unsigned long)(x))
+#endif
+
+
 #ifndef STDOUT_FILENO
 #define STDOUT_FILENO  1
+#endif
+
+#ifndef UINT64
+#define UINT64  unsigned __int64
 #endif
 
 #ifdef __cplusplus
@@ -170,12 +217,15 @@ struct prog_options {
        int   no_sys_env;
        int   no_usr_env;
        int   no_app_path;
+       int   no_colours;
        int   use_regex;
        int   dir_mode;
        int   PE_check;
        int   do_test;
        int   help;
        int   show_size;
+       int   gcc_64bit;
+       int   gcc_no_prefixed;
        int   no_gcc;
        int   no_gpp;
        int   do_evry;
@@ -184,13 +234,19 @@ struct prog_options {
        int   do_lib;
        int   do_include;
        int   do_python;
+       int   do_man;
+       int   do_cmake;
        int   conv_cygdrive;
        char *file_spec;
+       char *file_spec_re;
      };
 
 extern struct prog_options opt;
 
-extern int  report_file (const char *file, time_t mtime, __int64 fsize, BOOL is_dir, HKEY key);
+extern char   sys_dir        [_MAX_PATH];
+extern char   sys_native_dir [_MAX_PATH];
+
+extern int  report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY key);
 extern int  process_dir (const char *path, int num_dup, BOOL exist,
                          BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key);
 
@@ -210,7 +266,8 @@ extern char *str_trim      (char *s);
 extern char *searchpath    (const char *file, const char *env_var);
 extern int   searchpath_pos(void);
 extern char *getenv_expand (const char *variable);
-extern char *_fixpath      (const char *path, char *result);
+extern char *_fix_path     (const char *path, char *result);
+extern char *_fix_drive    (char *path);
 extern char *path_ltrim    (const char *p1, const char *p2);
 extern char *basename      (const char *fname);
 extern char *dirname       (const char *fname);
@@ -218,12 +275,13 @@ extern int   _is_DOS83     (const char *fname);
 extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
 
-extern const char *qword_str (unsigned __int64 val);
+extern const char *qword_str (UINT64 val);
 extern const char *dword_str (DWORD val);
 
-extern char *translate_shell_pattern (const char *pattern);
-extern void  hex_dump (const void *data_p, size_t datalen);
-
+extern void        format_and_print_line (const char *line, int indent);
+extern char       *translate_shell_pattern (const char *pattern);
+extern void        hex_dump (const void *data_p, size_t datalen);
+extern const char *dump10 (const void *data_p, unsigned size);
 
 /* For PE-image version in get_version_info().
  */
@@ -244,6 +302,7 @@ struct search_list {
 extern const char *list_lookup_name (unsigned value, const struct search_list *list, int num);
 extern unsigned    list_lookup_value (const char *name, const struct search_list *list, int num);
 extern const char *flags_decode (DWORD flags, const struct search_list *list, int num);
+extern const char *get_file_size_str (UINT64 size);
 extern const char *get_time_str (time_t t);
 extern const char *get_file_ext (const char *file);
 extern char       *create_temp_file (void);
@@ -267,12 +326,12 @@ extern char *strdup_at  (const char *str, const char *file, unsigned line);
 extern void  free_at    (void *ptr, const char *file, unsigned line);
 extern void  mem_report (void);
 
-#if defined(_CRTDBG_MAP_ALLOC)
+#if defined(_CRTDBG_MAP_ALLOC) || defined(__CYGWIN__)
   #define MALLOC        malloc
   #define CALLOC        calloc
   #define REALLOC       realloc
   #define STRDUP        strdup
-  #define FREE          free
+  #define FREE(p)       (p ? (void) (free(p), p = NULL) : (void)0)
 #else
   #define MALLOC(s)     malloc_at (s, __FILE(), __LINE__)
   #define CALLOC(n,s)   calloc_at (n, s, __FILE(), __LINE__)
