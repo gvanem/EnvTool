@@ -45,7 +45,7 @@ char *searchpath (const char *file, const char *env_var)
 
   if (!file || !*file)
   {
-    DEBUGF (1, "given a bogus 'file'\n");
+    DEBUGF (1, "given a bogus 'file': '%s'\n", file);
     errno = EINVAL;
     return (NULL);
   }
