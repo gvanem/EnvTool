@@ -3,6 +3,7 @@
  * Various support functions for EnvTool.
  * fnmatch(), basename() and dirname() are taken from djgpp and modified.
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -10,6 +11,15 @@
 #include <io.h>
 #include <windows.h>
 #include <wincon.h>
+
+/*
+ * Suppress warning:
+ *   imagehlp.h(1873): warning C4091: 'typedef ': ignored on left of '' when no variable is declared
+ */
+#ifdef _MSC_VER
+#pragma warning (disable:4091)
+#endif
+
 #include <imagehlp.h>
 
 #include "color.h"
@@ -17,9 +27,10 @@
 
 #define USE_COLOUR_C  1
 
-#define IS_SLASH(c)   ((c) == '\\' || (c) == '/')
 #define TOUPPER(c)    toupper ((int)(c))
 #define TOLOWER(c)    tolower ((int)(c))
+
+#if !defined(__CYGWIN__)
 
 struct mem_head {
        unsigned long    marker;
@@ -49,7 +60,7 @@ static void add_to_mem_list (struct mem_head *m, const char *file, unsigned line
 static void del_from_mem_list (const struct mem_head *m, unsigned line)
 {
   struct mem_head *m1, *prev;
-  unsigned i, max_loops = mem_allocs - mem_frees;
+  unsigned i, max_loops = (unsigned) (mem_allocs - mem_frees);
 
   ASSERT (max_loops > 0);
 
@@ -82,6 +93,7 @@ static struct mem_head *mem_list_get_head (void *ptr)
   return (NULL);
 }
 #endif
+#endif  /* !__CYGWIN__ */
 
 /*
  * Open a fname and check if there's a "PK" signature in header.
@@ -119,7 +131,7 @@ int check_if_zip (const char *fname)
  */
 static const IMAGE_DOS_HEADER *dos;
 static const IMAGE_NT_HEADERS *nt;
-static char  file_buf [sizeof(*dos) + sizeof(*nt)];
+static char  file_buf [sizeof(*dos) + 4*sizeof(*nt)];
 
 int check_if_PE (const char *fname)
 {
@@ -140,6 +152,8 @@ int check_if_PE (const char *fname)
 
   dos = (const IMAGE_DOS_HEADER*) file_buf;
   nt  = (const IMAGE_NT_HEADERS*) ((const BYTE*)file_buf + dos->e_lfanew);
+
+  DEBUGF (3, "\n");
 
   /* Probably not a PE-file at all.
    */
@@ -165,10 +179,12 @@ int verify_pe_checksum (const char *fname)
 
   assert (nt);
   file_sum = nt->OptionalHeader.CheckSum;
-  DEBUGF (1, "Opt magic: 0x%04X, file_sum: 0x%08lX\n", nt->OptionalHeader.Magic, file_sum);
+  DEBUGF (1, "Opt magic: 0x%04X, file_sum: 0x%08lX\n",
+          nt->OptionalHeader.Magic, (u_long)file_sum);
 
   rc = MapFileAndCheckSum ((PTSTR)fname, &header_sum, &calc_chk_sum);
-  DEBUGF (1, "rc: %lu, 0x%08lX, 0x%08lX\n", rc, header_sum, calc_chk_sum);
+  DEBUGF (1, "rc: %lu, 0x%08lX, 0x%08lX\n",
+          (u_long)rc, (u_long)header_sum, (u_long)calc_chk_sum);
   return (header_sum == calc_chk_sum);
 }
 
@@ -267,7 +283,7 @@ char *path_ltrim (const char *p1, const char *p2)
  * Return nicely formatted string "xx,xxx,xxx"
  * with thousand separators (left adjusted).
  */
-const char *qword_str (unsigned __int64 val)
+const char *qword_str (UINT64 val)
 {
   static char buf [30];
   char   tmp [30], *p;
@@ -287,7 +303,7 @@ const char *qword_str (unsigned __int64 val)
 
 const char *dword_str (DWORD val)
 {
-  return qword_str ((unsigned __int64)val);
+  return qword_str ((UINT64)val);
 }
 
 static const char *find_slash (const char *s)
@@ -555,13 +571,11 @@ int split_path (const char *path, char *dir, char *file)
  * Note: the 'path' doesn't have to exist.
  *       assumes 'result' is at least '_MAX_PATH' characters long (if non-NULL).
  */
-char *_fixpath (const char *path, char *result)
+char *_fix_path (const char *path, char *result)
 {
-  size_t len;
-
   if (!path || !*path)
   {
-    DEBUGF (1, "given a bogus 'path'\n");
+    DEBUGF (1, "given a bogus 'path': '%s'\n", path);
     errno = EINVAL;
     return (NULL);
   }
@@ -582,16 +596,22 @@ char *_fixpath (const char *path, char *result)
   {
     DEBUGF (2, "GetFullPathName(\"%s\") failed: %s\n",
             path, win_strerror(GetLastError()));
-    _strlcpy (result, path, _MAX_PATH);
+    if (result != path)
+       _strlcpy (result, path, _MAX_PATH);
   }
+  return _fix_drive (result);
+}
 
-  /* For consistency, report drive-letter in lower case.
-   */
-  len = strlen (result);
-  if (len >= 3 && result[1] == ':' && IS_SLASH(result[2]))
-     result[0] = TOLOWER (result[0]);
+/*
+ * For consistency, report drive-letter in lower case.
+ */
+char *_fix_drive (char *path)
+{
+  size_t len = strlen (path);
 
-  return (result);
+  if (len >= 3 && path[1] == ':' && IS_SLASH(path[2]))
+     path[0] = TOLOWER (path[0]);
+  return (path);
 }
 
 /*
@@ -745,7 +765,7 @@ char *win_strerror (unsigned long err)
   return (buf);
 }
 
-#if !defined(_CRTDBG_MAP_ALLOC)
+#if !defined(_CRTDBG_MAP_ALLOC) && !defined(__CYGWIN__)
 
 /*
  * A strdup() that fails if no memory. It's pretty hopeless to continue
@@ -765,7 +785,7 @@ char *strdup_at (const char *str, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = len;
   add_to_mem_list (head, file, line);
-  mem_max += len;
+  mem_max += (DWORD) len;
   mem_allocs++;
   return (char*) (head+1);
 }
@@ -788,7 +808,7 @@ void *malloc_at (size_t size, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = size;
   add_to_mem_list (head, file, line);
-  mem_max += size;
+  mem_max += (DWORD) size;
   mem_allocs++;
   return (head+1);
 }
@@ -811,7 +831,7 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = size;
   add_to_mem_list (head, file, line);
-  mem_max += size;
+  mem_max += (DWORD) size;
   mem_allocs++;
   return (head+1);
 }
@@ -872,7 +892,7 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
     size = p->size - sizeof(*p);
     memmove (ptr, p+1, size);        /* Since memory could be overlapping */
     del_from_mem_list (p, __LINE__);
-    mem_max -= p->size;
+    mem_max -= (DWORD) p->size;
     mem_reallocs++;
     free (p);
   }
@@ -895,28 +915,28 @@ void free_at (void *ptr, const char *file, unsigned line)
      FATAL ("free() of unknown block at %s, line %u.\n", file, line);
 
   head->marker = MEM_FREED;
-  mem_max -= head->size;
+  mem_max -= (DWORD) head->size;
   del_from_mem_list (head, __LINE__);
   mem_frees++;
   free (head);
 }
-#endif  /* _CRTDBG_MAP_ALLOC */
+#endif  /* !_CRTDBG_MAP_ALLOC && !__CYGWIN__ */
 
 void mem_report (void)
 {
-#if !defined(_CRTDBG_MAP_ALLOC)
+#if !defined(_CRTDBG_MAP_ALLOC) && !defined(__CYGWIN__)
   const struct mem_head *m;
   unsigned     num;
 
-  C_printf ("~0  Max memory at one time: %lu bytes.\n", mem_max);
+  C_printf ("~0  Max memory at one time: %lu bytes.\n", (u_long)mem_max);
   C_printf ("  Total # of allocations: %u.\n", (unsigned int)mem_allocs);
   C_printf ("  Total # of realloc():   %u.\n", (unsigned int)mem_reallocs);
   C_printf ("  Total # of frees:       %u.\n", (unsigned int)mem_frees);
 
   for (m = mem_list, num = 0; m; m = m->next, num++)
   {
-    C_printf ("  Un-freed memory 0x%p at %s (%u). %u bytes\n",
-              m+1, m->file, m->line, m->size);
+    C_printf ("  Un-freed memory 0x%p at %s (%u). %u bytes: \"%s\"\n",
+              m+1, m->file, m->line, (unsigned int)m->size, dump10(m+1,m->size));
     if (num > 20)
     {
       C_printf ("  ..and more.\n");
@@ -929,19 +949,51 @@ void mem_report (void)
 #endif
 }
 
+const char *get_file_size_str (UINT64 size)
+{
+  const char *suffix = "";
+  static char buf [10];
+  UINT64 divisor;
+
+  if (size < 1024)
+    divisor = 1, suffix = " B ";
+
+  else if (size < 1024*1024)
+    divisor = 1024, suffix = " kB";
+
+  else if (size < 1024ULL*1024ULL*1024ULL)
+    divisor = 1024*1024, suffix = " MB";
+
+  else if (size < 1024ULL*1024ULL*1024ULL*1024ULL)
+    divisor = 1024*1024*1024, suffix = " GB";
+
+  else
+    divisor = 1024ULL*1024ULL*1024ULL*1024ULL, suffix = " PB";
+
+  size /= divisor;
+  snprintf (buf, sizeof(buf), "%4" U64_FMT "%s", size, suffix);
+  return (buf);
+}
+
 /*
  * strftime() under MSVC sometimes crashes misterously. Use this
- * home-grown version.
+ * home-grown version. Also tests on 'time_t == 0' which often
+ * is returned on a 'stat()' of a protected .sys-file.
  */
 #define USE_STRFTIME 0
 
 const char *get_time_str (time_t t)
 {
+  const struct tm *tm;
+  const char      *empty = "-- --- 1970 - --:--:--";
   static char      res [50];
-  const struct tm *tm = localtime (&t);
 
+  if (t == 0)
+     return (empty);
+
+  tm = localtime (&t);
   if (!tm)
-     return ("??");
+     return (empty);
 
 #if USE_STRFTIME
   if (opt.decimal_timestamp)
@@ -966,6 +1018,41 @@ const char *get_time_str (time_t t)
   }
 #endif
   return (res);
+}
+
+/*
+ * Function that prints the line argument while limiting it
+ * to at most 'MAX_CHARS_PER_LINE'. An appropriate number
+ * of spaces are added on subsequent lines.
+ *
+ * Stolen from Wget (main.c) and simplified.
+ */
+#define MAX_CHARS_PER_LINE 80
+
+void format_and_print_line (const char *line, int indent)
+{
+  char *token, *line_dup = STRDUP (line);
+  int   remaining_chars = 0;
+
+  /* We break on spaces.
+   */
+  token = strtok (line_dup, " ");
+  while (token)
+  {
+    /* If a token is much larger than the maximum
+     * line length, we print the token on the next line.
+     */
+    if (remaining_chars <= (int)strlen(token))
+    {
+      C_printf ("\n%*c", indent, ' ');
+      remaining_chars = MAX_CHARS_PER_LINE - indent;
+    }
+    C_printf ("%s ", token);
+    remaining_chars -= strlen (token) + 1;  /* account for " " */
+    token = strtok (NULL, " ");
+  }
+  C_putc ('\n');
+  FREE (line_dup);
 }
 
 /*
@@ -1017,7 +1104,7 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
         flags &= ~list->value;
       }
   if (flags)           /* print unknown flag-bits */
-     ret += snprintf (ret, left, "0x%08lX+", flags);
+     ret += snprintf (ret, left, "0x%08lX+", (u_long)flags);
   if (ret > buf)
      *(--ret) = '\0';   /* remove '+' */
   return (buf);
@@ -1056,7 +1143,8 @@ static void init_console (void)
    */
   if (!isatty(STDOUT_FILENO))
   {
-    use_colours = FALSE;
+    use_colours = 0;
+    DEBUG (2, "isatty(1)=0, setting 'use_colours=0'\n");
     return;
   }
 
@@ -1168,6 +1256,7 @@ int popen_run (const char *cmd, popen_callback callback)
   char   buf[1000];
   int    i = 0;
   int    j = 0;
+  size_t len;
   FILE  *f;
   char  *env = getenv ("COMSPEC");
   char  *cmd2;
@@ -1191,26 +1280,41 @@ int popen_run (const char *cmd, popen_callback callback)
   else
     comspec = "set COMSPEC=cmd.exe &";
 
-  cmd2 = alloca (strlen(setdos) + strlen(comspec) + strlen(cmd) + 1);
+  len = strlen(setdos) + strlen(comspec) + strlen(cmd) + 1;
+
+#if defined(_FORTIFY_SOURCE) && (_FORTIFY_SOURCE >= 1)
+  /*
+   * Because of:
+   *  'warning: stack protector not protecting local variables: variable length buffer [-Wstack-protector]'
+   */
+  cmd2 = MALLOC (len);
+#else
+  cmd2 = alloca (len);
+#endif
+
+#ifdef __CYGWIN__
+  strcpy (cmd2, slashify(cmd, '/'));
+#else
   strcpy (cmd2, setdos);
   strcat (cmd2, comspec);
   strcat (cmd2, cmd);
-
-  DEBUGF (3, "Trying to run '%s'\n", cmd2);
+#endif
 
 #ifdef __CYGWIN__
   if (!system(NULL))
   {
     WARN ("/bin/sh not found.\n");
-    return (0);
+    goto quit;
   }
 #endif
+
+  DEBUGF (3, "Trying to run '%s'\n", cmd2);
 
   f = _popen (cmd2, "r");
   if (!f)
   {
     DEBUGF (1, "failed to call _popen(); errno=%d.\n", errno);
-    return (0);
+    goto quit;
   }
 
   while (fgets(buf,sizeof(buf)-1,f))
@@ -1227,6 +1331,12 @@ int popen_run (const char *cmd, popen_callback callback)
     j += rc;
   }
   _pclose (f);
+
+quit:
+#if defined(_FORTIFY_SOURCE) && (_FORTIFY_SOURCE >= 1)
+  FREE (cmd2);
+#endif
+
   return (j);
 }
 
@@ -1280,7 +1390,8 @@ char *translate_shell_pattern (const char *pattern)
   }
 
   if (i == i_max)
-     WARN ("'pattern' in translate_shell_pattern() is too large (%d bytes).\n", len);
+     WARN ("'pattern' in translate_shell_pattern() is too large (%u bytes).\n",
+           (unsigned)len);
   *out = '\0';
   return (res);
 }
@@ -1322,6 +1433,68 @@ void hex_dump (const void *data_p, size_t datalen)
     putc ('\n', stdout);
   }
 }
+
+const char *dump10 (const void *data, unsigned size)
+{
+  static char ret [15];
+  int    ofs, ch;
+
+  for (ofs = 0; ofs < sizeof(ret)-4; ofs++)
+  {
+    ch = ((const BYTE*)data) [ofs];
+    if (ch < ' ')            /* non-printable */
+         ret [ofs] = '.';
+    else ret [ofs] = ch;
+    ret [ofs+1] = '\0';
+  }
+  if (ofs < size)
+     strcat (ret, "...");
+  return (ret);
+}
+
+/*
+ * Reverse string 'str' in place.
+ */
+char *strreverse (char *str)
+{
+  int i, j;
+
+  for (i = 0, j = strlen(str)-1; i < j; i++, j--)
+  {
+    char c = str[i];
+    str[i] = str[j];
+    str[j] = c;
+  }
+  return (str);
+}
+
+#if defined(__CYGWIN__)
+/*
+ * Taken from:
+ *   http://stackoverflow.com/questions/190229/where-is-the-itoa-function-in-linux
+ */
+char *_itoa (int value, char *buf, int radix)
+{
+  int sign, i = 0;
+
+  ASSERT (radix == 10);
+  sign = value;
+
+  if (sign < 0)      /* record sign */
+     value = -value; /* make 'value' positive */
+
+  do                 /* generate digits in reverse order */
+  {
+    buf[i++] = (value % 10) + '0';
+  }
+  while ((value /= 10) > 0);
+
+  if (sign < 0)
+     buf [i++] = '-';
+  buf [i] = '\0';
+  return strreverse (buf);
+}
+#endif
 
 #if defined(MEM_TEST)
 
