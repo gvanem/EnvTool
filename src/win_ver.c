@@ -128,8 +128,8 @@ static const char *get_os_version (void)
              "  os.dwPlatformId:   0x%08lX\n"
              "  os.wProductType:   0x%02X\n"
              "  os.szCSDVersion:   '%" WIDESTR_FMT "'\n",
-             os.dwMajorVersion, os.dwMinorVersion, os.dwPlatformId,
-             os.wProductType, os.szCSDVersion);
+             (u_long)os.dwMajorVersion, (u_long)os.dwMinorVersion,
+             (u_long)os.dwPlatformId, os.wProductType, os.szCSDVersion);
 
 #if defined(USE_RTDLL_VERSION)
   rc = get_rtdll_version (&osw);
@@ -145,8 +145,8 @@ static const char *get_os_version (void)
                "  os.dwPlatformId:   0x%08lX\n"
                "  os.wProductType:   0x%02X\n"
                "  os.szCSDVersion:   '%" WIDESTR_FMT "'\n",
-               osw.dwMajorVersion, osw.dwMinorVersion, osw.dwPlatformId,
-               osw.wProductType, osw.szCSDVersion);
+               (u_long)osw.dwMajorVersion, (u_long)osw.dwMinorVersion,
+               (u_long)osw.dwPlatformId, osw.wProductType, osw.szCSDVersion);
   }
 
   if (rc && !equal)
@@ -171,7 +171,7 @@ static const char *get_os_version (void)
      sprintf (serv_pack+ofs, ".%u", p_os->wServicePackMinor);
 
   if (p_os->dwBuildNumber)
-     sprintf (build_str, "%lu", p_os->dwBuildNumber);
+     sprintf (build_str, "%lu", (u_long)p_os->dwBuildNumber);
 
   if (p_os->dwPlatformId == VER_PLATFORM_WIN32_NT)
   {
@@ -197,7 +197,7 @@ static const char *get_os_version (void)
        return (is_home_os(p_os) ? "Win-8.1 Home" : "Win-8.1");
 
     if (os_ver == 0xA0000)
-       return ((p_os->wProductType == VER_NT_WORKSTATION) ? "Win-10 " : "Win-10 Server");
+       return ((p_os->wProductType == VER_NT_WORKSTATION) ? "Win-10" : "Win-10 Server");
 
     if (HIWORD(os_ver) == 4)
        return ("Win-NT 4.x");
@@ -264,9 +264,9 @@ int main (void)
      DEBUGF (1, "  failed\n");
   else
   {
-    DEBUGF (1, "  major:    0x%08lX\n", major);
-    DEBUGF (1, "  minor:    0x%08lX\n", minor);
-    DEBUGF (1, "  platform: %lu\n", platform);
+    DEBUGF (1, "  major:    0x%08lX\n", (u_long)major);
+    DEBUGF (1, "  minor:    0x%08lX\n", (u_long)minor);
+    DEBUGF (1, "  platform: %lu\n", (u_long)platform);
   }
 
   ver = os_name();
