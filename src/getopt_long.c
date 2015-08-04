@@ -51,11 +51,11 @@
 
 
 #include <errno.h>
-#include "getopt_long.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include "getopt_long.h"
 
 #define GNU_COMPATIBLE		/* Be more compatible, configure's use us! */
 
@@ -219,7 +219,11 @@ parse_long_options(char * const *nargv, const char *options,
 
 	optind++;
 
-	if ((has_equal = strchr(current_argv, '=')) != NULL) {
+	has_equal = strchr(current_argv, '=');
+	if (!has_equal)
+		has_equal = strchr(current_argv, ':');
+
+	if (has_equal) {
 		/* argument found (--option=arg) */
 		current_argv_len = has_equal - current_argv;
 		has_equal++;
