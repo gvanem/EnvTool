@@ -240,8 +240,9 @@ static int show_version (void)
        show_evry_version (wnd);
   else C_printf ("  Everything search engine not found\n");
 
-  C_printf ("Checking Python programs...");    init_python();
-  C_printf ("\r                         \r");
+  C_printf ("Checking Python programs...");
+  init_python();
+  C_printf ("\r                             \r");
 
   if (get_python_info(&py_exe, NULL, &py_ver_major, &py_ver_minor, &py_ver_micro))
        C_printf ("  Python %d.%d.%d detected -> ~6%s~0.\n", py_ver_major, py_ver_minor, py_ver_micro, py_exe);
