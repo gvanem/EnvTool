@@ -30,7 +30,7 @@ else
   LDFLAGS += -s
 endif
 
-ifneq ($(FORTIFY_SOURCE),0)
+ifeq ($(FORTIFY_SOURCE),1)
   ifneq ($(USE_DEBUG),1)
     $(error $$(FORTIFY_SOURCE) needs 'USE_DEBUG=1')
   endif
