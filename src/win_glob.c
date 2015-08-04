@@ -94,17 +94,15 @@ static const struct search_list sh_flags[] = {
 
 static void get_shell_folder (const struct search_list *folder, DWORD flag)
 {
-  char        path [MAX_PATH];
-  char        path2 [_MAX_PATH];
-  const char *fmt = " %-25s (%s) -> '%s'\n";
-  HRESULT     rc = SHGetFolderPathA (NULL, folder->value, NULL, flag, path);
+  char    path1 [MAX_PATH];
+  char    path2 [_MAX_PATH];
+  HRESULT rc = SHGetFolderPathA (NULL, folder->value, NULL, flag, path1);
 
   if (rc >= 0)
-       _fixpath (path, path2);
+       _fix_path (path1, path2);
   else strcpy (path2, "<fail>");
 
-  if (opt.debug > 0)
-     debug_printf (fmt, folder->name, list_lookup_name(flag,sh_flags,DIM(sh_flags)), path2);
+  DEBUGF (1, "%-23s (%s) -> '%s'\n", folder->name, list_lookup_name(flag,sh_flags,DIM(sh_flags)), path2);
 }
 
 static void get_shell_folders (void)
@@ -527,7 +525,7 @@ void globfree (glob_t *_pglob)
 
 #if defined(GLOB_TEST)
 
-/* Tell MingW's CRT to turn off command line globbing by default.
+/* Tell MinGW's CRT to turn off command line globbing by default.
  */
 int _CRT_glob = 0;
 
@@ -553,7 +551,7 @@ int main (int argc, char **argv)
   glob_t res;
   size_t cnt;
   int    rc;
-  char  **p;
+  char **p;
 
   if (argc < 2)
      usage();
@@ -570,7 +568,7 @@ int main (int argc, char **argv)
     for (p = res.gl_pathv, cnt = 1; cnt <= res.gl_pathc; p++, cnt++)
     {
       char fp[_MAX_PATH];
-      printf ("%2d: %s -> %s\n", cnt, *p, _fixpath(*p,fp));
+      printf ("%2d: %s -> %s\n", cnt, *p, _fix_path(*p,fp));
     }
 
   if (opt.debug > 0)
