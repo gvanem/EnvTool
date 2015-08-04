@@ -192,7 +192,7 @@ static const char *show_file_flags (DWORD dwFileFlags)
                         | VS_FF_SPECIALBUILD)
 
   if (dwFileFlags & ~VS_FF_KNOWNFLAGS)
-     pos += sprintf (&s[pos], "0x%lX", dwFileFlags & ~VS_FF_KNOWNFLAGS);
+     pos += sprintf (&s[pos], "0x%lX", (u_long)(dwFileFlags & ~VS_FF_KNOWNFLAGS));
 
   if (dwFileFlags & VS_FF_DEBUG)
   {
@@ -402,7 +402,7 @@ static const char *show_file_subtype (DWORD dwFileType, DWORD dwFileSubtype)
                 return "FileSubtype: " S_VFT2_DRV_INPUTMETHOD;
            default:
                 s[0] = '\0';
-                sprintf (s, "Unknown FileSubtype: 0x%lX", dwFileSubtype);
+                sprintf (s, "Unknown FileSubtype: 0x%lX", (u_long)dwFileSubtype);
                 return s;
          }
          break;
@@ -418,7 +418,7 @@ static const char *show_file_subtype (DWORD dwFileType, DWORD dwFileSubtype)
                 return "FileSubtype: " S_VFT2_FONT_TRUETYPE;
            default:
                 s[0] = '\0';
-                sprintf (s, "Unknown FileSubtype: 0x%lX", dwFileSubtype);
+                sprintf (s, "Unknown FileSubtype: 0x%lX", (u_long)dwFileSubtype);
                 return (s);
          }
          break;
@@ -426,7 +426,7 @@ static const char *show_file_subtype (DWORD dwFileType, DWORD dwFileSubtype)
     default:
          s[0] = '\0';
          if (dwFileSubtype)
-            sprintf (s, ", FileSubtype: 0x%lX", dwFileSubtype);
+            sprintf (s, ", FileSubtype: 0x%lX", (u_long)dwFileSubtype);
          return (s);
   }
 }
@@ -441,25 +441,25 @@ static void show_FIXEDFILEINFO (const VS_FIXEDFILEINFO *pValue, struct ver_info 
   ver_p->val_3 = (UINT) (pValue->dwFileVersionLS >> 16);
   ver_p->val_4 = (UINT) (pValue->dwFileVersionLS & 0xFFFF);
 
-  do_printf ("  Signature:      0x%08lX\n", pValue->dwSignature);
-  do_printf ("  StrucVersion:   %lu.%lu\n", pValue->dwStrucVersion >> 16, pValue->dwStrucVersion & 0xFFFF);
+  do_printf ("  Signature:      0x%08lX\n", (u_long)pValue->dwSignature);
+  do_printf ("  StrucVersion:   %u.%u\n", HIWORD(pValue->dwStrucVersion), LOWORD(pValue->dwStrucVersion));
   do_printf ("  FileVersion:    %u.%u.%u.%u\n", ver_p->val_1, ver_p->val_2, ver_p->val_3, ver_p->val_4);
 
-  do_printf ("  ProductVersion: %u.%u.%u.%u\n", (UINT) (pValue->dwProductVersionMS >> 16),
-                                                (UINT) (pValue->dwProductVersionMS & 0xFFFF),
-                                                (UINT) (pValue->dwProductVersionLS >> 16),
-                                                (UINT) (pValue->dwProductVersionLS & 0xFFFF));
+  do_printf ("  ProductVersion: %u.%u.%u.%u\n", HIWORD(pValue->dwProductVersionMS),
+                                                LOWORD(pValue->dwProductVersionMS),
+                                                HIWORD(pValue->dwProductVersionLS),
+                                                LOWORD(pValue->dwProductVersionLS));
 
-  do_printf ("  FileFlagsMask:  0x%lX\n", pValue->dwFileFlagsMask);
+  do_printf ("  FileFlagsMask:  0x%lX\n", (u_long)pValue->dwFileFlagsMask);
 
   if (pValue->dwFileFlags)
-       do_printf ("  FileFlags:      0x%lX (%s)\n", pValue->dwFileFlags, show_file_flags(pValue->dwFileFlags));
+       do_printf ("  FileFlags:      0x%lX (%s)\n", (u_long)pValue->dwFileFlags, show_file_flags(pValue->dwFileFlags));
   else do_printf ("  FileFlags:      0\n");
 
   do_printf ("  FileOS:         %s\n", show_file_OS (pValue->dwFileOS));
   do_printf ("  FileType:       %s%s\n", show_file_type (pValue->dwFileType),
                                       show_file_subtype (pValue->dwFileType, pValue->dwFileSubtype));
-  do_printf ("  FileDate:       %lX.%lX\n", pValue->dwFileDateMS, pValue->dwFileDateLS);
+  do_printf ("  FileDate:       %lX.%lX\n", (u_long)pValue->dwFileDateMS, (u_long)pValue->dwFileDateLS);
 }
 
 
@@ -525,7 +525,7 @@ static void get_version_data (const void *pVer, DWORD size, struct ver_info *ver
         {
           const wchar_t *psVal = (const wchar_t*) ROUND_POS (&pS->szKey[wcslen(pS->szKey)+1], pS, 4);
 
-          do_printf ("  %-17S: %.*S\n", pS->szKey, pS->wValueLength, psVal); // print <sKey> : <sValue>
+          do_printf ("  %-17S: %.*S\n", pS->szKey, (int)pS->wValueLength, psVal); // print <sKey> : <sValue>
         }
       }
     }
@@ -588,7 +588,7 @@ int get_version_info (const char *file, struct ver_info *ver)
     return (0);
   }
 
-  DEBUGF (1, "size: %lu\n", size);
+  DEBUGF (1, "size: %lu\n", (u_long)size);
 
   ver_data = CALLOC (size, 1);
   if (!GetFileVersionInfoA(file, 0, size, ver_data))
