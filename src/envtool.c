@@ -1344,8 +1344,8 @@ static int report_registry (const char *reg_key, int num)
 
     if (!arr->exist)
     {
-      WARN ("\"%s\\%s\" points to\n  \"%s\". But this file does not exist.\n\n",
-            top_key_name(arr->key), reg_key, arr->path);
+      WARN ("\"%s\\%s\" points to\n  '%s\\%s'. But this file does not exist.\n\n",
+            top_key_name(arr->key), reg_key, arr->path, arr->fname);
     }
     else
     {
