@@ -1000,21 +1000,22 @@ const char *get_time_str (time_t t)
        strftime (res, sizeof(res), "%Y%m%d.%H%M%S", tm);
   else strftime (res, sizeof(res), "%d %b %Y - %H:%M:%S", tm);
 #else
-
-  const  char *_month;
-  static const char *months [12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-                                   };
-  if (opt.decimal_timestamp)
-     snprintf (res, sizeof(res), "%04d%02d%02d.%02d%02d%02d",
-               1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
-  else
   {
-    if (tm->tm_mon >= 0 && tm->tm_mon < DIM(months))
-         _month = months [tm->tm_mon];
-    else _month = "???";
-    snprintf (res, sizeof(res), "%02d %s %04d - %02d:%02d:%02d",
-              tm->tm_mday, _month, 1900+tm->tm_year, tm->tm_hour, tm->tm_min, tm->tm_sec);
+    const  char *_month;
+    static const char *months [12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+                                     };
+    if (opt.decimal_timestamp)
+       snprintf (res, sizeof(res), "%04d%02d%02d.%02d%02d%02d",
+                 1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+    else
+    {
+      if (tm->tm_mon >= 0 && tm->tm_mon < DIM(months))
+           _month = months [tm->tm_mon];
+      else _month = "???";
+      snprintf (res, sizeof(res), "%02d %s %04d - %02d:%02d:%02d",
+                tm->tm_mday, _month, 1900+tm->tm_year, tm->tm_hour, tm->tm_min, tm->tm_sec);
+    }
   }
 #endif
   return (res);
