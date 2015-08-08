@@ -1,16 +1,16 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+# Visual Studio 14
+VisualStudioVersion = 14.0.23107.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "envtool", "envtool.vcxproj", "{47A4EE11-5847-41F7-B00C-1627C75FAC12}"
 EndProject
 Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "win_glob", "win_glob.exe", "{9F0D24D9-1402-4818-9410-E33B62DB783A}"
 	ProjectSection(DebuggerProjectSystem) = preProject
 		PortSupplier = 00000000-0000-0000-0000-000000000000
-		Executable = f:\gv\VC_project\EnvTool\src\win_glob.exe
-		RemoteMachine = 
-		StartingDirectory = f:\gv\VC_project\EnvTool\src
+		Executable = .\win_glob.exe
+		RemoteMachine = INTEL-I7
+		StartingDirectory = .
 		Arguments = -d *.c
 		Environment = Default
 		LaunchingEngine = 00000000-0000-0000-0000-000000000000
@@ -39,12 +39,12 @@ Global
 		{47A4EE11-5847-41F7-B00C-1627C75FAC12}.Release|Win32.ActiveCfg = Release|Win32
 		{47A4EE11-5847-41F7-B00C-1627C75FAC12}.Release|Win32.Build.0 = Release|Win32
 		{47A4EE11-5847-41F7-B00C-1627C75FAC12}.Release|x86.ActiveCfg = Release|Win32
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|Mixed Platforms.ActiveCfg = Debug
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|Win32.ActiveCfg = Debug
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|x86.ActiveCfg = Debug
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|Mixed Platforms.ActiveCfg = Debug
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|Win32.ActiveCfg = Debug
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|x86.ActiveCfg = Debug
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|Mixed Platforms.ActiveCfg = Release
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|Win32.ActiveCfg = Release
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|x86.ActiveCfg = Release
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|Mixed Platforms.ActiveCfg = Release
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|Win32.ActiveCfg = Release
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|x86.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

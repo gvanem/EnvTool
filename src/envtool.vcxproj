@@ -20,7 +20,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -115,6 +115,7 @@
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">/TP %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ClCompile Include="win_glob.c" />
+    <ClCompile Include="win_ver.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="envtool.h" />
