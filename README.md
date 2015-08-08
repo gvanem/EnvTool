@@ -4,11 +4,17 @@ EnvTool v0.98:
 A tool to search along various environment variables for files (or a wildcard). The following option-modes handles these
 environment variables:
 
+------------- ------------- -------------------------------------------
+:arrow_right: `--path`:      `%PATH%`.
+:arrow_right: `--inc`:       `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
+:arrow_right: `--lib`:       `%LIB%` and `%LIBRARY_PATH%`.
+------------- ------------- -------------------------------------------
+
 * `--path`:   &nbsp;&nbsp;&nbsp;&nbsp;             `%PATH%`.
 * `--inc`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
 * `--lib`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%LIB%` and `%LIBRARY_PATH%`.
 * `--cmake`:  &nbsp;&nbsp;                         `%CMAKE_MODULE_PATH%`.
-* `--man`:    &nbsp;&nbsp;&nbsp;                   `%MANPATH%`.
+* `--man`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;       `%MANPATH%`.
 * `--python`: &nbsp;                               `%PYTHONPATH%` and `sys.path[]`.
 * `--evry`:   &nbsp;&nbsp;&nbsp;&nbsp;             [EveryThing](http://www.voidtools.com/support/everything/) file database.
 
