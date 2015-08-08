@@ -283,13 +283,19 @@ extern char       *translate_shell_pattern (const char *pattern);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
 
-/* For PE-image version in get_version_info().
+/* Genereric version information.
+ *
+ *  Implemented by        | For what
+ * -----------------------|---------------------------
+ *  get_python_info()     | Supported Python programs.
+ *  get_evry_version()    | EveryThing File-database.
+ *  get_PE_version_info() | PE-image version info.
  */
 struct ver_info {
-       unsigned val_1;
-       unsigned val_2;
-       unsigned val_3;
-       unsigned val_4;
+       unsigned val_1;   /* Major */
+       unsigned val_2;   /* Minor */
+       unsigned val_3;   /* Micro */
+       unsigned val_4;   /* Build (unused in envtool_py.c) */
      };
 
 /* Generic search-list type.
@@ -306,9 +312,9 @@ extern const char *get_file_size_str (UINT64 size);
 extern const char *get_time_str (time_t t);
 extern const char *get_file_ext (const char *file);
 extern char       *create_temp_file (void);
-extern int         get_version_info (const char *file, struct ver_info *ver);
-extern char       *get_version_info_buf (void);
-extern void        get_version_info_free (void);
+extern int         get_PE_version_info (const char *file, struct ver_info *ver);
+extern char       *get_PE_version_info_buf (void);
+extern void        get_PE_version_info_free (void);
 extern int         check_if_zip (const char *fname);
 extern int         check_if_PE (const char *fname);
 extern int         verify_pe_checksum (const char *fname);
