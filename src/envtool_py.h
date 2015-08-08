@@ -25,7 +25,7 @@ extern enum python_variants which_python;
 
 extern int   init_python        (void);
 extern void  exit_python        (void);
-extern int   get_python_info    (const char **exe, const char **dll, int *major, int *minor, int *micro);
+extern int   get_python_info    (const char **exe, const char **dll, struct ver_info *ver);
 extern int   do_check_python    (void);
 extern void  test_python_funcs  (void);
 extern int   test_python_pipe   (void);

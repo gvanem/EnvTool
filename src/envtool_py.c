@@ -255,7 +255,7 @@ static struct python_info *select_python (enum python_variants which)
   return (NULL);
 }
 
-int get_python_info (const char **exe, const char **dll, int *major, int *minor, int *micro)
+int get_python_info (const char **exe, const char **dll, struct ver_info *ver)
 {
   struct python_info *py = select_python (DEFAULT_PYTHON);
 
@@ -264,14 +264,17 @@ int get_python_info (const char **exe, const char **dll, int *major, int *minor,
 
   if (exe)
      *exe = py->exe_name;
+
   if (dll)
      *dll = py->dll_name;
-  if (major)
-     *major = py->ver_major;
-  if (minor)
-     *minor = py->ver_minor;
-  if (micro)
-     *micro = py->ver_micro;
+
+  if (ver)
+  {
+    ver->val_1 = py->ver_major;
+    ver->val_2 = py->ver_minor;
+    ver->val_3 = py->ver_micro;
+    ver->val_4 = 0;
+  }
   return (1);
 }
 
