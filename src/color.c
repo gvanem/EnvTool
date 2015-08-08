@@ -62,7 +62,7 @@ static void init_color_map (void)
   color_map[1] = (bg + 3) | FOREGROUND_INTENSITY;  /* bright cyan */
   color_map[2] = (bg + 2) | FOREGROUND_INTENSITY;  /* bright green */
   color_map[3] = (bg + 6) | FOREGROUND_INTENSITY;  /* bright yellow */
-  color_map[4] = (bg + 5);                         /* magenta */
+  color_map[4] = (bg + 5) | FOREGROUND_INTENSITY;  /* bright magenta */
   color_map[5] = (bg + 4) | FOREGROUND_INTENSITY;  /* bright red */
   color_map[6] = (bg + 7) | FOREGROUND_INTENSITY;  /* bright white */
 }
