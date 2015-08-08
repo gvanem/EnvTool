@@ -100,12 +100,12 @@ static BOOL  print_it = FALSE;
 static char *trace_buf  = NULL;
 static char *trace_head = NULL;
 
-char *get_version_info_buf (void)
+char *get_PE_version_info_buf (void)
 {
   return (trace_buf);
 }
 
-void get_version_info_free (void)
+void get_PE_version_info_free (void)
 {
   FREE (trace_buf);
   trace_buf = trace_head = NULL;
@@ -139,7 +139,7 @@ static void do_printf (const char *fmt, ...)
   va_end (args);
 }
 
-static void hex_dump2 (const void *data_p, size_t datalen)
+static void hex_PE_dump (const void *data_p, size_t datalen)
 {
   const BYTE *data = (const BYTE*) data_p;
   UINT  ofs;
@@ -466,7 +466,7 @@ static void show_FIXEDFILEINFO (const VS_FIXEDFILEINFO *pValue, struct ver_info 
 #define ROUND_OFS(a,b,r)    (((BYTE*)(b) - (BYTE*)(a) + ((r)-1)) & ~((r)-1))
 #define ROUND_POS(b, a, r)  (((BYTE*)(a)) + ROUND_OFS(a,b,r))
 
-static void get_version_data (const void *pVer, DWORD size, struct ver_info *ver_p)
+static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *ver_p)
 {
   /* Interpret the VS_VERSIONINFO header pseudo-struct.
    */
@@ -573,7 +573,7 @@ static void get_version_data (const void *pVer, DWORD size, struct ver_info *ver
   ASSERT ((const BYTE*)pSFI == ROUND_POS ((const BYTE*)pVS + pVS->wLength, pVS, 4));
 }
 
-int get_version_info (const char *file, struct ver_info *ver)
+int get_PE_version_info (const char *file, struct ver_info *ver)
 {
   DWORD  dummy = 0;
   DWORD  size = GetFileVersionInfoSizeA (file, &dummy);
@@ -602,12 +602,12 @@ int get_version_info (const char *file, struct ver_info *ver)
 
   do_printf ("VERSIONINFO dump for file \"%s\":\n", file);
   if (print_it)
-     hex_dump2 (ver_data, size);
+     hex_PE_dump (ver_data, size);
 
   print_it = (opt.verbose >= 1);
 
   do_printf ("VERSIONINFO: ");
-  get_version_data (ver_data, size, ver);
+  get_PE_version_data (ver_data, size, ver);
 
   FREE (ver_data);
   return (1);
