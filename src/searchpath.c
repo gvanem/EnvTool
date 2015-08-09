@@ -33,6 +33,11 @@ int searchpath_pos (void)
  * \todo: Return the truename (correct casing) for file.
  *        Like Python's "ntpath.abspath (path)" does.
  *        Use GetLongPathName() ?
+ *
+ * \note: if 'env_var' is just a dirname, the 'file' is just tested for
+ *        presence in current directory and that dirname. E.g.
+ *        searchpath ("SWAPFILE.SYS", "c:\\") would simply return
+ *        "C:\SWAPFILE.SYS".
  */
 char *searchpath (const char *file, const char *env_var)
 {
