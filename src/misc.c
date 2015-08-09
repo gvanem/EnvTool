@@ -650,6 +650,89 @@ char *create_temp_file (void)
 }
 
 /*
+ * Turn off default error-mode. E.g. if a CD-ROM isn't ready, we'll get a GUI
+ * popping up to notify us. Turn that off and handle such errors ourself.
+ *
+ * SetErrorMode()       is per process.
+ * SetThreadErrorMode() is per thread on Win-7+.
+ */
+void set_error_mode (int on_off)
+{
+  static UINT old_mode = 0;
+
+  if (on_off)
+       SetErrorMode (old_mode);
+  else old_mode = SetErrorMode (SEM_FAILCRITICALERRORS);
+
+  DEBUGF (2, "on_off: %d, SetErrorMode (%d): %s\n",
+          on_off, old_mode, win_strerror(GetLastError()));
+}
+
+/*
+ * Check if a disk is ready. disk is ['A'..'Z'].
+ */
+int disk_ready (int disk)
+{
+  int    rc;
+  char   path [8];
+  BOOL   rd_change;
+  HANDLE hnd;
+  DWORD  filter;
+  DWORD  size = sizeof(FILE_NOTIFY_INFORMATION) + _MAX_PATH + 3;
+  DWORD_PTR p  = (DWORD_PTR) alloca (size);
+
+  if (p & 3)
+  {
+    p &= ~3;
+    size -= 3;
+  }
+
+  snprintf (path, sizeof(path), "\\\\.\\%c:", disk);
+  set_error_mode (0);
+
+  DEBUGF (2, "Calling CreateFile (\"%s\").", path);
+  hnd = CreateFile (path, GENERIC_READ | FILE_LIST_DIRECTORY,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+  if (hnd == INVALID_HANDLE_VALUE)
+  {
+    DEBUGF (2, "  failed: %s\n", path, win_strerror(GetLastError()));
+    rc = -1;
+    goto quit;
+  }
+  rc = 1;
+
+#if 0
+  filter = FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
+           FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
+           FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_SECURITY;
+
+  rd_change = ReadDirectoryChangesW (hnd, (LPVOID)p, size, FALSE, filter, NULL, NULL, NULL);
+  if (!rd_change)
+  {
+    DEBUGF (2, "ReadDirectoryChanges(): failed: %s\n", win_strerror(GetLastError()));
+    rc = 0;
+  }
+  else
+  {
+    const FILE_NOTIFY_INFORMATION *fni = (const FILE_NOTIFY_INFORMATION*) p;
+
+    DEBUGF (2, "fni->NextEntryOffset: %lu\n", fni->NextEntryOffset);
+    DEBUGF (2, "fni->Action:          %lu\n", fni->Action);
+    DEBUGF (2, "fni->FileNameLength:  %lu\n", fni->FileNameLength);
+    DEBUGF (2, "fni->FileName:        \"%.*S\"\n", (int)fni->FileNameLength, fni->FileName);
+    rc = 1;
+  }
+#endif
+
+quit:
+  if (hnd != INVALID_HANDLE_VALUE)
+     CloseHandle (hnd);
+  set_error_mode (1);
+  return (rc);
+}
+
+/*
  * Similar to strncpy(), but always returns 'dst' with 0-termination.
  */
 char *_strlcpy (char *dst, const char *src, size_t len)

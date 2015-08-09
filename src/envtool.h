@@ -274,6 +274,8 @@ extern char *dirname       (const char *fname);
 extern int   _is_DOS83     (const char *fname);
 extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
+extern void  set_error_mode(int on_off);
+extern int   disk_ready    (int disk);
 
 extern const char *qword_str (UINT64 val);
 extern const char *dword_str (DWORD val);
