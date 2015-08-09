@@ -32,6 +32,9 @@
       exit(1);
     }
   #endif
+
+#elif defined(__WATCOMC__)
+  #define wcsicmp(s1, s2)  _wcsicmp (s1, s2)
 #endif
 
 /*
