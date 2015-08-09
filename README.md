@@ -1,22 +1,46 @@
 EnvTool v0.98:
 ==============
 
-A tool to search along various environment variables for files (or a wildcard). The following option-modes handles these
-environment variables:
+A tool to search along various environment variables for files (or a wildcard). The following option-modes handles
+these environment variables:
 
-------------- ------------- -------------------------------------------
-:arrow_right: `--path`:      `%PATH%`.
-:arrow_right: `--inc`:       `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
-:arrow_right: `--lib`:       `%LIB%` and `%LIBRARY_PATH%`.
-------------- ------------- -------------------------------------------
+<table border=0 cellspacing=0> <font size=-2.0>
+  <tr>
+    <td>&nbsp;&nbsp;</td> <td><tt>--path</tt>:</td> <td><tt>%PATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>&nbsp;&nbsp;</td> <td><tt>--inc</tt>:</td> <td><tt>%INCLUDE%</tt>, <tt>%C_INCLUDE_PATH%</tt> and <tt>%CPLUS_INCLUDE_PATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>&nbsp;&nbsp;</td> <td><tt>--lib</tt>:</td> <td><tt>%LIB%</tt> and <tt>%LIBRARY_PATH%.</tt></td>
+  </tr>
+  <tr>
+    <td>&nbsp;&nbsp;</td> <td><tt>--lib</tt>:</td> <td><tt>%LIB%</tt> and <tt>%LIBRARY_PATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>&nbsp;&nbsp;</td> <td><tt>--cmake</tt>:</td> <td><tt>%CMAKE_MODULE_PATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>&nbsp;&nbsp;</td> <td><tt>--man</tt>:</td> <td><tt>%MANPATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>&nbsp;&nbsp;</td> <td><tt>--python</tt>:</td> <td><tt>%PYTHONPATH%</tt> and <tt>sys.path[]</tt>.</td>
+  </tr>
+  <tr>
+    <td>&nbsp;&nbsp;</td> <td><tt>--evry</tt>:</td> <td><a href="http://www.voidtools.com/support/everything/">EveryThing</a> file database.</td>
+  </tr>
+</table> <font size=2.0>
 
-* `--path`:   &nbsp;&nbsp;&nbsp;&nbsp;             `%PATH%`.
-* `--inc`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
-* `--lib`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `%LIB%` and `%LIBRARY_PATH%`.
-* `--cmake`:  &nbsp;&nbsp;                         `%CMAKE_MODULE_PATH%`.
-* `--man`:    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;       `%MANPATH%`.
+<!--
+
+* `--path`:                `%PATH%`.
+* `--inc`:     `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%`.
+* `--lib`:     `%LIB%` and `%LIBRARY_PATH%`.
+* `--cmake`:                           `%CMAKE_MODULE_PATH%`.
+* `--man`:    &nbsp;       `%MANPATH%`.
 * `--python`: &nbsp;                               `%PYTHONPATH%` and `sys.path[]`.
-* `--evry`:   &nbsp;&nbsp;&nbsp;&nbsp;             [EveryThing](http://www.voidtools.com/support/everything/) file database.
+* `--evry`:                [EveryThing](http://www.voidtools.com/support/everything/) file database.
+-->
 
 It also checks for missing directories along the above env-variables.
 
