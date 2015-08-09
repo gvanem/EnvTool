@@ -4,12 +4,12 @@
 
 CC      = wcc386
 CPP     = wpp386
-CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul -I. -D_LIBC -DEVERYTHINGUSERAPI=
+CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul -I. -D_LIBC -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl
 LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort global
 EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
 
 OBJECTS = envtool.obj  envtool_py.obj Everything.obj color.obj misc.obj searchpath.obj &
-          show_ver.obj getopt_long.obj
+          show_ver.obj getopt_long.obj win_ver.obj
 
 all: cflags_Watcom.h ldflags_Watcom.h  envtool.exe
 
