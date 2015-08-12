@@ -85,13 +85,14 @@ char *program_name = NULL;
 #define MAX_ARGS    20
 
 struct directory_array {
-       char *dir;           /* FQDN of this entry */
-       char *cyg_dir;       /* The Cygwin POSIX form of the above */
-       int   exist;         /* does it exist? */
-       int   is_dir;        /* and is it a dir; _S_ISDIR() */
-       int   is_cwd;        /* and is equal to current_dir[] */
-       int   exp_ok;        /* ExpandEnvironmentStrings() returned with no '%'? */
-       int   num_dup;       /* is duplicated elsewhere in %VAR? */
+       char    *dir;           /* FQDN of this entry */
+       char    *cyg_dir;       /* The Cygwin POSIX form of the above */
+       int      exist;         /* does it exist? */
+       int      is_dir;        /* and is it a dir; _S_ISDIR() */
+       int      is_cwd;        /* and is equal to current_dir[] */
+       int      exp_ok;        /* ExpandEnvironmentStrings() returned with no '%'? */
+       int      num_dup;       /* is duplicated elsewhere in %VAR? */
+       unsigned line;          /* Debug: at what line was add_to_dir_array() called */
      };
 
 struct registry_array {
@@ -157,29 +158,48 @@ static void  print_build_ldflags (void);
  *  http://msdn.microsoft.com/en-us/library/windows/desktop/ms683188(v=vs.85).aspx
  */
 #define MAX_ENV_VAR 32767
+#define MAX_INDEXED ('Z' - 'A' + 1)
 
-static void show_evry_version (HWND wnd)
+static void show_evry_version (HWND wnd, const struct ver_info *ver)
+{
+  char    buf [3*MAX_INDEXED+2], *p = buf;
+  int     d, num;
+
+  C_printf ("  Everything search engine ver. %u.%u.%u.%u (c)"
+            " David Carpenter; http://www.voidtools.com/\n",
+            ver->val_1, ver->val_2, ver->val_3, ver->val_4);
+  *p = '\0';
+  for (d = num = 0; d < MAX_INDEXED; d++)
+  {
+    if (SendMessage(wnd, WM_USER, EVERYTHING_IPC_IS_NTFS_DRIVE_INDEXED, d))
+    {
+      p += sprintf (p, "%c: ", d+'A');
+      num++;
+    }
+    DEBUGF (4, "d: %d (%c:), num: %d\n", d, d+'A', num);
+  }
+
+  if (num == 0)
+     strcpy (buf, "<none> (busy indexing?)");
+  C_printf ("  These drives are indexed: ~3%s~0\n", buf);
+}
+
+/*
+ * The SendMessage() calls could hang if EveryThing is busy.
+ * \todo: This should be done in a thread.
+ */
+static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
 {
   LRESULT major    = SendMessage (wnd, WM_USER, EVERYTHING_IPC_GET_MAJOR_VERSION, 0);
   LRESULT minor    = SendMessage (wnd, WM_USER, EVERYTHING_IPC_GET_MINOR_VERSION, 0);
   LRESULT revision = SendMessage (wnd, WM_USER, EVERYTHING_IPC_GET_REVISION, 0);
   LRESULT build    = SendMessage (wnd, WM_USER, EVERYTHING_IPC_GET_BUILD_NUMBER, 0);
-  int     d, indexed ['Z'-'A'+1];
-  char    buf [3*DIM(indexed)+2], *p = buf;
 
-  C_printf ("  Everything search engine ver. %ld.%ld.%ld.%ld (c) David Carpenter; %s\n",
-            (long)major, (long)minor, (long)revision, (long)build,
-            "http://www.voidtools.com/");
-
-  for (d = 0; d < DIM(indexed); d++)
-      indexed[d] = (int) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_NTFS_DRIVE_INDEXED, d);
-
-  *p = '\0';
-  for (d = 0; d < DIM(indexed); d++)
-      if (indexed[d])
-         p += sprintf (p, "%c: ", d+'A');
-
-  C_printf ("  These drives are indexed: ~3%s~0\n", buf);
+  ver->val_1 = (unsigned) major;
+  ver->val_2 = (unsigned) minor;
+  ver->val_3 = (unsigned) revision;
+  ver->val_4 = (unsigned) build;
+  return (ver->val_1 + ver->val_2 + ver->val_3 + ver->val_4) > 0;
 }
 
 #if defined(_MSC_FULL_VER)
@@ -227,25 +247,30 @@ static void show_evry_version (HWND wnd)
 static int show_version (void)
 {
   extern const char *os_name (void);
-  const char *py_exe;
-  HWND        wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
-
-  int py_ver_major, py_ver_minor, py_ver_micro;
+  const char     *py_exe;
+  HWND            wnd;
+  struct ver_info py_ver, evry_ver;
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s)~0 by %s. %s~0\n",
-            who_am_I, VER_STRING, BUILDER,
-            WIN_VERSTR, AUTHOR_STR, is_wow64_active() ? "~1WOW64." : "");
+            who_am_I, VER_STRING, BUILDER, WIN_VERSTR, AUTHOR_STR,
+            is_wow64_active() ? "~1WOW64." : "");
 
+  wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (wnd)
-       show_evry_version (wnd);
-  else C_printf ("  Everything search engine not found\n");
+  {
+    if (get_evry_version(wnd,&evry_ver))
+         show_evry_version (wnd, &evry_ver);
+    else C_printf ("  Everything search engine not responding.\n");
+  }
+  else
+    C_printf ("  Everything search engine not found.\n");
 
   C_printf ("Checking Python programs...");
   init_python();
   C_printf ("\r                             \r");
 
-  if (get_python_info(&py_exe, NULL, &py_ver_major, &py_ver_minor, &py_ver_micro))
-       C_printf ("  Python %d.%d.%d detected -> ~6%s~0.\n", py_ver_major, py_ver_minor, py_ver_micro, py_exe);
+  if (get_python_info(&py_exe, NULL, &py_ver))
+       C_printf ("  Python %u.%u.%u detected -> ~6%s~0.\n", py_ver.val_1, py_ver.val_2, py_ver.val_3, py_exe);
   else C_printf ("  Python ~5not~0 found.\n");
 
   if (opt.do_version >= 2)
@@ -279,68 +304,73 @@ static void usage (const char *fmt, ...)
 
 static int show_help (void)
 {
+#define PFX_GCC  "~4<prefix>~0-~6gcc~0"
+#define PFX_GPP  "~4<prefix>~0-~6g++~0"
+
   C_printf ("Environment check & search tool.\n"
             "%s.\n\n"
             "Usage: %s [-cdDhitTrsqpuV?] ~6<--mode>~0 ~6<file-spec>~0\n"
-            "  ~6<--mode>~0 can be one or more of these:\n"
+            "  ~6<--mode>~0 can be at least one of these:\n"
             "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
-            "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and '~3sys.path[]~0' ~2[1]~0.\n"
-            "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0                     ~2[2]~0.\n"
-            "    ~6--lib~0:          check and search in ~3%%LIB%%~0 and ~3%%LIBRARY_PATH%%~0.     ~2[3]~0.\n"
+            "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[1]~0\n"
+            "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0.                   ~2[2]~0\n"
+            "    ~6--lib~0:          check and search in ~3%%LIB%%~0 and ~3%%LIBRARY_PATH%%~0.    ~2[3]~0\n"
             "    ~6--man~0:          check and search in ~3%%MANPATH%%~0.\n"
             "    ~6--cmake~0:        check and search in ~3%%CMAKE_MODULE_PATH%%~0 and the built-in module-path.\n"
-            "    ~6--evry~0:         check and search in the EveryThing database.\n"
+            "    ~6--evry~0:         check and search in the ~6EveryThing database~0.     ~2[4]~0\n"
             "\n"
             "  Other options:\n"
-            "    ~6--no-gcc~0:       do not spawn '*gcc.exe' prior to checking         ~2[2,3]~0.\n"
-            "    ~6--no-g++~0:       do not spawn '*g++.exe' prior to checking         ~2[2,3]~0.\n"
-            "    ~6--no-prefix~0:    do not check all prefixed '*gcc/*g++.exe' programs.\n"
-            "    ~6--no-sys~0:       do not scan '~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0'.\n"
-            "    ~6--no-usr~0:       do not scan '~3HKCU\\Environment~0'.\n"
-            "    ~6--no-app~0:       do not scan '~3HKCU\\" REG_APP_PATH "~0' and\n"
-            "                                '~3HKLM\\" REG_APP_PATH "~0'.\n"
-            "    ~6--no-colour~0:    do not print using colours.\n"
+            "    ~6--no-gcc~0:       don't spawn " PFX_GCC " prior to checking.      ~2[2,3]~0\n"
+            "    ~6--no-g++~0:       don't spawn " PFX_GPP " prior to checking.      ~2[2,3]~0\n"
+            "    ~6--no-prefix~0:    don't check any ~4<prefix>~0-ed programs. Only ~6gcc~0/~6g++~0.\n"
+            "    ~6--no-sys~0:       don't scan ~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0.\n"
+            "    ~6--no-usr~0:       don't scan ~3HKCU\\Environment~0.\n"
+            "    ~6--no-app~0:       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
+            "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
+            "    ~6--no-colour~0:    don't print using colours.\n"
+            "    ~6--no-remote~0:    don't search for remote files in ~6--evry~0 searches (~2to-do~0).\n"
             "    ~6--pe-check~0:     print checksum and version-info for PE-files.\n"
-            "    ~6--m64~0:          tell '*gcc.exe' to return only 64-bit libs in ~6--lib~0 mode.\n"
+            "    ~6--m64~0:          tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
             "    ~6-c~0:             don't add current directory to search-list.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
-            "    ~6-D~0, ~6--dir~0:      looks only for directories matching \"file-spec\".\n",
+            "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n",
             AUTHOR_STR, who_am_I);
 
-  C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in '~6--evry~0' searches.\n"
+  C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in ~6--evry~0 searches.\n"
             "    ~6-s~0, ~6--size~0:     show size of file(s) found.\n"
             "    ~6-q~0, ~6--quiet~0:    disable warnings.\n"
             "    ~6-t~0:             do some internal tests.\n"
             "    ~6-T~0:             show file times in sortable decimal format.\n"
-            "    ~6-u~0:             show all paths on Unix format: '~2c:/ProgramFiles/~0'.\n"
-            "    ~6-v~0:             increase verbose level (currently only used in '~6--pe-check~0').\n"
-            "    ~6-V~0:             show program version information. '~6-VV~0' prints more info.\n"
+            "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
+            "    ~6-v~0:             increase verbose level (currently only used in ~6--pe-check~0).\n"
+            "    ~6-V~0:             show program version information. ~6-VV~0 prints more info.\n"
             "    ~6-h~0, ~6-?~0:         show this help.\n"
             "\n"
-            "  ~2[1]~0 The '~6--python~0' option can be detailed further with: '~3=X~0'\n"
-            "      '~6py2~0'    use a Python2 program only.\n"
-            "      '~6py3~0'    use a Python3 program only.\n"
-            "      '~6ipy2~0'   use a IronPython2 program only.\n"
-            "      '~6ipy3~0'   use a IronPython3 program only.\n"
-            "      '~6pypy~0'   use a PyPy program only.\n"
-            "      '~6jython~0' use a Jython program only.\n"
-            "      '~6all~0'    use all of the above Python programs.\n"
-            "               otherwise use only first Python found on PATH (i.e. the default).\n"
+            "  ~2[1]~0 The ~6--python~0 option can be detailed further with ~3=X~0:\n"
+            "      ~6py2~0    use a Python2 program only.\n"
+            "      ~6py3~0    use a Python3 program only.\n"
+            "      ~6ipy2~0   use a IronPython2 program only.\n"
+            "      ~6ipy3~0   use a IronPython3 program only.\n"
+            "      ~6pypy~0   use a PyPy program only.\n"
+            "      ~6jython~0 use a Jython program only.\n"
+            "      ~6all~0    use all of the above Python programs.\n"
+            "             otherwise use only first Python found on PATH (i.e. the default).\n"
             "\n"
-            "  ~2[2]~0  Unless '~6--no-gcc~0' and/or '~6--no-g++~0' is used, the\n"
-            "       ~3%%C_INCLUDE_PATH%%~0 and ~3%%CPLUS_INCLUDE_PATH%%~0 are also found by spawning '*gcc.exe' and '*g++.exe'.\n"
+            "  ~2[2]~0 Unless ~6--no-gcc~0 and/or ~6--no-g++~0 is used, the\n"
+            "      ~3%%C_INCLUDE_PATH%%~0 and ~3%%CPLUS_INCLUDE_PATH%%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
+            "      These ~4<prefix>~0-es are built-in: { ~6x86_64-w64-mingw32~0 | ~6i386-mingw32~0 | ~6i686-w64-mingw32~0 | ~6avr~0 }.\n"
             "\n"
-            "  ~2[3]~0  Unless '~6--no-gcc~0' and/or '~6--no-g++~0' is used, the\n"
-            "       ~3%%LIBRARY_PATH%%~0 are also found by spawning '*gcc.exe' and '*g++.exe'.\n"
+            "  ~2[3]~0 Unless ~6--no-gcc~0 and/or ~6--no-g++~0 is used, the\n"
+            "      ~3%%LIBRARY_PATH%%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
             "\n"
-            "  The '~6--evry~0' option requires that the Everything filename search engine is installed.\n"
-            "  Ref. ~3http://www.voidtools.com/support/everything/~0\n"
+            "  ~2[4]~0 The ~6--evry~0 option requires that the Everything filename search engine is installed.\n"
+            "       Ref. ~3http://www.voidtools.com/support/everything/~0\n"
             "\n"
             "Notes:\n"
-            "  'file-spec' accepts Posix ranges. E.g. '[a-f]*.txt'.\n"
-            "  'file-spec' matches both files and directories. If '--dir' or '-D' is used, only\n"
-            "   matching directories are reported.\n"
-            "   Commonly used options can be put in ~3%%ENVTOOL_OPTIONS%%~0.\n");
+            "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
+            "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0 or ~6--dir~0 is used, only\n"
+            "                   matching directories are reported.\n"
+            "  Commonly used options can be put in ~3%%ENVTOOL_OPTIONS%%~0.\n");
   return (0);
 }
 
@@ -352,7 +382,7 @@ static int show_help (void)
  * Since this function could be called with a 'dir' from ExpandEnvironmentStrings(),
  * we check here if it returned with no '%'.
  */
-void add_to_dir_array (const char *dir, int i, int is_cwd)
+void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
 {
   struct directory_array *d = dir_array + i;
   struct stat st;
@@ -365,6 +395,7 @@ void add_to_dir_array (const char *dir, int i, int is_cwd)
   d->exist   = exp_ok && (stat(dir, &st) == 0);
   d->is_dir  = _S_ISDIR (st.st_mode);
   d->is_cwd  = is_cwd;
+  d->line    = line;
 
 #if defined(__CYGWIN__)
   char cyg_dir [_MAX_PATH];
@@ -452,6 +483,21 @@ static void free_dir_array (void)
   }
   arr0 = NULL;
   memset (&dir_array, '\0', sizeof(dir_array));
+}
+
+static void check_dir_array (void)
+{
+  const struct directory_array *arr = dir_array;
+  size_t i;
+
+  for (i = 0; i < DIM(dir_array); i++, arr++)
+  {
+    if (arr->line)
+    {
+      WARN ("Unfreed 'dir_array[]' called at line %u\n", arr->line);
+   // break;
+    }
+  }
 }
 
 /*
@@ -560,7 +606,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
     return (NULL);
   }
 
-  val = STRDUP (value);
+  val = STRDUP (value);  /* Freed before we return */
   free_dir_array();
 
   sep[0] = path_separator;
@@ -580,7 +626,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
   */
   i = 0;
   if (opt.add_cwd && !is_cwd)
-     add_to_dir_array (current_dir, i++, 1);
+     add_to_dir_array (current_dir, i++, 1, __LINE__);
 
   for ( ; i < DIM(dir_array)-1 && tok; i++)
   {
@@ -638,7 +684,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
       tok = buf;
     }
 
-    add_to_dir_array (tok, i, !stricmp(tok,current_dir));
+    add_to_dir_array (tok, i, !stricmp(tok,current_dir), __LINE__);
 
     tok = strtok (NULL, sep);
   }
@@ -745,7 +791,7 @@ static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
             filler, ver->val_1, ver->val_2, ver->val_3, ver->val_4,
             chksum_ok ? "~2OK" : "~5fail");
 
-  ver_trace = get_version_info_buf();
+  ver_trace = get_PE_version_info_buf();
   if (ver_trace)
   {
     raw = C_setraw (1);  /* In case version-info contains a "~" (SFN). */
@@ -754,7 +800,7 @@ static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
     for (line = strtok(ver_trace,"\n"); line; line = strtok(NULL,"\n"))
         C_printf ("%s%s\n", filler, line);
     C_setraw (raw);
-    get_version_info_free();
+    get_PE_version_info_free();
     C_flush();
   }
 }
@@ -854,7 +900,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
     {
       is_PE      = TRUE;
       chksum_ok  = verify_pe_checksum (file);
-      version_ok = get_version_info (file, &ver);
+      version_ok = get_PE_version_info (file, &ver);
       if (version_ok)
          num_version_ok++;
     }
@@ -1564,6 +1610,31 @@ static const char *get_sysnative_file (const char *file, time_t *mtime, UINT64 *
   return (file);
 }
 
+/*
+ * \todo: If the result returns a file on a remote disk (X:) and the
+ *        remote computer is down, EveryThing will return the
+ *        the entry in it's database. But then the stat() below
+ *        will fail after a long SMB timeout (SessTimeOut, default 60 sec).
+ *
+ *        Try to detect this if 'file[0:1]' is 'X:' prior to calling
+ *        'stat()'. Use:
+ *          GetFileAttributes(file) and test if GetLastError()
+ *          returns ERROR_BAD_NETPATH.  ??
+ *
+ *  Or simply exclude the remote disk 'X:' in the query. E.g.:
+ *    C:\> envtool --evry foxitre*.exe
+ *  should query for:
+ *    ^[^X]:\\.*foxitre.*\.exe$
+ *
+ * But then we need a-priori knowledge that 'X:' is remote. Like
+ *  'C:\> net use'  does:
+ *
+ *  Status       Local     Exxternal                 Network
+ *  -------------------------------------------------------------------------------
+ *  Disconnected X:        \\DONALD\D-PART           Microsoft Windows Network
+ *  ^^
+ *   where to get this state?
+ */
 static int report_evry_file (const char *file)
 {
   struct stat st;
@@ -1899,7 +1970,7 @@ static int find_include_path_cb (char *buf, int index)
       p = _fix_path (str_trim(buf), buf2);
     }
 
-    add_to_dir_array (p, found_index++, !stricmp(current_dir,p));
+    add_to_dir_array (p, found_index++, !stricmp(current_dir,p), __LINE__);
     DEBUGF (2, "line: '%s'\n", p);
     return (1);
   }
@@ -1948,7 +2019,7 @@ static int find_library_path_cb (char *buf, int index)
     }
     DEBUGF (2, "tok %d: '%s'\n", i, rc);
 
-    add_to_dir_array (rc, found_index++, FALSE);
+    add_to_dir_array (rc, found_index++, FALSE, __LINE__);
 
     if (found_index >= DIM(dir_array))
     {
@@ -2032,7 +2103,7 @@ static int setup_gcc_library_path (const char *gcc)
     int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, "/usr/lib/w32api", result, sizeof(result));
 
     if (rc == 0)
-       add_to_dir_array (result, found_index++, FALSE);
+       add_to_dir_array (result, found_index++, FALSE, __LINE__);
   }
 #endif
 
@@ -2059,27 +2130,8 @@ static int process_gcc_dirs (const char *gcc)
 }
 
 
-static const char *gcc[] = { "gcc.exe",
-#if CHECK_PREFIXED_GCC
-                             "x86_64-w64-mingw32-gcc.exe",
-                             "i386-mingw32-gcc.exe",
-                             "i686-w64-mingw32-gcc.exe",
-                             "avr-gcc.exe"
-#endif
-                             /* Add more gcc programs here?
-                              *
-                              * Maybe we should use 'searchpath("*gcc.exe", "PATH")'
-                              * to find all 'gcc.exe' programs?
-                              */
-                            };
-
-static const char *gpp[] = { "g++.exe",
-#if CHECK_PREFIXED_GCC
-                             "x86_64-w64-mingw32-g++.exe",
-                             "i386-mingw32-g++.exe",
-                             "i686-w64-mingw32-g++.exe"
-#endif
-                            };
+static char **gcc = NULL;
+static char **gpp = NULL;
 
 static const char *cl[] = { "cl.exe"
                           };
@@ -2091,6 +2143,60 @@ static const char *wcc[] = { "wcc386.exe",
                           };
 
 static size_t longest_cc = 0;
+static size_t _num_gcc   = 0;
+static size_t _num_gpp   = 0;
+
+static void build_gnu_prefixes (void)
+{
+#if CHECK_PREFIXED_GCC
+  static const char *pfx[] = { "x86_64-w64-mingw32",
+                               "i386-mingw32",
+                               "i686-w64-mingw32",
+                               "avr"
+                             };
+                             /* Add more gcc programs here?
+                              *
+                              * Maybe we should use 'searchpath("*gcc.exe", "PATH")'
+                              * to find all 'gcc.exe' programs?
+                              */
+#endif
+  size_t i;
+
+  if (_num_gcc + _num_gpp > 0)
+     return;
+
+  _num_gcc = _num_gpp = 1;
+
+#if CHECK_PREFIXED_GCC
+  _num_gcc += DIM (pfx);
+  _num_gpp += DIM (pfx);
+  #define PFX_FMT "%s%s"
+#else
+  #define PFX_FMT ""
+#endif
+
+  gcc = CALLOC (sizeof(char*) * _num_gcc, 1);
+  gpp = CALLOC (sizeof(char*) * _num_gpp, 1);
+
+  for (i = 0; i < _num_gcc; i++)
+  {
+#if CHECK_PREFIXED_GCC
+    const char *val1 = i > 0 ? pfx[i-1] : "";
+    const char *val2 = i > 0 ? "-"      : "";
+#else
+    const char *val1 = NULL;
+    const char *val2 = NULL;
+#endif
+    char str[30];
+
+    snprintf (str, sizeof(str)-1, PFX_FMT "gcc.exe", val1, val2);
+    gcc[i] = STRDUP (str);
+
+    snprintf (str, sizeof(str)-1, PFX_FMT "g++.exe", val1, val2);
+    gpp[i] = STRDUP (str);
+  }
+}
+
 
 static void get_longest (const char **cc, size_t num)
 {
@@ -2121,23 +2227,25 @@ static void searchpath_compilers (const char **cc, size_t num)
 
 static size_t num_gcc (void)
 {
-  return (opt.gcc_no_prefixed ? 1 : DIM(gcc));
+  return (opt.gcc_no_prefixed ? 1 : _num_gcc);
 }
 
 static size_t num_gpp (void)
 {
-  return (opt.gcc_no_prefixed ? 1 : DIM(gpp));
+  return (opt.gcc_no_prefixed ? 1 : _num_gpp);
 }
 
 static void searchpath_all_cc (void)
 {
-  get_longest (gcc, num_gcc());
-  get_longest (gpp, num_gpp());
+  build_gnu_prefixes();
+
+  get_longest ((const char**)gcc, num_gcc());
+  get_longest ((const char**)gpp, num_gpp());
   get_longest (cl,  DIM(cl));
   get_longest (wcc, DIM(wcc));
 
-  searchpath_compilers (gcc, num_gcc());
-  searchpath_compilers (gpp, num_gpp());
+  searchpath_compilers ((const char**)gcc, num_gcc());
+  searchpath_compilers ((const char**)gpp, num_gpp());
   searchpath_compilers (cl,  DIM(cl));
   searchpath_compilers (wcc, DIM(wcc));
 }
@@ -2147,6 +2255,8 @@ static int do_check_gcc_includes (void)
   char   report [_MAX_PATH+50];
   int    found = 0;
   size_t i;
+
+  build_gnu_prefixes();
 
   for (i = 0; i < num_gcc(); i++)
       if (setup_gcc_includes(gcc[i]) > 0)
@@ -2168,6 +2278,8 @@ static int do_check_gpp_includes (void)
   int    found = 0;
   size_t i;
 
+  build_gnu_prefixes();
+
   for (i = 0; i < num_gpp(); i++)
       if (setup_gcc_includes(gpp[i]) > 0)
       {
@@ -2187,6 +2299,8 @@ static int do_check_gcc_library_paths (void)
   char   report [_MAX_PATH+50];
   int    found = 0;
   size_t i;
+
+  build_gnu_prefixes();
 
   for (i = 0; i < num_gcc(); i++)
       if (setup_gcc_library_path(gcc[i]) > 0)
@@ -2497,6 +2611,8 @@ static void cleanup (void)
      exit_python();
 
   free_dir_array();
+  check_dir_array();
+
   FREE (who_am_I);
 
   FREE (system_env_path);
@@ -2506,6 +2622,15 @@ static void cleanup (void)
   FREE (user_env_path);
   FREE (user_env_lib);
   FREE (user_env_inc);
+
+  for (i = 0; i < (int)_num_gcc; i++)
+  {
+    FREE (gcc[i]);
+    FREE (gpp[i]);
+  }
+  FREE (gcc);
+  FREE (gpp);
+
   if (opt.file_spec_re && opt.file_spec_re != opt.file_spec)
      FREE (opt.file_spec_re);
   FREE (opt.file_spec);
@@ -2702,7 +2827,7 @@ int main (int argc, char **argv)
     char        report [_MAX_PATH+50];
     const char *py_exe = NULL;
 
-    get_python_info (&py_exe, NULL, NULL, NULL, NULL);
+    get_python_info (&py_exe, NULL, NULL);
     snprintf (report, sizeof(report), "Matches in \"%s\" sys.path[]:\n", py_exe);
     report_header = report;
     found += do_check_python();
@@ -2769,7 +2894,7 @@ void test_split_env (const char *env)
   char  *value;
   int    i;
 
-  C_printf ("\n~3%s():~0 ", __FUNCTION__);
+  C_printf ("~3%s():~0 ", __FUNCTION__);
   C_printf (" 'split_env_var (\"%s\",\"%%%s\")':\n", env, env);
 
   value = getenv_expand (env);
@@ -2800,10 +2925,9 @@ void test_split_env (const char *env)
 
     C_putc ('\n');
   }
-  C_printf ("  ~3%d elements~0\n", i);
-
   free_dir_array();
   FREE (value);
+  C_printf ("  ~3%d elements~0\n\n", i);
 }
 
 
@@ -2819,7 +2943,7 @@ void test_split_env_cygwin (const char *env)
 
   free_dir_array();
 
-  C_printf ("\n~3%s():~0 ", __FUNCTION__);
+  C_printf ("~3%s():~0 ", __FUNCTION__);
   C_printf (" testing 'split_env_var (\"%s\",\"%%%s\")':\n", env, env);
 
   value  = getenv_expand (env);
@@ -2854,13 +2978,12 @@ void test_split_env_cygwin (const char *env)
     if (dir != arr->dir)
        free (dir);
   }
-  C_printf ("~0  %d elements\n", i);
-
   free_dir_array();
   FREE (value);
 
   path_separator = ';';
   opt.conv_cygdrive = save;
+  C_printf ("~0  %d elements\n\n", i);
 }
 
 /*
@@ -2877,7 +3000,7 @@ void test_posix_to_win_cygwin (void)
                     "/cygdrive/c"
                   };
 
-  C_puts ("\n  POSIX to Windows paths:\n");
+  C_printf ("~3%s():~0 ", __FUNCTION__);
 
   path_separator = ':';
   opt.conv_cygdrive = 0;
@@ -2929,9 +3052,9 @@ static const struct test_table1 tab1[] = {
                    */
                   { "NDIS.SYS",          "%WinDir%\\sysnative\\drivers" },
 
-                  { "c:\\NTLDR",         "c:\\" },  /* test if searchpath() finds hidden files. (Win-XP) */
-                  { "c:\\BOOTMGR",       "c:\\" },  /* test if searchpath() finds hidden files. (Win-8+) */
+                  { "SWAPFILE.SYS",      "c:\\" },  /* test if searchpath() finds hidden files. */
                   { "\\\\localhost\\$C", "PATH" },  /* Does it work on a share too? */
+                  { "\\\\.\\C:",         "PATH" },  /* Or as a device name? */
                   { "CLOCK$",            "PATH" },  /* Does it handle device names? */
                   { "PRN",               "PATH" }
                 };
@@ -2941,7 +3064,7 @@ static void test_searchpath (void)
   const struct test_table1 *t;
   size_t len, i = 0;
 
-  C_printf ("\n~3%s():~0\n", __FUNCTION__);
+  C_printf ("~3%s():~0\n", __FUNCTION__);
 
   for (t = tab1; i < DIM(tab1); t++, i++)
   {
@@ -2960,6 +3083,7 @@ static void test_searchpath (void)
     C_printf ("  %s:%*s -> %s, pos: %d\n",
               t->file, (int)(15-len), "", found ? found : strerror(errno), searchpath_pos());
   }
+  C_putc ('\n');
 }
 
 struct test_table2 {
@@ -2991,7 +3115,7 @@ static void test_fnmatch (void)
   size_t len1, len2;
   int    rc, i = 0;
 
-  C_printf ("\n~3%s():~0\n", __FUNCTION__);
+  C_printf ("~3%s():~0\n", __FUNCTION__);
 
   for (t = tab2; i < DIM(tab2); t++, i++)
   {
@@ -3006,6 +3130,7 @@ static void test_fnmatch (void)
               t->pattern, (int)(15-len1), "", t->fname, (int)(15-len2), "",
               t->flags, fnmatch_res(rc));
   }
+  C_putc ('\n');
 }
 
 /*
@@ -3026,7 +3151,7 @@ static void test_slashify (void)
   const char *f, *rc;
   int   i;
 
-  C_printf ("\n~3%s():~0\n", __FUNCTION__);
+  C_printf ("~3%s():~0\n", __FUNCTION__);
 
   for (i = 0; i < DIM(files1); i++)
   {
@@ -3040,6 +3165,7 @@ static void test_slashify (void)
     rc = slashify (f, '\\');
     C_printf ("  (\"%s\",'\\\\') %*s -> %s\n", f, (int)(38-strlen(f)), "", rc);
   }
+  C_putc ('\n');
 }
 
 /*
@@ -3061,7 +3187,7 @@ static void test_fix_path (void)
   char *rc1;
   int   i, rc2, rc3;
 
-  C_printf ("\n~3%s():~0\n", __FUNCTION__);
+  C_printf ("~3%s():~0\n", __FUNCTION__);
 
   for (i = 0; i < DIM(files); i++)
   {
@@ -3087,8 +3213,9 @@ static void test_fix_path (void)
     C_printf (", ~2cyg-exists: %d~0", FILE_EXISTS(f));
 #endif
 
-    C_puts ("\n\n");
+    C_putc ('\n');
   }
+  C_putc ('\n');
 }
 
 /*
@@ -3108,7 +3235,25 @@ static void test_SHGetFolderPath (void)
 
   rc = SHGetFolderPath (NULL, CSIDL_PERSONAL, NULL, SHGFP_TYPE_CURRENT, dir);
   if (rc != S_OK) ;
+  C_putc ('\n');
 #endif
+}
+
+static void test_disk_ready (void)
+{
+  static int drives[] = { 'A', 'C', 'X', 'Y' };
+  int    i, d;
+
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+
+  for (i = 0; i < DIM(drives); i++)
+  {
+    d  = drives[i];
+    C_printf ("  disk_ready('%c') -> ...", d);
+    C_flush();
+    C_printf (" %2d\n", disk_ready(d));
+  }
+  C_putc ('\n');
 }
 
 /*
@@ -3137,20 +3282,21 @@ static void test_SHGetFolderPath (void)
 static void test_libssp (void)
 {
 #if defined(_FORTIFY_SOURCE) && (_FORTIFY_SOURCE > 0)
-   static const char buf1[] = "Hello world.\n\n";
-   char buf2 [sizeof(buf1)-2] = { 0 };
+  static const char buf1[] = "Hello world.\n\n";
+  char buf2 [sizeof(buf1)-2] = { 0 };
 
-   C_printf ("\n~3%s():~0\n", __FUNCTION__);
+  C_printf ("~3%s():~0\n", __FUNCTION__);
 
-   hex_dump (&buf1, sizeof(buf1));
-   memcpy (buf2, buf1, sizeof(buf1));
+  hex_dump (&buf1, sizeof(buf1));
+  memcpy (buf2, buf1, sizeof(buf1));
 
 #if 0
-   C_printf (buf2);   /* vulnerable data */
-   C_flush();
+  C_printf (buf2);   /* vulnerable data */
+  C_flush();
 #endif
 
-   hex_dump (&buf2, sizeof(buf2));
+  hex_dump (&buf2, sizeof(buf2));
+  C_putc ('\n');
 #endif
 }
 
@@ -3186,8 +3332,8 @@ static int do_tests (void)
   test_fnmatch();
   test_slashify();
   test_fix_path();
+  test_disk_ready();
   test_SHGetFolderPath();
-
   test_libssp();
   return (0);
 }
