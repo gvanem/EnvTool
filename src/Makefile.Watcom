@@ -4,7 +4,9 @@
 
 CC      = wcc386
 CPP     = wpp386
-CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul -I. -D_LIBC -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl
+CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul -I. -D_LIBC -DEVERYTHINGUSERAPI= &
+          -DEVERYTHINGAPI=__cdecl -DCHECK_PREFIXED_GCC=1
+
 LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort global
 EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
 
