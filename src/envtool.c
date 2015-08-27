@@ -532,6 +532,7 @@ static void add_to_reg_array (int *idx, HKEY key, const char *fname, const char 
     return;
   }
 
+  st.st_size = (__int64)-1;    /* signal if stat() fails */
   rc  = stat (fqdn, &st);
   reg->mtime      = st.st_mtime;
   reg->fsize      = st.st_size;
@@ -851,7 +852,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
   if (!is_dir && opt.dir_mode)
      return (0);
 
-  if (opt.show_size && fsize > 0)
+  if (opt.show_size && fsize != (__int64)-1)
        snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
   else size[0] = '\0';
 
