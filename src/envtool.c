@@ -723,26 +723,21 @@ envtool.c(1402): Everything_GetNumResults() num: 3, err: No error
 Matches from EveryThing:
       01 Jan 1970 - 00:00:00: c:\Windows\System32\pwdspio.sys   <<< access this via 'c:\Windows\Sysnative\pwdspio.sys'
       Not a PE-image.
-      30 Sep 2013 - 17:26:48: f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x64\x64\pwdspio.sysmisc.c(168): Opt magic: 0x020B, file_sum: 0x7
-3647770
+      30 Sep 2013 - 17:26:48: f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x64\x64\pwdspio.sysmisc.c(168): Opt magic: 0x020B, file_sum:
+      0x73647770
 misc.c(171): rc: 0, 0x0000F9D7, 0x0000F9D7
 show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x64\x64\pwdspio.sys":
   1813 Finner ikke den angitte ressurstypen i avbildningsfilen
 
       ver 0.0.0.0, Chksum OK
-      19 Jun 2014 - 15:34:10: f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x86\pwdspio.sysmisc.c(168): Opt magic: 0x010B, file_sum: 0x00000
-000
+      19 Jun 2014 - 15:34:10: f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x86\pwdspio.sysmisc.c(168): Opt magic: 0x010B, file_sum:
+      0x00000000
 misc.c(171): rc: 0, 0x0000328A, 0x0000328A
 show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionWizard\x86\pwdspio.sys":
   1813 Finner ikke den angitte ressurstypen i avbildningsfilen
 
       ver 0.0.0.0, Chksum OK
 3 matches found for "pwdspio.sys". 0 have PE-version info.
-  Max memory at one time: 0 bytes.
-  Total # of allocations: 9.
-  Total # of realloc():   0.
-  Total # of frees:       9.
-  No un-freed memory.
 
 -----------------------------
 
@@ -764,10 +759,10 @@ show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionW
 
  */
 static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
-                           const struct ver_info *ver)
+                           const struct ver_info *ver, enum Bitness bits)
 {
   const char *filler = "      ";
-  char       *ver_trace, *line;
+  char       *ver_trace, *line, *bitness;
   int         raw;
 
   if (is_python_egg)
@@ -788,9 +783,12 @@ static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
     return;
   }
 
-  C_printf ("\n%sver ~6%u.%u.%u.%u~0, Chksum %s~0",
+  bitness = (bits == bit_32) ? "~232" :
+            (bits == bit_64) ? "~364" : "~5?";
+
+  C_printf ("\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s~0",
             filler, ver->val_1, ver->val_2, ver->val_3, ver->val_4,
-            chksum_ok ? "~2OK" : "~5fail");
+            bitness, chksum_ok ? "~2OK" : "~5fail");
 
   ver_trace = get_PE_version_info_buf();
   if (ver_trace)
@@ -891,13 +889,14 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
   else if (opt.PE_check)
   {
     struct ver_info ver;
-    BOOL   is_PE      = FALSE;
-    BOOL   is_py_egg  = (key == HKEY_PYTHON_EGG);
-    BOOL   chksum_ok  = FALSE;
-    BOOL   version_ok = FALSE;
+    enum Bitness    bits;
+    BOOL            is_PE      = FALSE;
+    BOOL            is_py_egg  = (key == HKEY_PYTHON_EGG);
+    BOOL            chksum_ok  = FALSE;
+    BOOL            version_ok = FALSE;
 
     memset (&ver, 0, sizeof(ver));
-    if (!is_py_egg && check_if_PE(file))
+    if (!is_py_egg && check_if_PE(file,&bits))
     {
       is_PE      = TRUE;
       chksum_ok  = verify_pe_checksum (file);
@@ -905,7 +904,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
       if (version_ok)
          num_version_ok++;
     }
-    print_PE_info (is_PE, is_py_egg, chksum_ok, &ver);
+    print_PE_info (is_PE, is_py_egg, chksum_ok, &ver, bits);
   }
 
   C_putc ('\n');
