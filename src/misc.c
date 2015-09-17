@@ -215,7 +215,10 @@ int verify_pe_checksum (const char *fname)
 }
 
 /*
- * Check if running under WOW64.
+ * Check if running under WOW64; "Windows 32-bit on Windows 64-bit".
+ * Ref:
+ *   http://en.wikipedia.org/wiki/WoW64
+ *   http://everything.explained.today/WoW64/
  */
 BOOL is_wow64_active (void)
 {
