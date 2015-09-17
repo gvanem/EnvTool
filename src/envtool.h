@@ -221,7 +221,7 @@ struct prog_options {
        int   use_regex;
        int   dir_mode;
        int   PE_check;
-       int   do_test;
+       int   do_tests;
        int   help;
        int   show_size;
        int   gcc_64bit;

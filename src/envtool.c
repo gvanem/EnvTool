@@ -2457,7 +2457,7 @@ static void set_short_option (int c)
          opt.decimal_timestamp = 1;
          break;
     case 't':
-         opt.do_test = 1;
+         opt.do_tests = 1;
          break;
     case 'u':
          opt.show_unix_paths = 1;
@@ -2737,7 +2737,7 @@ int main (int argc, char **argv)
   if (opt.do_python)
      init_python();
 
-  if (opt.do_test)
+  if (opt.do_tests)
      return do_tests();
 
   if (opt.do_evry && !opt.do_path)
