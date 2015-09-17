@@ -252,9 +252,9 @@ static int show_version (void)
   HWND            wnd;
   struct ver_info py_ver, evry_ver;
 
-  C_printf ("%s.\n  Version ~3%s ~1(%s, %s)~0 by %s. %s~0\n",
-            who_am_I, VER_STRING, BUILDER, WIN_VERSTR, AUTHOR_STR,
-            is_wow64 ? "~1WOW64." : "");
+  C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.~0\n",
+            who_am_I, VER_STRING, BUILDER, WIN_VERSTR,
+            is_wow64 ? ", ~1WOW64" : "", AUTHOR_STR);
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (wnd)
