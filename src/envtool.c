@@ -114,6 +114,7 @@ char   sys_dir        [_MAX_PATH];
 char   sys_native_dir [_MAX_PATH];
 
 static int   num_version_ok = 0;
+static BOOL  is_wow64 = FALSE;
 
 static char *who_am_I = (char*) "envtool";
 
@@ -253,7 +254,7 @@ static int show_version (void)
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s)~0 by %s. %s~0\n",
             who_am_I, VER_STRING, BUILDER, WIN_VERSTR, AUTHOR_STR,
-            is_wow64_active() ? "~1WOW64." : "");
+            is_wow64 ? "~1WOW64." : "");
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (wnd)
@@ -1071,25 +1072,17 @@ static const char *access_name (REGSAM acc)
 
 static REGSAM read_access (void)
 {
-  static BOOL is_wow64 = FALSE;
   REGSAM access = KEY_READ;
 
 #if defined(KEY_WOW64_32KEY) && defined(KEY_WOW64_64KEY)
 #if (IS_WIN64)
   access |= KEY_WOW64_32KEY;
-
 #else
-  static BOOL init = FALSE;
-
-  if (!init)
-     is_wow64 = is_wow64_active();
   if (is_wow64)
      access |= KEY_WOW64_64KEY;
-  init = TRUE;
 #endif
 #endif  /* KEY_WOW32_64KEY && KEY_WOW64_64KEY */
 
-  ARGSUSED (is_wow64);
   return (access);
 }
 
@@ -2689,6 +2682,8 @@ static void init_all (void)
 #if defined(_MSC_VER) && defined(_DEBUG)
   crtdbug_init();
 #endif
+
+  is_wow64 = is_wow64_active();
 
   tzset();
   memset (&opt, 0, sizeof(opt));
