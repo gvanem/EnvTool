@@ -2341,14 +2341,15 @@ static const struct option long_options[] = {
            { "verbose",   no_argument,       NULL, 'v' },
            { "pe-check",  no_argument,       NULL, 0 },    /* 17 */
            { "no-colour", no_argument,       NULL, 0 },
-           { "evry",      no_argument,       NULL, 0 },    /* 19 */
-           { "regex",     no_argument,       NULL, 0 },
-           { "size",      no_argument,       NULL, 0 },    /* 21 */
-           { "man",       no_argument,       NULL, 0 },
-           { "cmake",     no_argument,       NULL, 0 },    /* 23 */
-           { "m64",       no_argument,       NULL, 0 },
-           { "no-prefix", no_argument,       NULL, 0 },    /* 25 */
-           { NULL,        no_argument,       NULL, 0 }
+           { "no-color",  no_argument,       NULL, 0 },    /* 19 */
+           { "evry",      no_argument,       NULL, 0 },
+           { "regex",     no_argument,       NULL, 0 },    /* 21 */
+           { "size",      no_argument,       NULL, 0 },
+           { "man",       no_argument,       NULL, 0 },    /* 23 */
+           { "cmake",     no_argument,       NULL, 0 },
+           { "m64",       no_argument,       NULL, 0 },    /* 25 */
+           { "no-prefix", no_argument,       NULL, 0 },
+           { NULL,        no_argument,       NULL, 0 }     /* 27 */
          };
 
 static int *values_tab[] = {
@@ -2371,13 +2372,14 @@ static int *values_tab[] = {
             &opt.verbose,
             &opt.PE_check,        /* 17 */
             &opt.no_colours,
-            &opt.do_evry,         /* 19 */
-            &opt.use_regex,
-            &opt.show_size,       /* 21 */
-            &opt.do_man,
-            &opt.do_cmake,        /* 23 */
-            &opt.gcc_64bit,
-            &opt.gcc_no_prefixed  /* 25 */
+            &opt.no_colours,      /* 19 */
+            &opt.do_evry,
+            &opt.use_regex,       /* 21 */
+            &opt.show_size,
+            &opt.do_man,          /* 23 */
+            &opt.do_cmake,
+            &opt.gcc_64bit,       /* 25 */
+            &opt.gcc_no_prefixed
           };
 
 static void set_python_variant (const char *o)
@@ -2729,9 +2731,6 @@ int main (int argc, char **argv)
    */
   signal (SIGINT, halt);
   signal (SIGILL, halt);
-#ifdef SIGTRAP
-//signal (SIGTRAP, halt);
-#endif
 
   check_sys_dirs();
 
@@ -3249,7 +3248,7 @@ static void test_disk_ready (void)
 
   for (i = 0; i < DIM(drives); i++)
   {
-    d  = drives[i];
+    d = drives[i];
     C_printf ("  disk_ready('%c') -> ...", d);
     C_flush();
     C_printf (" %2d\n", disk_ready(d));
