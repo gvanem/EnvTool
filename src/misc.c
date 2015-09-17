@@ -723,7 +723,7 @@ int disk_ready (int disk)
                     OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
   if (hnd == INVALID_HANDLE_VALUE)
   {
-    DEBUGF (2, "  failed: %s\n", path, win_strerror(GetLastError()));
+    DEBUGF (2, "  failed: %s\n", win_strerror(GetLastError()));
     rc = -1;
     goto quit;
   }
