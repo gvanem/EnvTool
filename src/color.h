@@ -2,6 +2,7 @@
 #define _COLOR_H
 
 #include <stdarg.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,6 +12,10 @@ extern "C" {
  * calling the below 'C_xx()' functions.
  */
 extern int use_colours;
+
+/* Count of unneeded C_flush calls.
+ */
+extern unsigned redundant_C_flush;
 
 extern int C_printf  (const char *fmt, ...)
   #if defined(__GNUC__)

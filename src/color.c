@@ -38,6 +38,8 @@
  */
 int use_colours = 0;
 
+unsigned redundant_C_flush = 0;
+
 static char  c_buf [C_BUF_SIZE];
 static char *c_head, *c_tail;
 static FILE *c_out = NULL;
@@ -157,7 +159,10 @@ size_t C_flush (void)
   size_t len = (unsigned int) (c_head - c_buf);
 
   if (len == 0)
-     return (0);
+  {
+    redundant_C_flush++;
+    return (0);
+  }
 
   assert (c_out);
   len = _write (_fileno(c_out), c_buf, (unsigned int)len);
