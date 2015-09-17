@@ -157,9 +157,11 @@
 #ifdef __GNUC__
   #define ATTR_PRINTF(_1,_2) __attribute__((format(printf,_1,_2)))
   #define ATTR_UNUSED()      __attribute__((unused)))
+  #define WIDESTR_FMT        "S"
 #else
   #define ATTR_PRINTF(_1,_2)
   #define ATTR_UNUSED()
+  #define WIDESTR_FMT        "ws"
 #endif
 
 #ifdef __CYGWIN__

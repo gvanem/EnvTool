@@ -15,12 +15,6 @@
 
 #include "envtool.h"
 
-#if defined(__GNUC__)
-  #define WIDESTR_FMT  "S"
-#else
-  #define WIDESTR_FMT  "ws"
-#endif
-
 static char serv_pack[20] = { '\0' };
 static char build_str[20] = { '\0' };
 
