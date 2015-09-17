@@ -1059,7 +1059,7 @@ const char *get_file_size_str (UINT64 size)
 }
 
 /*
- * strftime() under MSVC sometimes crashes misterously. Use this
+ * strftime() under MSVC sometimes crashes mysterously. Use this
  * home-grown version. Also tests on 'time_t == 0' which often
  * is returned on a 'stat()' of a protected .sys-file.
  */
