@@ -307,6 +307,15 @@ struct search_list {
        const char *name;
      };
 
+/* For check_if_PE().
+ */
+enum Bitness {
+     bit_unknown = 0,
+     bit_16,
+     bit_32,
+     bit_64
+   };
+
 extern const char *list_lookup_name (unsigned value, const struct search_list *list, int num);
 extern unsigned    list_lookup_value (const char *name, const struct search_list *list, int num);
 extern const char *flags_decode (DWORD flags, const struct search_list *list, int num);
@@ -318,7 +327,7 @@ extern int         get_PE_version_info (const char *file, struct ver_info *ver);
 extern char       *get_PE_version_info_buf (void);
 extern void        get_PE_version_info_free (void);
 extern int         check_if_zip (const char *fname);
-extern int         check_if_PE (const char *fname);
+extern int         check_if_PE (const char *fname, enum Bitness *bits);
 extern int         verify_pe_checksum (const char *fname);
 extern BOOL        is_wow64_active (void);
 

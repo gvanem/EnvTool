@@ -133,11 +133,16 @@ static const IMAGE_DOS_HEADER *dos;
 static const IMAGE_NT_HEADERS *nt;
 static char  file_buf [sizeof(*dos) + 4*sizeof(*nt)];
 
-int check_if_PE (const char *fname)
+int check_if_PE (const char *fname, enum Bitness *bits)
 {
   BOOL   is_exe, is_pe;
+  BOOL   is_32Bit = FALSE;
+  BOOL   is_64Bit = FALSE;
   size_t len = 0;
   FILE  *f = fopen (fname, "rb");
+
+  if (bits)
+     *bits = bit_unknown;
 
   if (f)
   {
@@ -163,10 +168,31 @@ int check_if_PE (const char *fname)
     return (FALSE);
   }
 
-  is_exe = (LOBYTE(dos->e_magic) == 'M' && HIBYTE(dos->e_magic) == 'Z');
-  is_pe  = (nt->Signature == IMAGE_NT_SIGNATURE);   /* 'PE\0\0 ' */
+  is_exe = (dos->e_magic == IMAGE_DOS_SIGNATURE);  /* 'MZ' */
+  is_pe  = (nt->Signature == IMAGE_NT_SIGNATURE);  /* 'PE\0\0 ' */
 
-  DEBUGF (3, "%s: is_exe: %d, is_pe: %d.\n", fname, is_exe, is_pe);
+  if (bits && is_pe)
+  {
+    is_32Bit = (nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC);
+    is_64Bit = (nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC);
+
+    if (is_32Bit)
+      *bits = bit_32;
+    else if (is_64Bit)
+      *bits = bit_64;
+  }
+  else if (bits && is_exe)
+  {
+    const IMAGE_FILE_HEADER *fil_hdr = (const IMAGE_FILE_HEADER*) dos;
+
+    if (fil_hdr->Machine != IMAGE_FILE_MACHINE_AMD64 &&
+        fil_hdr->Machine != IMAGE_FILE_MACHINE_ALPHA &&
+        fil_hdr->Machine != IMAGE_FILE_MACHINE_IA64)
+      *bits = bit_16;  /* Just a guess */
+  }
+
+  DEBUGF (3, "%s: is_exe: %d, is_pe: %d, is_32Bit: %d, is_64Bit: %d.\n",
+          fname, is_exe, is_pe, is_32Bit, is_64Bit);
   return (is_exe && is_pe);
 }
 
@@ -673,12 +699,10 @@ void set_error_mode (int on_off)
  */
 int disk_ready (int disk)
 {
-  int    rc;
-  char   path [8];
-  BOOL   rd_change;
-  HANDLE hnd;
-  DWORD  filter;
-  DWORD  size = sizeof(FILE_NOTIFY_INFORMATION) + _MAX_PATH + 3;
+  int       rc;
+  char      path [8];
+  HANDLE    hnd;
+  DWORD     size = sizeof(FILE_NOTIFY_INFORMATION) + _MAX_PATH + 3;
   DWORD_PTR p  = (DWORD_PTR) alloca (size);
 
   if (p & 3)
@@ -703,25 +727,28 @@ int disk_ready (int disk)
   rc = 1;
 
 #if 0
-  filter = FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
-           FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
-           FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_SECURITY;
-
-  rd_change = ReadDirectoryChangesW (hnd, (LPVOID)p, size, FALSE, filter, NULL, NULL, NULL);
-  if (!rd_change)
   {
-    DEBUGF (2, "ReadDirectoryChanges(): failed: %s\n", win_strerror(GetLastError()));
-    rc = 0;
-  }
-  else
-  {
-    const FILE_NOTIFY_INFORMATION *fni = (const FILE_NOTIFY_INFORMATION*) p;
+    DWORD filter = FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
+                   FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
+                   FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_SECURITY;
 
-    DEBUGF (2, "fni->NextEntryOffset: %lu\n", fni->NextEntryOffset);
-    DEBUGF (2, "fni->Action:          %lu\n", fni->Action);
-    DEBUGF (2, "fni->FileNameLength:  %lu\n", fni->FileNameLength);
-    DEBUGF (2, "fni->FileName:        \"%.*S\"\n", (int)fni->FileNameLength, fni->FileName);
-    rc = 1;
+    BOOL rd_change = ReadDirectoryChangesW (hnd, (VOID*)p, size, FALSE, filter, NULL, NULL, NULL);
+
+    if (!rd_change)
+    {
+      DEBUGF (2, "ReadDirectoryChanges(): failed: %s\n", win_strerror(GetLastError()));
+      rc = 0;
+    }
+    else
+    {
+      const FILE_NOTIFY_INFORMATION *fni = (const FILE_NOTIFY_INFORMATION*) p;
+
+      DEBUGF (2, "fni->NextEntryOffset: %lu\n", fni->NextEntryOffset);
+      DEBUGF (2, "fni->Action:          %lu\n", fni->Action);
+      DEBUGF (2, "fni->FileNameLength:  %lu\n", fni->FileNameLength);
+      DEBUGF (2, "fni->FileName:        \"%.*S\"\n", (int)fni->FileNameLength, fni->FileName);
+      rc = 1;
+    }
   }
 #endif
 
@@ -1531,7 +1558,7 @@ const char *dump10 (const void *data, unsigned size)
     else ret [ofs] = ch;
     ret [ofs+1] = '\0';
   }
-  if (ofs < size)
+  if (ofs < (int)size)
      strcat (ret, "...");
   return (ret);
 }
