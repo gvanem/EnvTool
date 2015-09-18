@@ -25,8 +25,6 @@
 #include "color.h"
 #include "envtool.h"
 
-#define USE_COLOUR_C  1
-
 #define TOUPPER(c)    toupper ((int)(c))
 #define TOLOWER(c)    tolower ((int)(c))
 
@@ -702,32 +700,24 @@ void set_error_mode (int on_off)
  */
 int disk_ready (int disk)
 {
-  int       rc;
-  char      path [8];
-  HANDLE    hnd;
-  DWORD     size = sizeof(FILE_NOTIFY_INFORMATION) + _MAX_PATH + 3;
-  DWORD_PTR p  = (DWORD_PTR) alloca (size);
+  int    rc1 = 0, rc2 = 0;
+  char   path [8];
+  HANDLE hnd;
 
-  if (p & 3)
-  {
-    p &= ~3;
-    size -= 3;
-  }
-
-  snprintf (path, sizeof(path), "\\\\.\\%c:", disk);
+  snprintf (path, sizeof(path), "\\\\.\\%c:", toupper(disk));
   set_error_mode (0);
 
-  DEBUGF (2, "Calling CreateFile (\"%s\").", path);
+  DEBUGF (2, "Calling CreateFile (\"%s\").\n", path);
   hnd = CreateFile (path, GENERIC_READ | FILE_LIST_DIRECTORY,
                     FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                     OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
   if (hnd == INVALID_HANDLE_VALUE)
   {
     DEBUGF (2, "  failed: %s\n", win_strerror(GetLastError()));
-    rc = -1;
+    rc1 = -1;
     goto quit;
   }
-  rc = 1;
+  rc1 = 1;
 
 #if 0
   {
@@ -735,22 +725,24 @@ int disk_ready (int disk)
                    FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
                    FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_SECURITY;
 
-    BOOL rd_change = ReadDirectoryChangesW (hnd, (VOID*)p, size, FALSE, filter, NULL, NULL, NULL);
+    char  buf [sizeof(FILE_NOTIFY_INFORMATION) + _MAX_PATH + 3];
+    DWORD size = sizeof(buf);
+    BOOL  rd_change = ReadDirectoryChangesW (hnd, &buf, size, FALSE, filter, NULL, NULL, NULL);
 
     if (!rd_change)
     {
       DEBUGF (2, "ReadDirectoryChanges(): failed: %s\n", win_strerror(GetLastError()));
-      rc = 0;
+      rc2 = 0;
     }
     else
     {
-      const FILE_NOTIFY_INFORMATION *fni = (const FILE_NOTIFY_INFORMATION*) p;
+      const FILE_NOTIFY_INFORMATION *fni = (const FILE_NOTIFY_INFORMATION*) &buf;
 
       DEBUGF (2, "fni->NextEntryOffset: %lu\n", fni->NextEntryOffset);
       DEBUGF (2, "fni->Action:          %lu\n", fni->Action);
       DEBUGF (2, "fni->FileNameLength:  %lu\n", fni->FileNameLength);
       DEBUGF (2, "fni->FileName:        \"%.*S\"\n", (int)fni->FileNameLength, fni->FileName);
-      rc = 1;
+      rc2 = 1;
     }
   }
 #endif
@@ -759,7 +751,7 @@ quit:
   if (hnd != INVALID_HANDLE_VALUE)
      CloseHandle (hnd);
   set_error_mode (1);
-  return (rc);
+  return (rc1 | rc2);
 }
 
 /*
@@ -1224,117 +1216,15 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
   return (buf);
 }
 
-#if (USE_COLOUR_C == 0)
-/*
- * Print to WinConsole using colours.
- */
-#define DEBUG_STREAM   stdout
-#define NORMAL_STREAM  stdout
-
-static HANDLE stdout_hnd = INVALID_HANDLE_VALUE;
-static CONSOLE_SCREEN_BUFFER_INFO csbi;
-
-int use_colours = 0;
-
-static void exit_console (void)
+void create_console (void)
 {
-  if (stdout_hnd != INVALID_HANDLE_VALUE)
+  if (AllocConsole())
   {
-    SetConsoleTextAttribute (stdout_hnd, csbi.wAttributes);
-    CloseHandle (stdout_hnd);
+    freopen ("CONOUT$", "wt", stdout);
+    SetConsoleTitle ("Debug Console");
+    SetConsoleTextAttribute (GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
   }
-  stdout_hnd = INVALID_HANDLE_VALUE;
 }
-
-static void init_console (void)
-{
-  SECURITY_ATTRIBUTES sa;
-  BOOL rc;
-
-  stdout_hnd = INVALID_HANDLE_VALUE;
-
-  /* Use colours only if stdout is a terminal (no pipe/redirection).
-   */
-  if (!isatty(STDOUT_FILENO))
-  {
-    use_colours = 0;
-    DEBUG (2, "isatty(1)=0, setting 'use_colours=0'\n");
-    return;
-  }
-
-  memset (&sa, 0, sizeof(sa));
-  sa.nLength              = sizeof (sa);
-  sa.lpSecurityDescriptor = NULL;
-  sa.bInheritHandle       = TRUE;
-
-  /* Using CreateFile() we get the true console handle, avoiding
-   * any redirection.
-   */
-  stdout_hnd = CreateFile ("CONOUT$",
-                           GENERIC_READ | GENERIC_WRITE,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE,
-                           &sa, OPEN_EXISTING, 0, NULL);
-  rc = GetConsoleScreenBufferInfo (stdout_hnd, &csbi);
-  DEBUGF (1, "GetConsoleScreenBufferInfo(): rc %d\n", rc);
-}
-
-/*
- * Retired functions. Use color.c functions instead.
- */
-int Cputs (int attr, const char *buf)
-{
-  static BOOL init = FALSE;
-  int         rc;
-
-  if (use_colours && !init)
-  {
-    init_console();
-    atexit (exit_console);
-  }
-  init = TRUE;
-
-  if (stdout_hnd == INVALID_HANDLE_VALUE)
-     rc = fputs (buf, NORMAL_STREAM);
-  else
-  {
-    DWORD written = 0;
-
-    if (attr == 0)
-         attr = csbi.wAttributes;
-    else attr |= csbi.wAttributes & 0xF0;
-
-    SetConsoleTextAttribute (stdout_hnd, attr);
-    WriteConsole (stdout_hnd, buf, (DWORD)strlen(buf), &written, NULL);
-    SetConsoleTextAttribute (stdout_hnd, csbi.wAttributes);
-    rc = written;
-  }
-  return (rc);
-}
-
-int Cprintf (int attr, const char *format, ...)
-{
-  int     len;
-  char    buf[3000];
-  va_list args;
-
-  va_start (args, format);
-  vsnprintf (buf, sizeof(buf), format, args);
-  len = Cputs (attr, buf);
-  va_end (args);
-  return (len);
-}
-
-int Cvprintf (int attr, const char *format, va_list args)
-{
-  int  len;
-  char buf[3000];
-
-  vsnprintf (buf, sizeof(buf), format, args);
-  len = Cputs (attr, buf);
-  return (len);
-}
-#endif  /* (USE_COLOUR_C == 0) */
-
 
 int debug_printf (const char *format, ...)
 {
@@ -1342,16 +1232,9 @@ int debug_printf (const char *format, ...)
   va_list args;
 
   va_start (args, format);
-
-#if (USE_COLOUR_C)
   raw = C_setraw (1);
   rc  = C_vprintf (format, args);
   C_setraw (raw);
-#else
-  rc = vfprintf (DEBUG_STREAM, format, args);
-  ARGSUSED (raw);
-#endif
-
   va_end (args);
   return (rc);
 }
