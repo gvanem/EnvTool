@@ -1,3 +1,13 @@
+/*!\file color.c
+ *
+ * Print to console using embedded colour-codes inside the string-format.
+ *
+ * E.g. C_printf ("~4Hello ~2world~0.\n");
+ *      will print to stdout with 'Hello' mapped to colour 4 (see below)
+ *      and 'world' mapped to colour 2.
+ *
+ * by G. Vanem <gvanem@yahoo.no> 2011.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -38,7 +48,7 @@
  */
 int use_colours = 0;
 
-unsigned redundant_C_flush = 0;
+unsigned c_redundant_flush = 0;
 
 static char  c_buf [C_BUF_SIZE];
 static char *c_head, *c_tail;
@@ -50,6 +60,9 @@ static CONSOLE_SCREEN_BUFFER_INFO console_info;
 
 static HANDLE console_hnd = INVALID_HANDLE_VALUE;
 
+/*
+ * \todo: make this configurable from the calling side.
+ */
 static WORD color_map [7];
 
 static void init_color_map (void)
@@ -140,8 +153,12 @@ static void C_set (WORD col)
     bg   = hiBYTE (attr);
 
     if (bg == (BYTE)-1)
-         attr = console_info.wAttributes & ~7;
-    else attr = bg << 4;
+    {
+      attr = console_info.wAttributes & ~7;
+      attr &= ~8;  /* Since 'wAttributes' could have been hi-intensity at startup. */
+    }
+    else
+      attr = bg << 4;
 
     attr |= fg;
   }
@@ -160,7 +177,7 @@ size_t C_flush (void)
 
   if (len == 0)
   {
-    redundant_C_flush++;
+    c_redundant_flush++;
     return (0);
   }
 
@@ -242,7 +259,7 @@ int C_putc (int ch)
 
   if (ch == '~' && !c_raw)
   {
-    get_color = TRUE;
+    get_color = TRUE;   /* change state; get colour index in next char */
     return (1);
   }
 

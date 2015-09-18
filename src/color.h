@@ -15,9 +15,9 @@ extern int use_colours;
 
 /* Count of unneeded C_flush calls.
  */
-extern unsigned redundant_C_flush;
+extern unsigned c_redundant_flush;
 
-extern int C_printf  (const char *fmt, ...)
+extern int C_printf (const char *fmt, ...)
   #if defined(__GNUC__)
     __attribute__ ((format(printf,1,2)))
   #endif
