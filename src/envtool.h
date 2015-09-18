@@ -256,12 +256,6 @@ extern int  process_dir (const char *path, int num_dup, BOOL exist,
  */
 extern int debug_printf  (const char *format, ...) ATTR_PRINTF (1,2);
 
-#if 0  /* Retired functions. See color.h. */
-  extern int Cputs         (int attr, const char *buf);
-  extern int Cprintf       (int attr, const char *format, ...) ATTR_PRINTF (2,3);
-  extern int Cvprintf      (int attr, const char *format, va_list args);
-#endif
-
 extern char *_strlcpy      (char *dst, const char *src, size_t len);
 extern char *strip_nl      (char *s);
 extern char *str_trim      (char *s);
