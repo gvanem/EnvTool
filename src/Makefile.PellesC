@@ -1,0 +1,117 @@
+#
+# GNU makefile for EnvTool (PellesC 32/64-bit).
+#
+
+USE_DEBUG ?= 1
+USE_64BIT ?= 0
+
+POCC_ROOT = $(realpath $(PELLESC))
+
+CC      = pocc
+CFLAGS  = -MT -X -W1 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl     \
+          -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN -W1 -Go -Zi -Zl -Ze \
+          -I$(POCC_ROOT)/include -I$(POCC_ROOT)/include/win # -std:C99
+
+#
+# Avoid warning in <win/malloc.h>
+#
+CFLAGS += -D_MALLOC_H
+
+LDFLAGS = -map -subsystem:console -debug -verbose -nodefaultlib
+
+RCFLAGS = -D__POCC__
+
+ifeq ($(USE_DEBUG),1)
+  CFLAGS += -D_DEBUG
+else
+  CFLAGS += -Ox
+endif
+
+ifeq ($(USE_64BIT),1)
+  CFLAGS  += -Tx64-coff
+  LDFLAGS += -machine:x64
+  RCFLAGS += -D_WIN64
+
+  EX_LIBS = $(addprefix $(POCC_ROOT)/lib/, \
+              crtmt64.lib                  \
+              oldnames64.lib               \
+              Win64/user32.lib             \
+              Win64/kernel32.lib           \
+              Win64/advapi32.lib           \
+              Win64/imagehlp.lib           \
+              Win64/version.lib)
+else
+  CFLAGS  += -Tx86-coff
+  LDFLAGS += -machine:x86
+  RCFLAGS += -D_WIN32
+
+  EX_LIBS = $(addprefix $(POCC_ROOT)/lib/, \
+              crtmt.lib                    \
+              oldnames.lib                 \
+              Win/user32.lib               \
+              Win/kernel32.lib             \
+              Win/advapi32.lib             \
+              Win/imagehlp.lib             \
+              Win/version.lib)
+endif
+
+SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c \
+          envtool_py.c getopt_long.c win_ver.c
+
+OBJECTS = $(SOURCES:.c=.obj)
+
+all: cflags_PellesC.h ldflags_PellesC.h envtool.exe
+	cp --update envtool.exe ..
+	@echo '../envtool.exe successfully built.'
+
+envtool.exe: $(OBJECTS) envtool.res
+	polink $(LDFLAGS) -out:$@ $^ $(EX_LIBS) > link.tmp
+	cat link.tmp >> envtool.map
+
+mem_test.exe: misc.c color.c
+	$(CC) -c $(CFLAGS) -DMEM_TEST $^
+	polink $(LDFLAGS) -out:$@ misc.obj color.obj $(EX_LIBS) > link.tmp
+	cat link.tmp >> mem_test.map
+	rm -f misc.obj
+
+win_glob.exe: win_glob.c misc.c color.c
+	$(CC) -c $(CFLAGS) -DGLOB_TEST $^
+	polink $(LDFLAGS) -out:$@ win_glob.obj misc.obj color.obj $(EX_LIBS) > link.tmp
+	cat link.tmp >> win_glob.map
+	rm -f win_glob.obj
+
+win_ver.exe: win_ver.c misc.c color.c
+	$(CC) -c $(CFLAGS) -DWIN_VER_TEST win_ver.c
+	$(CC) -c $(CFLAGS) misc.c
+	$(CC) -c $(CFLAGS) color.c
+	polink $(LDFLAGS) -out:$@ win_ver.obj misc.obj color.obj $(EX_LIBS) > link.tmp
+	cat link.tmp >> win_ver.map
+	rm -f win_ver.obj
+
+envtool.res: envtool.rc
+	porc $(RCFLAGS) -Foenvtool.res envtool.rc
+
+%.obj: %.c
+	$(CC) -c $(CFLAGS) $<
+	@echo
+
+%.i: %.c Makefile.PellesC
+	$(CC) -c -E $(CFLAGS) $< > $@
+	@echo
+
+clean:
+	rm -f $(OBJECTS) envtool.res envtool.exe envtool.map cflags_PellesC.h ldflags_PellesC.h
+	@echo
+
+vclean: clean
+	rm -f win_glob.exe win_glob.map mem_test.exe mem_test.map
+
+cflags_PellesC.h: Makefile.PellesC
+	echo "const char *cflags = \"$(CC) $(CFLAGS)\";" > $@
+	@echo
+
+ldflags_PellesC.h: Makefile.PellesC
+	echo "const char *ldflags = \"polink $(LDFLAGS) -out:envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) \";" > $@
+	@echo
+
+
