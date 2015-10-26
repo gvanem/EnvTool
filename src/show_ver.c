@@ -14,6 +14,9 @@
  * ARISING FROM ANY USE OF THIS CODE. NO USE OF THIS CODE IS AUTHORIZED EXCEPT UNDER
  * THIS DISCLAIMER.
  *
+ * Several changes for the EnvTool program
+ * by Gisle Vanem <gvanem@yahoo.no> August 2011.
+ *
  * Use at your own risk!
  */
 
@@ -111,7 +114,11 @@ void get_PE_version_info_free (void)
   trace_buf = trace_head = NULL;
 }
 
-static void do_printf (const char *fmt, ...) ATTR_PRINTF (1,2);
+#if defined(__POCC__)
+  static _CRTCHK(printf,1,2) void do_printf  (const char *fmt, ...);
+#else
+  static void do_printf (const char *fmt, ...) ATTR_PRINTF (1,2);
+#endif
 
 static void do_printf (const char *fmt, ...)
 {
@@ -348,7 +355,8 @@ static const char *show_file_type (DWORD type)
                                    "Unknown FileType");
 }
 
-/* ----- VS_VERSION.dwFileSubtype for VFT_WINDOWS_DRV ----- */
+/* ----- VS_VERSION.dwFileSubtype for VFT_WINDOWS_DRV -----
+ */
 #define S_VFT2_UNKNOWN         "VFT2_UNKNOWN"
 #define S_VFT2_DRV_PRINTER     "VFT2_DRV_PRINTER"
 #define S_VFT2_DRV_KEYBOARD    "VFT2_DRV_KEYBOARD"
@@ -362,7 +370,8 @@ static const char *show_file_type (DWORD type)
 #define S_VFT2_DRV_COMM        "VFT2_DRV_COMM"
 #define S_VFT2_DRV_INPUTMETHOD "VFT2_DRV_INPUTMETHOD"
 
-/* ----- VS_VERSION.dwFileSubtype for VFT_WINDOWS_FONT ----- */
+/* ----- VS_VERSION.dwFileSubtype for VFT_WINDOWS_FONT -----
+ */
 #define S_VFT2_FONT_RASTER     "VFT2_FONT_RASTER"
 #define S_VFT2_FONT_VECTOR     "VFT2_FONT_VECTOR"
 #define S_VFT2_FONT_TRUETYPE   "VFT2_FONT_TRUETYPE"
@@ -371,39 +380,37 @@ static const char *show_file_subtype (DWORD dwFileType, DWORD dwFileSubtype)
 {
   static char s[50];
 
+  s[0] = '\0';
+
   switch (dwFileType)
   {
     case VFT_DRV:
          switch (dwFileSubtype)
          {
            case VFT2_UNKNOWN:
-                return "FileSubtype: " S_VFT2_UNKNOWN;
+                return S_VFT2_UNKNOWN;
            case VFT2_DRV_PRINTER:
-                return "FileSubtype: " S_VFT2_DRV_PRINTER;
+                return S_VFT2_DRV_PRINTER;
            case VFT2_DRV_KEYBOARD:
-                return "FileSubtype: " S_VFT2_DRV_KEYBOARD;
+                return S_VFT2_DRV_KEYBOARD;
            case VFT2_DRV_LANGUAGE:
-                return "FileSubtype: " S_VFT2_DRV_LANGUAGE;
+                return S_VFT2_DRV_LANGUAGE;
            case VFT2_DRV_DISPLAY:
-                return "FileSubtype: " S_VFT2_DRV_DISPLAY;
+                return S_VFT2_DRV_DISPLAY;
            case VFT2_DRV_MOUSE:
-                return "FileSubtype: " S_VFT2_DRV_MOUSE;
+                return S_VFT2_DRV_MOUSE;
            case VFT2_DRV_NETWORK:
-                return "FileSubtype: " S_VFT2_DRV_NETWORK;
+                return S_VFT2_DRV_NETWORK;
            case VFT2_DRV_SYSTEM:
-                return "FileSubtype: " S_VFT2_DRV_SYSTEM;
+                return S_VFT2_DRV_SYSTEM;
            case VFT2_DRV_INSTALLABLE:
-                return "FileSubtype: " S_VFT2_DRV_INSTALLABLE;
+                return S_VFT2_DRV_INSTALLABLE;
            case VFT2_DRV_SOUND:
-                return "FileSubtype: " S_VFT2_DRV_SOUND;
+                return S_VFT2_DRV_SOUND;
            case VFT2_DRV_COMM:
-                return "FileSubtype: " S_VFT2_DRV_COMM;
+                return S_VFT2_DRV_COMM;
            case VFT2_DRV_INPUTMETHOD:
-                return "FileSubtype: " S_VFT2_DRV_INPUTMETHOD;
-           default:
-                s[0] = '\0';
-                sprintf (s, "Unknown FileSubtype: 0x%lX", (u_long)dwFileSubtype);
-                return s;
+                return S_VFT2_DRV_INPUTMETHOD;
          }
          break;
 
@@ -411,24 +418,17 @@ static const char *show_file_subtype (DWORD dwFileType, DWORD dwFileSubtype)
          switch (dwFileSubtype)
          {
            case VFT2_FONT_RASTER:
-                return "FileSubtype: " S_VFT2_FONT_RASTER;
+                return S_VFT2_FONT_RASTER;
            case VFT2_FONT_VECTOR:
-                return "FileSubtype: " S_VFT2_FONT_VECTOR;
+                return S_VFT2_FONT_VECTOR;
            case VFT2_FONT_TRUETYPE:
-                return "FileSubtype: " S_VFT2_FONT_TRUETYPE;
-           default:
-                s[0] = '\0';
-                sprintf (s, "Unknown FileSubtype: 0x%lX", (u_long)dwFileSubtype);
-                return (s);
+                return S_VFT2_FONT_TRUETYPE;
          }
          break;
-
-    default:
-         s[0] = '\0';
-         if (dwFileSubtype)
-            sprintf (s, ", FileSubtype: 0x%lX", (u_long)dwFileSubtype);
-         return (s);
   }
+
+  sprintf (s, "0x%lX", (u_long)dwFileSubtype);
+  return (s);
 }
 
 static void show_FIXEDFILEINFO (const VS_FIXEDFILEINFO *pValue, struct ver_info *ver_p)
@@ -457,8 +457,8 @@ static void show_FIXEDFILEINFO (const VS_FIXEDFILEINFO *pValue, struct ver_info 
   else do_printf ("  FileFlags:      0\n");
 
   do_printf ("  FileOS:         %s\n", show_file_OS (pValue->dwFileOS));
-  do_printf ("  FileType:       %s%s\n", show_file_type (pValue->dwFileType),
-                                      show_file_subtype (pValue->dwFileType, pValue->dwFileSubtype));
+  do_printf ("  FileType:       %s\n", show_file_type (pValue->dwFileType));
+  do_printf ("  FileSubType:    %s\n", show_file_subtype (pValue->dwFileType, pValue->dwFileSubtype));
   do_printf ("  FileDate:       %lX.%lX\n", (u_long)pValue->dwFileDateMS, (u_long)pValue->dwFileDateLS);
 }
 
