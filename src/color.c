@@ -217,11 +217,11 @@ int C_vprintf (const char *fmt, va_list args)
     buf [sizeof(buf)-1] = '\0';
     len2 = vsnprintf (buf, sizeof(buf)-1, fmt, args);
     len1 = C_puts (buf);
-    if (len1 < len2)
+    if (len2 < len1)
       FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
              len1, len2, (int)(c_head - c_buf), c_buf, buf);
   }
-  return (len2);
+  return (len1);
 }
 
 int C_putc (int ch)
@@ -260,7 +260,7 @@ int C_putc (int ch)
   if (ch == '~' && !c_raw)
   {
     get_color = TRUE;   /* change state; get colour index in next char */
-    return (1);
+    return (0);
   }
 
   if (ch == '\n' && c_binmode)
