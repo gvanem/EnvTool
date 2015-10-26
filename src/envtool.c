@@ -147,7 +147,7 @@ static void  print_build_ldflags (void);
  *        Warn if this is the case.
  *
  * \todo: Add sort option: on date/time.
- *                           on filename.
+ *                         on filename.
  *
  * \todo: Add date/time format option.
  *           Normal: "07 Nov 2012 - 18:06:58".
@@ -266,7 +266,8 @@ static int show_version (void)
   else
     C_printf ("  Everything search engine not found.\n");
 
-  C_printf ("Checking Python programs...");
+  C_printf ("  Checking Python programs...");
+  C_flush();
   init_python();
   C_printf ("\r                             \r");
 
@@ -305,13 +306,13 @@ static void usage (const char *fmt, ...)
 
 static int show_help (void)
 {
-#define PFX_GCC  "~4<prefix>~0-~6gcc~0"
-#define PFX_GPP  "~4<prefix>~0-~6g++~0"
+  #define PFX_GCC  "~4<prefix>~0-~6gcc~0"
+  #define PFX_GPP  "~4<prefix>~0-~6g++~0"
 
   C_printf ("Environment check & search tool.\n"
             "%s.\n\n"
-            "Usage: %s [-cdDhitTrsqpuV?] ~6<--mode>~0 ~6<file-spec>~0\n"
-            "  ~6<--mode>~0 can be at least one of these:\n"
+            "Usage: %s ~6[options] <--mode>~0 ~6<file-spec>~0\n"
+            "  ~6<--mode>~0 can be selected among these:\n"
             "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
             "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[1]~0\n"
             "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0.                   ~2[2]~0\n"
@@ -320,7 +321,7 @@ static int show_help (void)
             "    ~6--cmake~0:        check and search in ~3%%CMAKE_MODULE_PATH%%~0 and the built-in module-path.\n"
             "    ~6--evry~0:         check and search in the ~6EveryThing database~0.     ~2[4]~0\n"
             "\n"
-            "  Other options:\n"
+            "  ~6Options~0:\n"
             "    ~6--no-gcc~0:       don't spawn " PFX_GCC " prior to checking.      ~2[2,3]~0\n"
             "    ~6--no-g++~0:       don't spawn " PFX_GPP " prior to checking.      ~2[2,3]~0\n"
             "    ~6--no-prefix~0:    don't check any ~4<prefix>~0-ed programs. Only ~6gcc~0/~6g++~0.\n"
@@ -331,6 +332,7 @@ static int show_help (void)
             "    ~6--no-colour~0:    don't print using colours.\n"
             "    ~6--no-remote~0:    don't search for remote files in ~6--evry~0 searches (~2to-do~0).\n"
             "    ~6--pe-check~0:     print checksum and version-info for PE-files.\n"
+            "    ~6--m32~0:          tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
             "    ~6--m64~0:          tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
             "    ~6-c~0:             don't add current directory to search-list.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
@@ -341,7 +343,7 @@ static int show_help (void)
             "    ~6-s~0, ~6--size~0:     show size of file(s) found.\n"
             "    ~6-q~0, ~6--quiet~0:    disable warnings.\n"
             "    ~6-t~0:             do some internal tests.\n"
-            "    ~6-T~0:             show file times in sortable decimal format.\n"
+            "    ~6-T~0:             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
             "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
             "    ~6-v~0:             increase verbose level (currently only used in ~6--pe-check~0).\n"
             "    ~6-V~0:             show program version information. ~6-VV~0 prints more info.\n"
@@ -397,6 +399,9 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
   d->is_dir  = _S_ISDIR (st.st_mode);
   d->is_cwd  = is_cwd;
   d->line    = line;
+
+  if (!d->exist)
+    DEBUGF (2, "'%s' doesn't exist.\n", dir);
 
 #if defined(__CYGWIN__)
   char cyg_dir [_MAX_PATH];
@@ -632,13 +637,18 @@ static struct directory_array *split_env_var (const char *env_name, const char *
 
   for ( ; i < DIM(dir_array)-1 && tok; i++)
   {
-    /* Remove trailing '\\' or '/' from environment component
+    /* Remove trailing '\\', '/' or '\\"' from environment component
      * unless it's a simple "c:\".
      */
     char *p, *end = strchr (tok, '\0');
 
-    if (end > tok+3 && (end[-1] == '\\' || end[-1] == '/'))
-       end[-1] = '\0';
+    if (end > tok+3)
+    {
+      if (end[-1] == '\\' || end[-1] == '/')
+        end[-1] = '\0';
+      else if (end[-2] == '\\' && end[-1] == '"')
+        end[-2] = '\0';
+    }
 
     if (!opt.quiet)
     {
@@ -646,7 +656,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
        * I.e. a path without quotes "c:\dir with space".
        */
       p = strchr (tok, ' ');
-      if (p && (*tok != '"' || end[-1] != '"'))
+      if (opt.quotes_warn && p && (*tok != '"' || end[-1] != '"'))
          WARN ("%s: \"%s\" needs to be enclosed in quotes.\n", env_name, tok);
 
 #if !defined(__CYGWIN__)
@@ -851,6 +861,17 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
   if (!is_dir && opt.dir_mode)
      return (0);
 
+ /* \todo:
+  * recursively get the size of file under directory matching 'file'.
+  */
+#if 0
+  if (opt.show_size && opt.dir_mode)
+  {
+    fsize = get_directory_size (file);
+    snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
+  }
+#endif
+
   if (opt.show_size && fsize != (__int64)-1)
        snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
   else size[0] = '\0';
@@ -896,16 +917,20 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
     BOOL            chksum_ok  = FALSE;
     BOOL            version_ok = FALSE;
 
+    if (opt.debug > 0) /* So that next DEBUGF() starts on a new line */
+       C_putc ('\n');
+
     memset (&ver, 0, sizeof(ver));
     if (!is_py_egg && check_if_PE(file,&bits))
     {
       is_PE      = TRUE;
-      chksum_ok  = verify_pe_checksum (file);
+      chksum_ok  = verify_PE_checksum (file);
       version_ok = get_PE_version_info (file, &ver);
       if (version_ok)
          num_version_ok++;
     }
     print_PE_info (is_PE, is_py_egg, chksum_ok, &ver, bits);
+    C_putc ('\n');
   }
 
   C_putc ('\n');
@@ -1773,6 +1798,9 @@ static int do_check_manpath (void)
   char   subdir [_MAX_PATH];
   char   report[300];
   static const char env_name[] = "MANPATH";
+
+  /* \todo: this should be all directories matching "man?[pn]" or "cat?[pn]".
+   */
   static const char *sub_dirs[] = { "cat1", "cat2", "cat3", "cat4", "cat5",
                                     "cat6", "cat7", "cat8", "cat9",
                                     "man1", "man2", "man3", "man4", "man5",
@@ -2061,9 +2089,14 @@ static int setup_gcc_library_path (const char *gcc)
 
   free_dir_array();
 
-  /* This assumes all 'gcc' support at least '-m32' (32-bit).
+  /* Tell '*gcc.exe' to return 32 or 64-bot or both types of libs.
+   * (assuming it supports the '-m32'/'-m64' switches.
    */
-  m_cpu = opt.gcc_64bit ? "-m64" : "-m32";
+  if (opt.gcc_32bit)
+       m_cpu = "-m32";
+  else if (opt.gcc_64bit)
+       m_cpu = "-m64";
+  else m_cpu = "";
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
    * Hence redirect stderr + stdout into the same pipe for us to read.
@@ -2141,7 +2174,6 @@ static size_t _num_gpp   = 0;
 
 static void build_gnu_prefixes (void)
 {
-#if CHECK_PREFIXED_GCC
   static const char *pfx[] = { "x86_64-w64-mingw32",
                                "i386-mingw32",
                                "i686-w64-mingw32",
@@ -2152,44 +2184,31 @@ static void build_gnu_prefixes (void)
                               * Maybe we should use 'searchpath("*gcc.exe", "PATH")'
                               * to find all 'gcc.exe' programs?
                               */
-#endif
   size_t i;
 
   if (_num_gcc + _num_gpp > 0)
      return;
 
-  _num_gcc = _num_gpp = 1;
-
-#if CHECK_PREFIXED_GCC
+  _num_gcc  = _num_gpp = 1;
   _num_gcc += DIM (pfx);
   _num_gpp += DIM (pfx);
-  #define PFX_FMT "%s%s"
-#else
-  #define PFX_FMT ""
-#endif
 
   gcc = CALLOC (sizeof(char*) * _num_gcc, 1);
   gpp = CALLOC (sizeof(char*) * _num_gpp, 1);
 
   for (i = 0; i < _num_gcc; i++)
   {
-#if CHECK_PREFIXED_GCC
     const char *val1 = i > 0 ? pfx[i-1] : "";
     const char *val2 = i > 0 ? "-"      : "";
-#else
-    const char *val1 = NULL;
-    const char *val2 = NULL;
-#endif
     char str[30];
 
-    snprintf (str, sizeof(str)-1, PFX_FMT "gcc.exe", val1, val2);
+    snprintf (str, sizeof(str)-1, "%s%sgcc.exe", val1, val2);
     gcc[i] = STRDUP (str);
 
-    snprintf (str, sizeof(str)-1, PFX_FMT "g++.exe", val1, val2);
+    snprintf (str, sizeof(str)-1, "%s%sg++.exe", val1, val2);
     gpp[i] = STRDUP (str);
   }
 }
-
 
 static void get_longest (const char **cc, size_t num)
 {
@@ -2339,9 +2358,10 @@ static const struct option long_options[] = {
            { "size",      no_argument,       NULL, 0 },
            { "man",       no_argument,       NULL, 0 },    /* 23 */
            { "cmake",     no_argument,       NULL, 0 },
-           { "m64",       no_argument,       NULL, 0 },    /* 25 */
-           { "no-prefix", no_argument,       NULL, 0 },
-           { NULL,        no_argument,       NULL, 0 }     /* 27 */
+           { "m32",       no_argument,       NULL, 0 },    /* 25 */
+           { "m64",       no_argument,       NULL, 0 },
+           { "no-prefix", no_argument,       NULL, 0 },    /* 27 */
+           { NULL,        no_argument,       NULL, 0 }
          };
 
 static int *values_tab[] = {
@@ -2370,8 +2390,9 @@ static int *values_tab[] = {
             &opt.show_size,
             &opt.do_man,          /* 23 */
             &opt.do_cmake,
-            &opt.gcc_64bit,       /* 25 */
-            &opt.gcc_no_prefixed
+            &opt.gcc_32bit,       /* 25 */
+            &opt.gcc_64bit,
+            &opt.gcc_no_prefixed  /* 27 */
           };
 
 static void set_python_variant (const char *o)
@@ -2566,7 +2587,7 @@ static void parse_args (int argc, char *const *argv, char **fspec)
     *fspec = STRDUP (argv[optind]);
 }
 
-#if defined(_MSC_VER) && defined(_DEBUG)
+#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
 static _CrtMemState last_state;
 
 static void crtdbug_init (void)
@@ -2599,7 +2620,7 @@ static void cleanup (void)
 {
   int i;
 
-  /* If we're called from the ^C thread, don't do any Python stuff.
+  /* If we're called from the SIGINT thread, don't do any Python stuff.
    * That will crash in Py_Finalize().
    */
   if (halt_flag == 0)
@@ -2636,7 +2657,7 @@ static void cleanup (void)
   if (halt_flag == 0 && opt.debug > 0)
      mem_report();
 
-#if defined(_MSC_VER) && defined(_DEBUG)
+#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
   crtdbg_exit();
 #endif
 }
@@ -2679,7 +2700,7 @@ static void init_all (void)
 {
   atexit (cleanup);
 
-#if defined(_MSC_VER) && defined(_DEBUG)
+#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
   crtdbug_init();
 #endif
 
@@ -3036,7 +3057,8 @@ static const struct test_table1 tab1[] = {
                   { "stdio.h",           "INCLUDE" },
                   { "os.py",             "PYTHONPATH" },
 
-                  /* test if _fix_path() works for SFN. (%WinDir\systems32\PresentationHost.exe).
+                  /* test if _fix_path() works for Short File Names
+                   * (%WinDir\systems32\PresentationHost.exe).
                    * SFN seems not to be available on Win-7+.
                    * "PRESEN~~1.EXE" = "PRESEN~1.EXE" since C_printf() is used.
                    */
@@ -3057,16 +3079,16 @@ static void test_searchpath (void)
 {
   const struct test_table1 *t;
   size_t len, i = 0;
+  int    is_env, pad;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
+  C_printf ("  ~6What \t\t  Where\t\t\t     Result~0\n");
 
   for (t = tab1; i < DIM(tab1); t++, i++)
   {
-    const char *found = searchpath (t->file, t->env);
+    const char *env   = t->env;
+    const char *found = searchpath (t->file, env);
 
-    len = strlen (t->file);
-    if (strstr(t->file,"~~"))
-       len--;
 #if 0
     if (found)
     {
@@ -3074,8 +3096,14 @@ static void test_searchpath (void)
       found = _fix_path (found, buf);
     }
 #endif
-    C_printf ("  %s:%*s -> %s, pos: %d\n",
-              t->file, (int)(15-len), "", found ? found : strerror(errno), searchpath_pos());
+
+    is_env = (strchr(env,'\\') == NULL);
+    len = C_printf ("  %s:", t->file);
+    pad = max (0, 17-len);
+    len = C_printf ("%*s %s%s", pad, "", is_env ? "%" : "", env);
+    pad = max (0, 26-strlen(env)-is_env);
+    len = C_printf ("%*s -> %s, pos: %d\n", pad, "",
+                    found ? found : strerror(errno), searchpath_pos());
   }
   C_putc ('\n');
 }
@@ -3282,7 +3310,7 @@ static void test_libssp (void)
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   hex_dump (&buf1, sizeof(buf1));
-  memcpy (buf2, buf1, sizeof(buf1));
+  memcpy (buf2, buf1, sizeof(buf1));  /* write beyond buf2[] */
 
 #if 0
   C_printf (buf2);   /* vulnerable data */
@@ -3336,6 +3364,10 @@ static int do_tests (void)
 #if defined(__MINGW32__)
   #define CFLAGS   "cflags_MinGW.h"
   #define LDFLAGS  "ldflags_MinGW.h"
+
+#elif defined(__POCC__)
+  #define CFLAGS   "cflags_PellesC.h"
+  #define LDFLAGS  "ldflags_PellesC.h"
 
 #elif defined(_MSC_VER)
   #define CFLAGS   "cflags_MSVC.h"
