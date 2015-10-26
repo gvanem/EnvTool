@@ -25,6 +25,10 @@
 #include "color.h"
 #include "envtool.h"
 
+#ifndef IMAGE_FILE_MACHINE_ALPHA
+#define IMAGE_FILE_MACHINE_ALPHA 0x123456
+#endif
+
 #define TOUPPER(c)    toupper ((int)(c))
 #define TOLOWER(c)    tolower ((int)(c))
 
@@ -131,6 +135,8 @@ static const IMAGE_DOS_HEADER *dos;
 static const IMAGE_NT_HEADERS *nt;
 static char  file_buf [sizeof(*dos) + 4*sizeof(*nt)];
 
+static enum Bitness last_bitness = -1;
+
 int check_if_PE (const char *fname, enum Bitness *bits)
 {
   BOOL   is_exe, is_pe;
@@ -139,6 +145,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   size_t len = 0;
   FILE  *f = fopen (fname, "rb");
 
+  last_bitness = bit_unknown;
   if (bits)
      *bits = bit_unknown;
 
@@ -166,28 +173,31 @@ int check_if_PE (const char *fname, enum Bitness *bits)
     return (FALSE);
   }
 
-  is_exe = (dos->e_magic == IMAGE_DOS_SIGNATURE);  /* 'MZ' */
-  is_pe  = (nt->Signature == IMAGE_NT_SIGNATURE);  /* 'PE\0\0 ' */
+  is_exe = (dos->e_magic  == IMAGE_DOS_SIGNATURE);  /* 'MZ' */
+  is_pe  = (nt->Signature == IMAGE_NT_SIGNATURE);   /* 'PE\0\0 ' */
 
-  if (bits && is_pe)
+  if (is_pe)
   {
     is_32Bit = (nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC);
     is_64Bit = (nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC);
 
     if (is_32Bit)
-      *bits = bit_32;
+      last_bitness = bit_32;
     else if (is_64Bit)
-      *bits = bit_64;
+      last_bitness = bit_64;
   }
-  else if (bits && is_exe)
+  else if (is_exe)
   {
     const IMAGE_FILE_HEADER *fil_hdr = (const IMAGE_FILE_HEADER*) dos;
 
     if (fil_hdr->Machine != IMAGE_FILE_MACHINE_AMD64 &&
         fil_hdr->Machine != IMAGE_FILE_MACHINE_ALPHA &&
         fil_hdr->Machine != IMAGE_FILE_MACHINE_IA64)
-      *bits = bit_16;  /* Just a guess */
+      last_bitness = bit_16;  /* Just a guess */
   }
+
+  if (bits)
+     *bits = last_bitness;
 
   DEBUGF (3, "%s: is_exe: %d, is_pe: %d, is_32Bit: %d, is_64Bit: %d.\n",
           fname, is_exe, is_pe, is_32Bit, is_64Bit);
@@ -196,20 +206,34 @@ int check_if_PE (const char *fname, enum Bitness *bits)
 
 /*
  * Verify the checksum of last opened file above.
+ * if 'CheckSum == 0' is set to 0, it meants "don't care"
+ * (similar to in UDP).
  */
-int verify_pe_checksum (const char *fname)
+int verify_PE_checksum (const char *fname)
 {
+  const IMAGE_OPTIONAL_HEADER64 *oh;
   DWORD file_sum, header_sum, calc_chk_sum, rc;
 
   assert (nt);
-  file_sum = nt->OptionalHeader.CheckSum;
-  DEBUGF (1, "Opt magic: 0x%04X, file_sum: 0x%08lX\n",
-          nt->OptionalHeader.Magic, (u_long)file_sum);
+
+  if (last_bitness == bit_32)
+    file_sum = nt->OptionalHeader.CheckSum;
+
+  else if (last_bitness == bit_64)
+  {
+    oh = (const IMAGE_OPTIONAL_HEADER64*) &nt->OptionalHeader;
+    file_sum = oh->CheckSum;
+  }
+  else
+    return (FALSE);
+
+  DEBUGF (1, "last_bitness: %u, Opt magic: 0x%04X, file_sum: 0x%08lX\n",
+             last_bitness, nt->OptionalHeader.Magic, (u_long)file_sum);
 
   rc = MapFileAndCheckSum ((PTSTR)fname, &header_sum, &calc_chk_sum);
   DEBUGF (1, "rc: %lu, 0x%08lX, 0x%08lX\n",
           (u_long)rc, (u_long)header_sum, (u_long)calc_chk_sum);
-  return (header_sum == calc_chk_sum);
+  return (file_sum == 0 || header_sum == calc_chk_sum);
 }
 
 /*
@@ -663,7 +687,11 @@ const char *get_file_ext (const char *file)
  */
 char *create_temp_file (void)
 {
+#if defined(__POCC__)
+  char *tmp = tmpnam ("envtool-tmp");
+#else
   char *tmp = _tempnam (NULL, "envtool-tmp");
+#endif
 
   if (tmp)
   {
@@ -772,6 +800,47 @@ char *_strlcpy (char *dst, const char *src, size_t len)
   memcpy (dst, src, slen);
   dst [slen] = '\0';
   return (dst);
+}
+
+/*
+ * Get next token from string *stringp, where tokens are possibly-empty
+ * strings separated by characters from delim.
+ *
+ * Writes NULs into the string at *stringp to end tokens.
+ * delim need not remain constant from call to call.
+ * On return, *stringp points past the last NUL written (if there might
+ * be further tokens), or is NULL (if there are definitely no more tokens).
+ *
+ * If *stringp is NULL, strsep returns NULL.
+ */
+char *_strsep (char **stringp, const char *delim)
+{
+  int         c, sc;
+  char       *tok, *s = *stringp;
+  const char *spanp;
+
+  if (!s)
+     return (NULL);
+
+  for (tok = s;;)
+  {
+    c = *s++;
+    spanp = delim;
+    do
+    {
+      sc = *spanp++;
+      if (sc == c)
+      {
+        if (c == '\0')
+             s = NULL;
+        else s[-1] = 0;
+        *stringp = s;
+        return (tok);
+      }
+    } while (sc != 0);
+  }
+  return (NULL);
+  /* NOTREACHED */
 }
 
 /*
@@ -1216,13 +1285,17 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
   return (buf);
 }
 
+/*
+ * Not used.
+ */
 void create_console (void)
 {
   if (AllocConsole())
   {
+    WORD color = FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED;
     freopen ("CONOUT$", "wt", stdout);
     SetConsoleTitle ("Debug Console");
-    SetConsoleTextAttribute (GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED);
+    SetConsoleTextAttribute (GetStdHandle(STD_OUTPUT_HANDLE), color);
   }
 }
 
@@ -1233,7 +1306,7 @@ int debug_printf (const char *format, ...)
 
   va_start (args, format);
   raw = C_setraw (1);
-  rc  = C_vprintf (format, args);
+  rc = C_vprintf (format, args);
   C_setraw (raw);
   va_end (args);
   return (rc);
@@ -1260,8 +1333,7 @@ int popen_run (const char *cmd, popen_callback callback)
   const char *comspec = "";
   const char *setdos  = "";
 
-  /*
-   * OpenWatcom's popen() always uses cmd.exe regardles of %COMSPEC.
+  /* OpenWatcom's popen() always uses cmd.exe regardles of %COMSPEC.
    * If we're using 4NT/TCC shell, set all variable expansion to off
    * by prepending "setdos /x-3" to 'cmd' buffer.
    */
@@ -1279,30 +1351,23 @@ int popen_run (const char *cmd, popen_callback callback)
 
   len = strlen(setdos) + strlen(comspec) + strlen(cmd) + 1;
 
-#if defined(_FORTIFY_SOURCE) && (_FORTIFY_SOURCE >= 1)
   /*
-   * Because of:
+   * Use MALLOC() here because of gcc warning on 'alloca()' used previously:
    *  'warning: stack protector not protecting local variables: variable length buffer [-Wstack-protector]'
    */
   cmd2 = MALLOC (len);
-#else
-  cmd2 = alloca (len);
-#endif
 
 #ifdef __CYGWIN__
   strcpy (cmd2, slashify(cmd, '/'));
-#else
-  strcpy (cmd2, setdos);
-  strcat (cmd2, comspec);
-  strcat (cmd2, cmd);
-#endif
-
-#ifdef __CYGWIN__
   if (!system(NULL))
   {
     WARN ("/bin/sh not found.\n");
     goto quit;
   }
+#else
+  strcpy (cmd2, setdos);
+  strcat (cmd2, comspec);
+  strcat (cmd2, cmd);
 #endif
 
   DEBUGF (3, "Trying to run '%s'\n", cmd2);
@@ -1330,10 +1395,7 @@ int popen_run (const char *cmd, popen_callback callback)
   _pclose (f);
 
 quit:
-#if defined(_FORTIFY_SOURCE) && (_FORTIFY_SOURCE >= 1)
   FREE (cmd2);
-#endif
-
   return (j);
 }
 
