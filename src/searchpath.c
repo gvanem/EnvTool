@@ -228,13 +228,13 @@ int _is_DOS83 (const char *fname)
     else if (s > e)
       return (0);                        /* name component too long */
 
-    if (c >= 'a' && c <= 'z')
-      return (0);                        /* lower case character */
+  if (c >= 'a' && c <= 'z')
+    return (0);                          /* lower case character */
 
-    if (c == '+' || c == ',' ||
-        c == ';' || c == ' ' ||
-        c == '=' || c == '[' || c == ']')
-      return (0);                        /* special non-DOS characters */
+  if (c == '+' || c == ',' ||
+      c == ';' || c == ' ' ||
+      c == '=' || c == '[' || c == ']')
+    return (0);                          /* special non-DOS characters */
   return (1);                            /* all chars OK */
 }
 
