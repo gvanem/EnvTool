@@ -5,11 +5,11 @@
 FORTIFY_SOURCE ?= 2
 USE_DEBUG      ?= 1
 USE_UNICODE    ?= 0
-USE_64BIT      ?= 1
+USE_64BIT      ?= 0
 
 CC      = gcc
 CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
-          -D_WIN32_IE=0x500 -DCHECK_PREFIXED_GCC=0
+          -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
 RCFLAGS = -O COFF
 
