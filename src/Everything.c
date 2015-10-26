@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <wchar.h>
 
 #include "Everything.h"
 #include "Everything_IPC.h"
@@ -33,7 +34,7 @@
     }
   #endif
 
-#elif defined(__WATCOMC__)
+#elif defined(__WATCOMC__) || defined(__POCC__)
   #define wcsicmp(s1, s2)  _wcsicmp (s1, s2)
 #endif
 
