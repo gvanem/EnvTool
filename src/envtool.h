@@ -7,11 +7,18 @@
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 
-#ifndef CHECK_PREFIXED_GCC
-#define CHECK_PREFIXED_GCC 0
-#endif
+/*
+ * PellesC has '_MSC_VER' as a built-in (if option '-Ze' is used).
+ * Hence test for '__POCC__' before '_MSC_VER'.
+ */
+#if defined(__POCC__)
+  #ifdef _DEBUG
+    #define BUILDER  "PellesC, debug"
+  #else
+    #define BUILDER  "PellesC, release"
+  #endif
 
-#if defined(_MSC_VER)
+#elif defined(_MSC_VER)
   #ifdef _DEBUG
     #define BUILDER  "Visual-C, debug"
   #else
@@ -110,7 +117,19 @@
   #endif
 #endif
 
-#if defined(_MSC_VER) && defined(_DEBUG)
+#if defined(__POCC__)
+  #define _MAX_PATH       MAX_PATH   /* 260 */
+  #define __FUNCTION__    __func__
+  #undef  stat
+  #define tzset()        ((void)0)
+
+  /*
+   * Lots of these:
+   *   warning #1058: Invalid token produced by ##, from ',' and 'env_name'.
+   */
+  #pragma warn (disable: 1058)
+
+#elif defined(_MSC_VER) && defined(_DEBUG)
   #undef  _malloca                /* Avoid MSVC-9 <malloc.h>/<crtdbg.h> name-clash */
   #define _CRTDBG_MAP_ALLOC
   #include <crtdbg.h>
@@ -129,7 +148,7 @@
  * MSVC (in debug) sometimes returns the full path.
  * Strip the directory part.
  */
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__POCC__)
   #define __FILE()           basename (__FILE__)
   #define snprintf           _snprintf
 #else
@@ -161,7 +180,12 @@
 #else
   #define ATTR_PRINTF(_1,_2)
   #define ATTR_UNUSED()
-  #define WIDESTR_FMT        "ws"
+
+  #ifdef __POCC__
+    #define WIDESTR_FMT      "ls"
+  #else
+    #define WIDESTR_FMT      "ws"
+  #endif
 #endif
 
 #ifdef __CYGWIN__
@@ -213,6 +237,7 @@ struct prog_options {
        int   debug;
        int   verbose;
        int   quiet;
+       int   quotes_warn;
        int   add_cwd;
        int   show_unix_paths;
        int   decimal_timestamp;
@@ -226,6 +251,7 @@ struct prog_options {
        int   do_tests;
        int   help;
        int   show_size;
+       int   gcc_32bit;
        int   gcc_64bit;
        int   gcc_no_prefixed;
        int   no_gcc;
@@ -254,9 +280,13 @@ extern int  process_dir (const char *path, int num_dup, BOOL exist,
 
 /* Stuff in misc.c:
  */
-extern int debug_printf  (const char *format, ...) ATTR_PRINTF (1,2);
+#if defined(__POCC__)
+  _CRTCHK(printf,1,2)
+#endif
+  int debug_printf (const char *format, ...) ATTR_PRINTF (1,2);
 
 extern char *_strlcpy      (char *dst, const char *src, size_t len);
+extern char *_strsep       (char **s, const char *delim);
 extern char *strip_nl      (char *s);
 extern char *str_trim      (char *s);
 extern char *searchpath    (const char *file, const char *env_var);
@@ -281,7 +311,7 @@ extern char       *translate_shell_pattern (const char *pattern);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
 
-/* Generic version information.
+/* Generic program version information (in resource).
  *
  *  Implemented by        | For what
  * -----------------------|---------------------------
@@ -324,7 +354,7 @@ extern char       *get_PE_version_info_buf (void);
 extern void        get_PE_version_info_free (void);
 extern int         check_if_zip (const char *fname);
 extern int         check_if_PE (const char *fname, enum Bitness *bits);
-extern int         verify_pe_checksum (const char *fname);
+extern int         verify_PE_checksum (const char *fname);
 extern BOOL        is_wow64_active (void);
 
 /* Simple debug-malloc functions:
@@ -353,6 +383,8 @@ extern void  mem_report (void);
   #define FREE(p)       (p ? (void) (free_at(p, __FILE(), __LINE__), p = NULL) : (void)0)
 #endif
 
+/* Wrapper for popen().
+ */
 typedef int (*popen_callback) (char *buf, int index);
 
 int popen_run (const char *cmd, popen_callback callback);
@@ -392,26 +424,30 @@ extern char *fnmatch_res (int rc);
   #endif
 #endif
 
-#define DEBUGF(level, fmt, ...)  do {                                          \
-                                   if (opt.debug >= level) {                   \
-                                     debug_printf ("%s(%u): " fmt,             \
-                                       __FILE(), __LINE__, ##__VA_ARGS__);     \
-                                   }                                           \
-                                 } while (0)
+#define DEBUGF(level, ...)  do {                                        \
+                              if (opt.debug >= level) {                 \
+                                debug_printf ("%s(%u): ",               \
+                                              __FILE(), __LINE__);      \
+                                debug_printf (__VA_ARGS__);             \
+                              }                                         \
+                            } while (0)
 
-#define WARN(fmt, ...)           do {                                          \
-                                   if (!opt.quiet)                             \
-                                      C_printf ("~5" fmt "~0", ##__VA_ARGS__); \
-                                 } while (0)
+#define WARN(...)           do {                                        \
+                              if (!opt.quiet) {                         \
+                                C_puts ("~5");                          \
+                                C_printf (__VA_ARGS__);                 \
+                                C_puts ("~0");                          \
+                              }                                         \
+                            } while (0)
 
-#define FATAL(fmt, ...)          do {                                        \
-                                   fprintf (stderr, "\nFatal: %s(%u): " fmt, \
-                                            __FILE(), __LINE__,              \
-                                            ## __VA_ARGS__);                 \
-                                   if (IsDebuggerPresent())                  \
-                                        abort();                             \
-                                   else ExitProcess (GetCurrentProcessId()); \
-                                 } while (0)
+#define FATAL(...)          do {                                        \
+                              fprintf (stderr, "\nFatal: %s(%u): ",     \
+                                       __FILE(), __LINE__);             \
+                              fprintf (stderr, ##__VA_ARGS__);          \
+                              if (IsDebuggerPresent())                  \
+                                   abort();                             \
+                              else ExitProcess (GetCurrentProcessId()); \
+                            } while (0)
 
 #ifdef __cplusplus
 };
