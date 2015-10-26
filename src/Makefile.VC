@@ -9,12 +9,14 @@ CC      = cl
 CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 \
           -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE \
           -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -D_WIN32_IE=0x500 \
-          -DCHECK_PREFIXED_GCC=1 -DEVERYTHINGAPI=__cdecl
-          
+          -DEVERYTHINGAPI=__cdecl
+
+LDFLAGS = -nologo -incremental:no
+
 #
-# Enable the .EXEs to run on Win-XP (5.1)
+# Enable the .EXEs to run on Win-XP SP3 (5.2)
 #
-LDFLAGS = -nologo -incremental:no -subsystem:console,5.1
+LDFLAGS = $(LDFLAGS) -subsystem:console,5.02
 RCFLAGS = -nologo -D_MSC_VER -r
 MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII
 EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
