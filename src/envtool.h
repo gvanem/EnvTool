@@ -311,6 +311,13 @@ extern char       *translate_shell_pattern (const char *pattern);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
 
+/* Functions for handling Reparse Points:
+ * (Junctions and Symlinks).
+ */
+extern const char *last_reparse_err;
+extern BOOL        get_reparse_point (const TCHAR *dir, wchar_t *result);
+
+
 /* Generic program version information (in resource).
  *
  *  Implemented by        | For what
