@@ -4,13 +4,22 @@
  * fnmatch(), basename() and dirname() are taken from djgpp and modified.
  */
 
+/*
+ * So that <sec_api/string_s.h> gets included in <string.h>.
+ */
+#ifndef MINGW_HAS_SECURE_API
+#define MINGW_HAS_SECURE_API 1
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
 #include <io.h>
+#include <tchar.h>
 #include <windows.h>
 #include <wincon.h>
+#include <winioctl.h>
 
 /*
  * Suppress warning:
@@ -1554,6 +1563,150 @@ char *_itoa (int value, char *buf, int radix)
   return strreverse (buf);
 }
 #endif
+
+/*
+ * Functions for getting at Reparse Points (Junctions and Symlinks).
+ * Code from:
+ *  http://blog.kalmbach-software.de/2008/02/
+ */
+struct REPARSE_DATA_BUFFER {
+       ULONG  ReparseTag;
+       USHORT ReparseDataLength;
+       USHORT Reserved;
+       union {
+         struct {
+           USHORT SubstituteNameOffset;
+           USHORT SubstituteNameLength;
+           USHORT PrintNameOffset;
+           USHORT PrintNameLength;
+           ULONG  Flags;              // it seems that the docu is missing this entry (at least 2008-03-07)
+           WCHAR  PathBuffer[1];
+         } SymbolicLinkReparseBuffer;
+         struct {
+           USHORT SubstituteNameOffset;
+           USHORT SubstituteNameLength;
+           USHORT PrintNameOffset;
+           USHORT PrintNameLength;
+           WCHAR  PathBuffer[1];
+         } MountPointReparseBuffer;
+         struct {
+           UCHAR DataBuffer[1];
+         } GenericReparseBuffer;
+       };
+     };
+
+const char *last_reparse_err;
+
+#define REPARSE_DATA_BUFFER_HEADER_SIZE  FIELD_OFFSET (struct REPARSE_DATA_BUFFER, GenericReparseBuffer)
+
+#ifndef MAXIMUM_REPARSE_DATA_BUFFER_SIZE
+#define MAXIMUM_REPARSE_DATA_BUFFER_SIZE  (16*1024)
+#endif
+
+BOOL get_reparse_point (const TCHAR *dir, wchar_t *result)
+{
+  static char err [1000];
+  struct REPARSE_DATA_BUFFER *rdata;
+  HANDLE hFile;
+  size_t ofs, plen, slen;
+  WCHAR *szPrintName, *szSubName;
+  DWORD dwRetLen;
+  BOOL  bRet;
+
+  last_reparse_err = NULL;
+  *result = L'\0';
+
+  DEBUGF (1, _T("Finding target of dir: '%s'.\n"), dir);
+
+  hFile =  CreateFile (dir, FILE_READ_EA,
+                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                       NULL, OPEN_EXISTING,
+                       FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+                       NULL);
+
+  if (hFile == INVALID_HANDLE_VALUE)
+  {
+    snprintf (err, sizeof(err), "Could not open dir '%s'; %s",
+              dir, win_strerror(GetLastError()));
+    last_reparse_err = err;
+    return (FALSE);
+  }
+
+  rdata = alloca (MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+  bRet = DeviceIoControl (hFile, FSCTL_GET_REPARSE_POINT, NULL, 0,
+                          rdata, MAXIMUM_REPARSE_DATA_BUFFER_SIZE, &dwRetLen, NULL);
+
+  CloseHandle (hFile);
+
+  if (!bRet)
+  {
+    snprintf (err, sizeof(err), "DeviceIoControl failed; %s",
+              win_strerror(GetLastError()));
+    last_reparse_err = err;
+    return (FALSE);
+  }
+
+  if (!IsReparseTagMicrosoft(rdata->ReparseTag))
+  {
+    last_reparse_err = "Not a Microsoft-reparse point - could not query data!";
+    return (FALSE);
+  }
+
+  if (rdata->ReparseTag == IO_REPARSE_TAG_SYMLINK)
+  {
+    slen = rdata->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(WCHAR);
+    szSubName = alloca (slen + 1);
+
+    DEBUGF (1, "Symbolic-Link\n");
+
+    ofs = rdata->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
+    wcsncpy_s (szSubName, slen + 1, &rdata->SymbolicLinkReparseBuffer.PathBuffer[ofs], slen);
+    szSubName[slen] = 0;
+    DEBUGF (1, "SubstitutionName (len: %d): '%S'\n", rdata->SymbolicLinkReparseBuffer.SubstituteNameLength, szSubName);
+
+    plen = rdata->SymbolicLinkReparseBuffer.PrintNameLength / sizeof(WCHAR);
+    szPrintName = alloca (plen + 1);
+
+    ofs = rdata->SymbolicLinkReparseBuffer.PrintNameOffset / sizeof(WCHAR);
+    wcsncpy_s (szPrintName, plen + 1, &rdata->SymbolicLinkReparseBuffer.PathBuffer[ofs], plen);
+    szPrintName[plen] = 0;
+    DEBUGF (1, "PrintName (len: %d): '%S'\n",
+            rdata->SymbolicLinkReparseBuffer.PrintNameLength, szPrintName);
+
+    assert (plen < _MAX_PATH/sizeof(wchar_t));
+    wcscpy (result, szPrintName);
+    return (TRUE);
+  }
+
+  if (rdata->ReparseTag == IO_REPARSE_TAG_MOUNT_POINT)
+  {
+    DEBUGF (1, "Mount-Point\n");
+    slen = rdata->MountPointReparseBuffer.SubstituteNameLength / sizeof(WCHAR);
+    szSubName = alloca (slen + 1);
+
+    wcsncpy_s (szSubName, slen + 1,
+               &rdata->MountPointReparseBuffer.PathBuffer[rdata->MountPointReparseBuffer.SubstituteNameOffset /
+                                                          sizeof(WCHAR)], slen);
+    szSubName[slen] = 0;
+    DEBUGF (1, "SubstitutionName (len: %d): '%S'\n", rdata->MountPointReparseBuffer.SubstituteNameLength, szSubName);
+
+    plen = rdata->MountPointReparseBuffer.PrintNameLength / sizeof(WCHAR);
+    szPrintName = alloca (plen + 1);
+
+    wcsncpy_s (szPrintName, plen + 1,
+               &rdata->MountPointReparseBuffer.PathBuffer[rdata->MountPointReparseBuffer.PrintNameOffset /
+                                                          sizeof(WCHAR)], plen);
+    szPrintName[plen] = 0;
+    DEBUGF (1, "PrintName (len: %d): '%S'\n", rdata->MountPointReparseBuffer.PrintNameLength, szPrintName);
+    assert (plen < _MAX_PATH/sizeof(wchar_t));
+    wcscpy (result, szPrintName);
+    return (TRUE);
+  }
+
+  last_reparse_err = "Not a Mount-Point or Symblic-Link.";
+  return (FALSE);
+}
+
 
 #if defined(MEM_TEST)
 
