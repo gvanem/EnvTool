@@ -4,11 +4,11 @@
 
 CC      = wcc386
 CPP     = wpp386
-CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul -I. &
+CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul &
           -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl
 
 LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort global
-EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
+EX_LIBS = advapi32.lib imagehlp.lib version.lib shfolder.lib user32.lib
 
 OBJECTS = envtool.obj  envtool_py.obj Everything.obj color.obj misc.obj searchpath.obj &
           show_ver.obj getopt_long.obj win_ver.obj
@@ -20,6 +20,12 @@ envtool.exe: $(OBJECTS) envtool.res
 	$(LINK) name $*.exe option res=envtool.res file { $(OBJECTS) } library { $(EX_LIBS) }
 	copy /y envtool.exe ..
 	@echo $*.exe successfully built.
+
+.ERASE
+dirlist.exe: dirlist.c misc.obj color.obj getopt_long.obj
+	$(CC) $(CFLAGS) -DDIRLIST_TEST dirlist.c
+	$(LINK) name $*.exe file { dirlist.obj misc.obj color.obj getopt_long.obj } library { $(EX_LIBS) }
+	rm dirlist.obj
 
 .ERASE
 show_ver.obj: show_ver.c

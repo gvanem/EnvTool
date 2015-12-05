@@ -2,7 +2,7 @@
 # GNU makefile for EnvTool (MinGW/MinGW64/TDM-gcc).
 #
 
-FORTIFY_SOURCE ?= 2
+FORTIFY_SOURCE ?= 0
 USE_DEBUG      ?= 1
 USE_UNICODE    ?= 0
 USE_64BIT      ?= 0
@@ -10,6 +10,7 @@ USE_64BIT      ?= 0
 CC      = gcc
 CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
           -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN
+
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
 RCFLAGS = -O COFF
 
@@ -67,13 +68,17 @@ mem_test.exe: misc.c color.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DMEM_TEST -o $@ $^ $(EX_LIBS) > mem_test.map
 	rm -f misc.o
 
-win_glob.exe: win_glob.c misc.c color.c
+win_glob.exe: win_glob.c misc.c color.c getopt_long.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DGLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o
 
 win_ver.exe: win_ver.c misc.c color.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
 	rm -f win_ver.o
+
+dirlist.exe: dirlist.c misc.c color.c getopt_long.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
+	rm -f dirlist.o
 
 envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc

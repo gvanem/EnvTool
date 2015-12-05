@@ -4,7 +4,7 @@
 
 FORTIFY_SOURCE ?= 0
 USE_DEBUG      ?= 0
-USE_64BIT      ?= 1
+USE_64BIT      ?= 0
 
 CC = gcc
 
@@ -65,6 +65,10 @@ win_glob.exe: win_glob.c misc.c color.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DGLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o
 
+dirlist.exe: dirlist.c misc.c color.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
+	rm -f dirlist.o
+
 %.o: %.c
 	$(CC) -c $(CFLAGS) $<
 
@@ -88,7 +92,7 @@ vclean: clean
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
 depend:
-	$(CC) -M $(CFLAGS) $(SOURCES) win_glob.c | $(REPLACE) > .depend.Cygwin
+	$(CC) -M $(CFLAGS) $(SOURCES) win_glob.c dirlist.c | $(REPLACE) > .depend.Cygwin
 	echo ''                       >> .depend.Cygwin
 	echo 'envtool.res: envtool.h' >> .depend.Cygwin
 

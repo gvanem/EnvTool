@@ -3,7 +3,7 @@
 #
 
 DEBUG  = 0
-STATIC = 1
+STATIC = 0
 
 CC      = cl
 CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 \
@@ -19,7 +19,7 @@ LDFLAGS = -nologo -incremental:no
 LDFLAGS = $(LDFLAGS) -subsystem:console,5.02
 RCFLAGS = -nologo -D_MSC_VER -r
 MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII
-EX_LIBS = advapi32.lib imagehlp.lib version.lib user32.lib
+EX_LIBS = advapi32.lib imagehlp.lib version.lib shell32.lib user32.lib
 
 !if "$(DEBUG)" == "1"
 D       = d
@@ -53,7 +53,7 @@ OBJECTS = envtool.obj envtool_py.obj searchpath.obj misc.obj \
           color.obj show_ver.obj Everything.obj getopt_long.obj\
           envtool.res win_ver.obj
 
-all: cflags_MSVC.h ldflags_MSVC.h envtool.exe
+all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
 	copy /y envtool.exe ..
 	@echo $@ successfully built.
 
@@ -65,20 +65,25 @@ envtool.exe: $(OBJECTS)
 envtool.res: envtool.rc
 	rc $(RCFLAGS) -fo $@ envtool.rc
 
-win_glob.exe: win_glob.c misc.c color.c
+win_glob.exe: win_glob.c misc.c color.c getopt_long.c
 	$(CC) $(CFLAGS) -DGLOB_TEST -c $**
-	link $(LDFLAGS) -out:$@ -map:win_glob.map $(**:.c=.obj) imagehlp.lib shell32.lib
+	link $(LDFLAGS) -out:$@ -map:win_glob.map $(**:.c=.obj) $(EX_LIBS)
 	del /q win_glob.obj
 
 win_ver.exe: win_ver.c misc.c color.c
 	$(CC) $(CFLAGS) -DWIN_VER_TEST -c $**
-	link $(LDFLAGS) -out:$@ -map:win_ver.map $(**:.c=.obj) imagehlp.lib shell32.lib
+	link $(LDFLAGS) -out:$@ -map:win_ver.map $(**:.c=.obj) $(EX_LIBS)
 	del /q win_ver.obj
 
 mem_test.exe: misc.c color.c
 	$(CC) $(CFLAGS) -DMEM_TEST -c $**
 	link $(LDFLAGS) -out:$@ -map:mem_test.map $(**:.c=.obj) imagehlp.lib
 	del /q misc.obj
+
+dirlist.exe: dirlist.c misc.c color.c getopt_long.c
+	$(CC) $(CFLAGS) -DDIRLIST_TEST -c $**
+	link $(LDFLAGS) -out:$@ -map:dirlist.map $(**:.c=.obj) $(EX_LIBS)
+	del /q dirlist.obj
 
 show_ver.obj: show_ver.c
 	$(CC) $(CFLAGS) -TP -c $*.c
