@@ -44,13 +44,6 @@
 #include "envtool.h"
 #include "envtool_py.h"
 
-/* \todo:
- *    Add support for 'kpathsea'-like search paths.
- *    E.g. if a PATH (or INCLUDE etc.) component contains "/foo/bar//", the search will
- *         do a recursive search for all files (and dirs) under "/foo/bar/".
- *    Ref. http://tug.org/texinfohtml/kpathsea.html
- */
-
 #ifdef __MINGW32__
   /*
    * Tell MinGW's CRT to turn off command line globbing by default.
@@ -76,32 +69,32 @@ char *program_name = NULL;
 #define KNOWN_DLL_PATH  "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs"
 
 /*
- * \todo: if looking for a DLL pattern, the above location should also
- * be checked. Ref:
- *   http://msdn.microsoft.com/en-us/library/windows/desktop/ms682586%28v=vs.85%29.aspx
+ * \todo: if looking for a DLL pattern, the above 'KNOWN_DLL_PATH' should also
+ *        be checked. Ref:
+ *          http://msdn.microsoft.com/en-us/library/windows/desktop/ms682586%28v=vs.85%29.aspx
  */
 
 #define MAX_PATHS   500
 #define MAX_ARGS    20
 
 struct directory_array {
-       char    *dir;           /* FQDN of this entry */
-       char    *cyg_dir;       /* The Cygwin POSIX form of the above */
-       int      exist;         /* does it exist? */
-       int      is_dir;        /* and is it a dir; _S_ISDIR() */
-       int      is_cwd;        /* and is equal to current_dir[] */
-       int      exp_ok;        /* ExpandEnvironmentStrings() returned with no '%'? */
-       int      num_dup;       /* is duplicated elsewhere in %VAR? */
-       unsigned line;          /* Debug: at what line was add_to_dir_array() called */
+       char    *dir;         /* FQDN of this entry */
+       char    *cyg_dir;     /* The Cygwin POSIX form of the above */
+       int      exist;       /* does it exist? */
+       int      is_dir;      /* and is it a dir; _S_ISDIR() */
+       int      is_cwd;      /* and is equal to current_dir[] */
+       int      exp_ok;      /* ExpandEnvironmentStrings() returned with no '%'? */
+       int      num_dup;     /* is duplicated elsewhere in %VAR? */
+       unsigned line;        /* Debug: at what line was add_to_dir_array() called */
      };
 
 struct registry_array {
-       char   *fname;       /* basename of this entry. I.e. the name of the enumerated key. */
-       char   *real_fname;  /* normally the same as above unless aliased. E.g. "winzip.exe -> "winzip32.exe" */
-       char   *path;        /* path of this entry */
-       int     exist;       /* does it exist? */
-       time_t  mtime;       /* file modification time */
-       UINT64  fsize;       /* file size */
+       char   *fname;        /* basename of this entry. I.e. the name of the enumerated key. */
+       char   *real_fname;   /* normally the same as above unless aliased. E.g. "winzip.exe -> "winzip32.exe" */
+       char   *path;         /* path of this entry */
+       int     exist;        /* does it exist? */
+       time_t  mtime;        /* file modification time */
+       UINT64  fsize;        /* file size */
        HKEY    key;
      };
 
@@ -113,8 +106,9 @@ struct prog_options opt;
 char   sys_dir        [_MAX_PATH];
 char   sys_native_dir [_MAX_PATH];
 
-static int   num_version_ok = 0;
-static BOOL  is_wow64 = FALSE;
+static UINT64 total_size = 0;
+static int    num_version_ok = 0;
+static BOOL   is_wow64 = FALSE;
 
 static char *who_am_I = (char*) "envtool";
 
@@ -142,16 +136,26 @@ static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 
 /*
+ * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs use).
+ *        E.g. if a PATH (or INCLUDE etc.) component contains "/foo/bar//", the search will
+ *          do a recursive search for all files (and dirs) under "/foo/bar/".
+ *        Ref. http://tug.org/texinfohtml/kpathsea.html
+ *
  * \todo: In 'report_file()', test if a file (in %PATH, %INCLUDE or %LIB) is
  *        shadowed by an older file of the same name (ahead of the newer file).
  *        Warn if this is the case.
  *
  * \todo: Add sort option: on date/time.
  *                         on filename.
+ *                         on file-size.
  *
  * \todo: Add date/time format option.
  *           Normal: "07 Nov 2012 - 18:06:58".
  *           Option: "20121107.180658".  (like zipinfo does)
+ *
+ * \todo: Add '--locate' option (or in combination with '--evry' option) to
+ *        look into GNU locatedb (%LOCATE_PATH=/cygdrive/f/Cygwin32/locatedb)
+ *        information too.
  */
 
 /*
@@ -186,7 +190,8 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
 }
 
 /*
- * The SendMessage() calls could hang if EveryThing is busy.
+ * The SendMessage() calls could hang if EveryThing is busy updating itself or
+ * stuck for some reason.
  * \todo: This should be done in a thread.
  */
 static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
@@ -237,7 +242,7 @@ static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
     #define DBG_REL "release"
   #endif
 
-    snprintf (buf, sizeof(buf), "Visual-C ver %d.%d%s, %s",
+    snprintf (buf, sizeof(buf), "Visual-C ver %d.%02d%s, %s",
               (_MSC_VER / 100), _MSC_VER % 100, msvc_get_micro_ver(), DBG_REL);
     return (buf);
   }
@@ -245,6 +250,10 @@ static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
   #define BUILDER msvc_get_ver()
 #endif   /* _MSC_FULL_VER */
 
+/*
+ * Show some basic version information:    option '-V'.
+ * Show more detailed version information: option '-VV'.
+ */
 static int show_version (void)
 {
   extern const char *os_name (void);
@@ -334,6 +343,9 @@ static int show_help (void)
             "    ~6--pe-check~0:     print checksum and version-info for PE-files.\n"
             "    ~6--m32~0:          tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
             "    ~6--m64~0:          tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
+#if defined(__CYGWIN__)
+            "    ~6--ansi-colour~0:  set colours using ANSI-sequences (CygWin only).\n"
+#endif
             "    ~6-c~0:             don't add current directory to search-list.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
             "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n",
@@ -868,13 +880,18 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
   if (opt.show_size && opt.dir_mode)
   {
     fsize = get_directory_size (file);
+    total_size += fsize;
     snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
   }
 #endif
 
   if (opt.show_size && fsize != (__int64)-1)
-       snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
-  else size[0] = '\0';
+  {
+    snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
+    total_size += fsize;
+  }
+  else
+    size[0] = '\0';
 
   if (key != HKEY_PYTHON_EGG)
   {
@@ -977,6 +994,9 @@ static void final_report (int found)
 
   C_printf ("%d match%s found for \"%s\".",
             found, (found == 0 || found > 1) ? "es" : "", opt.file_spec);
+
+  if (opt.show_size)
+     C_printf (" Totalling %s. ", str_trim((char*)get_file_size_str(total_size)));
 
   if (opt.PE_check)
      C_printf (" %d have PE-version info.", num_version_ok);
@@ -1306,7 +1326,7 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
       DWORD ret = ExpandEnvironmentStrings (value, exp_buf, sizeof(exp_buf));
 
       if (ret > 0)
-        _strlcpy (value, exp_buf, sizeof(value));
+         strncpy (value, exp_buf, sizeof(value));
     }
 
     if (!strcmp(name,"PATH"))
@@ -1340,7 +1360,8 @@ static int do_check_env2 (HKEY key, const char *env, const char *value)
 
   for (arr = arr0 = split_env_var(env,value); arr->dir; arr++)
       found += process_dir (arr->dir, arr->num_dup, arr->exist,
-                            arr->is_dir, arr->exp_ok, env, key);
+                            arr->is_dir, arr->exp_ok, env, key,
+                            FALSE);
   free_dir_array();
   return (found);
 }
@@ -1458,7 +1479,8 @@ static int do_check_registry (void)
  * to the global 'opt.file_spec'.
  */
 int process_dir (const char *path, int num_dup, BOOL exist,
-                 BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key)
+                 BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key,
+                 BOOL recursive)
 {
   HANDLE          handle;
   WIN32_FIND_DATA ff_data;
@@ -1523,9 +1545,8 @@ int process_dir (const char *path, int num_dup, BOOL exist,
                      subdir ? subdir : "", ff_data.cFileName);
 
     is_dir = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
-    file = slashify (fqfn, DIR_SEP);
-
-    match = fnmatch (opt.file_spec, base, FNM_FLAG_NOCASE | FNM_FLAG_NOESCAPE);
+    file   = slashify (fqfn, DIR_SEP);
+    match  = fnmatch (opt.file_spec, base, FNM_FLAG_NOCASE | FNM_FLAG_NOESCAPE);
 
 #if 0
     if (match == FNM_NOMATCH && strchr(opt.file_spec,'~'))
@@ -1543,8 +1564,8 @@ int process_dir (const char *path, int num_dup, BOOL exist,
        * I.e. if 'opt.file_spec' == "ratio.*" and base == "ratio", we qualify
        *      this as a match.
        */
-      if (!is_dir && !opt.dir_mode && !strnicmp(base,opt.file_spec,strlen(base)))
-        match = FNM_MATCH;
+      if (!is_dir && !opt.dir_mode && !opt.man_mode && !strnicmp(base,opt.file_spec,strlen(base)))
+         match = FNM_MATCH;
     }
 
     DEBUGF (1, "Testing \"%s\". is_dir: %d, %s\n", file, is_dir, fnmatch_res(match));
@@ -1558,6 +1579,7 @@ int process_dir (const char *path, int num_dup, BOOL exist,
   while (FindNextFile(handle, &ff_data));
 
   FindClose (handle);
+  ARGSUSED (recursive);
   return (found);
 }
 
@@ -1761,7 +1783,7 @@ static int do_check_evry (void)
 /*
  * The main work-horse of this program.
  */
-static int do_check_env (const char *env_name)
+static int do_check_env (const char *env_name, BOOL recursive)
 {
   struct directory_array *arr;
   int    found = 0;
@@ -1777,7 +1799,8 @@ static int do_check_env (const char *env_name)
 
   for (arr = arr0; arr->dir; arr++)
       found += process_dir (arr->dir, arr->num_dup, arr->exist,
-                            arr->is_dir, arr->exp_ok, env_name, NULL);
+                            arr->is_dir, arr->exp_ok, env_name, NULL,
+                            recursive);
   free_dir_array();
   FREE (orig_e);
   return (found);
@@ -1793,7 +1816,7 @@ static int do_check_env (const char *env_name)
 static int do_check_manpath (void)
 {
   struct directory_array *arr;
-  int    i, found = 0;
+  int    i, save, found = 0;
   char  *orig_e;
   char   subdir [_MAX_PATH];
   char   report[300];
@@ -1817,6 +1840,12 @@ static int do_check_manpath (void)
 
   snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
   report_header = report;
+  save = opt.man_mode;
+
+  /* Man-files should have an extension. Hence do no report dotless files as a
+   * match in process_dir().
+   */
+  opt.man_mode = 1;
 
   for (arr = arr0; arr->dir; arr++)
   {
@@ -1829,7 +1858,7 @@ static int do_check_manpath (void)
 
     if (!stricmp(arr->dir,current_dir))
     {
-      found += process_dir (".\\", 0, TRUE, 1, TRUE, env_name, NULL);
+      found += process_dir (".\\", 0, TRUE, 1, TRUE, env_name, NULL, FALSE);
       continue;
     }
 
@@ -1837,9 +1866,10 @@ static int do_check_manpath (void)
     {
       snprintf (subdir, sizeof(subdir), "%s\\%s", arr->dir, sub_dirs[i]);
       if (FILE_EXISTS(subdir))
-         found += process_dir (subdir, 0, TRUE, 1, TRUE, env_name, NULL);
+         found += process_dir (subdir, 0, TRUE, 1, TRUE, env_name, NULL, FALSE);
     }
   }
+  opt.man_mode = save;
   free_dir_array();
   FREE (orig_e);
   return (found);
@@ -1858,7 +1888,7 @@ static int find_cmake_version_cb (char *buf, int index)
 {
   static char prefix[] = "cmake version ";
 
-  if (!strncmp(buf,prefix,sizeof(prefix)-1) && strlen(buf) > sizeof(prefix)+4)
+  if (!strncmp(buf,prefix,sizeof(prefix)-1) && strlen(buf) >= sizeof(prefix))
   {
     char *p = buf + sizeof(prefix) - 1;
 
@@ -1905,7 +1935,7 @@ static int do_check_cmake (void)
 
       snprintf (report, sizeof(report), "Matches among built-in Cmake modules:\n");
       report_header = report;
-      found = process_dir (dir, 0, TRUE, 1, TRUE, env_name, NULL);
+      found = process_dir (dir, 0, TRUE, 1, TRUE, env_name, NULL, FALSE);
     }
     else
       WARN ("Calling %s failed.\n", cmake_bin);
@@ -1913,13 +1943,17 @@ static int do_check_cmake (void)
     FREE (cmake_root);
   }
   else
-    WARN ("cmake.exe not found on PATH. Checking %%%s anyway.\n", env_name);
+  {
+    WARN ("cmake.exe not found on PATH.");
+    if (check_env)
+       WARN (" Checking %%%s anyway.\n", env_name);
+  }
 
   if (check_env)
   {
     snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
     report_header = report;
-    found += do_check_env ("CMAKE_MODULE_PATH");
+    found += do_check_env ("CMAKE_MODULE_PATH", TRUE);
   }
   return (found);
 }
@@ -1959,9 +1993,7 @@ static int find_include_path_cb (char *buf, int index)
 
   if (found_search_line)
   {
-    p = buf;
-    while (isspace((int)p[0]) && p[1])
-         p++;
+    p = str_ltrim (buf);
     if (!memcmp(p,&cyg_usr,sizeof(cyg_usr)-1) || !memcmp(p,&cyg_drv,sizeof(cyg_drv)-1))
        looks_like_cygwin = TRUE;
 
@@ -2149,7 +2181,8 @@ static int process_gcc_dirs (const char *gcc)
   {
     DEBUGF (2, "dir: %s\n", arr->dir);
     found += process_dir (arr->dir, arr->num_dup, arr->exist,
-                          arr->is_dir, arr->exp_ok, gcc, NULL);
+                          arr->is_dir, arr->exp_ok, gcc, NULL,
+                          FALSE);
   }
   free_dir_array();
   return (found);
@@ -2333,35 +2366,36 @@ static int do_check_gcc_library_paths (void)
  * getopt_long() processing.
  */
 static const struct option long_options[] = {
-           { "help",      no_argument,       NULL, 'h' },
-           { "help",      no_argument,       NULL, '?' },  /* 1 */
-           { "version",   no_argument,       NULL, 'V' },
-           { "inc",       no_argument,       NULL, 0 },    /* 3 */
-           { "path",      no_argument,       NULL, 0 },
-           { "lib",       no_argument,       NULL, 0 },    /* 5 */
-           { "python",    optional_argument, NULL, 0 },
-           { "dir",       no_argument,       NULL, 'D' },  /* 7 */
-           { "debug",     optional_argument, NULL, 'd' },
-           { "no-sys",    no_argument,       NULL, 0 },    /* 9 */
-           { "no-usr",    no_argument,       NULL, 0 },
-           { "no-app",    no_argument,       NULL, 0 },    /* 11 */
-           { "test",      no_argument,       NULL, 't' },
-           { "quiet",     no_argument,       NULL, 'q' },  /* 13 */
-           { "no-gcc",    no_argument,       NULL, 0 },
-           { "no-g++",    no_argument,       NULL, 0 },    /* 15 */
-           { "verbose",   no_argument,       NULL, 'v' },
-           { "pe-check",  no_argument,       NULL, 0 },    /* 17 */
-           { "no-colour", no_argument,       NULL, 0 },
-           { "no-color",  no_argument,       NULL, 0 },    /* 19 */
-           { "evry",      no_argument,       NULL, 0 },
-           { "regex",     no_argument,       NULL, 0 },    /* 21 */
-           { "size",      no_argument,       NULL, 0 },
-           { "man",       no_argument,       NULL, 0 },    /* 23 */
-           { "cmake",     no_argument,       NULL, 0 },
-           { "m32",       no_argument,       NULL, 0 },    /* 25 */
-           { "m64",       no_argument,       NULL, 0 },
-           { "no-prefix", no_argument,       NULL, 0 },    /* 27 */
-           { NULL,        no_argument,       NULL, 0 }
+           { "help",        no_argument,       NULL, 'h' },
+           { "help",        no_argument,       NULL, '?' },  /* 1 */
+           { "version",     no_argument,       NULL, 'V' },
+           { "inc",         no_argument,       NULL, 0 },    /* 3 */
+           { "path",        no_argument,       NULL, 0 },
+           { "lib",         no_argument,       NULL, 0 },    /* 5 */
+           { "python",      optional_argument, NULL, 0 },
+           { "dir",         no_argument,       NULL, 'D' },  /* 7 */
+           { "debug",       optional_argument, NULL, 'd' },
+           { "no-sys",      no_argument,       NULL, 0 },    /* 9 */
+           { "no-usr",      no_argument,       NULL, 0 },
+           { "no-app",      no_argument,       NULL, 0 },    /* 11 */
+           { "test",        no_argument,       NULL, 't' },
+           { "quiet",       no_argument,       NULL, 'q' },  /* 13 */
+           { "no-gcc",      no_argument,       NULL, 0 },
+           { "no-g++",      no_argument,       NULL, 0 },    /* 15 */
+           { "verbose",     no_argument,       NULL, 'v' },
+           { "pe-check",    no_argument,       NULL, 0 },    /* 17 */
+           { "no-colour",   no_argument,       NULL, 0 },
+           { "no-color",    no_argument,       NULL, 0 },    /* 19 */
+           { "evry",        no_argument,       NULL, 0 },
+           { "regex",       no_argument,       NULL, 0 },    /* 21 */
+           { "size",        no_argument,       NULL, 0 },
+           { "man",         no_argument,       NULL, 0 },    /* 23 */
+           { "cmake",       no_argument,       NULL, 0 },
+           { "m32",         no_argument,       NULL, 0 },    /* 25 */
+           { "m64",         no_argument,       NULL, 0 },
+           { "no-prefix",   no_argument,       NULL, 0 },    /* 27 */
+           { "ansi-colour", no_argument,       NULL, 0 },
+           { NULL,          no_argument,       NULL, 0 }     /* 29 */
          };
 
 static int *values_tab[] = {
@@ -2392,7 +2426,8 @@ static int *values_tab[] = {
             &opt.do_cmake,
             &opt.gcc_32bit,       /* 25 */
             &opt.gcc_64bit,
-            &opt.gcc_no_prefixed  /* 27 */
+            &opt.gcc_no_prefixed, /* 27 */
+            &opt.cygwin_ansi
           };
 
 static void set_python_variant (const char *o)
@@ -2478,7 +2513,7 @@ static void set_short_option (int c)
          opt.decimal_timestamp = 1;
          break;
     case 't':
-         opt.do_tests = 1;
+         opt.do_tests++;
          break;
     case 'u':
          opt.show_unix_paths = 1;
@@ -2582,6 +2617,9 @@ static void parse_args (int argc, char *const *argv, char **fspec)
 
   if (opt.no_colours)
      use_colours = 0;
+
+  else if (opt.cygwin_ansi)
+     use_colours = 2;
 
   if (argc >= 2 && argv[optind])
     *fspec = STRDUP (argv[optind]);
@@ -2808,13 +2846,13 @@ int main (int argc, char **argv)
        found += do_check_registry();
 
     report_header = "Matches in %PATH:\n";
-    found += do_check_env ("PATH");
+    found += do_check_env ("PATH", FALSE);
   }
 
   if (opt.do_lib)
   {
     report_header = "Matches in %LIB:\n";
-    found += do_check_env ("LIB");
+    found += do_check_env ("LIB", FALSE);
     if (!opt.no_gcc && !opt.no_gpp)
        found += do_check_gcc_library_paths();
   }
@@ -2822,7 +2860,7 @@ int main (int argc, char **argv)
   if (opt.do_include)
   {
     report_header = "Matches in %INCLUDE:\n";
-    found += do_check_env ("INCLUDE");
+    found += do_check_env ("INCLUDE", FALSE);
 
     if (!opt.no_gcc)
        found += do_check_gcc_includes();
@@ -2855,7 +2893,7 @@ int main (int argc, char **argv)
   }
 
   final_report (found);
-  return (0);
+  return (found);
 }
 
 /*
@@ -3006,23 +3044,24 @@ void test_split_env_cygwin (const char *env)
  */
 void test_posix_to_win_cygwin (void)
 {
-  int i, rc, raw, save = opt.conv_cygdrive;
+  int i, rc, raw, save;
   static const char *cyg_paths[] = {
                     "/usr/bin",
                     "/usr/lib",
                     "/etc/profile.d",
-                    "~/home",
+                    "~/",
                     "/cygdrive/c"
                   };
 
-  C_printf ("~3%s():~0 ", __FUNCTION__);
+  C_printf ("~3%s():~0\n", __FUNCTION__);
 
   path_separator = ':';
+  save = opt.conv_cygdrive;
   opt.conv_cygdrive = 0;
 
   for (i = 0; i < DIM(cyg_paths); i++)
   {
-    const char *dir = cyg_paths[i], *file;
+    const char *file, *dir = cyg_paths[i];
     char result [_MAX_PATH];
 
     rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, dir, result, sizeof(result));
@@ -3198,7 +3237,7 @@ static void test_slashify (void)
  */
 static void test_fix_path (void)
 {
-  const char *files[] = {
+  static const char *files[] = {
     "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include",                             /* exists here */
     "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include\\ssp\\ssp.h",                 /* exists here */
     "f:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",  /* exists here */
@@ -3259,6 +3298,52 @@ static void test_SHGetFolderPath (void)
   if (rc != S_OK) ;
   C_putc ('\n');
 #endif
+}
+
+/*
+ * Test Windows' Reparse Points (Junctions and directory symlinks).
+ *
+ * Also make a test similar to the 'dir /AL' command (Attribute Reparse Points):
+ *  cmd.exe /c dir \  /s /AL
+ */
+static void test_ReparsePoints (void)
+{
+  static const char *points[] = {
+                      "c:\\Users\\All Users",
+                      "c:\\Documents and Settings",
+                      "c:\\Documents and Settings\\",
+                      "c:\\ProgramData",
+                      "c:\\Program Files",
+                      "c:\\Program Files (x86)",
+                    };
+#if defined(__CYGWIN__)
+  struct stat st;
+#endif
+
+  int  i;
+
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+
+  for (i = 0; i < DIM(points); i++)
+  {
+    const char *p = points[i];
+    char  result [_MAX_PATH];
+    char  st_result [100] = "";
+    BOOL  rc = get_reparse_point (p, result, TRUE);
+
+#if defined(__CYGWIN__)
+    if (lstat(p, &st) == 0)
+      sprintf (st_result, ", link: %s.", S_ISLNK(st.st_mode) ? "Yes" : "No");
+#endif
+
+    C_printf ("  %d: \"%s\" %*s->", i, p, 26-strlen(p), "");
+
+    if (!rc)
+         C_printf (" ~5%s~0%s\n", last_reparse_err, st_result);
+    else C_printf (" \"%s\"%s\n", result, st_result);
+
+  }
+  C_putc ('\n');
 }
 
 static void test_disk_ready (void)
@@ -3338,7 +3423,7 @@ static int do_tests (void)
   test_split_env ("MANPATH");
 
 #ifdef __CYGWIN__
-  // test_split_env_cygwin ("PATH");
+  test_split_env_cygwin ("PATH");
   test_posix_to_win_cygwin();
 #endif
 
@@ -3356,6 +3441,7 @@ static int do_tests (void)
   test_fix_path();
   test_disk_ready();
   test_SHGetFolderPath();
+  test_ReparsePoints();
   test_libssp();
   return (0);
 }
@@ -3401,3 +3487,4 @@ static void print_build_ldflags (void)
   format_and_print_line ("Unknown", 4);
 #endif
 }
+

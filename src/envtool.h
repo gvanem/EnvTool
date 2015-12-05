@@ -101,6 +101,7 @@
   #define _fileno(f)             fileno (f)
   #define _tempnam(dir,prefix)   tempnam (dir,prefix)
   #define _wcsdup(s)             wcsdup(s)
+  #define _vsnprintf             vsnprintf
 
   #define stricmp(s1, s2)        strcasecmp (s1, s2)
   #define strnicmp(s1, s2, len)  strncasecmp (s1, s2, len)
@@ -247,6 +248,7 @@ struct prog_options {
        int   no_colours;
        int   use_regex;
        int   dir_mode;
+       int   man_mode;
        int   PE_check;
        int   do_tests;
        int   help;
@@ -265,6 +267,7 @@ struct prog_options {
        int   do_man;
        int   do_cmake;
        int   conv_cygdrive;
+       int   cygwin_ansi;
        char *file_spec;
        char *file_spec_re;
      };
@@ -276,7 +279,7 @@ extern char   sys_native_dir [_MAX_PATH];
 
 extern int  report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY key);
 extern int  process_dir (const char *path, int num_dup, BOOL exist,
-                         BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key);
+                         BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key, BOOL recursive);
 
 /* Stuff in misc.c:
  */
@@ -288,6 +291,8 @@ extern int  process_dir (const char *path, int num_dup, BOOL exist,
 extern char *_strlcpy      (char *dst, const char *src, size_t len);
 extern char *_strsep       (char **s, const char *delim);
 extern char *strip_nl      (char *s);
+extern char *str_ltrim     (char *s);
+extern char *str_rtrim     (char *s);
 extern char *str_trim      (char *s);
 extern char *searchpath    (const char *file, const char *env_var);
 extern int   searchpath_pos(void);
@@ -315,7 +320,8 @@ extern const char *dump10 (const void *data_p, unsigned size);
  * (Junctions and Symlinks).
  */
 extern const char *last_reparse_err;
-extern BOOL        get_reparse_point (const TCHAR *dir, wchar_t *result);
+extern BOOL        get_reparse_point (const char *dir, char *result,
+                                      BOOL return_print_name);
 
 
 /* Generic program version information (in resource).
