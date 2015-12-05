@@ -566,7 +566,6 @@ start:
 	return (optchar);
 }
 
-#ifdef REPLACE_GETOPT
 /*
  * getopt --
  *	Parse argc/argv argument vector.
@@ -587,7 +586,6 @@ getopt(int nargc, char * const *nargv, const char *options)
 	 */
 	return (getopt_internal(nargc, nargv, options, NULL, NULL, 0));
 }
-#endif /* REPLACE_GETOPT */
 
 /*
  * getopt_long --
