@@ -10,6 +10,7 @@ extern "C" {
 
 /* The app using color.c must set to 1 prior to
  * calling the below 'C_xx()' functions.
+ * For CygWin, if this is > 1, it means to use ANSI-sequences to set colours.
  */
 extern int use_colours;
 

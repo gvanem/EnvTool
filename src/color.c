@@ -18,7 +18,7 @@
 
 #include "color.h"
 
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__)
   #include <unistd.h>
   #define _fileno(f)         fileno (f)
   #define _write(f,buf,len)  write (f,buf,len)
@@ -37,14 +37,28 @@
                            else ExitProcess (GetCurrentProcessId()); \
                          } while (0)
 
+#if defined(NDEBUG)
+  #define TRACE(level, ...)  ((void)0)
+#else
+  #define TRACE(level, ...)  do {                            \
+                              if (trace >= level) {          \
+                                printf ("%s(%u): ",          \
+                                        __FILE__, __LINE__); \
+                                printf (__VA_ARGS__);        \
+                              }                              \
+                            } while (0)
+#endif
 
+#ifndef C_BUF_SIZE
 #define C_BUF_SIZE (2*1024)
+#endif
 
 #ifndef STDOUT_FILENO
 #define STDOUT_FILENO  1
 #endif
 
 /* The program using color.c must set this to 1.
+ * For CygWin, if this is > 1, it means to use ANSI-sequences to set colours.
  */
 int use_colours = 0;
 
@@ -60,26 +74,35 @@ static CONSOLE_SCREEN_BUFFER_INFO console_info;
 
 static HANDLE console_hnd = INVALID_HANDLE_VALUE;
 
+#if !defined(NDEBUG)
+  static int trace = 0;
+#endif
+
 /*
  * \todo: make this configurable from the calling side.
  */
-static WORD color_map [7];
+static WORD colour_map [7];
 
-static void init_color_map (void)
+#if defined(__CYGWIN__)
+  static char colour_map_ansi [DIM(colour_map)] [20];
+  static void init_colour_map_ansi (void);
+#endif
+
+static void init_colour_map (void)
 {
   int  i;
   WORD bg = console_info.wAttributes & ~7;
 
-  for (i = 1; i < DIM(color_map); i++)
-      color_map[i] = console_info.wAttributes;
+  for (i = 0; i < DIM(colour_map); i++)
+      colour_map[i] = console_info.wAttributes;
 
-  color_map[0] = 0;
-  color_map[1] = (bg + 3) | FOREGROUND_INTENSITY;  /* bright cyan */
-  color_map[2] = (bg + 2) | FOREGROUND_INTENSITY;  /* bright green */
-  color_map[3] = (bg + 6) | FOREGROUND_INTENSITY;  /* bright yellow */
-  color_map[4] = (bg + 5) | FOREGROUND_INTENSITY;  /* bright magenta */
-  color_map[5] = (bg + 4) | FOREGROUND_INTENSITY;  /* bright red */
-  color_map[6] = (bg + 7) | FOREGROUND_INTENSITY;  /* bright white */
+  colour_map[0] = 0;
+  colour_map[1] = (bg + 3) | FOREGROUND_INTENSITY;  /* bright cyan */
+  colour_map[2] = (bg + 2) | FOREGROUND_INTENSITY;  /* bright green */
+  colour_map[3] = (bg + 6) | FOREGROUND_INTENSITY;  /* bright yellow */
+  colour_map[4] = (bg + 5) | FOREGROUND_INTENSITY;  /* bright magenta */
+  colour_map[5] = (bg + 4) | FOREGROUND_INTENSITY;  /* bright red */
+  colour_map[6] = (bg + 7) | FOREGROUND_INTENSITY;  /* bright white */
 }
 
 int C_setraw (int raw)
@@ -112,14 +135,28 @@ static void C_init (void)
   {
     BOOL okay;
 
+#if !defined(NDEBUG)
+    const char *env = getenv ("COLOUR_TRACE");
+
+    if (env)
+      trace = *env - '0';
+#endif
+
     console_hnd = GetStdHandle (STD_OUTPUT_HANDLE);
     okay = (console_hnd != INVALID_HANDLE_VALUE &&
             GetConsoleScreenBufferInfo(console_hnd, &console_info) &&
             GetFileType(console_hnd) == FILE_TYPE_CHAR);
 
     if (okay)
-         init_color_map();
-    else use_colours = 0;
+    {
+      init_colour_map();
+#if defined(__CYGWIN__)
+      if (use_colours > 1)
+         init_colour_map_ansi();
+#endif
+    }
+    else
+      use_colours = 0;
 
     c_out  = stdout;
     c_head = c_buf;
@@ -168,6 +205,72 @@ static void C_set (WORD col)
   last_attr = attr;
 }
 
+#if defined(__CYGWIN__)
+static const char *wincon_to_ansi (WORD col)
+{
+  static char ret[20];  /* max: "\x1B[30;1;40;1m" == 12 */
+  static BYTE wincon_to_SGR[8] = { 0, 4, 2, 6, 1, 5, 3, 7 };
+  BYTE   fg, bg, SGR;
+  size_t left = sizeof(ret);
+  BOOL   bold;
+  char  *p = ret;
+
+  if (col == 0)
+     return ("\x1b[0m");
+
+  fg  = col & 7;
+  SGR = wincon_to_SGR [fg & ~FOREGROUND_INTENSITY];
+  bold = (col & FOREGROUND_INTENSITY);
+
+  if (bold)
+       p += snprintf (p, left, "\x1B[%d;1m", 30 + SGR);
+  else p += snprintf (p, left, "\x1B[%dm", 30 + SGR);
+  left -= (ret - p);
+
+  bold = (col & BACKGROUND_INTENSITY);
+  bg   = (col & ~BACKGROUND_INTENSITY) >> 4;
+  if (bg && bg != (console_info.wAttributes >> 4))
+  {
+    TRACE (2, "col: %u, bg: 0x%02X, console_info.wAttributes: 0x%04X\n",
+           col, bg, console_info.wAttributes);
+    SGR = wincon_to_SGR [bg];
+    if (bold)
+         snprintf (p-1, left+1, ";%d;1m", 40 + SGR);
+    else snprintf (p-1, left+1, ";%dm", 40 + SGR);
+  }
+  return (ret);
+}
+
+static void init_colour_map_ansi (void)
+{
+  size_t i;
+
+  for (i = 0; i < DIM(colour_map_ansi); i++)
+  {
+    const char *p = wincon_to_ansi (colour_map[i]);
+    extern const char *dump20 (const void *data_p, unsigned size);
+
+    TRACE (2, "colour_map_ansi[%u] -> %s\n", i, dump20(p,strlen(p)));
+    strncpy (colour_map_ansi[i], p, sizeof(colour_map_ansi[i]));
+  }
+}
+
+static void C_set_ansi (WORD col)
+{
+  int i, raw_save;
+
+  for (i = 0; i < DIM(colour_map); i++)
+      if (col == colour_map[i])
+      {
+        raw_save = c_raw;
+        c_raw = 1;
+        C_puts (colour_map_ansi[i]);
+        c_raw = raw_save;
+        return;
+      }
+}
+#endif  /* __CYGWIN__ */
+
 /*
  * Write out the trace-buffer.
  */
@@ -207,7 +310,7 @@ int C_vprintf (const char *fmt, va_list args)
   {
     C_init();
     C_flush();
-    len2 = vfprintf (c_out, fmt, args);
+    len1 = vfprintf (c_out, fmt, args);
     fflush (c_out);
   }
   else
@@ -236,31 +339,40 @@ int C_putc (int ch)
   assert (c_head >= c_buf);
   assert (c_head <= c_tail);
 
-  if (get_color && !c_raw)
+  if (!c_raw)
   {
-    WORD color;
+    if (get_color)
+    {
+      WORD color;
 
-    get_color = FALSE;
+      get_color = FALSE;
+      if (ch == '~')
+         goto put_it;
+
+      i = ch - '0';
+      if (i >= 0 && i < DIM(colour_map))
+        color = colour_map [i];
+      else
+        FATAL ("Illegal color index %d ('%c'/0x%02X) in c_buf: '%.*s'\n",
+               i, ch, ch, (int)(c_head - c_buf), c_buf);
+
+      C_flush();
+
+#if defined(__CYGWIN__)
+      if (use_colours > 1)
+         C_set_ansi (color);
+      else
+#endif
+      if (use_colours)
+         C_set (color);
+      return (1);
+    }
+
     if (ch == '~')
-       goto put_it;
-
-    i = ch - '0';
-    if (i >= 0 && i < DIM(color_map))
-      color = color_map [i];
-    else
-      FATAL ("Illegal color index %d ('%c'/0x%02X) in c_buf: '%.*s'\n",
-             i, ch, ch, (int)(c_head - c_buf), c_buf);
-
-    C_flush();
-    if (use_colours)
-       C_set (color);
-    return (1);
-  }
-
-  if (ch == '~' && !c_raw)
-  {
-    get_color = TRUE;   /* change state; get colour index in next char */
-    return (0);
+    {
+      get_color = TRUE;   /* change state; get colour index in next char */
+      return (0);
+    }
   }
 
   if (ch == '\n' && c_binmode)
