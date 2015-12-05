@@ -14,107 +14,13 @@
 #include <malloc.h>
 #include <io.h>
 #include <windows.h>
-#include <shlobj.h>
 
 #include "envtool.h"
 #include "win_glob.h"
+#include "getopt_long.h"
 
 #define PATHBUF_LEN  2000
 #define EOS          '\0'
-
-struct ffblk {
-       HANDLE    ff_handle;
-       DWORD     ff_attrib;         /* Attributes, see constants above. */
-       FILETIME  ff_time_create;
-       FILETIME  ff_time_access;    /* always midnight local time */
-       FILETIME  ff_time_write;
-       uint64_t  ff_fsize;
-       char      ff_name [_MAX_PATH];
-     };
-
-static int findfirst (const char *file_spec, struct ffblk *ffblk, int attrib)
-{
-  WIN32_FIND_DATA ff_data;
-  HANDLE          handle = FindFirstFile (file_spec, &ff_data);
-
-  if (handle == INVALID_HANDLE_VALUE)
-  {
-    DEBUGF (1, "\"%s\" not found.\n", file_spec);
-    return (-1);
-  }
-
-  ffblk->ff_handle      = handle;
-  ffblk->ff_attrib      = ff_data.dwFileAttributes;
-  ffblk->ff_time_create = ff_data.ftCreationTime;
-  ffblk->ff_time_access = ff_data.ftLastAccessTime;
-  ffblk->ff_time_write  = ff_data.ftLastWriteTime;
-  ffblk->ff_fsize       = ((uint64_t)ff_data.nFileSizeHigh << 32) + ff_data.nFileSizeLow;
-
-  _strlcpy (ffblk->ff_name, ff_data.cFileName, sizeof(ffblk->ff_name));
-  ARGSUSED (attrib);
-  return (0);
-}
-
-static int findnext (struct ffblk *ffblk)
-{
-  WIN32_FIND_DATA ff_data;
-  DWORD           rc = FindNextFile (ffblk->ff_handle, &ff_data);
-
-  if (!rc)
-  {
-    FindClose (ffblk->ff_handle);
-    ffblk->ff_handle = NULL;
-  }
-  else
-  {
-    ffblk->ff_attrib = ff_data.dwFileAttributes;
-    _strlcpy (ffblk->ff_name, ff_data.cFileName, sizeof(ffblk->ff_name));
-  }
-  return (rc ? 0 : 1);
-}
-
-#define ADD_VALUE(v)  { v, #v }
-
-static const struct search_list sh_folders[] = {
-                    ADD_VALUE (CSIDL_PROFILE),
-                    ADD_VALUE (CSIDL_APPDATA),    /* Use this as HOME-dir ("~/") */
-                    ADD_VALUE (CSIDL_LOCAL_APPDATA),
-                    ADD_VALUE (CSIDL_STARTUP),
-                    ADD_VALUE (CSIDL_BITBUCKET),  /* Recycle Bin */
-                    ADD_VALUE (CSIDL_COMMON_ALTSTARTUP),
-                    ADD_VALUE (CSIDL_COMMON_FAVORITES),
-                    ADD_VALUE (CSIDL_ADMINTOOLS),
-                    ADD_VALUE (CSIDL_COOKIES)
-                  };
-
-static const struct search_list sh_flags[] = {
-                    ADD_VALUE (SHGFP_TYPE_CURRENT),
-                    ADD_VALUE (SHGFP_TYPE_DEFAULT)
-                  };
-
-static void get_shell_folder (const struct search_list *folder, DWORD flag)
-{
-  char    path1 [MAX_PATH];
-  char    path2 [_MAX_PATH];
-  HRESULT rc = SHGetFolderPathA (NULL, folder->value, NULL, flag, path1);
-
-  if (rc >= 0)
-       _fix_path (path1, path2);
-  else strcpy (path2, "<fail>");
-
-  DEBUGF (1, "%-23s (%s) -> '%s'\n", folder->name, list_lookup_name(flag,sh_flags,DIM(sh_flags)), path2);
-}
-
-static void get_shell_folders (void)
-{
-  int i;
-
-  for (i = 0; i < DIM(sh_folders); i++)
-  {
-    get_shell_folder (sh_folders+i, SHGFP_TYPE_CURRENT);
-    get_shell_folder (sh_folders+i, SHGFP_TYPE_DEFAULT);
-  }
-}
 
 typedef struct Save {
         struct Save *prev;
@@ -123,48 +29,333 @@ typedef struct Save {
 
 static Save *save_list;
 static int   save_count;
-static int   flags;
-static int (*errfunc)(const char *epath, int eerno);
+static int (*errfunc) (const char *path, int err);
 static char *pathbuf, *pathbuf_end;
-static int   wildcard_nesting;
-static char  use_lfn = 1;
 static char  slash;
+static char  global_slash;
+static DWORD recursion_level;
+static DWORD num_ignored_errors;
 
 static int glob2 (const char *pattern, char *epathbuf);
-static int add (const char *path, unsigned line);
+static int glob_add (const char *path, BOOL is_dir, unsigned line);
 static int str_compare (const void *va, const void *vb);
 
-/* `tolower' might depend on the locale.  We don't want to.
+struct ffblk {
+       HANDLE    ff_handle;
+       DWORD     ff_attrib;         /* FILE_ATTRIBUTE_xx. Ref MSDN. */
+       FILETIME  ff_time_create;
+       FILETIME  ff_time_access;    /* always midnight local time */
+       FILETIME  ff_time_write;
+       DWORD64   ff_fsize;
+       char      ff_name [_MAX_PATH];
+     };
+
+typedef struct glob_new_entry {
+        struct ffblk ff;
+        char  *real_target;
+      } glob_new_entry;
+
+typedef struct Save_new {
+        struct Save_new *prev;
+        glob_new_entry   entry;
+      } Save_new;
+
+static Save_new *save_list_new;
+static int       save_count_new;
+
+static DWORD find_first (const char *file_spec, struct ffblk *ffblk);
+static DWORD find_next (struct ffblk *ffblk);
+
+static DWORD64 total_files, total_dirs, total_reparse_points;
+static DWORD64 total_size;
+static int     show_full_path;
+
+/*
+ * For fnmatch() used in the walker_func callback.
+ */
+static const char *global_spec, *orig_spec, *dot_spec;
+static int         fn_flags = FNM_FLAG_NOCASE | FNM_FLAG_NOESCAPE | FNM_FLAG_PATHNAME;
+static int         glob_flags;
+
+typedef int (*walker_func) (const char *path, const struct ffblk *ff);
+
+static DWORD glob_new2 (const char *dir,
+                        walker_func callback,
+                        glob_new_t *res)
+{
+  struct ffblk ff;
+  char         search_spec[MAX_PATH], path[MAX_PATH], *dir_end;
+  int          done;
+  DWORD        rc;
+
+  if (!dir || !*dir || !callback)
+  {
+    rc = ERROR_BAD_ARGUMENTS;
+    goto quit;
+  }
+
+  /* Construct the search spec for find_first().  Treat "d:" as "d:.".
+   */
+  strcpy (search_spec, dir);
+  dir_end = strchr (search_spec,'\0') - 1;
+
+  if (*dir_end == ':')
+  {
+    *++dir_end = '.';
+    dir_end[1] = '\0';
+  }
+  if (!IS_SLASH(*dir_end))
+  {
+    *++dir_end = '\\';
+    *++dir_end = '\0';
+  }
+
+  strcpy (dir_end, global_spec);
+
+  /* Prepare the buffer where the full pathname of the found files
+   * will be placed.
+   */
+  strcpy (path, dir);
+  dir_end = strchr (path,'\0') - 1;
+
+  if (*dir_end == ':')
+  {
+    *++dir_end = '.';
+    dir_end[1] = '\0';
+  }
+  if (!IS_SLASH(*dir_end))
+  {
+    *++dir_end = '\\';
+    *++dir_end = '\0';
+  }
+  else
+    ++dir_end;
+
+  DEBUGF (2, "search_spec: '%s', dir_end: '%s', path: '%s'.\n", search_spec, dir_end, path);
+
+  done = find_first (search_spec, &ff);
+
+  while (!done)
+  {
+    int result;
+
+    /* Skip '.' and '..' entries.
+     */
+    if ((ff.ff_attrib & FILE_ATTRIBUTE_DIRECTORY) &&
+        (!strcmp(ff.ff_name, ".") || !strcmp(ff.ff_name, "..")))
+    {
+      done = find_next (&ff);
+      continue;
+    }
+
+    /* Construct full pathname in path[].
+     */
+    strcpy (dir_end, ff.ff_name);
+
+    /* Invoke callback() on this file.
+     */
+    result = (*callback) (path, &ff);
+    if (result)
+       return (result);
+
+    /* If this is a directory, walk its siblings if in recursive-mode.
+     * The 'path' on exit could be different that on enty if this path is a junction.
+     */
+    if ((glob_flags & GLOB_RECURSIVE) && (ff.ff_attrib & FILE_ATTRIBUTE_DIRECTORY))
+    {
+      DWORD result;
+
+      recursion_level++;
+      result = glob_new2 (path, callback, res);
+      if (result)
+         return (result);
+      recursion_level--;
+    }
+    done = find_next (&ff);
+  }
+
+  rc = GetLastError();
+
+quit:
+  DEBUGF (1, "GetLastError(): %s.\n", win_strerror(rc));
+
+  /* Normal case: tree exhausted
+   */
+  if (rc == ERROR_NO_MORE_FILES)
+     rc = 0;
+
+  /* If we get "access denied" on a directory at level > 0, we ignore and continue
+   */
+  else if (rc == ERROR_ACCESS_DENIED /* && recursion_level > 0 */)
+     rc = 0;
+
+  return (rc);
+}
+
+int glob_new (const char *_dir, int _flags,
+              int (*callback)(const char *path),
+              glob_new_t *_pglob)
+{
+  return (0);  /* to-do !! */
+}
+
+void globfree_new (glob_new_t *_pglob)
+{
+  struct glob_new_entry *e;
+  size_t i;
+
+  if (!_pglob->gl_pathv)
+     return;
+
+  for (i = 0, e = _pglob->gl_pathv; i < _pglob->gl_pathc; i++, e++)
+  {
+    FREE (e->real_target);
+  }
+  FREE (_pglob->gl_pathv);
+}
+
+
+/*
+ * Use FindFirstFile() or FindFirstFileEx().
+ *
+ * A list of "File Management Functions" here:
+ *   https://msdn.microsoft.com/en-us/library/aa364232(VS.85).aspx
+ *
+ * Note on the possibility of infinite recursion using FindFirstFile():
+ *   https://social.msdn.microsoft.com/Forums/windowsdesktop/en-US/05d14368-25dd-41c8-bdba-5590bf762a68/inconsistent-file-system-enumeration-with-findfirstfile-finenextfile?forum=windowscompatibility
+ *
+ * Notes on FIND_FIRST_EX_LARGE_FETCH:
+ *   http://blogs.msdn.com/b/oldnewthing/archive/2013/10/24/10459773.aspx
+ */
+static DWORD find_first (const char *file_spec, struct ffblk *ffblk)
+{
+  WIN32_FIND_DATA ff_data;
+  HANDLE          handle;
+  DWORD           rc = 0;
+
+  ff_data.dwFileAttributes = 0;
+
+  handle = (glob_flags & GLOB_USE_EX) ?
+             FindFirstFileEx (file_spec, FindExInfoStandard, &ff_data,
+                              FindExSearchNameMatch, 0, FIND_FIRST_EX_LARGE_FETCH) :
+             FindFirstFile (file_spec, &ff_data);
+
+
+  DEBUGF (3, "find_first (\"%s\") -> %08lX\n", file_spec, (DWORD)handle);
+
+  if (handle == INVALID_HANDLE_VALUE)
+  {
+    rc = GetLastError();
+    DEBUGF (1, "recursion_level: %lu, GetLastError(): %s.\n",
+            recursion_level, win_strerror(rc));
+
+    /*
+     * We get "access denied" for a directory-name which is a Junction.
+     * But we use get_reparse_point() to get the target for this junction.
+     */
+    if (rc == ERROR_ACCESS_DENIED)
+    {
+      num_ignored_errors++;
+    }
+#if 0
+    else if (recursion_level > 1)
+    {
+      num_ignored_errors++;
+      rc = 0;
+    }
+#endif
+    return (rc);
+  }
+
+  ffblk->ff_handle      = handle;
+  ffblk->ff_attrib      = ff_data.dwFileAttributes;
+  ffblk->ff_time_create = ff_data.ftCreationTime;
+  ffblk->ff_time_access = ff_data.ftLastAccessTime;
+  ffblk->ff_time_write  = ff_data.ftLastWriteTime;
+  ffblk->ff_fsize       = ((DWORD64)ff_data.nFileSizeHigh << 32) + ff_data.nFileSizeLow;
+
+  _strlcpy (ffblk->ff_name, ff_data.cFileName, sizeof(ffblk->ff_name));
+
+  if (errfunc)
+    (*errfunc) (ffblk->ff_name, rc);
+
+  return (rc);
+}
+
+static DWORD find_next (struct ffblk *ffblk)
+{
+  WIN32_FIND_DATA ff_data;
+  DWORD           rc = 0;
+
+  ff_data.dwFileAttributes = 0;
+
+  if (!FindNextFile(ffblk->ff_handle, &ff_data))
+  {
+    rc = GetLastError();
+    DEBUGF (3, "find_next() -> %s\n", win_strerror(rc));
+    FindClose (ffblk->ff_handle);
+    ffblk->ff_handle = NULL;
+  }
+  else
+  {
+    ffblk->ff_attrib      = ff_data.dwFileAttributes;
+    ffblk->ff_time_create = ff_data.ftCreationTime;
+    ffblk->ff_time_access = ff_data.ftLastAccessTime;
+    ffblk->ff_time_write  = ff_data.ftLastWriteTime;
+    ffblk->ff_fsize       = ((DWORD64)ff_data.nFileSizeHigh << 32) + ff_data.nFileSizeLow;
+
+    _strlcpy (ffblk->ff_name, ff_data.cFileName, sizeof(ffblk->ff_name));
+  }
+
+  if (errfunc)
+    (*errfunc) (ffblk->ff_name, rc);
+
+  return (rc);
+}
+
+/* 'tolower' might depend on the locale.  We don't want to.
  */
 int msdos_tolower_fname (int c)
 {
   return (c >= 'A' && c <= 'Z') ? c + 'a' - 'A' : c;
 }
 
-static int add (const char *path, unsigned line)
+static int glob_add (const char *path, BOOL is_dir, unsigned line)
 {
   Save *sp;
 
   for (sp = save_list; sp; sp = sp->prev)
-    if (!stricmp(sp->entry, path))
-      return (0);
+      if (!stricmp(sp->entry, path))
+         return (1);
 
   sp = CALLOC (sizeof(*sp), 1);
   if (!sp)
-     return (1);
+     return (0);
+
+  /* use get_reparse_point() to get the true location.
+   */
+  if (is_dir)
+  {
+    char result [_MAX_PATH] = "??";
+    BOOL rc = get_reparse_point (path, result, TRUE);
+
+    if (!rc)
+         DEBUGF (1, "get_reparse_point(): %s\n", last_reparse_err);
+    else path = result;
+  }
 
   sp->entry = STRDUP (path);
   if (!sp->entry)
   {
     FREE (sp);
-    return (1);
+    return (0);
   }
-  DEBUGF (2, "add: `%s' (from line %u)\n", sp->entry, line);
+  DEBUGF (2, "add: '%s' (from line %u)\n", sp->entry, line);
 
   sp->prev = save_list;
   save_list = sp;
   save_count++;
-  return (0);
+  return (1);
 }
 
 static int glob_dirs (const char *rest, char *epathbuf,
@@ -173,8 +364,8 @@ static int glob_dirs (const char *rest, char *epathbuf,
   struct ffblk ff;
   int    done;
 
-  DEBUGF (2, "glob_dirs[%d]: rest=`%s' %c epathbuf=`%s' %c pathbuf=`%s'\n",
-             wildcard_nesting, rest, *rest, epathbuf, *epathbuf, pathbuf);
+  DEBUGF (2, "glob_dirs[%lu]: rest='%s' %c epathbuf='%s' %c pathbuf='%s'\n",
+          recursion_level, rest, *rest, epathbuf, *epathbuf, pathbuf);
 
   if (first)
   {
@@ -188,7 +379,7 @@ static int glob_dirs (const char *rest, char *epathbuf,
       char sl = epathbuf[-1];
 
       *epathbuf = '\0';
-      DEBUGF (2, "end, checking `%s'\n", pathbuf);
+      DEBUGF (2, "end, checking '%s'\n", pathbuf);
       if (epathbuf == pathbuf)
       {
         epathbuf[0] = '.';
@@ -198,14 +389,14 @@ static int glob_dirs (const char *rest, char *epathbuf,
         epathbuf[-1] = '\0';
 
       if (FILE_EXISTS(pathbuf))
-         if (add(pathbuf,__LINE__))
+         if (!glob_add(pathbuf,FALSE,__LINE__))
             return (GLOB_NOSPACE);
       epathbuf[-1] = sl;
     }
   }
 
   strcpy (epathbuf, "*.*");
-  done = findfirst (pathbuf, &ff, FILE_ATTRIBUTE_DIRECTORY);
+  done = find_first (pathbuf, &ff);
 
   while (!done)
   {
@@ -214,14 +405,14 @@ static int glob_dirs (const char *rest, char *epathbuf,
     {
       char *tp;
 
-      DEBUGF (1, "found `%s' `%s'\n", pathbuf, ff.ff_name);
+      DEBUGF (1, "found '%s' '%s'\n", pathbuf, ff.ff_name);
 
       strcpy (epathbuf, ff.ff_name);
       tp = strchr (epathbuf, '\0');
       *tp++ = slash;
       *tp = '\0';
 
-      wildcard_nesting++;
+      recursion_level++;
       if (*rest)
       {
         if (glob2(rest, tp) == GLOB_NOSPACE)
@@ -229,18 +420,20 @@ static int glob_dirs (const char *rest, char *epathbuf,
       }
       else
       {
-        if (!(flags & GLOB_MARK))
+        if (!(glob_flags & GLOB_MARK))
            tp[-1] = '\0';
-        if (add(pathbuf,__LINE__))
+        if (!glob_add(pathbuf,TRUE,__LINE__))
            return (GLOB_NOSPACE);
         tp[-1] = slash;
       }
+
       *tp = '\0';
       if (glob_dirs(rest, tp, 0) == GLOB_NOSPACE)
          return (GLOB_NOSPACE);
-      wildcard_nesting--;
+
+      recursion_level--;
     }
-    done = findnext(&ff);
+    done = find_next (&ff);
   }
   return (0);
 }
@@ -250,12 +443,12 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   struct ffblk ff;
   const char  *pp, *pslash;
   char        *bp, *my_pattern;
-  int          done, attr;
+  int          done;
 
-  if (strcmp(pattern, "...") == 0)
+  if (!strcmp(pattern, "..."))
      return glob_dirs (pattern+3, epathbuf, 1);
 
-  if (strncmp(pattern, "...", 3) == 0 && (pattern[3] == '\\' || pattern[3] == '/'))
+  if (!strncmp(pattern, "...", 3) && IS_SLASH(pattern[3]))
   {
     slash = pattern[3];
     return glob_dirs (pattern+4, epathbuf, 1);
@@ -263,22 +456,23 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
 
   *epathbuf = '\0';
 
-  /* copy as many non-wildcard segments as possible */
+  /* copy as many non-wildcard segments as possible
+   */
   pp = pattern;
   bp = epathbuf;
   pslash = bp - 1;
 
   while (bp < pathbuf_end)
   {
-    if (*pp == ':' || *pp == '\\' || *pp == '/')
+    if (*pp == ':' || IS_SLASH(*pp))
     {
       pslash = bp;
-      if (strcmp(pp+1, "...") == 0 ||
-          (strncmp(pp+1, "...", 3) == 0 && (pp[4] == '/' || pp[4] == '\\')))
+      if (!strcmp(pp+1, "...") ||
+          (!strncmp(pp+1, "...", 3) && IS_SLASH(pp[4])))
       {
         if (*pp != ':')
            slash = *pp;
-        DEBUGF (2, "glob2: dots at `%s'\n", pp);
+        DEBUGF (2, "glob2: dots at '%s'\n", pp);
         *bp++ = *pp++;
         break;
       }
@@ -302,47 +496,48 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   if (bp >= pathbuf_end && *pp)
      return (0);
 
-  DEBUGF (2, "glob2: pp: `%s'\n", pp);
+  DEBUGF (2, "glob2: pp: '%s'\n", pp);
 
   if (*pp == 0) /* end of pattern? */
   {
     if (FILE_EXISTS(pathbuf))
     {
-      if (flags & GLOB_MARK)
+      BOOL is_dir = FALSE;
+
+      if (glob_flags & GLOB_MARK)
       {
         struct ffblk _ff;
 
-        attr = FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM |
-               FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_ARCHIVE;
-
-        findfirst (pathbuf, &_ff, attr);
+        find_first (pathbuf, &_ff);
         if (_ff.ff_attrib & FILE_ATTRIBUTE_DIRECTORY)
         {
-          char *_pathbuf = pathbuf + strlen(pathbuf);
-          *_pathbuf++ = '/';
-          *_pathbuf = 0;
+          char *_pathbuf = pathbuf + strlen (pathbuf);
+
+          *_pathbuf++ = global_slash;
+          *_pathbuf = '\0';
+          is_dir = TRUE;
         }
       }
-      if (add(pathbuf,__LINE__))
+      if (!glob_add(pathbuf,is_dir,__LINE__))
          return (GLOB_NOSPACE);
     }
     return (0);
   }
 
-  DEBUGF (2, "glob2(): initial segment is `%s', wildcard_nesting: %d\n",
-          pathbuf, wildcard_nesting);
+  DEBUGF (2, "glob2(): initial segment is '%s', recursion_level: %lu\n",
+          pathbuf, recursion_level);
 
-  if (wildcard_nesting)
+  if (recursion_level)
   {
     char s = bp[-1];
 
-    bp[-1] = 0;
+    bp[-1] = '\0';
     if (!FILE_EXISTS(pathbuf))
        return (0);
     bp[-1] = s;
   }
 
-  for (pslash = pp; *pslash && *pslash != '\\' && *pslash != '/';  pslash++)
+  for (pslash = pp; *pslash && !IS_SLASH(*pslash); pslash++)
       ;
 
   if (*pslash)
@@ -351,9 +546,9 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   my_pattern = alloca (pslash - pp + 1);
   _strlcpy (my_pattern, pp, pslash - pp + 1);
 
-  DEBUGF (1, "glob2: `%s' `%s'\n", pathbuf, my_pattern);
+  DEBUGF (1, "glob2(): pathbuf: '%s', my_pattern: '%s'\n", pathbuf, my_pattern);
 
-  if (strcmp(my_pattern, "...") == 0)
+  if (!strcmp(my_pattern, "..."))
   {
     if (glob_dirs(*pslash ? pslash+1 : pslash, bp, 1) == GLOB_NOSPACE)
        return (GLOB_NOSPACE);
@@ -361,10 +556,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   }
 
   strcpy (bp, "*.*");
-
-  attr = FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM |
-         FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_ARCHIVE;
-  done = findfirst (pathbuf, &ff, attr);
+  done = find_first (pathbuf, &ff);
 
   while (!done)
   {
@@ -382,132 +574,102 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
 
           *tp++ = *pslash;
           *tp = 0;
-          DEBUGF (2, "nest: `%s' `%s'\n", pslash+1, pathbuf);
-          wildcard_nesting++;
+          DEBUGF (2, "nest: '%s' '%s'\n", pslash+1, pathbuf);
+          recursion_level++;
           if (glob2(pslash+1, tp) == GLOB_NOSPACE)
              return (GLOB_NOSPACE);
-          wildcard_nesting--;
+          recursion_level--;
         }
         else
         {
-          DEBUGF (1, "ffmatch: `%s' matching `%s', add `%s'\n",
+          BOOL is_dir;
+
+          DEBUGF (1, "ffmatch: '%s' matching '%s', add '%s'\n",
                      ff.ff_name, my_pattern, pathbuf);
-          if ((ff.ff_attrib & FILE_ATTRIBUTE_DIRECTORY) && (flags & GLOB_MARK))
+
+          is_dir = ff.ff_attrib & FILE_ATTRIBUTE_DIRECTORY;
+          if (is_dir && (glob_flags & GLOB_MARK))
           {
             size_t len = strlen (bp);
+
             bp [len+1] = '\0';
             bp [len] = slash;
           }
-          if (add(pathbuf,__LINE__))
+          if (!glob_add(pathbuf,is_dir,__LINE__))
              return (GLOB_NOSPACE);
         }
       }
     }
-    done = findnext (&ff);
+    done = find_next (&ff);
   }
   return (0);
 }
 
-static int str_compare (const void *va, const void *vb)
+static int str_compare (const void *a, const void *b)
 {
-  return stricmp (*(const char * const *)va, *(const char * const *)vb);
+  return stricmp (*(const char *const*)a, *(const char *const*)b);
 }
 
-static const char *glob_flags (unsigned flag)
+static const char *glob_flags_str (unsigned flag)
 {
+  #define ADD_VALUE(v)  { v, #v }
+
   static const struct search_list flags[] = {
-                      ADD_VALUE (GLOB_APPEND),
-                      ADD_VALUE (GLOB_DOOFFS),
-                      ADD_VALUE (GLOB_ERR),
                       ADD_VALUE (GLOB_MARK),
-                      ADD_VALUE (GLOB_NOCHECK),
-                      ADD_VALUE (GLOB_NOESCAPE),
-                      ADD_VALUE (GLOB_NOSORT),
-                      ADD_VALUE (GLOB_TILDE)
+                      ADD_VALUE (GLOB_NOSORT)
                    };
   return flags_decode (flag, flags, DIM(flags));
 }
 
-int glob (const char *_pattern, int _flags,
-          int (*_errfunc)(const char *_epath, int _eerrno),
+int glob (const char *_pattern, int flags,
+          int (*_errfunc)(const char *path, int err),
           glob_t *_pglob)
 {
   char path_buffer [PATHBUF_LEN + 1];
-  int  l_ofs, l_ptr;
+  int  idx;
 
-  pathbuf = path_buffer + 1;
-  pathbuf_end = path_buffer + PATHBUF_LEN;
-  flags = _flags;
-  errfunc = _errfunc;
-  wildcard_nesting = 0;
-  save_count = 0;
-  save_list = 0;
-  use_lfn = 1;
-  slash = '/';
+  pathbuf         = path_buffer + 1;
+  pathbuf_end     = path_buffer + PATHBUF_LEN;
+  glob_flags      = flags;
+  errfunc         = _errfunc;
+  recursion_level = 0;
+  save_count      = 0;
+  save_list       = NULL;
+  slash           = global_slash;
 
   path_buffer[1] = '\0';
 
-  DEBUGF (1, "flags: %s\n", glob_flags(flags));
+  DEBUGF (1, "glob_flags: %s\n", glob_flags_str(glob_flags));
 
-  if (!(_flags & GLOB_APPEND))
-  {
-    _pglob->gl_pathc = 0;
-    _pglob->gl_pathv = NULL;
-    if (!(flags & GLOB_DOOFFS))
-       _pglob->gl_offs = 0;
-  }
+  memset (_pglob, 0, sizeof(*_pglob));
 
   if (glob2(_pattern, pathbuf) == GLOB_NOSPACE)
      return (GLOB_NOSPACE);
 
   if (save_count == 0)
-  {
-    if (flags & GLOB_NOCHECK)
-    {
-      if (add(_pattern,__LINE__))
-         return (GLOB_NOSPACE);
-    }
-    else
-      return (GLOB_NOMATCH);
-  }
+     return (GLOB_NOMATCH);
 
-  if (flags & GLOB_DOOFFS)
-       l_ofs = _pglob->gl_offs;
-  else l_ofs = 0;
+  _pglob->gl_pathv = CALLOC (save_count+1, sizeof(char *));
+  if (!_pglob->gl_pathv)
+     return (GLOB_NOSPACE);
 
-  if (flags & GLOB_APPEND)
-  {
-    _pglob->gl_pathv = REALLOC (_pglob->gl_pathv, (l_ofs + _pglob->gl_pathc + save_count + 1) * sizeof(char *));
-    if (!_pglob->gl_pathv)
-       return (GLOB_NOSPACE);
-    l_ptr = l_ofs + _pglob->gl_pathc;
-  }
-  else
-  {
-    _pglob->gl_pathv = CALLOC (l_ofs + save_count + 1, sizeof(char *));
-    if (!_pglob->gl_pathv)
-       return (GLOB_NOSPACE);
-    l_ptr = l_ofs;
-  }
-
-  l_ptr += save_count;
-  _pglob->gl_pathv[l_ptr] = NULL;
+  idx = save_count;
+  _pglob->gl_pathv[idx] = NULL;
 
   while (save_list)
   {
     Save *s = save_list;
 
-    l_ptr --;
-    _pglob->gl_pathv[l_ptr] = save_list->entry;
+    idx--;
+    _pglob->gl_pathv[idx] = save_list->entry;
     save_list = save_list->prev;
     FREE (s);
   }
 
-  if (!(flags & GLOB_NOSORT))
-     qsort (_pglob->gl_pathv + l_ptr, save_count, sizeof(char *), str_compare);
+  if (!(glob_flags & GLOB_NOSORT))
+     qsort (_pglob->gl_pathv, save_count, sizeof(char*), str_compare);
 
-  _pglob->gl_pathc = l_ptr + save_count;
-
+  _pglob->gl_pathc = save_count;
   return (0);
 }
 
@@ -525,53 +687,168 @@ void globfree (glob_t *_pglob)
 
 #if defined(GLOB_TEST)
 
-/* Tell MinGW's CRT to turn off command line globbing by default.
- */
-int _CRT_glob = 0;
+#ifdef __MINGW32__
+  /*
+   * Tell MinGW's CRT to turn off command line globbing by default.
+   */
+  int _CRT_glob = 0;
 
-/* MinGW-64's CRT seems to NOT glob the cmd-line by default.
- * Hence this doesn't change that behaviour.
- */
-int _dowildcard = 0;
+ #ifndef __MINGW64_VERSION_MAJOR
+    /*
+     * MinGW-64's CRT seems to NOT glob the cmd-line by default.
+     * Hence this doesn't change that behaviour.
+     */
+    int _dowildcard = 0;
+  #endif
+#endif
 
 struct prog_options opt;
+char  *program_name = "win_glob";
+
+extern void get_shell_folders (void);
 
 void usage (void)
 {
-  printf ("Usage: win_glob [-d] <file_spec>\n");
+  printf ("Usage: win_glob [-dfu] <file_spec>\n"
+          "       -d:  debug-level.\n"
+          "       -c:  case-sensitive file-matching.\n"
+          "       -f:  use _fix_path() to show full paths.\n"
+          "       -g:  use glob().\n"
+          "       -r:  be recursive\n"
+          "       -u:  make glob() return Unix slashes.\n"
+          "       -x:  use FindFirstFileEx().\n");
   exit (-1);
 }
 
-/*
- * Syntax for a recursive glob() is e.g. ".../*.c". Will search
- * for .c-files in current dir and in directories below it.
- */
-int main (int argc, char **argv)
+static int callback (const char *epath, int eerno)
+{
+//printf ("callback: rc: %d, '%s'\n", eerno, epath);
+  return (0);
+}
+
+#ifndef FILE_ATTRIBUTE_INTEGRITY_STREAM
+#define FILE_ATTRIBUTE_INTEGRITY_STREAM  0x00008000
+#endif
+
+#ifndef FILE_ATTRIBUTE_NO_SCRUB_DATA
+#define FILE_ATTRIBUTE_NO_SCRUB_DATA     0x00020000
+#endif
+
+static int ft_callback (const char *path, const struct ffblk *ff)
+{
+  char  attr_str[14]    = "_____________";
+  char *base            = basename (path);
+  BOOL  is_dir          = (ff->ff_attrib & FILE_ATTRIBUTE_DIRECTORY);
+  BOOL  is_junction     = (ff->ff_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+  BOOL  no_ext          = !is_dir && !is_junction && (strchr(base,'.') == NULL);
+  const char *spec      = NULL;
+  const char *orig_path = "";
+
+  if (no_ext && dot_spec)
+     spec = dot_spec;
+
+  else if (orig_spec)
+     spec = orig_spec;
+
+  else if (global_spec)
+      spec = global_spec;
+
+  if (spec && fnmatch(spec, base, fn_flags) == FNM_NOMATCH)
+  {
+    DEBUGF (2, "fnmatch (\"%s\", \"%s\") failed.\n", spec, base);
+    return (0);
+  }
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_READONLY)
+     attr_str[0] = 'R';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_HIDDEN)
+     attr_str[1] = 'H';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_SYSTEM)
+     attr_str[2] = 'S';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_COMPRESSED)
+     attr_str[3] = 'C';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_ARCHIVE)
+     attr_str[4] = 'A';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_TEMPORARY)
+     attr_str[5] = 'T';
+
+  if (is_dir)
+     attr_str[6] = 'D';
+
+  else if (ff->ff_attrib & FILE_ATTRIBUTE_DEVICE)
+     attr_str[6] = '!';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_ENCRYPTED)
+     attr_str[7] = 'E';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_INTEGRITY_STREAM)
+     attr_str[8] = 'I';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_NOT_CONTENT_INDEXED)
+     attr_str[9] = 'N';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_NO_SCRUB_DATA)
+     attr_str[10] = 'N';
+
+  if (ff->ff_attrib & FILE_ATTRIBUTE_VIRTUAL)
+     attr_str[11] = 'V';
+
+  if (is_junction)
+  {
+    char result [_MAX_PATH] = "??";
+    char orig   [_MAX_PATH+5];
+    BOOL rc = get_reparse_point (path, result, TRUE);
+
+    if (rc)
+    {
+      snprintf (orig, sizeof(orig), "[%s\\]", path);
+      orig_path = orig;
+      path      = _fix_drive (result);
+      total_reparse_points++;
+    }
+    attr_str[6] = 'J';
+  }
+
+  if (is_dir || is_junction)
+  {
+    total_dirs++;
+    printf ("%2lu, %14s: %s %s\\ %s\n", recursion_level, "<N/A>", attr_str, path, orig_path);
+  }
+  else
+  {
+    /* to-do: figure out the allocation unit to show the total allocated size
+     */
+    total_size += ff->ff_fsize;
+    total_files++;
+    printf ("%2lu, %14s: %s %s\n", recursion_level, qword_str(ff->ff_fsize), attr_str, path);
+  }
+  return (0);
+}
+
+static void do_glob (const char *spec)
 {
   glob_t res;
   size_t cnt;
   int    rc;
   char **p;
 
-  if (argc < 2)
-     usage();
-
-  if (!strcmp(argv[1],"-d"))
-    opt.debug++, argv++;
-
-  get_shell_folders();
-
-  rc = glob (argv[1], GLOB_NOSORT | GLOB_MARK | GLOB_NOCHECK | GLOB_TILDE, NULL, &res);
+  rc = glob (spec, glob_flags, callback, &res);
   if (rc != 0)
-    printf ("glob() failed: %d\n", rc);
+     printf ("glob() failed: %d\n", rc);
   else
     for (p = res.gl_pathv, cnt = 1; cnt <= res.gl_pathc; p++, cnt++)
     {
       char fp[_MAX_PATH];
-      printf ("%2d: %s -> %s\n", cnt, *p, _fix_path(*p,fp));
+      printf ("%2d: %s\n", cnt, show_full_path ? _fix_path(*p,fp) : *p);
     }
 
-  if (opt.debug > 0)
+  fflush (stdout);
+  if (opt.debug >= 2)
   {
     printf ("Before globfree()\n");
     mem_report();
@@ -579,12 +856,151 @@ int main (int argc, char **argv)
 
   globfree (&res);
 
-  if (opt.debug > 0)
+  if (opt.debug >= 2)
   {
     printf ("After globfree()\n");
     mem_report();
   }
+}
 
+static void do_glob_new (const char *spec)
+{
+  DWORD rc;
+  char *dir, *p, buf[_MAX_PATH];
+  glob_new_t res;
+
+  res.gl_pathv = NULL;
+
+  /* Must use fnmatch() for such wildcards.
+   */
+  if ((glob_flags & GLOB_RECURSIVE) || strpbrk(spec,"[]"))
+  {
+    global_spec = "*";
+    orig_spec   = basename (spec);
+    if (*orig_spec == '\0')
+       orig_spec = "*";
+  }
+  else
+  {
+    orig_spec   = NULL;
+    global_spec = basename (spec);
+    if (*global_spec == '\0')
+       global_spec = "*";
+  }
+
+  dir = _fix_drive (dirname(spec));
+
+  /* I failed to make fnmatch() handle files with no extension if 'spec' ends
+   * in a '.' Hence, use this hack with a 'dot_spec' global.
+   */
+  p = strchr (spec,'\0') - 1;
+  if (*p == '.')
+  {
+    dot_spec = strcpy (buf, basename(spec));
+    p = strchr (dot_spec, '\0');
+    p[-1] = '\0';
+  }
+  else
+    dot_spec = NULL;
+
+  recursion_level = num_ignored_errors = 0;
+
+  DEBUGF (1, "dir: '%s', global_spec: '%s', orig_spec: '%s', dot_spec: '%s'\n",
+          dir, global_spec, orig_spec, dot_spec);
+
+  printf ("Depth         Size  Attr          Path\n"
+          "-------------------------------------------"
+          "-------------------------------------------\n");
+
+  rc = glob_new2 (dir, ft_callback, &res);
+  FREE (dir);
+
+  if (rc)
+     printf ("\nGetLastError(): %s\n", win_strerror(rc));
+  else
+  {
+    const char *size_str = str_trim ((char*)get_file_size_str(total_size));
+
+    printf ("\nglob_new: %lu, total_files: %s, ",
+            rc, qword_str(total_files));
+
+    printf ("total_dirs: %s, total_size: %s ",
+            qword_str(total_dirs), size_str);
+
+    printf ("(%s), total_reparse_points: %" U64_FMT "\n",
+            qword_str(total_size), total_reparse_points);
+  }
+  printf ("recursion_level: %lu, num_ignored_errors: %lu\n", recursion_level, num_ignored_errors);
+
+  fflush (stdout);
+  if (opt.debug >= 2)
+  {
+    printf ("Before globfree_new()\n");
+    mem_report();
+  }
+
+  globfree_new (&res);
+
+  if (opt.debug >= 2)
+  {
+    printf ("After globfree_new()\n");
+    mem_report();
+  }
+}
+
+/*
+ * Syntax for a recursive glob() is e.g. "...\\*.c". Will search
+ * for .c-files in current dir and in directories below it.
+ */
+int main (int argc, char **argv)
+{
+  int ch, use_glob = 0;
+
+  glob_flags = GLOB_NOSORT | GLOB_MARK;
+
+  show_full_path = 0;
+  global_slash = '\\';
+
+  while ((ch = getopt(argc, argv, "dcfgruxh?")) != EOF)
+     switch (ch)
+     {
+       case 'd':
+            opt.debug++;
+            break;
+       case 'c':
+            fn_flags &= ~FNM_FLAG_NOCASE;
+            break;
+       case 'f':
+            show_full_path = 1;
+            break;
+       case 'g':
+            use_glob = 1;
+            break;
+       case 'r':
+            glob_flags |= GLOB_RECURSIVE;
+            break;
+       case 'u':
+            opt.show_unix_paths = 1;
+            global_slash = opt.show_unix_paths = '/';
+            break;
+       case 'x':
+            glob_flags |= GLOB_USE_EX;
+            break;
+       case '?':
+       case 'h':
+       default:
+            usage();
+     }
+
+  argc -= optind;
+  argv += optind;
+
+  if (argc-- < 1 || *argv == NULL)
+     usage();
+
+//get_shell_folders();
+
+  use_glob ? do_glob(*argv) : do_glob_new(*argv);
   return (0);
 }
 #endif  /* GLOB_TEST */
