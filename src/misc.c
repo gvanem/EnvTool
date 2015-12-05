@@ -20,6 +20,7 @@
 #include <windows.h>
 #include <wincon.h>
 #include <winioctl.h>
+#include <shlobj.h>
 
 /*
  * Suppress warning:
@@ -302,17 +303,25 @@ char *strip_nl (char *s)
 }
 
 /*
- * Trim leading and trailing blanks (space/tab) from a string.
+ * Trim leading blanks (space/tab) from a string.
  */
-char *str_trim (char *s)
+char *str_ltrim (char *s)
 {
-  size_t n;
-
   assert (s != NULL);
 
   while (s[0] && s[1] && isspace((int)s[0]))
        s++;
+  return (s);
+}
 
+/*
+ * Trim trailing blanks (space/tab) from a string.
+ */
+char *str_rtrim (char *s)
+{
+  size_t n;
+
+  assert (s != NULL);
   n = strlen (s);
   while (n)
   {
@@ -321,6 +330,14 @@ char *str_trim (char *s)
     s[n] = '\0';
   }
   return (s);
+}
+
+/*
+ * Trim leading and trailing blanks (space/tab) from a string.
+ */
+char *str_trim (char *s)
+{
+  return str_rtrim (str_ltrim(s));
 }
 
 /*
@@ -555,7 +572,8 @@ char *dirname (const char *fname)
       p += 2;
     }
 
-    /* Find the rightmost slash.  */
+    /* Find the rightmost slash.
+     */
     while (*p)
     {
       if (IS_SLASH(*p))
@@ -570,11 +588,13 @@ char *dirname (const char *fname)
     }
     else
     {
-      /* Remove any trailing slashes.  */
+      /* Remove any trailing slashes.
+       */
       while (slash > fname && (IS_SLASH(slash[-1])))
           slash--;
 
-      /* How long is the directory we will return?  */
+      /* How long is the directory we will return?
+       */
       dirlen = slash - fname + (slash == fname || slash[-1] == ':');
       if (*slash == ':' && dirlen == 1)
          dirlen += 2;
@@ -618,6 +638,16 @@ int split_path (const char *path, char *dir, char *file)
      ;
 #endif
   return (0);
+}
+
+/*
+ * Create a full MS-DOS path name from the components.
+ */
+void make_path (char *path, const char *drive, const char *dir, const char *filename, const char *ext)
+{
+#if !defined(__CYGWIN__)
+  _makepath (path, drive, dir, filename, ext);
+#endif
 }
 
 /*
@@ -806,8 +836,8 @@ char *_strlcpy (char *dst, const char *src, size_t len)
   if (slen < len)
      return strcpy (dst, src);
 
-  memcpy (dst, src, slen);
-  dst [slen] = '\0';
+  memcpy (dst, src, len-1);
+  dst [len-1] = '\0';
   return (dst);
 }
 
@@ -940,7 +970,7 @@ char *win_strerror (unsigned long err)
        strcpy (err_buf, "Unknown error");
   }
 
-  snprintf (buf, sizeof(buf), "%lu %s", err, err_buf);
+  snprintf (buf, sizeof(buf), "%lu: %s", err, err_buf);
   strip_nl (buf);
   p = strrchr (buf, '.');
   if (p && p[1] == '\0')
@@ -986,7 +1016,7 @@ void *malloc_at (size_t size, const char *file, unsigned line)
   head = malloc (size);
 
   if (!head)
-     FATAL ("malloc() failed at %s, line %u\n", file, line);
+     FATAL ("malloc (%u) failed at %s, line %u\n", size-sizeof(*head), file, line);
 
   head->marker = MEM_MARKER;
   head->size   = size;
@@ -1111,7 +1141,7 @@ void mem_report (void)
   const struct mem_head *m;
   unsigned     num;
 
-  C_printf ("~0  Max memory at one time: %lu bytes.\n", (u_long)mem_max);
+  C_printf ("~0  Max memory at one time: %sytes.\n", str_trim((char*)get_file_size_str(mem_max)));
   C_printf ("  Total # of allocations: %u.\n", (unsigned int)mem_allocs);
   C_printf ("  Total # of realloc():   %u.\n", (unsigned int)mem_reallocs);
   C_printf ("  Total # of frees:       %u.\n", (unsigned int)mem_frees);
@@ -1139,19 +1169,30 @@ const char *get_file_size_str (UINT64 size)
   UINT64 divisor;
 
   if (size < 1024)
-    divisor = 1, suffix = " B ";
-
+  {
+    divisor = 1;
+    suffix = " B ";
+  }
   else if (size < 1024*1024)
-    divisor = 1024, suffix = " kB";
-
+  {
+    divisor = 1024;
+    suffix = " kB";
+  }
   else if (size < 1024ULL*1024ULL*1024ULL)
-    divisor = 1024*1024, suffix = " MB";
-
+  {
+    divisor = 1024*1024;
+    suffix = " MB";
+  }
   else if (size < 1024ULL*1024ULL*1024ULL*1024ULL)
-    divisor = 1024*1024*1024, suffix = " GB";
-
+  {
+    divisor = 1024*1024*1024;
+    suffix = " GB";
+  }
   else
-    divisor = 1024ULL*1024ULL*1024ULL*1024ULL, suffix = " PB";
+  {
+    divisor = 1024ULL*1024ULL*1024ULL*1024ULL;
+    suffix = " PB";
+  }
 
   size /= divisor;
   snprintf (buf, sizeof(buf), "%4" U64_FMT "%s", size, suffix);
@@ -1505,9 +1546,29 @@ void hex_dump (const void *data_p, size_t datalen)
 const char *dump10 (const void *data, unsigned size)
 {
   static char ret [15];
-  int    ofs, ch;
+  unsigned  ofs;
+  int       ch;
 
-  for (ofs = 0; ofs < sizeof(ret)-4; ofs++)
+  for (ofs = 0; ofs < sizeof(ret)-4 && ofs < size; ofs++)
+  {
+    ch = ((const BYTE*)data) [ofs];
+    if (ch < ' ')            /* non-printable */
+         ret [ofs] = '.';
+    else ret [ofs] = ch;
+    ret [ofs+1] = '\0';
+  }
+  if (ofs < (int)size)
+     strcat (ret, "...");
+  return (ret);
+}
+
+const char *dump20 (const void *data, unsigned size)
+{
+  static char ret [25];
+  unsigned  ofs;
+  int       ch;
+
+  for (ofs = 0; ofs < sizeof(ret)-4 && ofs < size; ofs++)
   {
     ch = ((const BYTE*)data) [ofs];
     if (ch < ' ')            /* non-printable */
@@ -1564,6 +1625,49 @@ char *_itoa (int value, char *buf, int radix)
 }
 #endif
 
+#define ADD_VALUE(v)  { v, #v }
+
+static const struct search_list sh_folders[] = {
+                    ADD_VALUE (CSIDL_PROFILE),
+                    ADD_VALUE (CSIDL_APPDATA),    /* Use this as HOME-dir ("~/") */
+                    ADD_VALUE (CSIDL_LOCAL_APPDATA),
+                    ADD_VALUE (CSIDL_STARTUP),
+                    ADD_VALUE (CSIDL_BITBUCKET),  /* Recycle Bin */
+                    ADD_VALUE (CSIDL_COMMON_ALTSTARTUP),
+                    ADD_VALUE (CSIDL_COMMON_FAVORITES),
+                    ADD_VALUE (CSIDL_ADMINTOOLS),
+                    ADD_VALUE (CSIDL_COOKIES)
+                  };
+
+static const struct search_list sh_flags[] = {
+                    ADD_VALUE (SHGFP_TYPE_CURRENT),
+                    ADD_VALUE (SHGFP_TYPE_DEFAULT)
+                  };
+
+static void get_shell_folder (const struct search_list *folder, DWORD flag)
+{
+  char    path1 [MAX_PATH];
+  char    path2 [_MAX_PATH];
+  HRESULT rc = SHGetFolderPathA (NULL, folder->value, NULL, flag, path1);
+
+  if (rc >= 0)
+       _fix_path (path1, path2);
+  else strcpy (path2, "<fail>");
+
+  DEBUGF (1, "%-23s (%s) -> '%s'\n", folder->name, list_lookup_name(flag,sh_flags,DIM(sh_flags)), path2);
+}
+
+void get_shell_folders (void)
+{
+  int i;
+
+  for (i = 0; i < DIM(sh_folders); i++)
+  {
+    get_shell_folder (sh_folders+i, SHGFP_TYPE_CURRENT);
+    get_shell_folder (sh_folders+i, SHGFP_TYPE_DEFAULT);
+  }
+}
+
 /*
  * Functions for getting at Reparse Points (Junctions and Symlinks).
  * Code from:
@@ -1579,23 +1683,42 @@ struct REPARSE_DATA_BUFFER {
            USHORT SubstituteNameLength;
            USHORT PrintNameOffset;
            USHORT PrintNameLength;
-           ULONG  Flags;              // it seems that the docu is missing this entry (at least 2008-03-07)
-           WCHAR  PathBuffer[1];
+           ULONG  Flags;            /* It seems that the docs is missing this entry (at least 2008-03-07) */
+           WCHAR  PathBuffer [1];
          } SymbolicLinkReparseBuffer;
          struct {
            USHORT SubstituteNameOffset;
            USHORT SubstituteNameLength;
            USHORT PrintNameOffset;
            USHORT PrintNameLength;
-           WCHAR  PathBuffer[1];
+           WCHAR  PathBuffer [1];
          } MountPointReparseBuffer;
          struct {
-           UCHAR DataBuffer[1];
+           UCHAR DataBuffer [1];
          } GenericReparseBuffer;
        };
      };
 
 const char *last_reparse_err;
+
+static BOOL reparse_err (int dbg_level, const char *fmt, ...)
+{
+  static char err_buf [1000];
+  va_list args;
+
+  if (!fmt)
+  {
+    err_buf[0] = '\0';
+    return (TRUE);
+  }
+
+  va_start (args, fmt);
+  _vsnprintf (err_buf, sizeof(err_buf), fmt, args);
+  va_end (args);
+  last_reparse_err = err_buf;
+  DEBUGF (dbg_level, last_reparse_err);
+  return (FALSE);
+}
 
 #define REPARSE_DATA_BUFFER_HEADER_SIZE  FIELD_OFFSET (struct REPARSE_DATA_BUFFER, GenericReparseBuffer)
 
@@ -1603,110 +1726,131 @@ const char *last_reparse_err;
 #define MAXIMUM_REPARSE_DATA_BUFFER_SIZE  (16*1024)
 #endif
 
-BOOL get_reparse_point (const TCHAR *dir, wchar_t *result)
+/* Stuff missing in OpenWatcom 2.0
+ */
+#ifndef IsReparseTagMicrosoft
+#define IsReparseTagMicrosoft(_tag) (_tag & 0x80000000)
+#endif
+
+#ifndef FSCTL_GET_REPARSE_POINT
+  #define CTL_CODE(DeviceType,Function,Method,Access) \
+                   (((DeviceType) << 16) | ((Access) << 14) | ((Function) << 2) | (Method))
+
+  #define FSCTL_GET_REPARSE_POINT   CTL_CODE(FILE_DEVICE_FILE_SYSTEM,42,METHOD_BUFFERED,FILE_ANY_ACCESS)
+#endif
+
+BOOL wchar_to_mbchar (size_t len, const wchar_t *buf, char *result)
 {
-  static char err [1000];
+  int   num;
+  DWORD cp;
+  const char *def_char;
+
+  if (len >= _MAX_PATH)
+     return reparse_err (1, "len: %u too large.", len);
+
+#if 1
+  cp = CP_ACP;
+  def_char = "?";
+#else
+  cp = CP_UTF8;
+  def_char = NULL;
+#endif
+
+  num = WideCharToMultiByte (cp, 0, buf, len, result, _MAX_PATH, def_char, NULL);
+  if (num == 0)
+     return reparse_err (1, "WideCharToMultiByte(): %s\n",
+                         win_strerror(GetLastError()));
+
+  DEBUGF (2, "len: %u, num: %d, result: '%s'\n", len, num, result);
+  return (TRUE);
+}
+
+BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
+{
   struct REPARSE_DATA_BUFFER *rdata;
-  HANDLE hFile;
-  size_t ofs, plen, slen;
-  WCHAR *szPrintName, *szSubName;
-  DWORD dwRetLen;
-  BOOL  bRet;
+  HANDLE   hnd;
+  size_t   ofs, plen, slen;
+  wchar_t *print_name, *sub_name;
+  DWORD    ret_len;
+  BOOL     rc;
 
   last_reparse_err = NULL;
-  *result = L'\0';
+  *result = '\0';
+  reparse_err (0, NULL);
 
-  DEBUGF (1, _T("Finding target of dir: '%s'.\n"), dir);
+  DEBUGF (2, "Finding target of dir: '%s'.\n", dir);
 
-  hFile =  CreateFile (dir, FILE_READ_EA,
-                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                       NULL, OPEN_EXISTING,
-                       FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
-                       NULL);
+  hnd =  CreateFile (dir, FILE_READ_EA,
+                     FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                     NULL, OPEN_EXISTING,
+                     FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+                     NULL);
 
-  if (hFile == INVALID_HANDLE_VALUE)
-  {
-    snprintf (err, sizeof(err), "Could not open dir '%s'; %s",
-              dir, win_strerror(GetLastError()));
-    last_reparse_err = err;
-    return (FALSE);
-  }
+  if (hnd == INVALID_HANDLE_VALUE)
+     return reparse_err (1, "Could not open dir '%s'; %s",
+                         dir, win_strerror(GetLastError()));
 
   rdata = alloca (MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
-  bRet = DeviceIoControl (hFile, FSCTL_GET_REPARSE_POINT, NULL, 0,
-                          rdata, MAXIMUM_REPARSE_DATA_BUFFER_SIZE, &dwRetLen, NULL);
+  rc = DeviceIoControl (hnd, FSCTL_GET_REPARSE_POINT, NULL, 0,
+                        rdata, MAXIMUM_REPARSE_DATA_BUFFER_SIZE, &ret_len, NULL);
 
-  CloseHandle (hFile);
+  CloseHandle (hnd);
 
-  if (!bRet)
-  {
-    snprintf (err, sizeof(err), "DeviceIoControl failed; %s",
-              win_strerror(GetLastError()));
-    last_reparse_err = err;
-    return (FALSE);
-  }
+  if (!rc)
+     return reparse_err (1, "DeviceIoControl(): %s",
+                         win_strerror(GetLastError()));
 
   if (!IsReparseTagMicrosoft(rdata->ReparseTag))
-  {
-    last_reparse_err = "Not a Microsoft-reparse point - could not query data!";
-    return (FALSE);
-  }
+     return reparse_err (1, "Not a Microsoft-reparse point - could not query data!");
 
   if (rdata->ReparseTag == IO_REPARSE_TAG_SYMLINK)
   {
-    slen = rdata->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(WCHAR);
-    szSubName = alloca (slen + 1);
+    DEBUGF (2, "Symbolic-Link\n");
 
-    DEBUGF (1, "Symbolic-Link\n");
+    slen     = rdata->SymbolicLinkReparseBuffer.SubstituteNameLength;
+    ofs      = rdata->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(wchar_t);
+    sub_name = rdata->SymbolicLinkReparseBuffer.PathBuffer + ofs;
 
-    ofs = rdata->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
-    wcsncpy_s (szSubName, slen + 1, &rdata->SymbolicLinkReparseBuffer.PathBuffer[ofs], slen);
-    szSubName[slen] = 0;
-    DEBUGF (1, "SubstitutionName (len: %d): '%S'\n", rdata->SymbolicLinkReparseBuffer.SubstituteNameLength, szSubName);
-
-    plen = rdata->SymbolicLinkReparseBuffer.PrintNameLength / sizeof(WCHAR);
-    szPrintName = alloca (plen + 1);
-
-    ofs = rdata->SymbolicLinkReparseBuffer.PrintNameOffset / sizeof(WCHAR);
-    wcsncpy_s (szPrintName, plen + 1, &rdata->SymbolicLinkReparseBuffer.PathBuffer[ofs], plen);
-    szPrintName[plen] = 0;
-    DEBUGF (1, "PrintName (len: %d): '%S'\n",
-            rdata->SymbolicLinkReparseBuffer.PrintNameLength, szPrintName);
-
-    assert (plen < _MAX_PATH/sizeof(wchar_t));
-    wcscpy (result, szPrintName);
-    return (TRUE);
+    plen       = rdata->SymbolicLinkReparseBuffer.PrintNameLength;
+    ofs        = rdata->SymbolicLinkReparseBuffer.PrintNameOffset / sizeof(wchar_t);
+    print_name = rdata->SymbolicLinkReparseBuffer.PathBuffer + ofs;
   }
-
-  if (rdata->ReparseTag == IO_REPARSE_TAG_MOUNT_POINT)
+  else if (rdata->ReparseTag == IO_REPARSE_TAG_MOUNT_POINT)
   {
-    DEBUGF (1, "Mount-Point\n");
-    slen = rdata->MountPointReparseBuffer.SubstituteNameLength / sizeof(WCHAR);
-    szSubName = alloca (slen + 1);
+    DEBUGF (2, "Mount-Point\n");
 
-    wcsncpy_s (szSubName, slen + 1,
-               &rdata->MountPointReparseBuffer.PathBuffer[rdata->MountPointReparseBuffer.SubstituteNameOffset /
-                                                          sizeof(WCHAR)], slen);
-    szSubName[slen] = 0;
-    DEBUGF (1, "SubstitutionName (len: %d): '%S'\n", rdata->MountPointReparseBuffer.SubstituteNameLength, szSubName);
+    slen     = rdata->MountPointReparseBuffer.SubstituteNameLength;
+    ofs      = rdata->MountPointReparseBuffer.SubstituteNameOffset / sizeof(wchar_t);
+    sub_name = rdata->MountPointReparseBuffer.PathBuffer + ofs;
 
-    plen = rdata->MountPointReparseBuffer.PrintNameLength / sizeof(WCHAR);
-    szPrintName = alloca (plen + 1);
+    plen       = rdata->MountPointReparseBuffer.PrintNameLength;
+    ofs        = rdata->MountPointReparseBuffer.PrintNameOffset / sizeof(wchar_t);
+    print_name = rdata->MountPointReparseBuffer.PathBuffer + ofs;
+  }
+  else
+    return reparse_err (1, "Not a Mount-Point or Symblic-Link.");
 
-    wcsncpy_s (szPrintName, plen + 1,
-               &rdata->MountPointReparseBuffer.PathBuffer[rdata->MountPointReparseBuffer.PrintNameOffset /
-                                                          sizeof(WCHAR)], plen);
-    szPrintName[plen] = 0;
-    DEBUGF (1, "PrintName (len: %d): '%S'\n", rdata->MountPointReparseBuffer.PrintNameLength, szPrintName);
-    assert (plen < _MAX_PATH/sizeof(wchar_t));
-    wcscpy (result, szPrintName);
-    return (TRUE);
+  DEBUGF (2, "SubstitutionName: '%.*S'\n", slen/2, sub_name);
+  DEBUGF (2, "PrintName:        '%.*S'\n", plen/2, print_name);
+
+  /* Account for 0-termination
+   */
+  slen++;
+  plen++;
+
+  if (opt.debug >= 3)
+  {
+    DEBUGF (3, "hex-dump sub_name:\n");
+    hex_dump (sub_name, slen);
+
+    DEBUGF (3, "hex-dump print_name:\n");
+    hex_dump (print_name, plen);
   }
 
-  last_reparse_err = "Not a Mount-Point or Symblic-Link.";
-  return (FALSE);
+  if (return_print_name)
+     return wchar_to_mbchar (plen, print_name, result);
+  return wchar_to_mbchar (slen, sub_name, result);
 }
-
 
 #if defined(MEM_TEST)
 
