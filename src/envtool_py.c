@@ -891,7 +891,7 @@ int do_check_python (void)
     if (pa->is_zip)
          found += process_zip (pa->dir);
     else found += process_dir (pa->dir, pa->num_dup, pa->exist, pa->is_dir,
-                               TRUE, "sys.path[]", NULL);
+                               TRUE, "sys.path[]", NULL, FALSE);
   }
 
   if (g_py->is_embeddable)
