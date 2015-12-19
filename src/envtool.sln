@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.23107.0
+VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "envtool", "envtool.vcxproj", "{47A4EE11-5847-41F7-B00C-1627C75FAC12}"
 EndProject
@@ -9,6 +9,7 @@ Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "win_glob", "win_glob.exe", 
 	ProjectSection(DebuggerProjectSystem) = preProject
 		PortSupplier = 00000000-0000-0000-0000-000000000000
 		Executable = .\win_glob.exe
+		RemoteMachine = INTEL-I7
 		StartingDirectory = .
 		Arguments = -d *.c
 		Environment = Default
@@ -38,12 +39,12 @@ Global
 		{47A4EE11-5847-41F7-B00C-1627C75FAC12}.Release|Win32.ActiveCfg = Release|Win32
 		{47A4EE11-5847-41F7-B00C-1627C75FAC12}.Release|Win32.Build.0 = Release|Win32
 		{47A4EE11-5847-41F7-B00C-1627C75FAC12}.Release|x86.ActiveCfg = Release|Win32
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|Mixed Platforms.ActiveCfg = Release
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|Win32.ActiveCfg = Release
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|x86.ActiveCfg = Release
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|Mixed Platforms.ActiveCfg = Release
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|Win32.ActiveCfg = Release
-		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|x86.ActiveCfg = Release
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|Mixed Platforms.ActiveCfg = Release|x86
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|Win32.ActiveCfg = Release|x86
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Debug|x86.ActiveCfg = Release|x86
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|Win32.ActiveCfg = Release|x86
+		{9F0D24D9-1402-4818-9410-E33B62DB783A}.Release|x86.ActiveCfg = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
