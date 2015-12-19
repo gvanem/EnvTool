@@ -1004,6 +1004,29 @@ char *strdup_at (const char *str, const char *file, unsigned line)
 }
 
 /*
+ * Similar for wcsdup()
+ */
+wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
+{
+  struct mem_head *head;
+  size_t len = sizeof(wchar_t) * (wcslen(str) + 1);
+
+  len += sizeof(*head);
+  head = malloc (len);
+
+  if (!head)
+     FATAL ("wcsdup() failed at %s, line %u\n", file, line);
+
+  memcpy (head+1, str, len - sizeof(*head));
+  head->marker = MEM_MARKER;
+  head->size   = len;
+  add_to_mem_list (head, file, line);
+  mem_max += (DWORD) len;
+  mem_allocs++;
+  return (wchar_t*) (head+1);
+}
+
+/*
  * A malloc() that fails if no memory. It's pretty hopeless to continue
  * this program if strdup() fails.
  */

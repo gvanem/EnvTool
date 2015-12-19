@@ -7,6 +7,10 @@
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 
+#if defined(_UNICODE) || defined(UNICODE)
+#error This program is not longer UNICODE compatible. Good riddance Microsoft.
+#endif
+
 /*
  * PellesC has '_MSC_VER' as a built-in (if option '-Ze' is used).
  * Hence test for '__POCC__' before '_MSC_VER'.
@@ -375,24 +379,27 @@ extern BOOL        is_wow64_active (void);
 #define MEM_MARKER  0xDEAFBABE
 #define MEM_FREED   0xDEADBEAF
 
-extern void *malloc_at  (size_t size, const char *file, unsigned line);
-extern void *calloc_at  (size_t num, size_t size, const char *file, unsigned line);
-extern void *realloc_at (void *ptr, size_t size, const char *file, unsigned line);
-extern char *strdup_at  (const char *str, const char *file, unsigned line);
-extern void  free_at    (void *ptr, const char *file, unsigned line);
-extern void  mem_report (void);
+extern void    *malloc_at  (size_t size, const char *file, unsigned line);
+extern void    *calloc_at  (size_t num, size_t size, const char *file, unsigned line);
+extern void    *realloc_at (void *ptr, size_t size, const char *file, unsigned line);
+extern char    *strdup_at  (const char *str, const char *file, unsigned line);
+extern wchar_t *wcsdup_at  (const wchar_t *str, const char *file, unsigned line);
+extern void     free_at    (void *ptr, const char *file, unsigned line);
+extern void     mem_report (void);
 
 #if defined(_CRTDBG_MAP_ALLOC) || defined(__CYGWIN__)
   #define MALLOC        malloc
   #define CALLOC        calloc
   #define REALLOC       realloc
   #define STRDUP        strdup
+  #define WCSDUP        wcsdup
   #define FREE(p)       (p ? (void) (free(p), p = NULL) : (void)0)
 #else
   #define MALLOC(s)     malloc_at (s, __FILE(), __LINE__)
   #define CALLOC(n,s)   calloc_at (n, s, __FILE(), __LINE__)
   #define REALLOC(p,s)  realloc_at (p, s, __FILE(), __LINE__)
   #define STRDUP(s)     strdup_at (s, __FILE(), __LINE__)
+  #define WCSDUP(s)     wcsdup_at (s, __FILE(), __LINE__)
   #define FREE(p)       (p ? (void) (free_at(p, __FILE(), __LINE__), p = NULL) : (void)0)
 #endif
 
