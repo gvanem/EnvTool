@@ -156,6 +156,10 @@ static void  print_build_ldflags (void);
  * \todo: Add '--locate' option (or in combination with '--evry' option) to
  *        look into GNU locatedb (%LOCATE_PATH=/cygdrive/f/Cygwin32/locatedb)
  *        information too.
+ *
+ * \todo: Add '--pkg' option to search for pkg-config .pc-files (and their dependent packages?)
+ *        Maybe in combination with the EveryThing database (in case %PKG_CONFIG_PATH% is
+ *        incorrectly set or have missing .pc files).
  */
 
 /*
@@ -340,9 +344,11 @@ static int show_help (void)
             "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
             "    ~6--no-colour~0:    don't print using colours.\n"
             "    ~6--no-remote~0:    don't search for remote files in ~6--evry~0 searches (~2to-do~0).\n"
-            "    ~6--pe-check~0:     print checksum and version-info for PE-files.\n"
+            "    ~6--pe~0:           print checksum and version-info for PE-files.\n"
             "    ~6--m32~0:          tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
+            "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
             "    ~6--m64~0:          tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
+            "                    report only 64-bit PE-files with ~6--pe~0 option.\n"
 #if defined(__CYGWIN__)
             "    ~6--ansi-colour~0:  set colours using ANSI-sequences (CygWin only).\n"
 #endif
@@ -357,7 +363,7 @@ static int show_help (void)
             "    ~6-t~0:             do some internal tests.\n"
             "    ~6-T~0:             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
             "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
-            "    ~6-v~0:             increase verbose level (currently only used in ~6--pe-check~0).\n"
+            "    ~6-v~0:             increase verbose level (currently only used in ~6--pe~0).\n"
             "    ~6-V~0:             show program version information. ~6-VV~0 prints more info.\n"
             "    ~6-h~0, ~6-?~0:         show this help.\n"
             "\n"
@@ -551,7 +557,7 @@ static void add_to_reg_array (int *idx, HKEY key, const char *fname, const char 
   }
 
   st.st_size = (__int64)-1;    /* signal if stat() fails */
-  rc  = stat (fqdn, &st);
+  rc = stat (fqdn, &st);
   reg->mtime      = st.st_mtime;
   reg->fsize      = st.st_size;
   reg->fname      = STRDUP (fname);
@@ -731,14 +737,17 @@ static int found_in_hkey_local_machine = 0;
 static int found_in_hkey_local_machine_sess_man = 0;
 static int found_in_python_egg = 0;
 static int found_in_default_env = 0;
-static int found_in_everything_db = 0;
 
+/* Use this as an indication that the EveryThing database is not up-to-date with
+ * the reality; files have been deleted after the DB was last updated.
+  */
+static int found_everything_db_dirty = 0;
 
 /*
 
  Improve dissection of .sys-files. E.g.:
 
-envtool.exe --evry -d --pe-check pwdspio.sys
+envtool.exe --evry -d --pe pwdspio.sys
 envtool.c(2218): file_spec: pwdspio.sys
 envtool.c(1383): Everything_SetSearch ("regex:^pwdspio\.sys$").
 envtool.c(1392): Everything_Query: No error
@@ -861,9 +870,13 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
   }
   else if (key == HKEY_EVERYTHING)
   {
-    found_in_everything_db = 1;
     if (is_dir)
        note = "<DIR> ";
+    if (mtime == 0 && !(is_dir ^ opt.dir_mode))
+    {
+      found_everything_db_dirty = 1;
+      note = " (6)  ";
+    }
   }
   else
   {
@@ -933,6 +946,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
     BOOL            is_py_egg  = (key == HKEY_PYTHON_EGG);
     BOOL            chksum_ok  = FALSE;
     BOOL            version_ok = FALSE;
+    BOOL            check_this = TRUE;
 
     if (opt.debug > 0) /* So that next DEBUGF() starts on a new line */
        C_putc ('\n');
@@ -940,14 +954,25 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
     memset (&ver, 0, sizeof(ver));
     if (!is_py_egg && check_if_PE(file,&bits))
     {
-      is_PE      = TRUE;
-      chksum_ok  = verify_PE_checksum (file);
-      version_ok = get_PE_version_info (file, &ver);
-      if (version_ok)
-         num_version_ok++;
+      if (opt.only_32bit && bits != bit_32)
+         check_this = FALSE;
+      else if (opt.only_64bit && bits != bit_64)
+         check_this = FALSE;
+
+      if (check_this)
+      {
+        is_PE      = TRUE;
+        chksum_ok  = verify_PE_checksum (file);
+        version_ok = get_PE_version_info (file, &ver);
+        if (version_ok)
+           num_version_ok++;
+      }
     }
-    print_PE_info (is_PE, is_py_egg, chksum_ok, &ver, bits);
-    C_putc ('\n');
+    if (check_this)
+    {
+      print_PE_info (is_PE, is_py_egg, chksum_ok, &ver, bits);
+      C_putc ('\n');
+    }
   }
 
   C_putc ('\n');
@@ -985,6 +1010,9 @@ static void final_report (int found)
 
   if (found_in_python_egg)
      C_puts ("~3 (5): found in a .zip/.egg in 'sys.path[]'.~0\n");
+
+   if (found_everything_db_dirty)
+      C_puts ("~3 (6): EveryThing database is not up-to-date.~0\n");
 
   if (do_warn)
     C_printf ("\n"
@@ -1623,6 +1651,10 @@ static void check_sys_dirs (void)
   else DEBUGF (1, "sys_native_dir: '%s', errno: %d\n", sys_native_dir, errno);
 }
 
+/*
+ * Figure out if 'file' can have a shaddow in '%WinDir%\sysnative'.
+ * Not used for Win64.
+ */
 static const char *get_sysnative_file (const char *file, time_t *mtime, UINT64 *fsize)
 {
 #if (IS_WIN64 == 0)
@@ -1631,9 +1663,7 @@ static const char *get_sysnative_file (const char *file, time_t *mtime, UINT64 *
     static char shaddow [_MAX_PATH];
     struct stat st;
 
-    snprintf (shaddow, sizeof(shaddow), "%s\\%s", sys_native_dir, file+strlen(sys_dir));
-    DEBUGF (1, "shaddow: '%s' -> '%s'\n", file, shaddow);
-
+    snprintf (shaddow, sizeof(shaddow), "%s\\%s", sys_native_dir, file+strlen(sys_dir)+1);
     if (stat(shaddow, &st) == 0)
     {
       *mtime = st.st_mtime;
@@ -1689,10 +1719,14 @@ static int report_evry_file (const char *file)
     is_dir = _S_ISDIR (st.st_mode);
     DEBUGF (3, "st.st_nlink: %d\n", st.st_nlink);
   }
-  else
-  if (errno == ENOENT)
-     file = get_sysnative_file (file, &mtime, &fsize);
+  else if (errno == ENOENT)
+  {
+    const char *file2 = get_sysnative_file (file, &mtime, &fsize);
 
+    if (file2 != file)
+       DEBUGF (1, "shaddow: '%s' -> '%s'\n", file, file2);
+    file = file2;
+  }
   return report_file (file, mtime, fsize, is_dir, HKEY_EVERYTHING);
 }
 
@@ -2124,9 +2158,9 @@ static int setup_gcc_library_path (const char *gcc)
   /* Tell '*gcc.exe' to return 32 or 64-bot or both types of libs.
    * (assuming it supports the '-m32'/'-m64' switches.
    */
-  if (opt.gcc_32bit)
+  if (opt.only_32bit)
        m_cpu = "-m32";
-  else if (opt.gcc_64bit)
+  else if (opt.only_64bit)
        m_cpu = "-m64";
   else m_cpu = "";
 
@@ -2383,7 +2417,7 @@ static const struct option long_options[] = {
            { "no-gcc",      no_argument,       NULL, 0 },
            { "no-g++",      no_argument,       NULL, 0 },    /* 15 */
            { "verbose",     no_argument,       NULL, 'v' },
-           { "pe-check",    no_argument,       NULL, 0 },    /* 17 */
+           { "pe",          no_argument,       NULL, 0 },    /* 17 */
            { "no-colour",   no_argument,       NULL, 0 },
            { "no-color",    no_argument,       NULL, 0 },    /* 19 */
            { "evry",        no_argument,       NULL, 0 },
@@ -2424,8 +2458,8 @@ static int *values_tab[] = {
             &opt.show_size,
             &opt.do_man,          /* 23 */
             &opt.do_cmake,
-            &opt.gcc_32bit,       /* 25 */
-            &opt.gcc_64bit,
+            &opt.only_32bit,      /* 25 */
+            &opt.only_64bit,
             &opt.gcc_no_prefixed, /* 27 */
             &opt.cygwin_ansi
           };
