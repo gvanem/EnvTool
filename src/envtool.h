@@ -257,8 +257,8 @@ struct prog_options {
        int   do_tests;
        int   help;
        int   show_size;
-       int   gcc_32bit;
-       int   gcc_64bit;
+       int   only_32bit;
+       int   only_64bit;
        int   gcc_no_prefixed;
        int   no_gcc;
        int   no_gpp;
