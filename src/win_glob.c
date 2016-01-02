@@ -685,7 +685,7 @@ void globfree (glob_t *_pglob)
   FREE (_pglob->gl_pathv);
 }
 
-#if defined(GLOB_TEST)
+#if defined(WIN_GLOB_TEST)
 
 #ifdef __MINGW32__
   /*
@@ -844,7 +844,7 @@ static void do_glob (const char *spec)
     for (p = res.gl_pathv, cnt = 1; cnt <= res.gl_pathc; p++, cnt++)
     {
       char fp[_MAX_PATH];
-      printf ("%2d: %s\n", cnt, show_full_path ? _fix_path(*p,fp) : *p);
+      printf ("%2d: %s\n", (int)cnt, show_full_path ? _fix_path(*p,fp) : *p);
     }
 
   fflush (stdout);
@@ -1003,4 +1003,4 @@ int main (int argc, char **argv)
   use_glob ? do_glob(*argv) : do_glob_new(*argv);
   return (0);
 }
-#endif  /* GLOB_TEST */
+#endif  /* WIN_GLOB_TEST */
