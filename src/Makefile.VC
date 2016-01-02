@@ -11,7 +11,7 @@ CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 \
           -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -D_WIN32_IE=0x500 \
           -DEVERYTHINGAPI=__cdecl
 
-LDFLAGS = -nologo -incremental:no
+LDFLAGS = -nologo -incremental:no -debug
 
 #
 # Enable the .EXEs to run on Win-XP SP3 (5.2)
@@ -19,18 +19,16 @@ LDFLAGS = -nologo -incremental:no
 LDFLAGS = $(LDFLAGS) -subsystem:console,5.02
 RCFLAGS = -nologo -D_MSC_VER -r
 MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII
-EX_LIBS = advapi32.lib imagehlp.lib version.lib shell32.lib user32.lib
+EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib version.lib shell32.lib user32.lib
 
 !if "$(DEBUG)" == "1"
 D       = d
 CFLAGS  = $(CFLAGS) -Os -EHsc -RTCc
-LDFLAGS = $(LDFLAGS) -debug
 RCFLAGS = $(RCFLAGS) -D_DEBUG
 MSBUILD = $(MSBUILD) -p:Configuration=Debug
 !else
 D       =
 CFLAGS  = $(CFLAGS) -Ot
-LDFLAGS = $(LDFLAGS) -debug
 RCFLAGS = $(RCFLAGS) -D_RELEASE
 MSBUILD = $(MSBUILD) -p:Configuration=Release
 !endif
@@ -49,9 +47,8 @@ RCFLAGS = $(RCFLAGS) -DWIN64
 RCFLAGS = $(RCFLAGS) -DWIN64
 !endif
 
-OBJECTS = envtool.obj envtool_py.obj searchpath.obj misc.obj \
-          color.obj show_ver.obj Everything.obj getopt_long.obj\
-          envtool.res win_ver.obj
+OBJECTS = envtool.obj envtool_py.obj color.obj Everything.obj getopt_long.obj misc.obj \
+          searchpath.obj show_ver.obj win_trust.obj win_ver.obj envtool.res
 
 all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
 	copy /y envtool.exe ..
@@ -65,8 +62,18 @@ envtool.exe: $(OBJECTS)
 envtool.res: envtool.rc
 	rc $(RCFLAGS) -fo $@ envtool.rc
 
+dirlist.exe: dirlist.c misc.c color.c getopt_long.c
+	$(CC) $(CFLAGS) -DDIRLIST_TEST -c $**
+	link $(LDFLAGS) -out:$@ -map:dirlist.map $(**:.c=.obj) $(EX_LIBS)
+	del /q dirlist.obj
+
+mem_test.exe: misc.c color.c
+	$(CC) $(CFLAGS) -DMEM_TEST -c $**
+	link $(LDFLAGS) -out:$@ -map:mem_test.map $(**:.c=.obj) imagehlp.lib
+	del /q misc.obj
+
 win_glob.exe: win_glob.c misc.c color.c getopt_long.c
-	$(CC) $(CFLAGS) -DGLOB_TEST -c $**
+	$(CC) $(CFLAGS) -DWIN_GLOB_TEST -c $**
 	link $(LDFLAGS) -out:$@ -map:win_glob.map $(**:.c=.obj) $(EX_LIBS)
 	del /q win_glob.obj
 
@@ -75,15 +82,10 @@ win_ver.exe: win_ver.c misc.c color.c
 	link $(LDFLAGS) -out:$@ -map:win_ver.map $(**:.c=.obj) $(EX_LIBS)
 	del /q win_ver.obj
 
-mem_test.exe: misc.c color.c
-	$(CC) $(CFLAGS) -DMEM_TEST -c $**
-	link $(LDFLAGS) -out:$@ -map:mem_test.map $(**:.c=.obj) imagehlp.lib
-	del /q misc.obj
-
-dirlist.exe: dirlist.c misc.c color.c getopt_long.c
-	$(CC) $(CFLAGS) -DDIRLIST_TEST -c $**
-	link $(LDFLAGS) -out:$@ -map:dirlist.map $(**:.c=.obj) $(EX_LIBS)
-	del /q dirlist.obj
+win_trust.exe: win_trust.c getopt_long.c misc.c color.c
+	$(CC) $(CFLAGS) -DWIN_TRUST_TEST -c $**
+	link $(LDFLAGS) -out:$@ -map:win_trust.map $(**:.c=.obj) $(EX_LIBS)
+	del /q win_trust.obj
 
 show_ver.obj: show_ver.c
 	$(CC) $(CFLAGS) -TP -c $*.c

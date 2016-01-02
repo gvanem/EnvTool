@@ -2,9 +2,8 @@
 # GNU makefile for EnvTool (MinGW/MinGW64/TDM-gcc).
 #
 
-FORTIFY_SOURCE ?= 0
+FORTIFY_SOURCE ?= 1
 USE_DEBUG      ?= 1
-USE_UNICODE    ?= 0
 USE_64BIT      ?= 0
 
 CC      = gcc
@@ -13,10 +12,6 @@ CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdec
 
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
 RCFLAGS = -O COFF
-
-ifeq ($(USE_UNICODE),1)
-  CFLAGS += -DUNICODE -D_UNICODE
-endif
 
 ifeq ($(USE_64BIT),1)
   CFLAGS  += -m64
@@ -41,7 +36,11 @@ ifneq ($(FORTIFY_SOURCE),0)
     $(error $$(FORTIFY_SOURCE) needs 'USE_DEBUG=1')
   endif
 
-  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) -fstack-protector-all -Wstack-protector
+  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) -fstack-protector-all # -Wstack-protector
+
+  #
+  #
+  CFLAGS += -std=c11
 
   #
   # Use the static 'libssp.a'
@@ -50,10 +49,10 @@ ifneq ($(FORTIFY_SOURCE),0)
   EX_LIBS  = -lssp
 endif
 
-EX_LIBS += -limagehlp -lversion
+EX_LIBS += -limagehlp -lversion -lwintrust -lcrypt32
 
 SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c \
-          envtool_py.c getopt_long.c win_ver.c
+          envtool_py.c getopt_long.c win_trust.c win_ver.c
 
 OBJECTS = $(SOURCES:.c=.o)
 
@@ -69,7 +68,7 @@ mem_test.exe: misc.c color.c
 	rm -f misc.o
 
 win_glob.exe: win_glob.c misc.c color.c getopt_long.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -DGLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o
 
 win_ver.exe: win_ver.c misc.c color.c
@@ -79,6 +78,10 @@ win_ver.exe: win_ver.c misc.c color.c
 dirlist.exe: dirlist.c misc.c color.c getopt_long.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
 	rm -f dirlist.o
+
+win_trust.exe: win_trust.c getopt_long.c misc.c color.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
+	rm -f win_trust.o
 
 envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc
@@ -96,22 +99,22 @@ clean:
 	@echo
 
 vclean: clean
-	rm -f win_glob.exe win_glob.map mem_test.exe mem_test.map
+	rm -f win_glob.exe win_glob.map win_trust.exe win_trust.map mem_test.exe mem_test.map
 
 cflags_MinGW.h: Makefile.MinGW
-	echo "const char *cflags = \"$(CC) $(CFLAGS)\";" > $@
+	echo 'const char *cflags = "$(CC) $(CFLAGS)";' > $@
 	@echo
 
 ldflags_MinGW.h: Makefile.MinGW
-	echo "const char *ldflags = \"$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) \";" > $@
+	echo 'const char *ldflags = "$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)";' > $@
 	@echo
 
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
-depend:
-	$(CC) -MM $(CFLAGS) $(SOURCES) win_glob.c | $(REPLACE) > .depend.MinGW
-	echo ''                       >> .depend.MinGW
-	echo 'envtool.res: envtool.h' >> .depend.MinGW
+depend: cflags_MinGW.h ldflags_MinGW.h
+	$(CC) -MM $(CFLAGS) $(SOURCES) dirlist.c win_glob.c | $(REPLACE) > .depend.MinGW
+	echo ''                                                         >> .depend.MinGW
+	echo 'envtool.res: envtool.h'                                   >> .depend.MinGW
 
 -include .depend.MinGW
 

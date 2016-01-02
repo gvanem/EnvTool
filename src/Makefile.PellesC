@@ -2,15 +2,21 @@
 # GNU makefile for EnvTool (PellesC 32/64-bit).
 #
 
-USE_DEBUG ?= 1
+USE_DEBUG ?= 0
 USE_64BIT ?= 0
 
 POCC_ROOT = $(realpath $(PELLESC))
 
-CC      = pocc
-CFLAGS  = -MT -X -W1 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl     \
-          -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN -W1 -Go -Zi -Zl -Ze \
-          -I$(POCC_ROOT)/include -I$(POCC_ROOT)/include/win # -std:C99
+#
+# PellesC should work without having it's stuff in the PATH or INCLUDE etc.
+#
+LD = $(POCC_ROOT)/bin/polink
+RC = $(POCC_ROOT)/bin/porc
+CC = $(POCC_ROOT)/bin/pocc
+
+CFLAGS = -MT -X -W1 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl     \
+         -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN -W1 -Go -Zi -Zl -Ze \
+         -I$(POCC_ROOT)/include -I$(POCC_ROOT)/include/win -std:C11
 
 #
 # Avoid warning in <win/malloc.h>
@@ -36,9 +42,12 @@ ifeq ($(USE_64BIT),1)
               crtmt64.lib                  \
               oldnames64.lib               \
               Win64/user32.lib             \
+              Win64/shell32.lib            \
               Win64/kernel32.lib           \
               Win64/advapi32.lib           \
               Win64/imagehlp.lib           \
+              Win64/crypt32.lib            \
+              Win64/wintrust.lib           \
               Win64/version.lib)
 else
   CFLAGS  += -Tx86-coff
@@ -49,14 +58,17 @@ else
               crtmt.lib                    \
               oldnames.lib                 \
               Win/user32.lib               \
+              Win/shell32.lib              \
               Win/kernel32.lib             \
               Win/advapi32.lib             \
               Win/imagehlp.lib             \
+              Win/crypt32.lib              \
+              Win/wintrust.lib             \
               Win/version.lib)
 endif
 
 SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c \
-          envtool_py.c getopt_long.c win_ver.c
+          envtool_py.c getopt_long.c win_ver.c win_trust.c
 
 OBJECTS = $(SOURCES:.c=.obj)
 
@@ -65,31 +77,26 @@ all: cflags_PellesC.h ldflags_PellesC.h envtool.exe
 	@echo '../envtool.exe successfully built.'
 
 envtool.exe: $(OBJECTS) envtool.res
-	polink $(LDFLAGS) -out:$@ $^ $(EX_LIBS) > link.tmp
-	cat link.tmp >> envtool.map
+	$(call link_exe, $@, $^)
 
-mem_test.exe: misc.c color.c
+mem_test.exe: misc.c color.obj
 	$(CC) -c $(CFLAGS) -DMEM_TEST $^
-	polink $(LDFLAGS) -out:$@ misc.obj color.obj $(EX_LIBS) > link.tmp
-	cat link.tmp >> mem_test.map
-	rm -f misc.obj
+	$(call link_exe, $@, misc.obj color.obj)
 
-win_glob.exe: win_glob.c misc.c color.c
-	$(CC) -c $(CFLAGS) -DGLOB_TEST $^
-	polink $(LDFLAGS) -out:$@ win_glob.obj misc.obj color.obj $(EX_LIBS) > link.tmp
-	cat link.tmp >> win_glob.map
-	rm -f win_glob.obj
+win_trust.exe: win_trust.c getopt_long.obj misc.obj color.obj
+	$(CC) -c $(CFLAGS) -DWIN_TRUST_TEST $^
+	$(call link_exe, $@, win_trust.obj getopt_long.obj misc.obj color.obj)
 
-win_ver.exe: win_ver.c misc.c color.c
+win_glob.exe: win_glob.c misc.obj color.obj
+	$(CC) -c $(CFLAGS) -DWIN_GLOB_TEST $^
+	$(call link_exe, $@, win_glob.obj misc.obj color.obj)
+
+win_ver.exe: win_ver.c misc.obj color.obj
 	$(CC) -c $(CFLAGS) -DWIN_VER_TEST win_ver.c
-	$(CC) -c $(CFLAGS) misc.c
-	$(CC) -c $(CFLAGS) color.c
-	polink $(LDFLAGS) -out:$@ win_ver.obj misc.obj color.obj $(EX_LIBS) > link.tmp
-	cat link.tmp >> win_ver.map
-	rm -f win_ver.obj
+	$(call link_exe, $@, win_ver.obj misc.obj color.obj)
 
 envtool.res: envtool.rc
-	porc $(RCFLAGS) -Foenvtool.res envtool.rc
+	$(RC) $(RCFLAGS) -Foenvtool.res envtool.rc
 
 %.obj: %.c
 	$(CC) -c $(CFLAGS) $<
@@ -107,11 +114,21 @@ vclean: clean
 	rm -f win_glob.exe win_glob.map mem_test.exe mem_test.map
 
 cflags_PellesC.h: Makefile.PellesC
-	echo "const char *cflags = \"$(CC) $(CFLAGS)\";" > $@
+	echo 'const char *cflags = "$(CC) $(CFLAGS)";' > $@
 	@echo
 
 ldflags_PellesC.h: Makefile.PellesC
-	echo "const char *ldflags = \"polink $(LDFLAGS) -out:envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) \";" > $@
+	echo 'const char *ldflags = "$(LD) $(LDFLAGS) -out:envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)";' > $@
 	@echo
 
+#
+# arg1: $(1) = the .exe-file
+# arg2: $(2) = the .obj-files
+#
+define link_exe
+  $(LD) $(LDFLAGS) -out:$(strip $(1)) $(2) $(EX_LIBS) > link.tmp
+  cat link.tmp >> $(1:.exe=.map)
+  rm -f $(1:.exe=.obj)
+  @echo
+endef
 

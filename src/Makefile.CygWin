@@ -8,17 +8,18 @@ USE_64BIT      ?= 0
 
 CC = gcc
 
-CFLAGS  = -Wall -static-libgcc -Wno-strict-aliasing -DEVERYTHINGUSERAPI=
+CFLAGS  = -Wall -static-libgcc -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl # -D_WIN32
 LDFLAGS = -Wl,--print-map,--sort-common,--cref -L/usr/lib/w32api
 RCFLAGS = -O COFF
+GCC_VER = 4.9.2
 
 ifeq ($(USE_64BIT),1)
   CFLAGS  += -m64
-  LDFLAGS += -m64 -L/usr/lib/gcc/x86_64-w64-mingw32/4.9.2
+  LDFLAGS += -m64 -L/usr/lib/gcc/x86_64-w64-mingw32/$(GCC_VER)
   RCFLAGS += --preprocessor-arg=-m64 --target=pe-x86-64
 else
   CFLAGS  += -m32
-  LDFLAGS += -m32 -L/usr/lib/gcc/i686-w64-mingw32/4.9.2
+  LDFLAGS += -m32 -L/usr/lib/gcc/i686-w64-mingw32/$(GCC_VER)
   RCFLAGS += --preprocessor-arg=-m32 --target=pe-i386
 endif
 
@@ -44,10 +45,10 @@ ifeq ($(FORTIFY_SOURCE),1)
   EX_LIBS  = -lssp
 endif
 
-EX_LIBS += -limagehlp -lversion -lkernel32
+EX_LIBS += -limagehlp -lversion -lwintrust -lcrypt32 -lkernel32
 
 SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c \
-          envtool_py.c win_ver.c
+          envtool_py.c win_trust.c win_ver.c
 
 OBJECTS = $(SOURCES:.c=.o)
 
@@ -62,12 +63,16 @@ envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc
 
 win_glob.exe: win_glob.c misc.c color.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -DGLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o
 
 dirlist.exe: dirlist.c misc.c color.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
 	rm -f dirlist.o
+
+win_trust.exe: win_trust.c misc.c color.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
+	rm -f win_trust.o
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) $<
@@ -76,22 +81,22 @@ dirlist.exe: dirlist.c misc.c color.c
 	$(CC) -c -E $(CFLAGS) $< > $@
 
 cflags_CygWin.h: Makefile.CygWin
-	echo "const char *cflags = \"$(CC) $(CFLAGS)\";" > $@
+	echo 'const char *cflags = "$(CC) $(CFLAGS)";' > $@
 	@echo
 
 ldflags_CygWin.h: Makefile.CygWin
-	echo "const char *ldflags = \"$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) \";" > $@
+	echo 'const char *ldflags = "$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)";' > $@
 	@echo
 
 clean:
 	rm -f $(OBJECTS) envtool.res envtool.exe envtool.map cflags_Cygwin.h ldflags_Cygwin.h
 
 vclean: clean
-	rm -f win_glob.exe win_glob.map
+	rm -f win_glob.exe win_glob.map win_trust.exe win_trust.map
 
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
-depend:
+depend: cflags_CygWin.h ldflags_CygWin.h
 	$(CC) -M $(CFLAGS) $(SOURCES) win_glob.c dirlist.c | $(REPLACE) > .depend.Cygwin
 	echo ''                       >> .depend.Cygwin
 	echo 'envtool.res: envtool.h' >> .depend.Cygwin

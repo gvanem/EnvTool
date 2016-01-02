@@ -8,7 +8,8 @@ CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul &
           -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl
 
 LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort global
-EX_LIBS = advapi32.lib imagehlp.lib version.lib shfolder.lib user32.lib
+EX_LIBS = advapi32.lib imagehlp.lib version.lib shfolder.lib &
+          wintrust.lib crypt32.lib user32.lib
 
 OBJECTS = envtool.obj  envtool_py.obj Everything.obj color.obj misc.obj searchpath.obj &
           show_ver.obj getopt_long.obj win_ver.obj
@@ -26,6 +27,13 @@ dirlist.exe: dirlist.c misc.obj color.obj getopt_long.obj
 	$(CC) $(CFLAGS) -DDIRLIST_TEST dirlist.c
 	$(LINK) name $*.exe file { dirlist.obj misc.obj color.obj getopt_long.obj } library { $(EX_LIBS) }
 	rm dirlist.obj
+
+.ERASE
+win_trust.exe: win_trust.c misc.obj color.obj getopt_long.obj
+	$(CC) $(CFLAGS) -DWINTRUST_TEST win_trust.c
+	$(LINK) name $*.exe file { win_trust.obj misc.obj color.obj getopt_long.obj } &
+	        library { $(EX_LIBS) }
+	rm win_trust.obj
 
 .ERASE
 show_ver.obj: show_ver.c
