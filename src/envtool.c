@@ -81,6 +81,7 @@ struct directory_array {
        char    *dir;         /* FQDN of this entry */
        char    *cyg_dir;     /* The Cygwin POSIX form of the above */
        int      exist;       /* does it exist? */
+       int      is_native;   /* and is it a native dir; like %WinDir\sysnative */
        int      is_dir;      /* and is it a dir; _S_ISDIR() */
        int      is_cwd;      /* and is equal to current_dir[] */
        int      exp_ok;      /* ExpandEnvironmentStrings() returned with no '%'? */
@@ -104,11 +105,12 @@ struct registry_array  reg_array [MAX_PATHS];
 struct prog_options opt;
 
 char   sys_dir        [_MAX_PATH];
-char   sys_native_dir [_MAX_PATH];
+char   sys_native_dir [_MAX_PATH];  /* Not for WIN64 */
 
 static UINT64 total_size = 0;
 static int    num_version_ok = 0;
 static BOOL   is_wow64 = FALSE;
+static BOOL   have_sys_native_dir = FALSE;
 
 static char *who_am_I = (char*) "envtool";
 
@@ -260,7 +262,6 @@ static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
  */
 static int show_version (void)
 {
-  extern const char *os_name (void);
   const char     *py_exe;
   HWND            wnd;
   struct ver_info py_ver, evry_ver;
@@ -290,7 +291,7 @@ static int show_version (void)
 
   if (opt.do_version >= 2)
   {
-    C_printf ("\n  OS-version: %s.\n", os_name());
+    C_printf ("  OS-version: %s.\n", os_name());
 
     C_puts ("\n  Compile command and ~3CFLAGS~0:");
     print_build_cflags();
@@ -349,9 +350,6 @@ static int show_help (void)
             "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
             "    ~6--m64~0:          tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
             "                    report only 64-bit PE-files with ~6--pe~0 option.\n"
-#if defined(__CYGWIN__)
-            "    ~6--ansi-colour~0:  set colours using ANSI-sequences (CygWin only).\n"
-#endif
             "    ~6-c~0:             don't add current directory to search-list.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
             "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n",
@@ -418,7 +416,14 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
   d->is_cwd  = is_cwd;
   d->line    = line;
 
-  if (!d->exist)
+  /* Can we have >1 native dirs?
+   */
+  d->is_native = (stricmp(dir,sys_native_dir) == 0);
+
+  if (d->is_native && !have_sys_native_dir)
+    DEBUGF (2, "Native dir '%s' doesn't exist.\n", dir);
+
+  else if (!d->exist)
     DEBUGF (2, "'%s' doesn't exist.\n", dir);
 
 #if defined(__CYGWIN__)
@@ -771,30 +776,13 @@ show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionW
       ver 0.0.0.0, Chksum OK
 3 matches found for "pwdspio.sys". 0 have PE-version info.
 
------------------------------
-
- Add crypto check for PE-files using Crypt32.dll (dynamically).
- One of these?
-
-   CertOpenStore
-   CertCloseStore
-   CertEnumCertificatesInStore
-   CertFreeCertificateContext
-   CertGetNameStringW
-   CertAddCertificateContextToStore
-   CertGetValidUsages
-   CryptSIPLoad
-   CryptSIPRetrieveSubjectGuidForCatalogFile
-   CertGetCertificateContextProperty
-   CertDuplicateCertificateContext
-   CertOIDToAlgId
-
  */
 static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
-                           const struct ver_info *ver, enum Bitness bits)
+                           const struct ver_info *ver, enum Bitness bits,
+                           DWORD wintrust_rc)
 {
   const char *filler = "      ";
-  char       *ver_trace, *line, *bitness;
+  char       *ver_trace, *line, *bitness, *verify_result = ".";
   int         raw;
 
   if (is_python_egg)
@@ -818,9 +806,24 @@ static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
   bitness = (bits == bit_32) ? "~232" :
             (bits == bit_64) ? "~364" : "~5?";
 
-  C_printf ("\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s~0",
+  switch (wintrust_rc)
+  {
+    case ERROR_SUCCESS:
+         verify_result = ", ~2(Verified)~0.";
+         break;
+    case TRUST_E_NOSIGNATURE:
+    case TRUST_E_SUBJECT_FORM_UNKNOWN:
+    case TRUST_E_PROVIDER_UNKNOWN:
+         verify_result = ", ~5(Not signed)~0.";
+         break;
+    case TRUST_E_SUBJECT_NOT_TRUSTED:
+         verify_result = ", ~5(Not trusted)~0.";
+         break;
+  }
+
+  C_printf ("\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s%s",
             filler, ver->val_1, ver->val_2, ver->val_3, ver->val_4,
-            bitness, chksum_ok ? "~2OK" : "~5fail");
+            bitness, chksum_ok ? "~2OK" : "~5fail", verify_result);
 
   ver_trace = get_PE_version_info_buf();
   if (ver_trace)
@@ -970,7 +973,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
     }
     if (check_this)
     {
-      print_PE_info (is_PE, is_py_egg, chksum_ok, &ver, bits);
+      print_PE_info (is_PE, is_py_egg, chksum_ok, &ver, bits, wintrust_check(file));
       C_putc ('\n');
     }
   }
@@ -1647,34 +1650,51 @@ static void check_sys_dirs (void)
   else DEBUGF (1, "sys_dir: '%s', errno: %d\n", sys_dir, errno);
 
   if (stat(sys_native_dir, &st) == 0 && _S_ISDIR(st.st_mode))
-       DEBUGF (1, "sys_native_dir: '%s'\n", sys_native_dir);
-  else DEBUGF (1, "sys_native_dir: '%s', errno: %d\n", sys_native_dir, errno);
+  {
+    DEBUGF (1, "sys_native_dir: '%s'\n", sys_native_dir);
+    have_sys_native_dir = TRUE;
+  }
+  else
+  {
+    DEBUGF (1, "sys_native_dir: '%s', errno: %d\n", sys_native_dir, errno);
+    have_sys_native_dir = FALSE;
+  }
+#if (IS_WIN64)
+  if (have_sys_native_dir)
+     DEBUGF (0, "sys_native_dir: '%s' exists on WIN64!!\n", sys_native_dir);
+#endif
 }
 
 /*
- * Figure out if 'file' can have a shaddow in '%WinDir%\sysnative'.
- * Not used for Win64.
+ * Figure out if 'file' can have a shadow in '%WinDir%\sysnative'.
+ * Makes no sense on Win64.
  */
-static const char *get_sysnative_file (const char *file, time_t *mtime, UINT64 *fsize)
+static const char *get_sysnative_file (const char *file, time_t *mtime_p, UINT64 *fsize_p)
 {
 #if (IS_WIN64 == 0)
   if (!strnicmp(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
   {
-    static char shaddow [_MAX_PATH];
+    static char shadow [_MAX_PATH];
     struct stat st;
+    time_t      mtime;
+    UINT64      fsize;
 
-    snprintf (shaddow, sizeof(shaddow), "%s\\%s", sys_native_dir, file+strlen(sys_dir)+1);
-    if (stat(shaddow, &st) == 0)
+    snprintf (shadow, sizeof(shadow), "%s\\%s", sys_native_dir, file+strlen(sys_dir)+1);
+    if (stat(shadow, &st) == 0)
     {
-      *mtime = st.st_mtime;
-      *fsize = st.st_size;
+      mtime = st.st_mtime;
+      fsize = st.st_size;
     }
     else
     {
-      *mtime = 0;
-      *fsize = 0;
+      mtime = 0;
+      fsize = 0;
     }
-    return (shaddow);
+    if (mtime_p)
+       *mtime_p = mtime;
+    if (fsize_p)
+       *fsize_p = fsize;
+    return (shadow);
   }
 #endif
   return (file);
@@ -1724,7 +1744,7 @@ static int report_evry_file (const char *file)
     const char *file2 = get_sysnative_file (file, &mtime, &fsize);
 
     if (file2 != file)
-       DEBUGF (1, "shaddow: '%s' -> '%s'\n", file, file2);
+       DEBUGF (1, "shadow: '%s' -> '%s'\n", file, file2);
     file = file2;
   }
   return report_file (file, mtime, fsize, is_dir, HKEY_EVERYTHING);
@@ -2428,8 +2448,7 @@ static const struct option long_options[] = {
            { "m32",         no_argument,       NULL, 0 },    /* 25 */
            { "m64",         no_argument,       NULL, 0 },
            { "no-prefix",   no_argument,       NULL, 0 },    /* 27 */
-           { "ansi-colour", no_argument,       NULL, 0 },
-           { NULL,          no_argument,       NULL, 0 }     /* 29 */
+           { NULL,          no_argument,       NULL, 0 }
          };
 
 static int *values_tab[] = {
@@ -2460,8 +2479,7 @@ static int *values_tab[] = {
             &opt.do_cmake,
             &opt.only_32bit,      /* 25 */
             &opt.only_64bit,
-            &opt.gcc_no_prefixed, /* 27 */
-            &opt.cygwin_ansi
+            &opt.gcc_no_prefixed  /* 27 */
           };
 
 static void set_python_variant (const char *o)
@@ -2568,13 +2586,14 @@ static void set_long_option (int o)
 {
   int *val_ptr;
 
-  DEBUGF (2, "got long option \"--%s\".\n", long_options[o].name);
-
   ASSERT (values_tab[o]);
   ASSERT (long_options[o].name);
 
   ASSERT (o >= 0);
   ASSERT (o < DIM(values_tab));
+
+  DEBUGF (2, "got long option \"--%s\". Setting value %d -> 1. o: %d.\n",
+          long_options[o].name, *values_tab[o], o);
 
   if (!strcmp("python",long_options[o].name))
      set_python_variant (optarg);
@@ -2650,10 +2669,10 @@ static void parse_args (int argc, char *const *argv, char **fspec)
   }
 
   if (opt.no_colours)
-     use_colours = 0;
-
-  else if (opt.cygwin_ansi)
-     use_colours = 2;
+  {
+    use_colours = use_ansi_colours = 0;
+    C_puts (" \b ");
+  }
 
   if (argc >= 2 && argv[optind])
     *fspec = STRDUP (argv[optind]);
@@ -2801,6 +2820,7 @@ static void init_all (void)
        snprintf (sys_native_dir, sizeof(sys_native_dir), "%.*s\\sysnative",
                  (int)(rslash - sys_dir), sys_dir);
   }
+  check_sys_dirs();
 }
 
 int main (int argc, char **argv)
@@ -2818,8 +2838,6 @@ int main (int argc, char **argv)
    */
   signal (SIGINT, halt);
   signal (SIGILL, halt);
-
-  check_sys_dirs();
 
   if (opt.help)
      return show_help();
@@ -3005,7 +3023,9 @@ void test_split_env (const char *env)
 
     if (arr->num_dup > 0)
        C_puts ("  ~3**duplicated**~0");
-    if (!arr->exist)
+    if (arr->is_native && !have_sys_native_dir)
+       C_puts ("  ~5**native dir not existing**~0");
+    else if (!arr->exist)
        C_puts ("  ~5**not existing**~0");
     else if (!arr->is_dir)
        C_puts ("  **not a dir**");
@@ -3107,6 +3127,7 @@ void test_posix_to_win_cygwin (void)
     C_printf ("    %-20s -> %s\n", cyg_paths[i], file);
     C_setraw (raw);
   }
+  C_putc ('\n');
   path_separator = ';';
   opt.conv_cygdrive = save;
 }
@@ -3250,13 +3271,13 @@ static void test_slashify (void)
 
   for (i = 0; i < DIM(files1); i++)
   {
-    f = files1 [i];
+    f  = files1 [i];
     rc = slashify (f, '/');
     C_printf ("  (\"%s\",'/') %*s -> %s\n", f, (int)(39-strlen(f)), "", rc);
   }
   for (i = 0; i < DIM(files2); i++)
   {
-    f = files2 [i];
+    f  = files2 [i];
     rc = slashify (f, '\\');
     C_printf ("  (\"%s\",'\\\\') %*s -> %s\n", f, (int)(38-strlen(f)), "", rc);
   }
@@ -3338,23 +3359,23 @@ static void test_SHGetFolderPath (void)
  * Test Windows' Reparse Points (Junctions and directory symlinks).
  *
  * Also make a test similar to the 'dir /AL' command (Attribute Reparse Points):
- *  cmd.exe /c dir \  /s /AL
+ *  cmd.exe /c dir \ /s /AL
  */
 static void test_ReparsePoints (void)
 {
   static const char *points[] = {
-                      "c:\\Users\\All Users",
-                      "c:\\Documents and Settings",
-                      "c:\\Documents and Settings\\",
-                      "c:\\ProgramData",
-                      "c:\\Program Files",
-                      "c:\\Program Files (x86)",
-                    };
+                    "c:\\Users\\All Users",
+                    "c:\\Documents and Settings",
+                    "c:\\Documents and Settings\\",
+                    "c:\\ProgramData",
+                    "c:\\Program Files",
+                    "c:\\Program Files (x86)",
+                  };
 #if defined(__CYGWIN__)
   struct stat st;
 #endif
 
-  int  i;
+  int i;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
@@ -3370,12 +3391,48 @@ static void test_ReparsePoints (void)
       sprintf (st_result, ", link: %s.", S_ISLNK(st.st_mode) ? "Yes" : "No");
 #endif
 
-    C_printf ("  %d: \"%s\" %*s->", i, p, 26-strlen(p), "");
+    C_printf ("  %d: \"%s\" %*s->", i, p, (int)(26-strlen(p)), "");
 
     if (!rc)
          C_printf (" ~5%s~0%s\n", last_reparse_err, st_result);
     else C_printf (" \"%s\"%s\n", result, st_result);
+  }
+  C_putc ('\n');
+}
 
+
+/*
+ * Test PE-file WinTrust crypto signature verification.
+ */
+static void test_PE_wintrust (void)
+{
+  static const char *files[] = {
+                    "%s\\kernel32.dll",
+                    "%s\\drivers\\usbport.sys",
+                    "notepad.exe",
+                    "cl.exe"
+                  };
+  int i;
+
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+
+  for (i = 0; i < DIM(files); i++)
+  {
+    const char *file = files[i];
+    char  path [_MAX_PATH], *is_sys = strchr (file, '%');
+    DWORD rc;
+
+    if (is_sys)
+    {
+      snprintf (path, sizeof(path), "%s\\%s", sys_dir, is_sys+3);
+      file = path;
+    }
+    else
+      file = searchpath (file, "PATH");
+
+    rc = wintrust_check (file);
+    C_printf ("  %d: %s %*s->", i, file, (int)(45-strlen(file)), "");
+    C_printf (" ~2%s~0\n", wintrust_check_result(rc));
   }
   C_putc ('\n');
 }
@@ -3443,6 +3500,8 @@ static void test_libssp (void)
 
 static int do_tests (void)
 {
+  int save;
+
   if (opt.do_python)
   {
     if (/* test_python_pipe() && */ !halt_flag)
@@ -3465,12 +3524,16 @@ static int do_tests (void)
   test_split_env ("LIB");
   test_split_env ("INCLUDE");
 
+  save = opt.add_cwd;
+  opt.add_cwd = 0;
   putenv ("FOO=c:\\");
   test_split_env ("FOO");
+  opt.add_cwd = save;
 #endif
 
   test_searchpath();
   test_fnmatch();
+  test_PE_wintrust();
   test_slashify();
   test_fix_path();
   test_disk_ready();
