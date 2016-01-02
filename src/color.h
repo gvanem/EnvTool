@@ -14,6 +14,11 @@ extern "C" {
  */
 extern int use_colours;
 
+/* For CygWin, this variable means we must use ANSI-sequences to set colours.
+ */
+extern int use_ansi_colours;
+
+
 /* Count of unneeded C_flush calls.
  */
 extern unsigned c_redundant_flush;

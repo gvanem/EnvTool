@@ -22,6 +22,9 @@
   #include <unistd.h>
   #define _fileno(f)         fileno (f)
   #define _write(f,buf,len)  write (f,buf,len)
+  #define _U_                __attribute__((unused))
+#else
+  #define _U_
 #endif
 
 #define loBYTE(w)     (BYTE)(w)
@@ -58,9 +61,13 @@
 #endif
 
 /* The program using color.c must set this to 1.
- * For CygWin, if this is > 1, it means to use ANSI-sequences to set colours.
  */
 int use_colours = 0;
+
+/* For CygWin or if we detect we're running under mintty.exe (or some other program lacking
+ * WinCon support), this variable means we must use ANSI-sequences to set colours.
+ */
+int use_ansi_colours = 0;
 
 unsigned c_redundant_flush = 0;
 
@@ -83,10 +90,8 @@ static HANDLE console_hnd = INVALID_HANDLE_VALUE;
  */
 static WORD colour_map [7];
 
-#if defined(__CYGWIN__)
-  static char colour_map_ansi [DIM(colour_map)] [20];
-  static void init_colour_map_ansi (void);
-#endif
+static char colour_map_ansi [DIM(colour_map)] [20];
+static void init_colour_map_ansi (void);
 
 static void init_colour_map (void)
 {
@@ -150,10 +155,13 @@ static void C_init (void)
     if (okay)
     {
       init_colour_map();
+
 #if defined(__CYGWIN__)
-      if (use_colours > 1)
-         init_colour_map_ansi();
+      use_ansi_colours = 1;
 #endif
+
+      if (use_ansi_colours)
+         init_colour_map_ansi();
     }
     else
       use_colours = 0;
@@ -205,7 +213,24 @@ static void C_set (WORD col)
   last_attr = attr;
 }
 
-#if defined(__CYGWIN__)
+/*
+ * Figure out if the parent process is mintty.exe which does not
+ * support WinCon colors. Finding the name of parent can be used as
+ * described here:
+ *  http://www.codeproject.com/Articles/9893/Get-Parent-Process-PID
+ *  http://www.scheibli.com/projects/getpids/index.html
+ * or
+ *  f:\gv\VC_project\Winsock-tracer\Escape-From-DLL-Hell\Common\Process.cpp
+ */
+const char *get_parent_process_name (void)
+{
+#if !defined(NDEBUG)
+  if (trace > 0)
+     return ("mintty.exe");
+#endif
+  return (NULL);
+}
+
 static const char *wincon_to_ansi (WORD col)
 {
   static char ret[20];  /* max: "\x1B[30;1;40;1m" == 12 */
@@ -250,26 +275,24 @@ static void init_colour_map_ansi (void)
     const char *p = wincon_to_ansi (colour_map[i]);
     extern const char *dump20 (const void *data_p, unsigned size);
 
-    TRACE (2, "colour_map_ansi[%u] -> %s\n", i, dump20(p,strlen(p)));
+    TRACE (2, "colour_map_ansi[%u] -> %s\n", (unsigned)i, dump20(p,strlen(p)));
     strncpy (colour_map_ansi[i], p, sizeof(colour_map_ansi[i]));
   }
 }
 
 static void C_set_ansi (WORD col)
 {
-  int i, raw_save;
+  int i, raw_save = c_raw;
 
+  c_raw = 1;
   for (i = 0; i < DIM(colour_map); i++)
       if (col == colour_map[i])
       {
-        raw_save = c_raw;
-        c_raw = 1;
         C_puts (colour_map_ansi[i]);
-        c_raw = raw_save;
-        return;
+        break;
       }
+  c_raw = raw_save;
 }
-#endif  /* __CYGWIN__ */
 
 /*
  * Write out the trace-buffer.
@@ -358,12 +381,9 @@ int C_putc (int ch)
 
       C_flush();
 
-#if defined(__CYGWIN__)
-      if (use_colours > 1)
+      if (use_ansi_colours)
          C_set_ansi (color);
-      else
-#endif
-      if (use_colours)
+      else if (use_colours)
          C_set (color);
       return (1);
     }
