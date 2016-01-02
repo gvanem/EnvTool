@@ -22,9 +22,6 @@
   #include <unistd.h>
   #define _fileno(f)         fileno (f)
   #define _write(f,buf,len)  write (f,buf,len)
-  #define _U_                __attribute__((unused))
-#else
-  #define _U_
 #endif
 
 #define loBYTE(w)     (BYTE)(w)
