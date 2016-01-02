@@ -1,9 +1,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "0.98"
+#define VER_STRING  "0.99"
 #define MAJOR_VER   0
-#define MINOR_VER   98
+#define MINOR_VER   99
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 
@@ -123,6 +123,8 @@
 #endif
 
 #if defined(__POCC__)
+  #include <wchar.h>
+
   #define _MAX_PATH       MAX_PATH   /* 260 */
   #define __FUNCTION__    __func__
   #undef  stat
@@ -180,7 +182,7 @@
 
 #ifdef __GNUC__
   #define ATTR_PRINTF(_1,_2) __attribute__((format(printf,_1,_2)))
-  #define ATTR_UNUSED()      __attribute__((unused)))
+  #define ATTR_UNUSED()      __attribute__((unused))
   #define WIDESTR_FMT        "S"
 #else
   #define ATTR_PRINTF(_1,_2)
@@ -271,7 +273,6 @@ struct prog_options {
        int   do_man;
        int   do_cmake;
        int   conv_cygdrive;
-       int   cygwin_ansi;
        char *file_spec;
        char *file_spec_re;
      };
@@ -373,6 +374,16 @@ extern int         check_if_zip (const char *fname);
 extern int         check_if_PE (const char *fname, enum Bitness *bits);
 extern int         verify_PE_checksum (const char *fname);
 extern BOOL        is_wow64_active (void);
+
+/* Stuff in win_ver.c:
+ */
+extern const char *os_name (void);
+
+/* Stuff in win_trust.c:
+ */
+extern DWORD       wintrust_check (const char *pe_file);
+extern const char *wintrust_check_result (DWORD rc);
+
 
 /* Simple debug-malloc functions:
  */
