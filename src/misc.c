@@ -16,7 +16,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <io.h>
-#include <tchar.h>
 #include <windows.h>
 #include <wincon.h>
 #include <winioctl.h>
@@ -176,8 +175,10 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   DEBUGF (3, "\n");
 
   /* Probably not a PE-file at all.
+   * Check 'nt < file_buf' too incase e_lfanew folds 'nt' to a negative value.
    */
-  if ((char*)nt > file_buf + sizeof(file_buf))
+  if ( (char*)nt > file_buf + sizeof(file_buf) ||
+       (char*)nt < file_buf )
   {
     DEBUGF (3, "%s: NT-header at wild offset.\n", fname);
     return (FALSE);
@@ -1004,7 +1005,7 @@ char *strdup_at (const char *str, const char *file, unsigned line)
 }
 
 /*
- * Similar for wcsdup()
+ * Similar to wcsdup()
  */
 wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
 {
@@ -1039,7 +1040,8 @@ void *malloc_at (size_t size, const char *file, unsigned line)
   head = malloc (size);
 
   if (!head)
-     FATAL ("malloc (%u) failed at %s, line %u\n", size-sizeof(*head), file, line);
+     FATAL ("malloc (%u) failed at %s, line %u\n",
+            (unsigned)(size-sizeof(*head)), file, line);
 
   head->marker = MEM_MARKER;
   head->size   = size;
@@ -1784,7 +1786,7 @@ BOOL wchar_to_mbchar (size_t len, const wchar_t *buf, char *result)
      return reparse_err (1, "WideCharToMultiByte(): %s\n",
                          win_strerror(GetLastError()));
 
-  DEBUGF (2, "len: %u, num: %d, result: '%s'\n", len, num, result);
+  DEBUGF (2, "len: %u, num: %d, result: '%s'\n", (unsigned)len, num, result);
   return (TRUE);
 }
 
@@ -1853,8 +1855,8 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   else
     return reparse_err (1, "Not a Mount-Point or Symblic-Link.");
 
-  DEBUGF (2, "SubstitutionName: '%.*S'\n", slen/2, sub_name);
-  DEBUGF (2, "PrintName:        '%.*S'\n", plen/2, print_name);
+  DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
+  DEBUGF (2, "PrintName:        '%.*S'\n", (int)(plen/2), print_name);
 
   /* Account for 0-termination
    */
