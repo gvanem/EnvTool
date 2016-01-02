@@ -1,4 +1,4 @@
-EnvTool v0.98:
+EnvTool v0.99:
 ==============
 
 A tool to search along various environment variables for files (or a wildcard). The following option-modes handles
@@ -228,6 +228,9 @@ risk. Enjoy!
 
         Added option "--cmake" to search for matches along the built-in Cmake
         module path and '%CMAKE_MODULE_PATH%'.
+
+  0.99: Option "--pe" now calls WinTrust functions (in win_trust.c) to check if
+        a PE-file is "Verified", "Not trusted" etc.
 
 
 ```
