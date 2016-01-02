@@ -109,13 +109,13 @@
     <ClCompile Include="getopt_long.c" />
     <ClCompile Include="color.c" />
     <ClCompile Include="misc.c" />
+    <ClCompile Include="win_trust.c" />
+    <ClCompile Include="win_ver.c" />
     <ClCompile Include="searchpath.c" />
     <ClCompile Include="show_ver.c">
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">/TP %(AdditionalOptions)</AdditionalOptions>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">/TP %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
-    <ClCompile Include="win_glob.c" />
-    <ClCompile Include="win_ver.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="envtool.h" />
