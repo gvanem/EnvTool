@@ -23,13 +23,12 @@
 #define __OUT
 #endif
 
-#if defined(SIGNATURE_TEST)
+#if defined(WIN_TRUST_TEST)
   #define PRINTF(args)      printf args
   #undef  ERROR
   #define ERROR(s)          printf ("%s() failed: %s\n", s, win_strerror(GetLastError()))
 #else
   #define PRINTF(fmt, ...)  ((void)0)
-
   #undef  ERROR
   #define ERROR(s)          last_err = GetLastError()
 #endif
