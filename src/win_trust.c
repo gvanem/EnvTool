@@ -33,7 +33,17 @@
   #define ERROR(s)          last_err = GetLastError()
 #endif
 
+#define ASN_ENCODING  (X509_ASN_ENCODING | PKCS_7_ASN_ENCODING)
+#define QUIT(rc)      do { res = (rc); goto quit; } while (0)
+
+struct SPROG_PUBLISHERINFO {
+       wchar_t *program_name;
+       wchar_t *publisher_link;
+       wchar_t *more_info_link;
+     };
+
 static DWORD last_err;
+char *wintrust_subject;
 
 static wchar_t *evil_char_to_wchar (const char *text);
 static int      crypt_check_file (const char *fname);
@@ -64,7 +74,7 @@ static void usage (const char *fmt, ...)
 int main (int argc, char **argv)
 {
   WINTRUST_DATA       data;
-  WINTRUST_FILE_INFO  finfo;
+  WINTRUST_FILE_INFO  file_info;
   const char         *pe_file;
   DWORD               err;
   GUID                action_generic    = WINTRUST_ACTION_TRUSTPROVIDER_TEST;
@@ -74,7 +84,6 @@ int main (int argc, char **argv)
   BOOL                crt_revoke_check = FALSE;
   BOOL                write_trust = FALSE;
   BOOL                use_ex = FALSE;
-  CRYPT_PROVIDER_DATA cp_data;
   int                 ch;
 
   while ((ch = getopt(argc, argv, "cdh?rwx")) != EOF)
@@ -100,18 +109,17 @@ int main (int argc, char **argv)
 
   pe_file = argv[optind];
 
-  memset (&finfo, 0, sizeof(finfo));
+  memset (&file_info, 0, sizeof(file_info));
   memset (&data, 0, sizeof(data));
-  memset (&cp_data, 0, sizeof(cp_data));
 
-  finfo.cbStruct      = sizeof(finfo);
-  finfo.pcwszFilePath = evil_char_to_wchar (pe_file);
+  file_info.cbStruct      = sizeof(file_info);
+  file_info.pcwszFilePath = evil_char_to_wchar (pe_file);
 
   data.cbStruct            = sizeof(data);
   data.dwUIChoice          = WTD_UI_NONE;
   data.fdwRevocationChecks = WTD_REVOKE_NONE;
   data.dwUnionChoice       = WTD_CHOICE_FILE;
-  data.pFile               = &finfo;
+  data.pFile               = &file_info;
   data.dwStateAction       = WTD_STATEACTION_VERIFY;
   data.dwUIContext         = WTD_UICONTEXT_EXECUTE;
 
@@ -225,25 +233,25 @@ int main (int argc, char **argv)
 }
 #endif  /* WIN_TRUST_TEST */
 
-DWORD wintrust_check (const char *pe_file)
+DWORD wintrust_check (const char *pe_file, BOOL check_details)
 {
   WINTRUST_DATA      data;
-  WINTRUST_FILE_INFO finfo;
+  WINTRUST_FILE_INFO file_info;
   GUID               action = WINTRUST_ACTION_TRUSTPROVIDER_TEST;
   DWORD              rc;
 
   memset (&data, 0, sizeof(data));
-  memset (&finfo, 0, sizeof(finfo));
+  memset (&file_info, 0, sizeof(file_info));
   last_err = 0;
 
-  finfo.cbStruct      = sizeof(finfo);
-  finfo.pcwszFilePath = evil_char_to_wchar (pe_file);
+  file_info.cbStruct      = sizeof(file_info);
+  file_info.pcwszFilePath = evil_char_to_wchar (pe_file);
 
   data.cbStruct            = sizeof(data);
   data.dwUIChoice          = WTD_UI_NONE;
   data.fdwRevocationChecks = WTD_REVOKE_NONE;
   data.dwUnionChoice       = WTD_CHOICE_FILE;
-  data.pFile               = &finfo;
+  data.pFile               = &file_info;
   data.dwStateAction       = WTD_STATEACTION_VERIFY;
   data.dwUIContext         = WTD_UICONTEXT_EXECUTE;
 
@@ -251,6 +259,9 @@ DWORD wintrust_check (const char *pe_file)
 
   data.dwStateAction = WTD_STATEACTION_CLOSE;
   WinVerifyTrust (NULL, &action, &data);
+  if (check_details)
+    crypt_check_file (pe_file);
+
   return (rc);
 }
 
@@ -280,196 +291,182 @@ const char *wintrust_check_result (DWORD rc)
   }
 }
 
-#define ASN_ENCODING  (X509_ASN_ENCODING | PKCS_7_ASN_ENCODING)
-#define QUIT(rc)      do { res = (rc); goto quit; } while (0)
-
-
-struct SPROG_PUBLISHERINFO {
-       wchar_t *program_name;
-       wchar_t *publisher_link;
-       wchar_t *more_info_link;
-     };
-
 static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context)
 {
-  char  *szName = NULL;
-  DWORD  dwData, n;
+  char  *name = NULL;
+  DWORD  data, n;
   BOOL   res = FALSE;
 
   PRINTF (("Serial Number: "));
-  dwData = cert_context->pCertInfo->SerialNumber.cbData;
+  data = cert_context->pCertInfo->SerialNumber.cbData;
 
 #if 1
-  for (n = 0; n < dwData; n++)
-     PRINTF (("%02x ", cert_context->pCertInfo->SerialNumber.pbData[dwData-n+1]));
+  for (n = 0; n < data; n++)
+     PRINTF (("%02x ", cert_context->pCertInfo->SerialNumber.pbData[data-n+1]));
   PRINTF (("\n"));
 #else
-  hex_dump (&cert_context->pCertInfo->SerialNumber.pbData[dwData+1], dwData);
+  hex_dump (&cert_context->pCertInfo->SerialNumber.pbData[data+1], data);
 #endif
 
   /* Get Issuer name size
   */
-  dwData = CertGetNameString (cert_context,
-                              CERT_NAME_SIMPLE_DISPLAY_TYPE, CERT_NAME_ISSUER_FLAG,
-                              NULL, NULL, 0);
-  if (!dwData)
+  data = CertGetNameString (cert_context,
+                            CERT_NAME_SIMPLE_DISPLAY_TYPE, CERT_NAME_ISSUER_FLAG,
+                            NULL, NULL, 0);
+  if (!data)
   {
     ERROR ("CertGetNameString");
     QUIT (FALSE);
   }
 
-  szName = alloca (dwData);
+  name = alloca (data);
 
-  /* Get Issuer name
-  */
+  /* Get 'Issuer name'
+   */
   if (!CertGetNameString (cert_context, CERT_NAME_SIMPLE_DISPLAY_TYPE,
-                          CERT_NAME_ISSUER_FLAG, NULL, szName, dwData))
+                          CERT_NAME_ISSUER_FLAG, NULL, name, data))
   {
     ERROR ("CertGetNameString");
     QUIT (FALSE);
   }
 
-  PRINTF (("Issuer Name:   %s\n", szName));
-  dwData = CertGetNameString (cert_context, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, NULL, 0);
-  if (!dwData)
+  PRINTF (("Issuer Name:   %s\n", name));
+
+  /* Get 'Subject Name'
+   */
+  data = CertGetNameString (cert_context, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0,
+                            NULL, NULL, 0);
+  if (!data)
   {
     ERROR ("CertGetNameString");
     QUIT (FALSE);
   }
 
-  szName = alloca (dwData);
-  if (!CertGetNameString(cert_context, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, szName, dwData))
+  name = alloca (data);
+  if (!CertGetNameString(cert_context, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0,
+                         NULL, name, data))
   {
     ERROR ("CertGetNameString");
     QUIT (FALSE);
   }
 
-  PRINTF (("Subject Name:  %s\n", szName));
+  PRINTF (("Subject Name:  %s\n", name));
+
+#if !defined(WIN_TRUST_TEST)
+  FREE (wintrust_subject);
+  wintrust_subject = STRDUP (name);
+#endif
+
   res = TRUE;
 
 quit:
   return res;
 }
 
-static BOOL GetProgAndPublisherInfo (const CMSG_SIGNER_INFO     *pSignerInfo __IN,
-                                     struct SPROG_PUBLISHERINFO *Info        __OUT)
+static BOOL GetProgAndPublisherInfo (const CMSG_SIGNER_INFO     *signer_info __IN,
+                                     struct SPROG_PUBLISHERINFO *info        __OUT)
 {
-  SPC_SP_OPUS_INFO *OpusInfo;
-  DWORD             dwData, n;
+  SPC_SP_OPUS_INFO *opus_info;
+  DWORD             data, n;
   BOOL              res = FALSE;
 
   /* Loop through authenticated attributes and find SPC_SP_OPUS_INFO_OBJID OID.
    */
-  for (n = 0; n < pSignerInfo->AuthAttrs.cAttr; n++)
+  for (n = 0; n < signer_info->AuthAttrs.cAttr; n++)
   {
-    if (!lstrcmpA (SPC_SP_OPUS_INFO_OBJID, pSignerInfo->AuthAttrs.rgAttr[n].pszObjId))
+    if (lstrcmpA(SPC_SP_OPUS_INFO_OBJID, signer_info->AuthAttrs.rgAttr[n].pszObjId))
+       continue;
+
+    /* Get Size of SPC_SP_OPUS_INFO structure
+     */
+    res = CryptDecodeObject (ASN_ENCODING,
+                             SPC_SP_OPUS_INFO_OBJID,
+                             signer_info->AuthAttrs.rgAttr[n].rgValue[0].pbData,
+                             signer_info->AuthAttrs.rgAttr[n].rgValue[0].cbData,
+                             0, NULL, &data);
+    if (!res)
     {
-      /* Get Size of SPC_SP_OPUS_INFO structure
-       */
-      res = CryptDecodeObject (ASN_ENCODING,
-                               SPC_SP_OPUS_INFO_OBJID,
-                               pSignerInfo->AuthAttrs.rgAttr[n].rgValue[0].pbData,
-                               pSignerInfo->AuthAttrs.rgAttr[n].rgValue[0].cbData,
-                               0, NULL, &dwData);
-      if (!res)
+      ERROR ("CryptDecodeObject");
+      QUIT (FALSE);
+    }
+
+    opus_info = alloca (data);
+
+    /* Decode and get SPC_SP_OPUS_INFO structure
+     */
+    res = CryptDecodeObject (ASN_ENCODING,
+                             SPC_SP_OPUS_INFO_OBJID,
+                             signer_info->AuthAttrs.rgAttr[n].rgValue[0].pbData,
+                             signer_info->AuthAttrs.rgAttr[n].rgValue[0].cbData,
+                             0, opus_info, &data);
+    if (!res)
+    {
+      ERROR ("CryptDecodeObject");
+      QUIT (FALSE);
+    }
+
+    /* Fill in Program Name if present */
+    if (opus_info->pwszProgramName)
+       info->program_name = WCSDUP (opus_info->pwszProgramName);
+
+    /* Fill in Publisher Information if present */
+    if (opus_info->pPublisherInfo)
+    {
+      switch (opus_info->pPublisherInfo->dwLinkChoice)
       {
-        ERROR ("CryptDecodeObject");
-        QUIT (FALSE);
+        case SPC_URL_LINK_CHOICE:
+             info->publisher_link = WCSDUP (opus_info->pPublisherInfo->pwszUrl);
+             break;
+        case SPC_FILE_LINK_CHOICE:
+             info->publisher_link = WCSDUP (opus_info->pPublisherInfo->pwszFile);
+             break;
+        default:
+             break;
       }
+    }
 
-      OpusInfo = alloca (dwData);
-
-      /* Decode and get SPC_SP_OPUS_INFO structure
-       */
-      res = CryptDecodeObject (ASN_ENCODING,
-                               SPC_SP_OPUS_INFO_OBJID,
-                               pSignerInfo->AuthAttrs.rgAttr[n].rgValue[0].pbData,
-                               pSignerInfo->AuthAttrs.rgAttr[n].rgValue[0].cbData,
-                               0, OpusInfo, &dwData);
-      if (!res)
+    /* Fill in More Info if present */
+    if (opus_info->pMoreInfo)
+    {
+      switch (opus_info->pMoreInfo->dwLinkChoice)
       {
-        ERROR ("CryptDecodeObject");
-        QUIT (FALSE);
+        case SPC_URL_LINK_CHOICE:
+             info->more_info_link = WCSDUP (opus_info->pMoreInfo->pwszUrl);
+             break;
+        case SPC_FILE_LINK_CHOICE:
+             info->more_info_link = WCSDUP (opus_info->pMoreInfo->pwszFile);
+             break;
+        default:
+             break;
       }
-
-      /* Fill in Program Name if present */
-      if (OpusInfo->pwszProgramName)
-           Info->program_name = WCSDUP (OpusInfo->pwszProgramName);
-      else Info->program_name = NULL;
-
-      /* Fill in Publisher Information if present */
-      if (OpusInfo->pPublisherInfo)
-      {
-        switch (OpusInfo->pPublisherInfo->dwLinkChoice)
-        {
-          case SPC_URL_LINK_CHOICE:
-               Info->publisher_link = WCSDUP (OpusInfo->pPublisherInfo->pwszUrl);
-               break;
-
-          case SPC_FILE_LINK_CHOICE:
-               Info->publisher_link = WCSDUP (OpusInfo->pPublisherInfo->pwszFile);
-               break;
-
-          default:
-               Info->publisher_link = NULL;
-               break;
-        }
-      }
-      else
-      {
-        Info->publisher_link = NULL;
-      }
-
-      /* Fill in More Info if present */
-      if (OpusInfo->pMoreInfo)
-      {
-        switch (OpusInfo->pMoreInfo->dwLinkChoice)
-        {
-          case SPC_URL_LINK_CHOICE:
-               Info->more_info_link = WCSDUP (OpusInfo->pMoreInfo->pwszUrl);
-               break;
-
-          case SPC_FILE_LINK_CHOICE:
-               Info->more_info_link = WCSDUP (OpusInfo->pMoreInfo->pwszFile);
-               break;
-
-          default:
-               Info->more_info_link = NULL;
-               break;
-        }
-      }
-      else
-        Info->more_info_link = NULL;
-
-      res = TRUE;
-      break;                  /* Break from for loop */
-    }                         /* lstrcmp SPC_SP_OPUS_INFO_OBJID */
+    }
+    QUIT (TRUE);
   }
 
 quit:
   return (res);
 }
 
-BOOL GetDateOfTimeStamp (CMSG_SIGNER_INFO *pSignerInfo, SYSTEMTIME *st)
+BOOL GetDateOfTimeStamp (CMSG_SIGNER_INFO *signer_info, SYSTEMTIME *st)
 {
   FILETIME lft, ft;
-  DWORD    dwData, n;
+  DWORD    data, n;
   BOOL     res = FALSE;
 
   /* Loop through authenticated attributes and find szOID_RSA_signingTime OID.
    */
-  for (n = 0; n < pSignerInfo->AuthAttrs.cAttr; n++)
+  for (n = 0; n < signer_info->AuthAttrs.cAttr; n++)
   {
-    if (lstrcmpA(szOID_RSA_signingTime, pSignerInfo->AuthAttrs.rgAttr[n].pszObjId))
+    if (lstrcmpA(szOID_RSA_signingTime, signer_info->AuthAttrs.rgAttr[n].pszObjId))
        continue;
 
     /* Decode and get FILETIME structure */
-    dwData = sizeof(ft);
+    data = sizeof(ft);
     res = CryptDecodeObject (ASN_ENCODING,
                              szOID_RSA_signingTime,
-                             pSignerInfo->AuthAttrs.rgAttr[n].rgValue[0].pbData,
-                             pSignerInfo->AuthAttrs.rgAttr[n].rgValue[0].cbData,
-                             0, (void*)&ft, &dwData);
+                             signer_info->AuthAttrs.rgAttr[n].rgValue[0].pbData,
+                             signer_info->AuthAttrs.rgAttr[n].rgValue[0].cbData,
+                             0, (void*)&ft, &data);
     if (!res)
     {
       ERROR ("CryptDecodeObject");
@@ -484,36 +481,36 @@ BOOL GetDateOfTimeStamp (CMSG_SIGNER_INFO *pSignerInfo, SYSTEMTIME *st)
   return (res);
 }
 
-BOOL GetTimeStampSignerInfo (CMSG_SIGNER_INFO  *pSignerInfo         __IN,
+BOOL GetTimeStampSignerInfo (CMSG_SIGNER_INFO  *signer_info         __IN,
                              CMSG_SIGNER_INFO **counter_signer_info  __OUT)
 {
   BOOL   res = FALSE;
-  DWORD  dwSize, n;
+  DWORD  size, n;
   void  *data;
 
   *counter_signer_info = NULL;
 
   /* Loop through unathenticated attributes for szOID_RSA_counterSign OID
    */
-  for (n = 0; n < pSignerInfo->UnauthAttrs.cAttr; n++)
+  for (n = 0; n < signer_info->UnauthAttrs.cAttr; n++)
   {
-    if (lstrcmpA(pSignerInfo->UnauthAttrs.rgAttr[n].pszObjId, szOID_RSA_counterSign))
+    if (lstrcmpA(signer_info->UnauthAttrs.rgAttr[n].pszObjId, szOID_RSA_counterSign))
        continue;
 
     /* Get size of CMSG_SIGNER_INFO structure
      */
     res = CryptDecodeObject (ASN_ENCODING,
                              PKCS7_SIGNER_INFO,
-                             pSignerInfo->UnauthAttrs.rgAttr[n].rgValue[0].pbData,
-                             pSignerInfo->UnauthAttrs.rgAttr[n].rgValue[0].cbData,
-                             0, NULL, &dwSize);
+                             signer_info->UnauthAttrs.rgAttr[n].rgValue[0].pbData,
+                             signer_info->UnauthAttrs.rgAttr[n].rgValue[0].cbData,
+                             0, NULL, &size);
     if (!res)
     {
       ERROR ("CryptDecodeObject");
       QUIT (FALSE);
     }
 
-    *counter_signer_info = CALLOC (dwSize,1);
+    *counter_signer_info = CALLOC (size,1);
     if (*counter_signer_info == NULL)
     {
       PRINTF (("Unable to allocate memory for timestamp info.\n"));
@@ -525,9 +522,9 @@ BOOL GetTimeStampSignerInfo (CMSG_SIGNER_INFO  *pSignerInfo         __IN,
     data = *counter_signer_info;
     res = CryptDecodeObject (ASN_ENCODING,
                              PKCS7_SIGNER_INFO,
-                             pSignerInfo->UnauthAttrs.rgAttr[n].rgValue[0].pbData,
-                             pSignerInfo->UnauthAttrs.rgAttr[n].rgValue[0].cbData,
-                             0, data, &dwSize);
+                             signer_info->UnauthAttrs.rgAttr[n].rgValue[0].pbData,
+                             signer_info->UnauthAttrs.rgAttr[n].rgValue[0].cbData,
+                             0, data, &size);
     if (!res)
     {
       ERROR ("CryptDecodeObject");
@@ -544,14 +541,14 @@ quit:
 static int crypt_check_file (const char *fname)
 {
   wchar_t             file_name [_MAX_PATH];
-  HCERTSTORE          h_store = NULL;
-  HCRYPTMSG           h_msg = NULL;
+  HCERTSTORE          h_store      = NULL;
+  HCRYPTMSG           h_msg        = NULL;
   const CERT_CONTEXT *cert_context = NULL;
-  DWORD dwEncoding,   dwContentType, dwFormatType;
-  CMSG_SIGNER_INFO   *pSignerInfo = NULL;
+  DWORD               encoding, content_type, format_type;
+  DWORD               signer_info_size;
+  CMSG_SIGNER_INFO   *signer_info = NULL;
   CMSG_SIGNER_INFO   *counter_signer_info = NULL;
-  DWORD               dwSignerInfo;
-  CERT_INFO           CertInfo;
+  CERT_INFO           cert_info;
   SYSTEMTIME          st;
   int                 res;
 
@@ -571,7 +568,7 @@ static int crypt_check_file (const char *fname)
                           file_name,
                           CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED_EMBED,
                           CERT_QUERY_FORMAT_FLAG_BINARY,
-                          0, &dwEncoding, &dwContentType, &dwFormatType,
+                          0, &encoding, &content_type, &format_type,
                           &h_store, &h_msg, NULL);
   if (!res)
   {
@@ -581,18 +578,19 @@ static int crypt_check_file (const char *fname)
 
   /* Get signer information size
    */
-  res = CryptMsgGetParam (h_msg, CMSG_SIGNER_INFO_PARAM, 0, NULL, &dwSignerInfo);
+  res = CryptMsgGetParam (h_msg, CMSG_SIGNER_INFO_PARAM, 0, NULL, &signer_info_size);
   if (!res)
   {
     ERROR ("CryptMsgGetParam");
     QUIT (-1);
   }
 
-  pSignerInfo = alloca (dwSignerInfo);
+  signer_info = alloca (signer_info_size);
 
   /* Get signer information
    */
-  res = CryptMsgGetParam (h_msg, CMSG_SIGNER_INFO_PARAM, 0, (void*)pSignerInfo, &dwSignerInfo);
+  res = CryptMsgGetParam (h_msg, CMSG_SIGNER_INFO_PARAM, 0,
+                          (void*)signer_info, &signer_info_size);
   if (!res)
   {
     ERROR ("CryptMsgGetParam");
@@ -602,7 +600,7 @@ static int crypt_check_file (const char *fname)
   /* Get program name and publisher information from
    * signer info structure
    */
-  if (GetProgAndPublisherInfo(pSignerInfo, &publisher_info))
+  if (GetProgAndPublisherInfo(signer_info, &publisher_info))
   {
     if (publisher_info.program_name)
        PRINTF (("Program Name:   %" WIDESTR_FMT "\n", publisher_info.program_name));
@@ -618,11 +616,11 @@ static int crypt_check_file (const char *fname)
 
   /* Search for the signer certificate in the temporary certificate store
    */
-  CertInfo.Issuer = pSignerInfo->Issuer;
-  CertInfo.SerialNumber = pSignerInfo->SerialNumber;
+  cert_info.Issuer       = signer_info->Issuer;
+  cert_info.SerialNumber = signer_info->SerialNumber;
 
   cert_context = CertFindCertificateInStore (h_store, ASN_ENCODING, 0, CERT_FIND_SUBJECT_CERT,
-                                             (void*)&CertInfo, NULL);
+                                             (void*)&cert_info, NULL);
   if (!cert_context)
   {
     ERROR ("CertFindCertificateInStore");
@@ -637,15 +635,15 @@ static int crypt_check_file (const char *fname)
 
   /* Get the timestamp certificate signerinfo structure
    */
-  if (GetTimeStampSignerInfo(pSignerInfo, &counter_signer_info))
+  if (GetTimeStampSignerInfo(signer_info, &counter_signer_info))
   {
     /* Search for Timestamp certificate in the temporary certificate store
      */
-    CertInfo.Issuer       = counter_signer_info->Issuer;
-    CertInfo.SerialNumber = counter_signer_info->SerialNumber;
+    cert_info.Issuer       = counter_signer_info->Issuer;
+    cert_info.SerialNumber = counter_signer_info->SerialNumber;
 
     cert_context = CertFindCertificateInStore (h_store, ASN_ENCODING, 0, CERT_FIND_SUBJECT_CERT,
-                                              (void*)&CertInfo, NULL);
+                                              (void*)&cert_info, NULL);
     if (!cert_context)
     {
       ERROR ("CertFindCertificateInStore");
