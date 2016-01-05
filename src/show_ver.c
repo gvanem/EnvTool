@@ -18,6 +18,8 @@
  * by Gisle Vanem <gvanem@yahoo.no> August 2011.
  *
  * Use at your own risk!
+ *
+ * Note: Must be compiled as C++ in MSVC.
  */
 
 #include "envtool.h"
