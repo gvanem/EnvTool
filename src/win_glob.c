@@ -241,7 +241,7 @@ static DWORD find_first (const char *file_spec, struct ffblk *ffblk)
              FindFirstFile (file_spec, &ff_data);
 
 
-  DEBUGF (3, "find_first (\"%s\") -> %08lX\n", file_spec, (DWORD)handle);
+  DEBUGF (3, "find_first (\"%s\") -> %" ADDR_FMT "\n", file_spec, ADDR_CAST(handle));
 
   if (handle == INVALID_HANDLE_VALUE)
   {
@@ -705,8 +705,6 @@ void globfree (glob_t *_pglob)
 struct prog_options opt;
 char  *program_name = "win_glob";
 
-extern void get_shell_folders (void);
-
 void usage (void)
 {
   printf ("Usage: win_glob [-dfu] <file_spec>\n"
@@ -997,8 +995,6 @@ int main (int argc, char **argv)
 
   if (argc-- < 1 || *argv == NULL)
      usage();
-
-//get_shell_folders();
 
   use_glob ? do_glob(*argv) : do_glob_new(*argv);
   return (0);
