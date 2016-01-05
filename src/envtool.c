@@ -28,6 +28,7 @@
 #include <signal.h>
 #include <windows.h>
 #include <shlobj.h>
+#include <psapi.h>
 
 #define INSIDE_ENVOOL_C
 
@@ -65,17 +66,10 @@
 char *program_name = NULL;
 
 #define REG_APP_PATH    "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths"
-
 #define KNOWN_DLL_PATH  "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs"
 
-/*
- * \todo: if looking for a DLL pattern, the above 'KNOWN_DLL_PATH' should also
- *        be checked. Ref:
- *          http://msdn.microsoft.com/en-us/library/windows/desktop/ms682586%28v=vs.85%29.aspx
- */
-
-#define MAX_PATHS   500
-#define MAX_ARGS    20
+#define MAX_PATHS       500
+#define MAX_ARGS        20
 
 struct directory_array {
        char    *dir;         /* FQDN of this entry */
@@ -109,6 +103,7 @@ char   sys_native_dir [_MAX_PATH];  /* Not for WIN64 */
 
 static UINT64 total_size = 0;
 static int    num_version_ok = 0;
+static int    num_verified = 0;
 static BOOL   is_wow64 = FALSE;
 static BOOL   have_sys_native_dir = FALSE;
 
@@ -130,6 +125,11 @@ static int   path_separator = ';';
 static char  current_dir [_MAX_PATH];
 
 static volatile int halt_flag;
+
+/* Get the bitness (32/64-bit) of the EveryThing program.
+ */
+static enum Bitness evry_bitness = bit_unknown;
+static void get_evry_bitness (void);
 
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
 static int   do_tests (void);
@@ -162,6 +162,10 @@ static void  print_build_ldflags (void);
  * \todo: Add '--pkg' option to search for pkg-config .pc-files (and their dependent packages?)
  *        Maybe in combination with the EveryThing database (in case %PKG_CONFIG_PATH% is
  *        incorrectly set or have missing .pc files).
+ *
+ * \todo: if looking for a DLL pattern, the above 'KNOWN_DLL_PATH' should also
+ *        be checked. Ref:
+ *          http://msdn.microsoft.com/en-us/library/windows/desktop/ms682586%28v=vs.85%29.aspx
  */
 
 /*
@@ -173,12 +177,22 @@ static void  print_build_ldflags (void);
 
 static void show_evry_version (HWND wnd, const struct ver_info *ver)
 {
-  char    buf [3*MAX_INDEXED+2], *p = buf;
+  char    buf [3*MAX_INDEXED+2], *p = buf, *bits;
   int     d, num;
 
-  C_printf ("  Everything search engine ver. %u.%u.%u.%u (c)"
+  if (evry_bitness == bit_unknown)
+     get_evry_bitness();
+
+  if (evry_bitness == bit_32)
+     bits = " (32-bit)";
+  else if (evry_bitness == bit_64)
+     bits = " (64-bit)";
+  else
+     bits = "";
+
+  C_printf ("  Everything search engine ver. %u.%u.%u.%u%s (c)"
             " David Carpenter; http://www.voidtools.com/\n",
-            ver->val_1, ver->val_2, ver->val_3, ver->val_4);
+            ver->val_1, ver->val_2, ver->val_3, ver->val_4, bits);
   *p = '\0';
   for (d = num = 0; d < MAX_INDEXED; d++)
   {
@@ -212,6 +226,39 @@ static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
   ver->val_3 = (unsigned) revision;
   ver->val_4 = (unsigned) build;
   return (ver->val_1 + ver->val_2 + ver->val_3 + ver->val_4) > 0;
+}
+
+/*
+ * Get the bitness (32/64-bit) of the EveryThing program.
+ */
+static void get_evry_bitness (void)
+{
+  HWND         wnd;
+  DWORD        e_pid, e_tid;
+  HANDLE       hnd;
+  char         fname [_MAX_PATH] = "?";
+  enum Bitness bits = bit_unknown;
+
+  wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
+  if (!wnd)
+     return;
+
+  /* Get the thread/process-ID of the EveryThing window.
+   */
+  e_tid = GetWindowThreadProcessId (wnd, &e_pid);
+
+  DEBUGF (2, "e_pid: %lu, e_tid: %lu.\n", e_pid, e_tid);
+
+  hnd = OpenProcess (PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, e_pid);
+  if (!hnd)
+     return;
+
+  if (GetModuleFileNameEx(hnd, 0, fname, sizeof(fname)) &&
+      check_if_PE(fname, &bits))
+     evry_bitness = bits;
+
+  CloseHandle (hnd);
+  DEBUGF (2, "fname: %s, evry_bitness: %d.\n", fname, evry_bitness);
 }
 
 #if defined(_MSC_FULL_VER)
@@ -326,13 +373,13 @@ static int show_help (void)
   C_printf ("Environment check & search tool.\n"
             "%s.\n\n"
             "Usage: %s ~6[options] <--mode>~0 ~6<file-spec>~0\n"
-            "  ~6<--mode>~0 can be selected among these:\n"
+            "  ~6<--mode>~0 can be at least one of these:\n"
             "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
             "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[1]~0\n"
             "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0.                   ~2[2]~0\n"
             "    ~6--lib~0:          check and search in ~3%%LIB%%~0 and ~3%%LIBRARY_PATH%%~0.    ~2[3]~0\n"
             "    ~6--man~0:          check and search in ~3%%MANPATH%%~0.\n"
-            "    ~6--cmake~0:        check and search in ~3%%CMAKE_MODULE_PATH%%~0 and the built-in module-path.\n"
+            "    ~6--cmake~0:        check and search in ~3%%CMAKE_MODULE_PATH%%~0 and it's built-in module-path.\n"
             "    ~6--evry~0:         check and search in the ~6EveryThing database~0.     ~2[4]~0\n"
             "\n"
             "  ~6Options~0:\n"
@@ -346,9 +393,9 @@ static int show_help (void)
             "    ~6--no-colour~0:    don't print using colours.\n"
             "    ~6--no-remote~0:    don't search for remote files in ~6--evry~0 searches (~2to-do~0).\n"
             "    ~6--pe~0:           print checksum and version-info for PE-files.\n"
-            "    ~6--m32~0:          tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
+            "    ~6--32~0:           tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
             "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
-            "    ~6--m64~0:          tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
+            "    ~6--64~0:           tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
             "                    report only 64-bit PE-files with ~6--pe~0 option.\n"
             "    ~6-c~0:             don't add current directory to search-list.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
@@ -380,7 +427,7 @@ static int show_help (void)
             "      These ~4<prefix>~0-es are built-in: { ~6x86_64-w64-mingw32~0 | ~6i386-mingw32~0 | ~6i686-w64-mingw32~0 | ~6avr~0 }.\n"
             "\n"
             "  ~2[3]~0 Unless ~6--no-gcc~0 and/or ~6--no-g++~0 is used, the\n"
-            "      ~3%%LIBRARY_PATH%%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
+            "      ~3%%LIBRARY_PATH%%~0 is also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
             "\n"
             "  ~2[4]~0 The ~6--evry~0 option requires that the Everything filename search engine is installed.\n"
             "       Ref. ~3http://www.voidtools.com/support/everything/~0\n"
@@ -745,7 +792,9 @@ static int found_in_default_env = 0;
 
 /* Use this as an indication that the EveryThing database is not up-to-date with
  * the reality; files have been deleted after the DB was last updated.
-  */
+ * Unless we're running a 64-bit version of envtool and a file was found in
+ * the 'sys_native_dir[]' and we 'have_sys_native_dir == 0'.
+ */
 static int found_everything_db_dirty = 0;
 
 /*
@@ -777,13 +826,18 @@ show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionW
 3 matches found for "pwdspio.sys". 0 have PE-version info.
 
  */
-static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
-                           const struct ver_info *ver, enum Bitness bits,
-                           DWORD wintrust_rc)
+
+#define WINTRUST_CHECK_DETAILS 0
+#define WINTRUST_REVOKE_CHECK  0
+
+static void print_PE_info (const char *file, BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
+                           const struct ver_info *ver, enum Bitness bits)
 {
   const char *filler = "      ";
-  char       *ver_trace, *line, *bitness, *verify_result = ".";
+  char       *ver_trace, *line, *bitness;
+  char        trust_buf [70], *p = trust_buf;
   int         raw;
+  DWORD       rc;
 
   if (is_python_egg)
   {
@@ -803,34 +857,44 @@ static void print_PE_info (BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
     return;
   }
 
-  bitness = (bits == bit_32) ? "~232" :
-            (bits == bit_64) ? "~364" : "~5?";
+  rc = wintrust_check (file, WINTRUST_CHECK_DETAILS, WINTRUST_REVOKE_CHECK);
 
-  switch (wintrust_rc)
+  switch (rc)
   {
     case ERROR_SUCCESS:
-         verify_result = ", ~2(Verified)~0.";
+         p += snprintf (trust_buf, sizeof(trust_buf), ", ~2(Verified");
+         num_verified++;
          break;
     case TRUST_E_NOSIGNATURE:
     case TRUST_E_SUBJECT_FORM_UNKNOWN:
     case TRUST_E_PROVIDER_UNKNOWN:
-         verify_result = ", ~5(Not signed)~0.";
+         p += snprintf (trust_buf, sizeof(trust_buf), ", ~5(Not signed");
          break;
     case TRUST_E_SUBJECT_NOT_TRUSTED:
-         verify_result = ", ~5(Not trusted)~0.";
+         p += snprintf (trust_buf, sizeof(trust_buf), ", ~5(Not trusted");
          break;
   }
 
-  C_printf ("\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s%s",
+  if (wintrust_subject)
+  {
+    snprintf (p, trust_buf+sizeof(trust_buf)-p, ", %s)~0.", wintrust_subject);
+    FREE (wintrust_subject);
+  }
+  else
+    strcat (p, ")~0.");
+
+  bitness = (bits == bit_32) ? "~232" :
+            (bits == bit_64) ? "~364" : "~5?";
+
+  C_printf ("\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s%s\n",
             filler, ver->val_1, ver->val_2, ver->val_3, ver->val_4,
-            bitness, chksum_ok ? "~2OK" : "~5fail", verify_result);
+            bitness, chksum_ok ? "~2OK" : "~5fail", trust_buf);
 
   ver_trace = get_PE_version_info_buf();
   if (ver_trace)
   {
     raw = C_setraw (1);  /* In case version-info contains a "~" (SFN). */
 
-    C_putc ('\n');
     for (line = strtok(ver_trace,"\n"); line; line = strtok(NULL,"\n"))
         C_printf ("%s%s\n", filler, line);
     C_setraw (raw);
@@ -845,6 +909,8 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
   const char *filler = "      ";
   char        size [30] = "?";
   int         raw;
+  BOOL        have_it  = TRUE;
+  BOOL        print_it = TRUE;
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -873,9 +939,15 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
   }
   else if (key == HKEY_EVERYTHING)
   {
+#if (IS_WIN64)
+    if (mtime == 0 && !have_sys_native_dir &&
+        !strnicmp(file,sys_native_dir,strlen(sys_native_dir)))
+       have_it = FALSE;
+#endif
     if (is_dir)
        note = "<DIR> ";
-    if (mtime == 0 && !(is_dir ^ opt.dir_mode))
+
+    if (have_it && mtime == 0 && !(is_dir ^ opt.dir_mode))
     {
       found_everything_db_dirty = 1;
       note = " (6)  ";
@@ -886,7 +958,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
     found_in_default_env = 1;
   }
 
-  if (!is_dir && opt.dir_mode)
+  if (!is_dir && opt.dir_mode || !have_it)
      return (0);
 
  /* \todo:
@@ -927,6 +999,8 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
   C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
 
   /* In case 'file' contains a "~" (SFN), we switch to raw mode.
+   *
+   * \todo: must evaluate 'opt.only_32bit' etc. before printing the filename.
    */
   raw = C_setraw (1);
   C_puts (file);
@@ -949,20 +1023,19 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
     BOOL            is_py_egg  = (key == HKEY_PYTHON_EGG);
     BOOL            chksum_ok  = FALSE;
     BOOL            version_ok = FALSE;
-    BOOL            check_this = TRUE;
 
-    if (opt.debug > 0) /* So that next DEBUGF() starts on a new line */
+    if (opt.debug > 0)   /* So that next DEBUGF() starts on a new line */
        C_putc ('\n');
 
     memset (&ver, 0, sizeof(ver));
     if (!is_py_egg && check_if_PE(file,&bits))
     {
       if (opt.only_32bit && bits != bit_32)
-         check_this = FALSE;
+         print_it = FALSE;
       else if (opt.only_64bit && bits != bit_64)
-         check_this = FALSE;
+         print_it = FALSE;
 
-      if (check_this)
+      if (print_it)
       {
         is_PE      = TRUE;
         chksum_ok  = verify_PE_checksum (file);
@@ -971,11 +1044,8 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
            num_version_ok++;
       }
     }
-    if (check_this)
-    {
-      print_PE_info (is_PE, is_py_egg, chksum_ok, &ver, bits, wintrust_check(file));
-      C_putc ('\n');
-    }
+    if (print_it)
+       print_PE_info (file, is_PE, is_py_egg, chksum_ok, &ver, bits);
   }
 
   C_putc ('\n');
@@ -1030,7 +1100,7 @@ static void final_report (int found)
      C_printf (" Totalling %s. ", str_trim((char*)get_file_size_str(total_size)));
 
   if (opt.PE_check)
-     C_printf (" %d have PE-version info.", num_version_ok);
+     C_printf (" %d have PE-version info. %d are verified.", num_version_ok, num_verified);
 
   C_putc ('\n');
 }
@@ -1758,6 +1828,9 @@ static int do_check_evry (void)
   char *base  = NULL;
   int   found = 0;
 
+  if (evry_bitness == bit_unknown)
+     get_evry_bitness();
+
   /* EveryThing seems to need '\\' only. Must split the 'opt.file_spec'
    * into a 'dir' and 'base' part.
    */
@@ -2445,8 +2518,8 @@ static const struct option long_options[] = {
            { "size",        no_argument,       NULL, 0 },
            { "man",         no_argument,       NULL, 0 },    /* 23 */
            { "cmake",       no_argument,       NULL, 0 },
-           { "m32",         no_argument,       NULL, 0 },    /* 25 */
-           { "m64",         no_argument,       NULL, 0 },
+           { "32",          no_argument,       NULL, 0 },    /* 25 */
+           { "64",          no_argument,       NULL, 0 },
            { "no-prefix",   no_argument,       NULL, 0 },    /* 27 */
            { NULL,          no_argument,       NULL, 0 }
          };
@@ -2820,7 +2893,6 @@ static void init_all (void)
        snprintf (sys_native_dir, sizeof(sys_native_dir), "%.*s\\sysnative",
                  (int)(rslash - sys_dir), sys_dir);
   }
-  check_sys_dirs();
 }
 
 int main (int argc, char **argv)
@@ -2831,6 +2903,8 @@ int main (int argc, char **argv)
   init_all();
 
   parse_args (argc, argv, &opt.file_spec);
+
+  check_sys_dirs();
 
   /* Sometimes the IPC connection to the EveryThing Database will hang.
    * Clean up if user presses ^C.
@@ -3430,7 +3504,7 @@ static void test_PE_wintrust (void)
     else
       file = searchpath (file, "PATH");
 
-    rc = wintrust_check (file);
+    rc = wintrust_check (file, FALSE, FALSE);
     C_printf ("  %d: %s %*s->", i, file, (int)(45-strlen(file)), "");
     C_printf (" ~2%s~0\n", wintrust_check_result(rc));
   }
