@@ -28,7 +28,7 @@
   #undef  ERROR
   #define ERROR(s)          printf ("%s() failed: %s\n", s, win_strerror(GetLastError()))
 #else
-  #define PRINTF(fmt, ...)  ((void)0)
+  #define PRINTF(args)      ((void)0)
   #undef  ERROR
   #define ERROR(s)          last_err = GetLastError()
 #endif
@@ -42,24 +42,23 @@ struct SPROG_PUBLISHERINFO {
        wchar_t *more_info_link;
      };
 
-static DWORD last_err;
 char *wintrust_subject;
+
+static DWORD last_err;
 
 static wchar_t *evil_char_to_wchar (const char *text);
 static int      crypt_check_file (const char *fname);
 
 #if defined(WIN_TRUST_TEST)
 
-char *program_name = "win_trust.exe";
+char  *program_name = "win_trust.exe";
 struct prog_options opt;
 
-const char *usage_fmt = "Usage: %s <-chdrwx> PE-file\n"
+const char *usage_fmt = "Usage: %s <-hcdr> PE-file\n"
                         "    -h: show this help.\n"
                         "    -c: call crypt_check_file().\n"
                         "    -d: set debug-level.\n"
-                        "    -r: perform a Cert revocation check.\n"
-                        "    -w: write the Authenticode trust data to stdout.\n"
-                        "    -x: use WinVerifyTrustEx() instead\n";
+                        "    -r: perform a Cert revocation check.\n";
 
 static void usage (const char *fmt, ...)
 {
@@ -73,31 +72,20 @@ static void usage (const char *fmt, ...)
 
 int main (int argc, char **argv)
 {
-  WINTRUST_DATA       data;
-  WINTRUST_FILE_INFO  file_info;
-  const char         *pe_file;
-  DWORD               err;
-  GUID                action_generic    = WINTRUST_ACTION_TRUSTPROVIDER_TEST;
-  GUID                action_trust_test = WINTRUST_ACTION_GENERIC_VERIFY_V2;
-  GUID               *action;
-  BOOL                do_crypt_check_file = FALSE;
-  BOOL                crt_revoke_check = FALSE;
-  BOOL                write_trust = FALSE;
-  BOOL                use_ex = FALSE;
-  int                 ch;
+  const char *pe_file;
+  DWORD       err;
+  BOOL        check_details = FALSE;
+  BOOL        revoke_check = FALSE;
+  int         ch;
 
-  while ((ch = getopt(argc, argv, "cdh?rwx")) != EOF)
+  while ((ch = getopt(argc, argv, "cdh?r")) != EOF)
         switch (ch)
         {
-          case 'c': do_crypt_check_file = TRUE;
+          case 'c': check_details = TRUE;
                     break;
           case 'd': opt.debug++;
                     break;
-          case 'r': crt_revoke_check = TRUE;
-                    break;
-          case 'w': write_trust = TRUE;
-                    break;
-          case 'x': use_ex = TRUE;
+          case 'r': revoke_check = TRUE;
                     break;
           case '?':
           case 'h': usage (usage_fmt, argv[0]);
@@ -109,36 +97,7 @@ int main (int argc, char **argv)
 
   pe_file = argv[optind];
 
-  memset (&file_info, 0, sizeof(file_info));
-  memset (&data, 0, sizeof(data));
-
-  file_info.cbStruct      = sizeof(file_info);
-  file_info.pcwszFilePath = evil_char_to_wchar (pe_file);
-
-  data.cbStruct            = sizeof(data);
-  data.dwUIChoice          = WTD_UI_NONE;
-  data.fdwRevocationChecks = WTD_REVOKE_NONE;
-  data.dwUnionChoice       = WTD_CHOICE_FILE;
-  data.pFile               = &file_info;
-  data.dwStateAction       = WTD_STATEACTION_VERIFY;
-  data.dwUIContext         = WTD_UICONTEXT_EXECUTE;
-
-  if (crt_revoke_check)
-  {
-    data.fdwRevocationChecks = WTD_REVOKE_WHOLECHAIN;
-    data.dwProvFlags = WTD_REVOCATION_CHECK_CHAIN;
-  }
-
-  if (write_trust)
-       action = &action_generic;
-  else action = &action_trust_test;
-
-  DEBUGF (1, "crt_revoke_check: %d\n", crt_revoke_check);
-  DEBUGF (1, "write_trust:      %d\n", write_trust);
-
-  err = use_ex ?
-          WinVerifyTrustEx (NULL, action, &data) :
-          WinVerifyTrust (NULL, action, &data);
+  err = wintrust_check (pe_file, check_details, revoke_check);
 
   switch (err)
   {
@@ -218,27 +177,22 @@ int main (int argc, char **argv)
   }
 #endif
 
-  data.dwStateAction = WTD_STATEACTION_CLOSE;
-  use_ex ?
-     WinVerifyTrustEx (NULL, action, &data) :
-     WinVerifyTrust (NULL, action, &data);
-
-  if (do_crypt_check_file)
-  {
-    printf ("\nDetails for crypt_check_file (\"%s\").\n", pe_file);
-    crypt_check_file (pe_file);
-  }
-
-  return (0);
+  return (err);
 }
 #endif  /* WIN_TRUST_TEST */
 
-DWORD wintrust_check (const char *pe_file, BOOL check_details)
+DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check)
 {
+  DWORD              rc;
   WINTRUST_DATA      data;
   WINTRUST_FILE_INFO file_info;
-  GUID               action = WINTRUST_ACTION_TRUSTPROVIDER_TEST;
-  DWORD              rc;
+  GUID               action =
+#if 0
+                       WINTRUST_ACTION_GENERIC_VERIFY_V2
+#else
+                       WINTRUST_ACTION_TRUSTPROVIDER_TEST
+#endif
+  ;
 
   memset (&data, 0, sizeof(data));
   memset (&file_info, 0, sizeof(file_info));
@@ -249,19 +203,23 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details)
 
   data.cbStruct            = sizeof(data);
   data.dwUIChoice          = WTD_UI_NONE;
-  data.fdwRevocationChecks = WTD_REVOKE_NONE;
   data.dwUnionChoice       = WTD_CHOICE_FILE;
   data.pFile               = &file_info;
   data.dwStateAction       = WTD_STATEACTION_VERIFY;
   data.dwUIContext         = WTD_UICONTEXT_EXECUTE;
+  data.fdwRevocationChecks = revoke_check ? WTD_REVOKE_WHOLECHAIN : WTD_REVOKE_NONE;
+  data.dwProvFlags         = revoke_check ? WTD_REVOCATION_CHECK_CHAIN : 0;
 
   rc = last_err = WinVerifyTrust (NULL, &action, &data);
 
   data.dwStateAction = WTD_STATEACTION_CLOSE;
   WinVerifyTrust (NULL, &action, &data);
-  if (check_details)
-    crypt_check_file (pe_file);
 
+  if (check_details)
+  {
+    PRINTF (("\nDetails for crypt_check_file (\"%s\").\n", pe_file));
+    crypt_check_file (pe_file);
+  }
   return (rc);
 }
 

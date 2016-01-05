@@ -382,7 +382,7 @@ extern const char *os_name (void);
 /* Stuff in win_trust.c:
  */
 extern char       *wintrust_subject;
-extern DWORD       wintrust_check (const char *pe_file, BOOL details);
+extern DWORD       wintrust_check (const char *pe_file, BOOL details, BOOL revoke_check);
 extern const char *wintrust_check_result (DWORD rc);
 
 
