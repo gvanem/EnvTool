@@ -61,7 +61,7 @@ newer (27 Nov 2014) `FoxitReader` launched. But if you say `FoxitReader` in your
 
 Other examples:
 
-E.g. 1: `envtool --path notepad*.exe` first checks the `%PATH%` env-var
+**E.g. 1**: `envtool --path notepad*.exe` first checks the `%PATH%` env-var
  for consistency (reports missing directories in `%PATH%`) and prints
  all the locations of `notepad*.exe`. On my box the result is:
 ```
@@ -71,7 +71,7 @@ Thu Jul 21 16:13:11 2011 : f:\windows\system32\notepad2.exe
 Mon Nov 18 19:26:40 2002 : f:\windows\notepad.exe
 ```
 
-E.g. 2: `envtool --inc afxwin*` first checks the `%INCLUDE%` env-var
+**E.g. 2**: `envtool --inc afxwin*` first checks the `%INCLUDE%` env-var
 for consistency (reports missing directories in `%INCLUDE`) and prints
 all the locations of `afxwin*`. On my box the result is:
 ```
@@ -83,7 +83,7 @@ Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN1.INL
 Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN2.INL
 ```
 
-E.g. 3: If an *App Paths* registry key has an alias for a command, the target
+**E.g. 3**: If an *App Paths* registry key has an alias for a command, the target
 program is printed. E.g. if:
 `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winzip.exe`
 points to `c:\PROGRA~1\WINZIP\winzip32.exe`
@@ -96,7 +96,7 @@ Fri Oct 11 09:10:00 2002: f:\PROGRA~1\WINZIP\winzip32.exe !
 (!) - found in registry.
 ```
 
-E.g. 4: It's pretty amazing what the *FindFile()* API in Windows can do. E.g.:
+**E.g. 4**: It's pretty amazing what the *FindFile()* API in Windows can do. E.g.:
 `envtool --path *-?++.exe`:
 ```
 Tue Nov 19 12:01:38 2002 : f:\Mingw32\bin\mingw32-c++.exe
@@ -109,7 +109,7 @@ Although not as powerful as "POSIX-style file matching" which is also built-in
 via the `fnmatch()` function.
 
 
-E.g. 5: If you have Python installed, the `--python` option will search in
+**E.g. 5**: If you have Python installed, the `--python` option will search in
 `%PYTHONPATH` and `sys.path[]` for a match. E.g.:
 `envtool.exe --python ss*.py`:
 ```
@@ -118,7 +118,7 @@ E.g. 5: If you have Python installed, the `--python` option will search in
 16 Feb 2011 - 12:14:28: f:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspicon.py
 ```
 
-E.g. 6: The `--python` option wil also look inside Python *EGG*s (plain ZIP-files) found
+**E.g. 6**: The `--python` option wil also look inside Python *EGG*s (plain ZIP-files) found
 in `sys.path[]`. E.g.:
 `envtool.exe --python socket.py`:
 ```
@@ -126,7 +126,7 @@ in `sys.path[]`. E.g.:
 30 Apr 2014 - 09:54:04: f:\Programfiler\Python27\lib\socket.py
 ```
 
-E.g. 7: The `--evry` option combined with the `--regex` (or `-r`) is quite powerful. To find
+**E.g. 7**: The `--evry` option combined with the `--regex` (or `-r`) is quite powerful. To find
 all directories with Unix man-pages, you can do this:
 `envtool.exe --evry -r "man[1-9]$"`:
 ```
@@ -139,9 +139,11 @@ all directories with Unix man-pages, you can do this:
 Which is probably a lot more directories than you have in you `%MANPATH%`.
 
 Or to find only `foo*.bar` files under directory-branch(es) `misc`, you can do
-`envtool.exe --evry -ddr "misc\\.*\\foo\.bar"`.
+```
+envtool.exe --evry -r "misc\\.*\\foo\.bar"
+```
 
-E.g. 8: More than one option-mode can combined. For example:
+**E.g. 8**: More than one option-mode can combined. For example:
 `envtool.exe --man --evry gzip*.[1-9]*`:
 ```
 Matches in %MANPATH:
