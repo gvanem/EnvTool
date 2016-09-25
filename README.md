@@ -138,6 +138,9 @@ all directories with Unix man-pages, you can do this:
 
 Which is probably a lot more directories than you have in you `%MANPATH%`.
 
+Or to find only `foo*.bar` files under directory-branch(es) `misc`, you can do
+`envtool.exe --evry -ddr "misc\\.*\\foo\.bar"`.
+
 E.g. 8: More than one option-mode can combined. For example:
 `envtool.exe --man --evry gzip*.[1-9]*`:
 ```
