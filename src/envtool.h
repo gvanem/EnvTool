@@ -1,9 +1,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "0.99"
-#define MAJOR_VER   0
-#define MINOR_VER   99
+#define VER_STRING  "1.0"
+#define MAJOR_VER   1
+#define MINOR_VER   0
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 
@@ -282,16 +282,25 @@ extern struct prog_options opt;
 extern char   sys_dir        [_MAX_PATH];
 extern char   sys_native_dir [_MAX_PATH];
 
-extern int  report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY key);
+extern int  report_file (const char *file, time_t mtime, UINT64 fsize,
+                         BOOL is_dir, BOOL is_junction, HKEY key);
+
 extern int  process_dir (const char *path, int num_dup, BOOL exist,
                          BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key, BOOL recursive);
+
+/*
+ * Defined in newer <sal.h> for MSVC.
+ */
+#ifndef _Printf_format_string_
+#define _Printf_format_string_
+#endif
 
 /* Stuff in misc.c:
  */
 #if defined(__POCC__)
   _CRTCHK(printf,1,2)
 #endif
-  int debug_printf (const char *format, ...) ATTR_PRINTF (1,2);
+  int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1,2);
 
 extern char *_strlcpy      (char *dst, const char *src, size_t len);
 extern char *_strsep       (char **s, const char *delim);

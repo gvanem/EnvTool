@@ -116,10 +116,17 @@ void get_PE_version_info_free (void)
   trace_buf = trace_head = NULL;
 }
 
+/*
+ * Defined in newer <sal.h> for MSVC.
+ */
+#ifndef _Printf_format_string_
+#define _Printf_format_string_
+#endif
+
 #if defined(__POCC__)
-  static _CRTCHK(printf,1,2) void do_printf  (const char *fmt, ...);
+  static _CRTCHK(printf,1,2) void do_printf (const char *fmt, ...);
 #else
-  static void do_printf (const char *fmt, ...) ATTR_PRINTF (1,2);
+  static void do_printf (_Printf_format_string_ const char *fmt, ...) ATTR_PRINTF (1,2);
 #endif
 
 static void do_printf (const char *fmt, ...)
