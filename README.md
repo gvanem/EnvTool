@@ -138,9 +138,9 @@ all directories with Unix man-pages, you can do this:
 
 Which is probably a lot more directories than you have in you `%MANPATH%`.
 
-Or to find only `foo*.bar` files under directory-branch(es) `misc`, you can do
+Or to find only `foo*.bar` files under directory-branch(es) `misc`, you can do:
 ```
-envtool.exe --evry -r "misc\\.*\\foo\.bar"
+envtool.exe --evry -r "misc\\.*\\foo.*\.bar"
 ```
 
 **E.g. 8**: More than one option-mode can combined. For example:
@@ -160,7 +160,7 @@ Matches from EveryThing:
       30 Sep 2013 - 13:07:53: f:\MingW32\var\cache\mingw-get\packages\gzip-1.3.12-2-msys-1.0.13-bin.tar.lzma
 ```
 
-C-source included in ./src. Makefiles for MingW, Cygwin, Watcom and MSVC. Use at own
+C-source included in ./src. Makefiles for MinGW, Cygwin, Watcom and MSVC. Use at own
 risk. Enjoy!
 
   Gisle Vanem <gvanem@yahoo.no>.
@@ -177,7 +177,7 @@ risk. Enjoy!
 
   0.3: Handled the case where an env-var contains the current directory.
         E.g. when "PATH=./;c:\util", turn the "./" into CWD (using 'getcwd()')
-        for 'stat("/.")' to work. Turn off command-line globbing in MingW
+        for 'stat("/.")' to work. Turn off command-line globbing in MinGW
         ('_CRT_glob = 0').
 
   0.4:  Rudimentary check for Python 'sys.path' searching.
@@ -199,7 +199,7 @@ risk. Enjoy!
         Add colour-output option '-C'.
 
   0.8:  New option '--pe' outputs version info from resource-section. E.g.:
-          envtool --path --pe -C vcbuild.*
+          envtool --path --pe vcbuild.*
           Matches in %PATH:
                19 Mar 2010 - 15:02:22: g:\vc_2010\VC\vcpackages\vcbuild.dll
                ver 10.0.30319.1
