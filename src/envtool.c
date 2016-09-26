@@ -104,6 +104,7 @@ char   sys_native_dir [_MAX_PATH];  /* Not for WIN64 */
 static UINT64 total_size = 0;
 static int    num_version_ok = 0;
 static int    num_verified = 0;
+static int    num_evry_dups = 0;
 static BOOL   is_wow64 = FALSE;
 static BOOL   have_sys_native_dir = FALSE;
 
@@ -138,9 +139,9 @@ static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 
 /*
- * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs use).
+ * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
  *        E.g. if a PATH (or INCLUDE etc.) component contains "/foo/bar//", the search will
- *          do a recursive search for all files (and dirs) under "/foo/bar/".
+ *             do a recursive search for all files (and dirs) under "/foo/bar/".
  *        Ref. http://tug.org/texinfohtml/kpathsea.html
  *
  * \todo: In 'report_file()', test if a file (in %PATH, %INCLUDE or %LIB) is
@@ -151,11 +152,7 @@ static void  print_build_ldflags (void);
  *                         on filename.
  *                         on file-size.
  *
- * \todo: Add date/time format option.
- *           Normal: "07 Nov 2012 - 18:06:58".
- *           Option: "20121107.180658".  (like zipinfo does)
- *
- * \todo: Add '--locate' option (or in combination with '--evry' option) to
+ * \todo: Add '--locate' option (or in combination with '--evry' option?) to
  *        look into GNU locatedb (%LOCATE_PATH=/cygdrive/f/Cygwin32/locatedb)
  *        information too.
  *
@@ -166,6 +163,20 @@ static void  print_build_ldflags (void);
  * \todo: if looking for a DLL pattern, the above 'KNOWN_DLL_PATH' should also
  *        be checked. Ref:
  *          http://msdn.microsoft.com/en-us/library/windows/desktop/ms682586%28v=vs.85%29.aspx
+ *
+ * \todo: Add a '--check' option for 64-bit Windows to check that all .DLLs in:
+ *             %SystemRoot%\Sysnative are 64-bit and
+ *             %SystemRoot%\SysWOW64  are 32-bit.
+ *
+ *        E.g. pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
+ *             Machine:                      014C (i386)
+ *             Machine:                      014C (i386)
+ *             ....
+ *
+ *        Also check their Wintrust signature status and version information.
+ *
+ * \todo: With the '-D' and '-s' options, recursively get the size of file under the
+ *        directories matching 'opt.file_spec'.
  */
 
 /*
@@ -391,7 +402,7 @@ static int show_help (void)
             "    ~6--no-app~0:       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
             "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
             "    ~6--no-colour~0:    don't print using colours.\n"
-            "    ~6--no-remote~0:    don't search for remote files in ~6--evry~0 searches (~2to-do~0).\n"
+         /* "    ~6--no-remote~0:    don't search for remote files in ~6--evry~0 searches (~2to-do~0).\n" */
             "    ~6--pe~0:           print checksum and version-info for PE-files.\n"
             "    ~6--32~0:           tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
             "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
@@ -474,12 +485,14 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
     DEBUGF (2, "'%s' doesn't exist.\n", dir);
 
 #if defined(__CYGWIN__)
-  char cyg_dir [_MAX_PATH];
-  int  rc = cygwin_conv_path (CCP_WIN_A_TO_POSIX, d->dir, cyg_dir, sizeof(cyg_dir));
+  {
+    char cyg_dir [_MAX_PATH];
+    int  rc = cygwin_conv_path (CCP_WIN_A_TO_POSIX, d->dir, cyg_dir, sizeof(cyg_dir));
 
-  if (rc == 0)
-     d->cyg_dir = STRDUP (cyg_dir);
-  DEBUGF (2, "cygwin_conv_path(): rc: %d, '%s'\n", rc, cyg_dir);
+    if (rc == 0)
+       d->cyg_dir = STRDUP (cyg_dir);
+    DEBUGF (2, "cygwin_conv_path(): rc: %d, '%s'\n", rc, cyg_dir);
+  }
 #endif
 
   if (is_cwd || !exp_ok)
@@ -730,7 +743,8 @@ static struct directory_array *split_env_var (const char *env_name, const char *
          WARN ("%s: \"%s\" needs to be enclosed in quotes.\n", env_name, tok);
 
 #if !defined(__CYGWIN__)
-      /* Check for missing drive-letter ('x:') in component.
+      /*
+       * Check for missing drive-letter ('x:') in component.
        */
       if (!is_cwd && IS_SLASH(tok[0]))
          WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
@@ -830,34 +844,14 @@ show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionW
 #define WINTRUST_CHECK_DETAILS 0
 #define WINTRUST_REVOKE_CHECK  0
 
-static void print_PE_info (const char *file, BOOL is_PE, BOOL is_python_egg, BOOL chksum_ok,
+static void print_PE_info (const char *file, BOOL chksum_ok,
                            const struct ver_info *ver, enum Bitness bits)
 {
   const char *filler = "      ";
   char       *ver_trace, *line, *bitness;
   char        trust_buf [70], *p = trust_buf;
   int         raw;
-  DWORD       rc;
-
-  if (is_python_egg)
-  {
-    C_printf ("\n%sCannot examine PYD-files inside Python EGGs.", filler);
-    if (opt.verbose >= 1)
-       C_putc ('\n');
-    C_flush();
-    return;
-  }
-
-  if (!is_PE)
-  {
-    C_printf ("\n%s~3Not~0 a PE-image.", filler);
-    if (opt.verbose >= 1)
-       C_putc ('\n');
-    C_flush();
-    return;
-  }
-
-  rc = wintrust_check (file, WINTRUST_CHECK_DETAILS, WINTRUST_REVOKE_CHECK);
+  DWORD       rc = wintrust_check (file, WINTRUST_CHECK_DETAILS, WINTRUST_REVOKE_CHECK);
 
   switch (rc)
   {
@@ -899,11 +893,57 @@ static void print_PE_info (const char *file, BOOL is_PE, BOOL is_python_egg, BOO
         C_printf ("%s%s\n", filler, line);
     C_setraw (raw);
     get_PE_version_info_free();
-    C_flush();
   }
 }
 
-int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY key)
+static int print_PE_file (const char *file, const char *note, const char *filler,
+                          const char *size, time_t mtime)
+{
+  struct ver_info ver;
+  enum Bitness    bits;
+  BOOL            print_it   = TRUE;
+  BOOL            chksum_ok  = FALSE;
+  BOOL            version_ok = FALSE;
+  int             raw;
+
+  if (!check_if_PE(file,&bits))
+     return (0);
+
+  memset (&ver, 0, sizeof(ver));
+
+  if (opt.only_32bit && bits != bit_32)
+     print_it = FALSE;
+  else if (opt.only_64bit && bits != bit_64)
+     print_it = FALSE;
+
+  if (!print_it)
+     return (0);
+
+  chksum_ok  = verify_PE_checksum (file);
+  version_ok = get_PE_version_info (file, &ver);
+  if (version_ok)
+     num_version_ok++;
+
+  C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
+  raw = C_setraw (1);
+  C_puts (file);
+  C_setraw (raw);
+  print_PE_info (file, chksum_ok, &ver, bits);
+  C_putc ('\n');
+  return (1);
+}
+
+#if 0
+static UINT64 get_directory_size (const char *dir)
+{
+  struct dirent2 **namelist;
+  int    i, n;
+  do_scandir2 (dir, "*", 0, 1);
+}
+#endif
+
+int report_file (const char *file, time_t mtime, UINT64 fsize,
+                 BOOL is_dir, BOOL is_junction, HKEY key)
 {
   const char *note   = NULL;
   const char *filler = "      ";
@@ -958,11 +998,11 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
     found_in_default_env = 1;
   }
 
-  if (!is_dir && opt.dir_mode || !have_it)
+  if ((!is_dir && opt.dir_mode) || !have_it)
      return (0);
 
  /* \todo:
-  * recursively get the size of file under directory matching 'file'.
+  *   Recursively get the size of file under directory matching 'file'.
   */
 #if 0
   if (opt.show_size && opt.dir_mode)
@@ -996,11 +1036,12 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
 
   report_header = NULL;
 
+  if (opt.PE_check)
+     return print_PE_file (file, note, filler, size, mtime);
+
   C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
 
   /* In case 'file' contains a "~" (SFN), we switch to raw mode.
-   *
-   * \todo: must evaluate 'opt.only_32bit' etc. before printing the filename.
    */
   raw = C_setraw (1);
   C_puts (file);
@@ -1013,39 +1054,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, HKEY
     const char *end = strchr (file, '\0');
 
     if (end > file && end[-1] != '\\' && end[-1] != '/')
-      C_putc (opt.show_unix_paths ? '/' : '\\');
-  }
-  else if (opt.PE_check)
-  {
-    struct ver_info ver;
-    enum Bitness    bits;
-    BOOL            is_PE      = FALSE;
-    BOOL            is_py_egg  = (key == HKEY_PYTHON_EGG);
-    BOOL            chksum_ok  = FALSE;
-    BOOL            version_ok = FALSE;
-
-    if (opt.debug > 0)   /* So that next DEBUGF() starts on a new line */
-       C_putc ('\n');
-
-    memset (&ver, 0, sizeof(ver));
-    if (!is_py_egg && check_if_PE(file,&bits))
-    {
-      if (opt.only_32bit && bits != bit_32)
-         print_it = FALSE;
-      else if (opt.only_64bit && bits != bit_64)
-         print_it = FALSE;
-
-      if (print_it)
-      {
-        is_PE      = TRUE;
-        chksum_ok  = verify_PE_checksum (file);
-        version_ok = get_PE_version_info (file, &ver);
-        if (version_ok)
-           num_version_ok++;
-      }
-    }
-    if (print_it)
-       print_PE_info (file, is_PE, is_py_egg, chksum_ok, &ver, bits);
+       C_putc (opt.show_unix_paths ? '/' : '\\');
   }
 
   C_putc ('\n');
@@ -1096,8 +1105,9 @@ static void final_report (int found)
   C_printf ("%d match%s found for \"%s\".",
             found, (found == 0 || found > 1) ? "es" : "", opt.file_spec);
 
-  if (opt.show_size)
-     C_printf (" Totalling %s. ", str_trim((char*)get_file_size_str(total_size)));
+  if (opt.show_size && total_size > 0)
+     C_printf (" Totalling %s (%s bytes). ",
+               str_trim((char*)get_file_size_str(total_size)), qword_str(total_size));
 
   if (opt.PE_check)
      C_printf (" %d have PE-version info. %d are verified.", num_version_ok, num_verified);
@@ -1538,7 +1548,7 @@ static int report_registry (const char *reg_key, int num)
       match = fnmatch (opt.file_spec, arr->fname, FNM_FLAG_NOCASE);
       if (match == FNM_MATCH)
       {
-        if (report_file(fqdn, arr->mtime, arr->fsize, FALSE, arr->key))
+        if (report_file(fqdn, arr->mtime, arr->fsize, FALSE, FALSE, arr->key))
            found++;
       }
     }
@@ -1636,6 +1646,7 @@ int process_dir (const char *path, int num_dup, BOOL exist,
     struct stat   st;
     char  *base, *file;
     int    match, len;
+    BOOL   is_junction;
 
     if (!strcmp(ff_data.cFileName,".."))
        continue;
@@ -1645,7 +1656,9 @@ int process_dir (const char *path, int num_dup, BOOL exist,
     len += snprintf (base, sizeof(fqfn)-len, "%s%s",
                      subdir ? subdir : "", ff_data.cFileName);
 
-    is_dir = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
+    is_dir      = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
+    is_junction = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0);
+
     file   = slashify (fqfn, DIR_SEP);
     match  = fnmatch (opt.file_spec, base, FNM_FLAG_NOCASE | FNM_FLAG_NOESCAPE);
 
@@ -1665,15 +1678,17 @@ int process_dir (const char *path, int num_dup, BOOL exist,
        * I.e. if 'opt.file_spec' == "ratio.*" and base == "ratio", we qualify
        *      this as a match.
        */
-      if (!is_dir && !opt.dir_mode && !opt.man_mode && !strnicmp(base,opt.file_spec,strlen(base)))
+      if (!is_dir && !opt.dir_mode && !opt.man_mode &&
+          !strnicmp(base,opt.file_spec,strlen(base)))
          match = FNM_MATCH;
     }
 
-    DEBUGF (1, "Testing \"%s\". is_dir: %d, %s\n", file, is_dir, fnmatch_res(match));
+    DEBUGF (1, "Testing \"%s\". is_dir: %d, is_junction: %d, %s\n",
+            file, is_dir, is_junction, fnmatch_res(match));
 
     if (match == FNM_MATCH && stat(file, &st) == 0)
     {
-      if (report_file(file, st.st_mtime, st.st_size, is_dir, key))
+      if (report_file(file, st.st_mtime, st.st_size, is_dir, is_junction, key))
          found++;
     }
   }
@@ -1807,7 +1822,6 @@ static int report_evry_file (const char *file)
     mtime  = st.st_mtime;
     fsize  = st.st_size;
     is_dir = _S_ISDIR (st.st_mode);
-    DEBUGF (3, "st.st_nlink: %d\n", st.st_nlink);
   }
   else if (errno == ENOENT)
   {
@@ -1817,7 +1831,7 @@ static int report_evry_file (const char *file)
        DEBUGF (1, "shadow: '%s' -> '%s'\n", file, file2);
     file = file2;
   }
-  return report_file (file, mtime, fsize, is_dir, HKEY_EVERYTHING);
+  return report_file (file, mtime, fsize, is_dir, FALSE, HKEY_EVERYTHING);
 }
 
 static int do_check_evry (void)
@@ -1892,6 +1906,10 @@ static int do_check_evry (void)
   for (i = 0; i < num; i++)
   {
     char file [_MAX_PATH];
+    char prev [_MAX_PATH];
+
+    if (i == 0)
+       prev[0] = '\0';
 
     len = Everything_GetResultFullPathName (i, file, sizeof(file));
     err = Everything_GetLastError();
@@ -1901,8 +1919,19 @@ static int do_check_evry (void)
               evry_strerror(err));
       break;
     }
+
+    if (prev[0] && !strcmp(prev, file))
+    {
+      num_evry_dups++;
+      DEBUGF (2, "dup (i:%2lu): file: %s\n"
+                 "\t\t\t     prev: %s\n", i, file, prev);
+      continue;
+    }
+    _strlcpy (prev, file, sizeof(prev));
+
     if (report_evry_file(file))
-       found++;
+         found++;
+    else prev[0] = '\0';
   }
   return (found);
 }
@@ -2215,7 +2244,7 @@ static int find_library_path_cb (char *buf, int index)
   #define GCC_DUMP_FMT "%s %s -v -dM -xc -c - < /dev/null 2>&1"
 #else
   #define GCC_DUMP_FMT "%s %s -o NUL -v -dM -xc -c - < NUL 2>&1"
-#endif
+#endif            /* gcc ^, ^ '', '-m32' or '-m64' */
 
 static int setup_gcc_includes (const char *gcc)
 {
@@ -2382,6 +2411,15 @@ static void get_longest (const char **cc, size_t num)
   }
 }
 
+/*
+ * Called during 'envtool -VV' to print:
+ *  Compilers on PATH:
+ *    gcc.exe                    -> f:\MingW32\TDM-gcc\bin\gcc.exe
+ *    ...
+ *
+ * 'get_longest()' called to align the 1st column (gcc.exe) to fit the
+ * compiler with the longest name. I.e. "x86_64-w64-mingw32-gcc.exe".
+ */
 static void searchpath_compilers (const char **cc, size_t num)
 {
   const char *found;
@@ -2399,11 +2437,15 @@ static void searchpath_compilers (const char **cc, size_t num)
 
 static size_t num_gcc (void)
 {
+  if (opt.do_version)
+     return (_num_gcc);
   return (opt.gcc_no_prefixed ? 1 : _num_gcc);
 }
 
 static size_t num_gpp (void)
 {
+  if (opt.do_version)
+     return (_num_gpp);
   return (opt.gcc_no_prefixed ? 1 : _num_gpp);
 }
 
@@ -2678,7 +2720,7 @@ static void set_long_option (int o)
   *val_ptr = 1;
 }
 
-static void parse_args (int argc, char *const *argv, char **fspec)
+static void parse_cmdline (int argc, char *const *argv, char **fspec)
 {
   char  buf [_MAX_PATH];
   char *env = getenv_expand ("ENVTOOL_OPTIONS");
@@ -2739,6 +2781,18 @@ static void parse_args (int argc, char *const *argv, char **fspec)
        set_short_option (c);
     else if (c == -1)
        break;
+  }
+
+  if (opt.dir_mode && opt.show_size)
+  {
+    printf ("Option '-s' cannot yet show directorty sizes for option '-D'.\n");
+    exit (1);
+  }
+
+  if (opt.only_32bit && opt.only_64bit)
+  {
+    printf ("Specifying both '--32' and '--64' doesn't make sense.\n");
+    exit (1);
   }
 
   if (opt.no_colours)
@@ -2902,7 +2956,7 @@ int main (int argc, char **argv)
 
   init_all();
 
-  parse_args (argc, argv, &opt.file_spec);
+  parse_cmdline (argc, argv, &opt.file_spec);
 
   check_sys_dirs();
 
@@ -2942,6 +2996,7 @@ int main (int argc, char **argv)
   if (strchr(opt.file_spec,'~') > opt.file_spec)
   {
     char *fspec = opt.file_spec;
+
     opt.file_spec = _fix_path (fspec, NULL);
     FREE (fspec);
   }
@@ -3413,20 +3468,67 @@ static void test_fix_path (void)
  */
 static void test_SHGetFolderPath (void)
 {
-#if 0
-  char dirr [MAX_PATH];
-  int rc;
+  #undef  ADD_VALUE
+  #define ADD_VALUE(v)  { v, #v }
 
-  if (opt.verbose > 0)
+  static const struct search_list sh_folders[] = {
+                      ADD_VALUE (CSIDL_ADMINTOOLS),
+                      ADD_VALUE (CSIDL_ALTSTARTUP),
+                      ADD_VALUE (CSIDL_APPDATA),      /* Use this as HOME-dir ("~/") */
+                      ADD_VALUE (CSIDL_BITBUCKET),    /* Recycle Bin */
+                      ADD_VALUE (CSIDL_COMMON_ALTSTARTUP),
+                      ADD_VALUE (CSIDL_COMMON_FAVORITES),
+                      ADD_VALUE (CSIDL_COMMON_STARTMENU),
+                      ADD_VALUE (CSIDL_COMMON_PROGRAMS),
+                      ADD_VALUE (CSIDL_COMMON_STARTUP),
+                      ADD_VALUE (CSIDL_COMMON_DESKTOPDIRECTORY),
+                      ADD_VALUE (CSIDL_COOKIES),
+                      ADD_VALUE (CSIDL_DESKTOP),
+                      ADD_VALUE (CSIDL_LOCAL_APPDATA),
+                      ADD_VALUE (CSIDL_NETWORK),
+                      ADD_VALUE (CSIDL_NETHOOD),
+                      ADD_VALUE (CSIDL_PERSONAL),
+                      ADD_VALUE (CSIDL_PROFILE),
+                      ADD_VALUE (CSIDL_PROGRAM_FILES_COMMON),
+                      ADD_VALUE (CSIDL_PROGRAM_FILES_COMMONX86),
+                      ADD_VALUE (CSIDL_PROGRAM_FILESX86),
+                      ADD_VALUE (CSIDL_PROGRAM_FILES),
+                      ADD_VALUE (CSIDL_STARTUP),
+                      ADD_VALUE (CSIDL_SYSTEM),
+                      ADD_VALUE (CSIDL_SYSTEMX86),
+                      ADD_VALUE (CSIDL_TEMPLATES),
+                      ADD_VALUE (CSIDL_WINDOWS)
+                    };
+  int i;
+
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+
+  if (opt.debug > 0)
   {
+    void get_shell_folders (void); /* in misc.c */
+
     get_shell_folders();
     return;
   }
 
-  rc = SHGetFolderPath (NULL, CSIDL_PERSONAL, NULL, SHGFP_TYPE_CURRENT, dir);
-  if (rc != S_OK) ;
+  for (i = 0; i < DIM(sh_folders); i++)
+  {
+    char                      path1 [_MAX_PATH];
+    char                      path2 [_MAX_PATH];
+    const struct search_list *folder   = sh_folders + i;
+    const char               *flag_str = opt.verbose ? "SHGFP_TYPE_CURRENT" : "SHGFP_TYPE_DEFAULT";
+    DWORD                     flag     = opt.verbose ?  SHGFP_TYPE_CURRENT  :  SHGFP_TYPE_DEFAULT;
+    HRESULT                   rc       = SHGetFolderPath (NULL, folder->value, NULL,
+                                                          flag, path1);
+    if (rc == S_OK)
+         _fix_path (path1, path2);
+    else snprintf (path2, sizeof(path2), "~5Failed: %s",
+                   win_strerror(GetLastError()));
+
+    C_printf ("  SHGetFolderPath (%s, %s):\n    ~2%s~0\n",
+              folder->name, flag_str, path2);
+  }
   C_putc ('\n');
-#endif
 }
 
 /*
@@ -3469,7 +3571,7 @@ static void test_ReparsePoints (void)
 
     if (!rc)
          C_printf (" ~5%s~0%s\n", last_reparse_err, st_result);
-    else C_printf (" \"%s\"%s\n", result, st_result);
+    else C_printf (" \"%s\"%s\n", _fix_drive(result), st_result);
   }
   C_putc ('\n');
 }
@@ -3480,20 +3582,21 @@ static void test_ReparsePoints (void)
  */
 static void test_PE_wintrust (void)
 {
-  static const char *files[] = {
-                    "%s\\kernel32.dll",
-                    "%s\\drivers\\usbport.sys",
-                    "notepad.exe",
-                    "cl.exe"
-                  };
+  static char *files[] = {
+              "%s\\kernel32.dll",
+              "%s\\drivers\\usbport.sys",
+              "notepad.exe",
+              "cl.exe"
+            };
   int i;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   for (i = 0; i < DIM(files); i++)
   {
-    const char *file = files[i];
-    char  path [_MAX_PATH], *is_sys = strchr (file, '%');
+    char *file = files[i];
+    char  path [_MAX_PATH];
+    char *is_sys = strchr (file, '%');
     DWORD rc;
 
     if (is_sys)
@@ -3505,7 +3608,7 @@ static void test_PE_wintrust (void)
       file = searchpath (file, "PATH");
 
     rc = wintrust_check (file, FALSE, FALSE);
-    C_printf ("  %d: %s %*s->", i, file, (int)(45-strlen(file)), "");
+    C_printf ("  %d: %s %*s->", i, _fix_drive(file), (int)(45-strlen(file)), "");
     C_printf (" ~2%s~0\n", wintrust_check_result(rc));
   }
   C_putc ('\n');
@@ -3569,7 +3672,7 @@ static void test_libssp (void)
 
   hex_dump (&buf2, sizeof(buf2));
   C_putc ('\n');
-#endif
+#endif /* (_FORTIFY_SOURCE > 0) */
 }
 
 static int do_tests (void)
