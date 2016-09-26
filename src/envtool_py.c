@@ -726,7 +726,7 @@ static int report_zip_file (const char *zip_file, char *output)
   /* \todo: incase '--pe-check' is specified and 'report' file is a .pyd-file,
    *        we should save the .pyd to a %TMP-file and examine it in report_file().
    */
-  report_file (report, mtime, fsize, FALSE, HKEY_PYTHON_EGG);
+  report_file (report, mtime, fsize, FALSE, FALSE, HKEY_PYTHON_EGG);
   return (1);
 }
 
