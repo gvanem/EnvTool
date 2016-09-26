@@ -18,12 +18,18 @@ extern int use_colours;
  */
 extern int use_ansi_colours;
 
+/*
+ * Defined in newer <sal.h> for MSVC.
+ */
+#ifndef _Printf_format_string_
+#define _Printf_format_string_
+#endif
 
 /* Count of unneeded C_flush calls.
  */
 extern unsigned c_redundant_flush;
 
-extern int C_printf (const char *fmt, ...)
+extern int C_printf (_Printf_format_string_ const char *fmt, ...)
   #if defined(__GNUC__)
     __attribute__ ((format(printf,1,2)))
   #endif
