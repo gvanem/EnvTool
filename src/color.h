@@ -12,11 +12,11 @@ extern "C" {
  * calling the below 'C_xx()' functions.
  * For CygWin, if this is > 1, it means to use ANSI-sequences to set colours.
  */
-extern int use_colours;
+extern int C_use_colours;
 
 /* For CygWin, this variable means we must use ANSI-sequences to set colours.
  */
-extern int use_ansi_colours;
+extern int C_use_ansi_colours;
 
 /*
  * Defined in newer <sal.h> for MSVC.
@@ -25,9 +25,9 @@ extern int use_ansi_colours;
 #define _Printf_format_string_
 #endif
 
-/* Count of unneeded C_flush calls.
+/* Count of unneeded 'C_flush()' calls. I.e. calls where length of buffer is 0.
  */
-extern unsigned c_redundant_flush;
+extern unsigned C_redundant_flush;
 
 extern int C_printf (_Printf_format_string_ const char *fmt, ...)
   #if defined(__GNUC__)

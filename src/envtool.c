@@ -2797,7 +2797,7 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
 
   if (opt.no_colours)
   {
-    use_colours = use_ansi_colours = 0;
+    C_use_colours = C_use_ansi_colours = 0;
     C_puts (" \b ");
   }
 
@@ -2927,7 +2927,7 @@ static void init_all (void)
   tzset();
   memset (&opt, 0, sizeof(opt));
   opt.add_cwd = 1;
-  use_colours = 1;  /* Turned off by "--no-colour" */
+  C_use_colours = 1;  /* Turned off by "--no-colour" */
 
 #ifdef __CYGWIN__
   opt.conv_cygdrive = 1;

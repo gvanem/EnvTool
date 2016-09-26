@@ -59,20 +59,20 @@
 
 /* The program using color.c must set this to 1.
  */
-int use_colours = 0;
+int C_use_colours = 0;
 
 /* The program using color.c must set this to 1 if fwrite() shall
  * be used in 'C_flush()'. This can be needed to syncronise the output
  * with other calls (libraries?) that writes to stdout using fwrite().
  */
-int use_fwrite = 0;
+int C_use_fwrite = 0;
 
 /* For CygWin or if we detect we're running under mintty.exe (or some other program lacking
  * WinCon support), this variable means we must use ANSI-sequences to set colours.
  */
-int use_ansi_colours = 0;
+int C_use_ansi_colours = 0;
 
-unsigned c_redundant_flush = 0;
+unsigned C_redundant_flush = 0;
 
 static char  c_buf [C_BUF_SIZE];
 static char *c_head, *c_tail;
@@ -160,14 +160,14 @@ static void C_init (void)
       init_colour_map();
 
 #if defined(__CYGWIN__)
-      use_ansi_colours = 1;
+      C_use_ansi_colours = 1;
 #endif
 
-      if (use_ansi_colours)
+      if (C_use_ansi_colours)
          init_colour_map_ansi();
     }
     else
-      use_colours = 0;
+      C_use_colours = 0;
 
     c_out  = stdout;
     c_head = c_buf;
@@ -307,12 +307,12 @@ size_t C_flush (void)
 
   if (len == 0)
   {
-    c_redundant_flush++;
+    C_redundant_flush++;
     return (0);
   }
 
   assert (c_out);
-  if (use_fwrite)
+  if (C_use_fwrite)
        len = fwrite (c_buf, 1, len, c_out);
   else len = _write (_fileno(c_out), c_buf, (unsigned int)len);
 
@@ -387,9 +387,9 @@ int C_putc (int ch)
 
       C_flush();
 
-      if (use_ansi_colours)
+      if (C_use_ansi_colours)
          C_set_ansi (color);
-      else if (use_colours)
+      else if (C_use_colours)
          C_set (color);
       return (1);
     }
