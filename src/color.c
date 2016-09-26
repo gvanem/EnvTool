@@ -61,6 +61,12 @@
  */
 int use_colours = 0;
 
+/* The program using color.c must set this to 1 if fwrite() shall
+ * be used in 'C_flush()'. This can be needed to syncronise the output
+ * with other calls (libraries?) that writes to stdout using fwrite().
+ */
+int use_fwrite = 0;
+
 /* For CygWin or if we detect we're running under mintty.exe (or some other program lacking
  * WinCon support), this variable means we must use ANSI-sequences to set colours.
  */
@@ -217,6 +223,7 @@ static void C_set (WORD col)
  *  http://www.codeproject.com/Articles/9893/Get-Parent-Process-PID
  *  http://www.scheibli.com/projects/getpids/index.html
  * or
+ *  https://github.com/git-for-windows/git/blob/27c08ea187462e56ffb514c8c997df419f004ce5/compat/winansi.c#L530-L569
  *  f:\gv\VC_project\Winsock-tracer\Escape-From-DLL-Hell\Common\Process.cpp
  */
 const char *get_parent_process_name (void)
@@ -305,7 +312,9 @@ size_t C_flush (void)
   }
 
   assert (c_out);
-  len = _write (_fileno(c_out), c_buf, (unsigned int)len);
+  if (use_fwrite)
+       len = fwrite (c_buf, 1, len, c_out);
+  else len = _write (_fileno(c_out), c_buf, (unsigned int)len);
 
   c_head = c_buf;   /* restart buffer */
   return (len);
