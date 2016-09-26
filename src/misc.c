@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
+#include <math.h>
 #include <io.h>
 #include <windows.h>
 #include <wincon.h>
@@ -175,7 +176,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   DEBUGF (3, "\n");
 
   /* Probably not a PE-file at all.
-   * Check 'nt < file_buf' too incase e_lfanew folds 'nt' to a negative value.
+   * Check 'nt < file_buf' too in case 'e_lfanew' folds 'nt' to a negative value.
    */
   if ( (char*)nt > file_buf + sizeof(file_buf) ||
        (char*)nt < file_buf )
@@ -193,9 +194,9 @@ int check_if_PE (const char *fname, enum Bitness *bits)
     is_64Bit = (nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC);
 
     if (is_32Bit)
-      last_bitness = bit_32;
+       last_bitness = bit_32;
     else if (is_64Bit)
-      last_bitness = bit_64;
+       last_bitness = bit_64;
   }
   else if (is_exe)
   {
@@ -1189,39 +1190,35 @@ void mem_report (void)
 
 const char *get_file_size_str (UINT64 size)
 {
-  const char *suffix = "";
+  static const char *suffixes[] = { "B ", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
   static char buf [10];
-  UINT64 divisor;
+  int    i = 0;
+  double m;
 
-  if (size < 1024)
+  while (size >= 1024ULL)
   {
-    divisor = 1;
-    suffix = " B ";
-  }
-  else if (size < 1024*1024)
-  {
-    divisor = 1024;
-    suffix = " kB";
-  }
-  else if (size < 1024ULL*1024ULL*1024ULL)
-  {
-    divisor = 1024*1024;
-    suffix = " MB";
-  }
-  else if (size < 1024ULL*1024ULL*1024ULL*1024ULL)
-  {
-    divisor = 1024*1024*1024;
-    suffix = " GB";
-  }
-  else
-  {
-    divisor = 1024ULL*1024ULL*1024ULL*1024ULL;
-    suffix = " PB";
+    size /= 1024ULL;
+    i++;
   }
 
-  size /= divisor;
-  snprintf (buf, sizeof(buf), "%4" U64_FMT "%s", size, suffix);
+  /* Round up
+   */
+  m = floor ((double)size);
+  if (size >= m + 0.5)
+     m++;
+
+  snprintf (buf, sizeof(buf), "%4.0f %s", m, suffixes[i]);
   return (buf);
+}
+
+/*
+ * Reurn a time-string for 'time_t==0' (non-time).
+ */
+const char *empty_time (void)
+{
+  return (opt.decimal_timestamp ?
+          "00000000.000000" :
+          "01 Jan 1970 - 00:00:00");
 }
 
 /*
@@ -1234,17 +1231,16 @@ const char *get_file_size_str (UINT64 size)
 const char *get_time_str (time_t t)
 {
   const struct tm *tm;
-  const char      *empty = "-- --- 1970 - --:--:--";
   static char      res [50];
 
   if (t == 0)
-     return (empty);
+     return empty_time();
 
   tm = localtime (&t);
   if (!tm)
-     return (empty);
+     return empty_time();
 
-#if USE_STRFTIME
+#if (USE_STRFTIME)
   if (opt.decimal_timestamp)
        strftime (res, sizeof(res), "%Y%m%d.%H%M%S", tm);
   else strftime (res, sizeof(res), "%d %b %Y - %H:%M:%S", tm);
@@ -1654,6 +1650,7 @@ char *_itoa (int value, char *buf, int radix)
 
 static const struct search_list sh_folders[] = {
                     ADD_VALUE (CSIDL_PROFILE),
+                    ADD_VALUE (CSIDL_PERSONAL),
                     ADD_VALUE (CSIDL_APPDATA),    /* Use this as HOME-dir ("~/") */
                     ADD_VALUE (CSIDL_LOCAL_APPDATA),
                     ADD_VALUE (CSIDL_STARTUP),
@@ -1671,7 +1668,7 @@ static const struct search_list sh_flags[] = {
 
 static void get_shell_folder (const struct search_list *folder, DWORD flag)
 {
-  char    path1 [MAX_PATH];
+  char    path1 [_MAX_PATH];
   char    path2 [_MAX_PATH];
   HRESULT rc = SHGetFolderPathA (NULL, folder->value, NULL, flag, path1);
 
@@ -1796,7 +1793,7 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   HANDLE   hnd;
   size_t   ofs, plen, slen;
   wchar_t *print_name, *sub_name;
-  DWORD    ret_len;
+  DWORD    ret_len, share_mode, flags;
   BOOL     rc;
 
   last_reparse_err = NULL;
@@ -1805,11 +1802,10 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 
   DEBUGF (2, "Finding target of dir: '%s'.\n", dir);
 
-  hnd =  CreateFile (dir, FILE_READ_EA,
-                     FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                     NULL, OPEN_EXISTING,
-                     FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
-                     NULL);
+  share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+  flags = FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT;
+  hnd = CreateFile (dir, FILE_READ_EA, share_mode,
+                    NULL, OPEN_EXISTING, flags, NULL);
 
   if (hnd == INVALID_HANDLE_VALUE)
      return reparse_err (1, "Could not open dir '%s'; %s",
@@ -1817,7 +1813,8 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 
   rdata = alloca (MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
   rc = DeviceIoControl (hnd, FSCTL_GET_REPARSE_POINT, NULL, 0,
-                        rdata, MAXIMUM_REPARSE_DATA_BUFFER_SIZE, &ret_len, NULL);
+                        rdata, MAXIMUM_REPARSE_DATA_BUFFER_SIZE,
+                        &ret_len, NULL);
 
   CloseHandle (hnd);
 
@@ -1853,7 +1850,7 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
     print_name = rdata->MountPointReparseBuffer.PathBuffer + ofs;
   }
   else
-    return reparse_err (1, "Not a Mount-Point or Symblic-Link.");
+    return reparse_err (1, "Not a Mount-Point nor a Symbolic-Link.");
 
   DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
   DEBUGF (2, "PrintName:        '%.*S'\n", (int)(plen/2), print_name);
