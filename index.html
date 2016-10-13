@@ -1,0 +1,308 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Envtool by gvanem</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-dark.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/gvanem/EnvTool">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/gvanem/EnvTool/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/gvanem/EnvTool/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
+
+    <div class="wrapper">
+
+      <section>
+        <div id="title">
+          <h1>Envtool</h1>
+          <p>Utility to check and search along environment variables. Or where Python-modules are located.</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/gvanem">gvanem</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></span>
+        </div>
+
+        <h1>
+<a id="envtool-v099" class="anchor" href="#envtool-v099" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>EnvTool v0.99:</h1>
+
+<p>A tool to search along various environment variables for files (or a wildcard). The following option-modes handles
+these environment variables:</p>
+
+<table border="0" cellspacing="0">
+  <tr>
+    <td>
+<tt>--path</tt>:</td> <td>
+<tt>%PATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>
+<tt>--inc</tt>:</td> <td>
+<tt>%INCLUDE%</tt>, <tt>%C_INCLUDE_PATH%</tt> and <tt>%CPLUS_INCLUDE_PATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>
+<tt>--lib</tt>:</td> <td>
+<tt>%LIB%</tt> and <tt>%LIBRARY_PATH%.</tt>
+</td>
+  </tr>
+  <tr>
+    <td>
+<tt>--lib</tt>:</td> <td>
+<tt>%LIB%</tt> and <tt>%LIBRARY_PATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>
+<tt>--cmake</tt>:</td> <td>
+<tt>%CMAKE_MODULE_PATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>
+<tt>--man</tt>:</td> <td>
+<tt>%MANPATH%</tt>.</td>
+  </tr>
+  <tr>
+    <td>
+<tt>--python</tt>:</td> <td>
+<tt>%PYTHONPATH%</tt> and <tt>sys.path[]</tt>.</td>
+  </tr>
+  <tr>
+    <td>
+<tt>--evry</tt>:</td> <td>
+<a href="http://www.voidtools.com/support/everything/">EveryThing</a> file database.</td>
+  </tr>
+</table>
+
+<p>It also checks for missing directories along the above env-variables.</p>
+
+<p>The <code>--path</code> option also checks these registry keys:
+  <code>HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths</code> and
+  <code>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths</code></p>
+
+<p>and enumerates all keys for possible programs. E.g. if registry contains this:
+  <code>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\makensis.exe</code> =
+   <code>f:\MinGW32\bin\MingW-studio\makensis.exe</code>,</p>
+
+<p><code>envtool --path maken*</code> will include <code>f:\MinGW32\bin\MingW-studio\makensis.exe</code>
+in the result.</p>
+
+<p>Problem with old programs pestering your <code>PATH</code> and <em>Registry</em> entries can be tricky
+to diagnose. Here I had an problem with an old version of the <em>FoxitReader PDF reader</em>:
+Checking with <code>envtool --path foxit*.exe</code>, resulted in:</p>
+
+<pre><code>  Matches in HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths:
+   (2)  27 Nov 2014 - 10:24:04: f:\ProgramFiler\FoxitReader\FoxitReader.exe
+  Matches in %PATH:
+        21 Apr 2006 - 17:43:10: f:\util\FoxitReader.exe
+   (2): found in "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths".
+</code></pre>
+
+<p>Hence if you write <code>FoxitReader</code> in the Window Run-box (<em>Winkey-R</em>), you'll get the
+newer (27 Nov 2014) <code>FoxitReader</code> launched. But if you say <code>FoxitReader</code> in your shell
+(cmd etc.), you'll get the old version (21 Apr 2006).</p>
+
+<p>Other examples:</p>
+
+<p><strong>E.g. 1</strong>: <code>envtool --path notepad*.exe</code> first checks the <code>%PATH%</code> env-var
+ for consistency (reports missing directories in <code>%PATH%</code>) and prints
+ all the locations of <code>notepad*.exe</code>. On my box the result is:</p>
+
+<pre><code>Thu Jul 21 16:02:20 2011 : f:\windows\system32\notepad-orig.exe
+Mon Nov 18 19:26:40 2002 : f:\windows\system32\notepad.exe
+Thu Jul 21 16:13:11 2011 : f:\windows\system32\notepad2.exe
+Mon Nov 18 19:26:40 2002 : f:\windows\notepad.exe
+</code></pre>
+
+<p><strong>E.g. 2</strong>: <code>envtool --inc afxwin*</code> first checks the <code>%INCLUDE%</code> env-var
+for consistency (reports missing directories in <code>%INCLUDE</code>) and prints
+all the locations of <code>afxwin*</code>. On my box the result is:</p>
+
+<pre><code>Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN.H
+Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN1.INL
+Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN2.INL
+Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN.H
+Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN1.INL
+Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN2.INL
+</code></pre>
+
+<p><strong>E.g. 3</strong>: If an <em>App Paths</em> registry key has an alias for a command, the target
+program is printed. E.g. if:
+<code>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winzip.exe</code>
+points to <code>c:\PROGRA~1\WINZIP\winzip32.exe</code></p>
+
+<p>(here <code>winzip.exe</code> is an alias for the real program <code>winzip32.exe</code>). Hence
+<code>envtool --path winzip*</code> reports:</p>
+
+<pre><code>Fri Oct 11 09:10:00 2002: f:\PROGRA~1\WINZIP\winzip.exe !
+Fri Oct 11 09:10:00 2002: f:\PROGRA~1\WINZIP\winzip32.exe !
+(!) - found in registry.
+</code></pre>
+
+<p><strong>E.g. 4</strong>: It's pretty amazing what the <em>FindFile()</em> API in Windows can do. E.g.:
+<code>envtool --path *-?++.exe</code>:</p>
+
+<pre><code>Tue Nov 19 12:01:38 2002 : f:\Mingw32\bin\mingw32-c++.exe
+Tue Nov 19 12:01:38 2002 : f:\Mingw32\bin\mingw32-g++.exe
+Wed Mar 09 14:39:05 2011 : f:\CygWin\bin\i686-pc-cygwin-c++.exe
+Wed Mar 09 14:39:05 2011 : f:\CygWin\bin\i686-pc-cygwin-g++.exe
+</code></pre>
+
+<p>Although not as powerful as "POSIX-style file matching" which is also built-in
+via the <code>fnmatch()</code> function.</p>
+
+<p><strong>E.g. 5</strong>: If you have Python installed, the <code>--python</code> option will search in
+<code>%PYTHONPATH</code> and <code>sys.path[]</code> for a match. E.g.:
+<code>envtool.exe --python ss*.py</code>:</p>
+
+<pre><code>24 Jun 2011 - 11:38:10: f:\ProgramFiler\Python27\lib\ssl.py
+16 Feb 2011 - 12:14:28: f:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspi.py
+16 Feb 2011 - 12:14:28: f:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspicon.py
+</code></pre>
+
+<p><strong>E.g. 6</strong>: The <code>--python</code> option wil also look inside Python <em>EGG</em>s (plain ZIP-files) found
+in <code>sys.path[]</code>. E.g.:
+<code>envtool.exe --python socket.py</code>:</p>
+
+<pre><code>27 Mar 2013 - 16:41:58: stem\socket.py  (%PYTHONHOME\lib\site-packages\stem-1.0.1-py2.7.egg)
+30 Apr 2014 - 09:54:04: f:\Programfiler\Python27\lib\socket.py
+</code></pre>
+
+<p><strong>E.g. 7</strong>: The <code>--evry</code> option combined with the <code>--regex</code> (or <code>-r</code>) is quite powerful. To find
+all directories with Unix man-pages, you can do this:
+<code>envtool.exe --evry -r "man[1-9]$"</code>:</p>
+
+<pre><code>&lt;DIR&gt; 03 Jun 2014 - 17:50:36: f:\CygWin\lib\perl5\5.14\Parse-Yapp-1.05\blib\man1\
+&lt;DIR&gt; 03 Jun 2014 - 17:54:06: f:\CygWin\usr\man\man1\
+&lt;DIR&gt; 03 Jun 2014 - 17:56:08: f:\CygWin\usr\share\man\man1\
+&lt;DIR&gt; 03 Jun 2014 - 17:55:58: f:\CygWin\usr\share\man\bg\man1\
+</code></pre>
+
+<p>Which is probably a lot more directories than you have in you <code>%MANPATH%</code>.</p>
+
+<p>Or to find only <code>foo*.bar</code> files under directory-branch(es) <code>misc</code>, you can do:</p>
+
+<pre><code>envtool.exe --evry -r "misc\\.*\\foo.*\.bar"
+</code></pre>
+
+<p><strong>E.g. 8</strong>: More than one option-mode can combined. For example:
+<code>envtool.exe --man --evry gzip*.[1-9]*</code>:</p>
+
+<pre><code>Matches in %MANPATH:
+      13 Mar 2011 - 19:47:43: f:\CygWin\usr\share\man\man1\gzip.1.gz
+      09 Dec 1997 - 17:55:20: e:\djgpp\share\man\man1\gzip.1
+      15 Dec 2004 - 02:06:32: e:\djgpp\share\man\cat1\gzip.1
+Matches from EveryThing:
+&lt;DIR&gt; 24 May 2014 - 12:48:16: e:\DJGPP\gnu\gzip-1.3-3\
+      15 Dec 2004 - 02:06:32: e:\DJGPP\share\man\cat1\gzip.1
+      09 Dec 1997 - 17:55:20: e:\DJGPP\share\man\man1\gzip.1
+      13 Mar 2011 - 19:47:43: f:\CygWin\usr\share\man\man1\gzip.1.gz
+      11 Nov 2013 - 14:05:46: f:\MingW32\msys32\usr\share\man\man1\gzip.1.gz
+&lt;DIR&gt; 01 Sep 2014 - 17:49:32: f:\MingW32\msys32\var\lib\pacman\local\gzip-1.6-1\
+      30 Sep 2013 - 13:07:53: f:\MingW32\var\cache\mingw-get\packages\gzip-1.3.12-2-msys-1.0.13-bin.tar.lzma
+</code></pre>
+
+<p>C-source included in ./src. Makefiles for MinGW, Cygwin, Watcom and MSVC. Use at own
+risk. Enjoy!</p>
+
+<p>Gisle Vanem <a href="mailto:gvanem@yahoo.no">gvanem@yahoo.no</a>.</p>
+
+<hr>
+
+<h3>
+<a id="changes" class="anchor" href="#changes" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Changes:</h3>
+
+<pre><code>
+  0.1:  Initial version.
+
+  0.2:  Added file date/time stamp. Check for suffix or trailing
+        wildcard in file-specification. If not found add a trailing "*".
+
+  0.3: Handled the case where an env-var contains the current directory.
+        E.g. when "PATH=./;c:\util", turn the "./" into CWD (using 'getcwd()')
+        for 'stat("/.")' to work. Turn off command-line globbing in MinGW
+        ('_CRT_glob = 0').
+
+  0.4:  Rudimentary check for Python 'sys.path' searching.
+
+  0.5:  Add a directory search spec mode ("--dir foo*.bar" searches for
+        directories only). Better handling of file-specs with a sub-directory
+        part. E.g. "envtool --python win32\Demos\Net*".
+
+  0.6:  Add support for POSIX-style file matching (using fnmatch() from djgpp).
+        E.g. a file-spec can contain things like "foo/[a-d]bar".
+        Note: it doesn't handle ranges on directories. Only ranges on directories
+              withing Pyhon EGG-files are handled.
+
+        Improved Python 'sys.path' searching. Uses zipinfo.exe and looks inside
+        Python EGG-files (zip files) for a match.
+
+  0.7:  Improved Python 'sys.path' searching. Look inside Python EGGs and ZIP-files
+        for a match (this uses the zipinfo external program).
+        Add colour-output option '-C'.
+
+  0.8:  New option '--pe' outputs version info from resource-section. E.g.:
+          envtool --path --pe vcbuild.*
+          Matches in %PATH:
+               19 Mar 2010 - 15:02:22: g:\vc_2010\VC\vcpackages\vcbuild.dll
+               ver 10.0.30319.1
+
+  0.9:  Cosmetic changes in debug-output ('-d') and command-line parsing.
+
+  0.92: Added option "--evry" to check matches in Everything's database.
+        This option queries the database via IPC.
+        Ref. http://www.voidtools.com/support/everything/
+
+  0.93: The "--python" option now loads Python dynamically (pythonXX.dll)
+        and calls 'PyRun_SimpleString()' to execute Python programs.
+
+  0.94: Fixes for '--evry' (EverThing database) searches.
+        Drop '-i' option.
+        Add  '-r' option.
+
+  0.95: Tweaks for better 'fnmatch()' matches.
+        Improved '--evry' Regular Expression (--regex) searches.
+        Build the MSVC-version using '-MT' (drop the dependency on MSVC1*.DLL)
+
+  0.96: Better Python embedding; lookup python.exe in env-var %PYTHON, then on
+        %PATH. Test for correct Python DLL. Report full name of python.exe in
+        "envtool -V".
+
+  0.97: Lots of improvements. Print more details on "envtool -VV" (compiler and
+        linker flags).
+
+  0.98: Added option "--man" to search for matches in all *subdir* of %MANPATH%.
+        E.g. subdirs "man[1-9]" and "cat[1-9]".
+
+        Added option "--cmake" to search for matches along the built-in Cmake
+        module path and '%CMAKE_MODULE_PATH%'.
+
+  0.99: Option "--pe" now calls WinTrust functions (in win_trust.c) to check if
+        a PE-file is "Verified", "Not trusted" etc.
+
+
+</code></pre>
+
+<p>PS. This file is written with the aid of <a href="http://www.markdownpad.com/">MarkdownPad</a>.
+A real time-saver.</p>
+      </section>
+
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
+  </body>
+</html>
