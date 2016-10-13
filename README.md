@@ -15,9 +15,6 @@ these environment variables:
     <td><tt>--lib</tt>:</td> <td><tt>%LIB%</tt> and <tt>%LIBRARY_PATH%.</tt></td>
   </tr>
   <tr>
-    <td><tt>--lib</tt>:</td> <td><tt>%LIB%</tt> and <tt>%LIBRARY_PATH%</tt>.</td>
-  </tr>
-  <tr>
     <td><tt>--cmake</tt>:</td> <td><tt>%CMAKE_MODULE_PATH%</tt>.</td>
   </tr>
   <tr>
