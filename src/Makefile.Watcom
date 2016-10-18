@@ -9,12 +9,12 @@ CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul &
 
 LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort global
 EX_LIBS = advapi32.lib imagehlp.lib version.lib shfolder.lib &
-          wintrust.lib crypt32.lib user32.lib
+          psapi.lib wintrust.lib crypt32.lib user32.lib
 
 OBJECTS = envtool.obj  envtool_py.obj Everything.obj color.obj dirlist.obj misc.obj &
-          searchpath.obj show_ver.obj getopt_long.obj win_ver.obj
+          searchpath.obj show_ver.obj getopt_long.obj win_trust.obj win_ver.obj
 
-all: cflags_Watcom.h ldflags_Watcom.h  envtool.exe
+all: cflags_Watcom.h ldflags_Watcom.h envtool.exe
 
 .ERASE
 envtool.exe: $(OBJECTS) envtool.res
@@ -54,6 +54,7 @@ ldflags_Watcom.h: Makefile.Watcom
 envtool.res: envtool.rc
 	wrc -D__WATCOMC__ -DRC_INVOKED -r -zm -fo=envtool.res envtool.rc
 
-clean: .SYMBOLIC
+clean vclean: .SYMBOLIC
 	- rm $(OBJECTS) envtool.map envtool.res envtool.exe cflags_Watcom.h ldflags_Watcom.h
+	- rm dirlist.exe dirlist.map win_trust.exe win_trust.map
 
