@@ -184,18 +184,16 @@ static void C_init (void)
  */
 static void C_set (WORD col)
 {
-  BYTE   fg, bg;
-  WORD   attr;
   static WORD last_attr = (WORD)-1;
+  WORD   attr;
 
   if (col == 0)     /* restore to default colour */
-  {
-    attr = console_info.wAttributes;
-    fg   = loBYTE (attr);
-    bg   = hiBYTE (attr);
-  }
+     attr = console_info.wAttributes;
+
   else
   {
+    BYTE fg, bg;
+
     attr = col;
     fg   = loBYTE (attr);
     bg   = hiBYTE (attr);
