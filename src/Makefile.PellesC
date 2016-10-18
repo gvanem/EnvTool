@@ -67,8 +67,8 @@ else
               Win/version.lib)
 endif
 
-SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c \
-          envtool_py.c getopt_long.c win_ver.c win_trust.c
+SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
+          Everything.c envtool_py.c getopt_long.c win_ver.c win_trust.c
 
 OBJECTS = $(SOURCES:.c=.obj)
 

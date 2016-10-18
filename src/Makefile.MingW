@@ -7,8 +7,8 @@ USE_DEBUG      ?= 1
 USE_64BIT      ?= 0
 
 CC      = gcc
-CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
-          -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN
+CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= \
+          -DEVERYTHINGAPI=__cdecl -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN
 
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
 RCFLAGS = -O COFF
@@ -49,10 +49,10 @@ ifneq ($(FORTIFY_SOURCE),0)
   EX_LIBS  = -lssp
 endif
 
-EX_LIBS += -limagehlp -lversion -lwintrust -lcrypt32
+EX_LIBS += -lpsapi -limagehlp -lversion -lwintrust -lcrypt32
 
-SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c Everything.c \
-          envtool_py.c getopt_long.c win_trust.c win_ver.c
+SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
+          Everything.c envtool_py.c getopt_long.c win_trust.c win_ver.c
 
 OBJECTS = $(SOURCES:.c=.o)
 

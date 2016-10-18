@@ -11,7 +11,7 @@ CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 \
           -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -D_WIN32_IE=0x500 \
           -DEVERYTHINGAPI=__cdecl
 
-LDFLAGS = -nologo -incremental:no -debug
+LDFLAGS = -nologo -incremental:no -debug -map
 
 #
 # Enable the .EXEs to run on Win-XP SP3 (5.2)
@@ -49,15 +49,15 @@ CFLAGS  = $(CFLAGS) -wd4267
 RCFLAGS = $(RCFLAGS) -DWIN64
 !endif
 
-OBJECTS = envtool.obj envtool_py.obj color.obj Everything.obj getopt_long.obj misc.obj \
-          searchpath.obj show_ver.obj win_trust.obj win_ver.obj envtool.res
+OBJECTS = envtool.obj envtool_py.obj color.obj Everything.obj dirlist.obj getopt_long.obj \
+          misc.obj searchpath.obj show_ver.obj win_trust.obj win_ver.obj
 
 all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
 	copy /y envtool.exe ..
 	@echo $@ successfully built.
 
-envtool.exe: $(OBJECTS)
-	link $(LDFLAGS) -verbose -out:$@ -map:envtool.map $** $(EX_LIBS) > link.tmp
+envtool.exe: $(OBJECTS) envtool.res
+	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) > link.tmp
 	type link.tmp >> envtool.map
 	-del /q link.tmp
 
@@ -66,27 +66,27 @@ envtool.res: envtool.rc
 
 dirlist.exe: dirlist.c misc.c color.c getopt_long.c
 	$(CC) $(CFLAGS) -DDIRLIST_TEST -c $**
-	link $(LDFLAGS) -out:$@ -map:dirlist.map $(**:.c=.obj) $(EX_LIBS)
+	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q dirlist.obj
 
 mem_test.exe: misc.c color.c
 	$(CC) $(CFLAGS) -DMEM_TEST -c $**
-	link $(LDFLAGS) -out:$@ -map:mem_test.map $(**:.c=.obj) imagehlp.lib
+	link $(LDFLAGS) -out:$@ $(**:.c=.obj) imagehlp.lib
 	del /q misc.obj
 
 win_glob.exe: win_glob.c misc.c color.c getopt_long.c
 	$(CC) $(CFLAGS) -DWIN_GLOB_TEST -c $**
-	link $(LDFLAGS) -out:$@ -map:win_glob.map $(**:.c=.obj) $(EX_LIBS)
+	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q win_glob.obj
 
 win_ver.exe: win_ver.c misc.c color.c
 	$(CC) $(CFLAGS) -DWIN_VER_TEST -c $**
-	link $(LDFLAGS) -out:$@ -map:win_ver.map $(**:.c=.obj) $(EX_LIBS)
+	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q win_ver.obj
 
 win_trust.exe: win_trust.c getopt_long.c misc.c color.c
 	$(CC) $(CFLAGS) -DWIN_TRUST_TEST -c $**
-	link $(LDFLAGS) -out:$@ -map:win_trust.map $(**:.c=.obj) $(EX_LIBS)
+	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q win_trust.obj
 
 show_ver.obj: show_ver.c
@@ -99,12 +99,14 @@ cflags_MSVC.h: Makefile.VC
 	@echo const char *cflags = "$(CC) $(CFLAGS)"; > $@
 
 ldflags_MSVC.h: Makefile.VC
-	@echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe -map:envtool.map $(OBJECTS) $(EX_LIBS)"; > $@
+	@echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)"; > $@
 
 clean vclean:
-	del /q $(OBJECTS) envtool.map envtool.exe envtool.pdb msbuild.log \
-	       mem_test.exe mem_test.map mem_test.pdb win_glob.obj win_glob.exe \
-	       win_glob.map win_glob.pdb *.sbr vc1*.idb vc*.pdb cflags_MSVC.h ldflags_MSVC.h
+	del /q $(OBJECTS) envtool.map envtool.exe envtool.pdb envtool.res \
+	       dirlist.exe dirlist.map dirlist.pdb mem_test.exe mem_test.map mem_test.pdb \
+	       win_glob.obj win_glob.exe win_glob.map win_glob.pdb \
+	       win_ver.exe win_ver.map win_ver.pdb \
+	        *.sbr vc1*.idb vc*.pdb cflags_MSVC.h ldflags_MSVC.h msbuild.log
 
 msbuild: cflags_MSVC.h ldflags_MSVC.h
 	$(MSBUILD) envtool.sln
