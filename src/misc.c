@@ -616,33 +616,6 @@ char *dirname (const char *fname)
 }
 
 /*
- * Split a 'path' into a 'dir' and 'name'.
- * If e.g. 'path' = "c:\\Windows\\System32\\", 'file' becomes "".
- */
-int split_path (const char *path, char *dir, char *file)
-{
-  const char *slash = strrchr (path, '/');
-
-  if (!slash)
-     slash = strrchr (path, '\\');
-
-  if (dir)
-     *dir = '\0';
-
-  if (file)
-     *file = '\0';
-
-  if (!slash)
-     slash = strrchr (path, '\\');
-
-#if 0
-  if (!slash || *(slash+1) == '\0')
-     ;
-#endif
-  return (0);
-}
-
-/*
  * Create a full MS-DOS path name from the components.
  */
 void make_path (char *path, const char *drive, const char *dir, const char *filename, const char *ext)
