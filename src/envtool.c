@@ -955,7 +955,14 @@ static UINT64 get_directory_size (const char *dir)
 
   for (i = 0; i < n; i++)
   {
-    if (namelist[i]->d_attrib & FILE_ATTRIBUTE_DIRECTORY)
+    int is_dir      = (namelist[i]->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+    int is_junction = (namelist[i]->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+
+    if (is_junction)
+    {
+      DEBUGF (1, "Not recursing into junction \"%s\"\n", namelist[i]->d_link);
+    }
+    else if (is_dir)
     {
       DEBUGF (1, "Recursing into \"%s\"\n", namelist[i]->d_name);
       size += get_directory_size (namelist[i]->d_name);
@@ -964,12 +971,10 @@ static UINT64 get_directory_size (const char *dir)
       size += namelist[i]->d_fsize;
   }
 
-  if (i >= 0)
-  {
-    while (n--)
-      FREE (namelist[n]);
-    FREE (*namelist);
-  }
+  while (n--)
+    FREE (namelist[n]);
+  FREE (namelist);
+
   return (size);
 }
 
