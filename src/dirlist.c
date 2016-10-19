@@ -82,7 +82,7 @@ static int _sd_select (const struct dirent2 *de)
  * If 'arg' is simply a valid directory-name, use that as 'dir' and
  * set 'arg == "*"'.
  */
-int make_dir_spec (const char *arg, char *dir, char *spec)
+static int make_dir_spec (const char *arg, char *dir, char *spec)
 {
   struct stat st;
   const char *p, *end, *_arg;
