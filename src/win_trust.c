@@ -188,11 +188,11 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
   WINTRUST_FILE_INFO file_info;
   GUID               action =
 #if 0
-                       WINTRUST_ACTION_GENERIC_VERIFY_V2
+                       WINTRUST_ACTION_GENERIC_VERIFY_V2;
 #else
-                       WINTRUST_ACTION_TRUSTPROVIDER_TEST
+                       WINTRUST_ACTION_TRUSTPROVIDER_TEST;
 #endif
-  ;
+
 
   memset (&data, 0, sizeof(data));
   memset (&file_info, 0, sizeof(file_info));
@@ -260,7 +260,7 @@ static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context)
 
 #if 1
   for (n = 0; n < data; n++)
-     PRINTF (("%02x ", cert_context->pCertInfo->SerialNumber.pbData[data-n+1]));
+      PRINTF (("%02x ", cert_context->pCertInfo->SerialNumber.pbData[data-n+1]));
   PRINTF (("\n"));
 #else
   hex_dump (&cert_context->pCertInfo->SerialNumber.pbData[data+1], data);
