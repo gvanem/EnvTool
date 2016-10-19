@@ -1,4 +1,17 @@
 /*
+ *  A public domain implementation of BSD directory routines for
+ *  MS-DOS.  Written by Michael Rendell ({uunet,utai}michael@garfield),
+ *  August 1987
+ *
+ *  Enhanced and ported to OS/2 by Kai Uwe Rommel; added scandir() prototype
+ *  December 1989, February 1990
+ *  Change of MAXPATHLEN for HPFS, October 1990
+ *
+ *  Cleanup, other hackery, Summer '92, Brian Moran , brianmo@microsoft.com
+ *
+ *  Changes for EnvTool:
+ *    Added code for a main() test; 'DDIRLIST_TEST'.
+ *    Added 'make_dir_spec()' function.
  */
 
 #include <windows.h>
@@ -11,10 +24,11 @@
 #include <sys/stat.h>
 
 #include "envtool.h"
+#include "color.h"
 #include "dirlist.h"
 #include "getopt_long.h"
 
-#define USE_MAKE_ARG_SPEC
+typedef int (*QsortCmpFunc) (const void *, const void *);
 
 /*
  * Local functions
@@ -33,7 +47,7 @@ static BOOL setdirent2 (struct dirent2 *de, const char *dir, const char *file)
 
   de->d_name   = p;
   de->d_reclen = len;
-  de->d_namlen = len;
+  de->d_namlen = len - 2;
 
   strcpy (p, dir);
   p = strchr (p, '\0');
@@ -41,7 +55,7 @@ static BOOL setdirent2 (struct dirent2 *de, const char *dir, const char *file)
      *p++ = '\\';
   strcpy (p, file);
 
-  DEBUGF (3, "len: %u, de->d_name: '%s'\n", len, de->d_name);
+  DEBUGF (3, "len: %u, de->d_name: '%s'\n", (unsigned)len, de->d_name);
   return (TRUE);
 }
 
@@ -55,7 +69,6 @@ static int _sd_select (const struct dirent2 *de)
   return (rc);
 }
 
-#if defined(USE_MAKE_ARG_SPEC)
 /*
  * Split an 'arg' into a 'dir' part and a wildcard 'spec' for use by
  * opendir() and scandir().
@@ -69,7 +82,7 @@ static int _sd_select (const struct dirent2 *de)
  * If 'arg' is simply a valid directory-name, use that as 'dir' and
  * set 'arg == "*"'.
  */
-static int make_dir_spec (const char *arg, char *dir, char *spec)
+int make_dir_spec (const char *arg, char *dir, char *spec)
 {
   struct stat st;
   const char *p, *end, *_arg;
@@ -86,6 +99,7 @@ static int make_dir_spec (const char *arg, char *dir, char *spec)
   if (unc)
        DEBUGF (2, "Not using stat() on an UNC name.\n");
   else strcpy (dir, ".");   /* set default values */
+
   strcpy (spec, "*");
   end = strchr (arg, '\0');
   _arg = arg;
@@ -93,13 +107,7 @@ static int make_dir_spec (const char *arg, char *dir, char *spec)
   /* Step over drive/dir part
    */
   while ((p = strpbrk(_arg, ":/\\")) != NULL)
-  {
-//  DEBUGF (1, "(1) _arg: '%s', p: '%s'\n", _arg, p);
-    _arg = p + 1;
-//  DEBUGF (1, "(2) _arg: '%s', p: '%s'\n", _arg, p);
-  }
-
-//DEBUGF (2, "_arg: '%s', arg: '%s', _arg-arg: %d\n", _arg, arg, _arg - arg);
+        _arg = p + 1;
 
   if (_arg - arg > 0)
      _strlcpy (dir, arg, _arg - arg + 1);
@@ -111,9 +119,6 @@ quit:
   DEBUGF (2, "dir: '%s', spec: '%s'\n", dir, spec);
   return (1);
 }
-#endif
-
-static struct od2x_options default_opts = { "*", OD2X_UNSORTED };
 
 DIR2 *opendir2x (const char *dir_name, struct od2x_options *opts)
 {
@@ -124,135 +129,28 @@ DIR2 *opendir2x (const char *dir_name, struct od2x_options *opts)
   size_t          max_cnt  = 50;
   size_t          max_size = max_cnt * sizeof(struct dirent2);
   char            path [_MAX_PATH];
-  char           *str;
+  char           *file;
 
-#if !defined(USE_MAKE_ARG_SPEC)
-  struct stat     st;
-  int             len, unc, exist;
-  char           *op, c;
-  const char     *ip;
-#endif
-
-  if (!opts)
-     opts = &default_opts;
-
-#if !defined(USE_MAKE_ARG_SPEC)
-  for (ip = dir_name, op = path;; op++, ip++)
-  {
-    *op = *ip;
-    if (*ip == '\0')
-       break;
-  }
-
-  len = ip - dir_name;
-  if (len > 0)
-  {
-    unc = (IS_SLASH(path[0]) && IS_SLASH(path[1]));
-    c = path [len-1];
-    if (unc)
-    {
-      if (!IS_SLASH(c))
-      {
-        path[len++] = '\\';
-        path[len] = '\0';
-      }
-    }
-    else
-    {
-      if (IS_SLASH(c) && len > 1)
-      {
-        len--;
-        path[len] = '\0';
-
-        if (path[len-1] == ':')
-        {
-          path[len++] = '\\';
-          path[len++] = '.';
-          path[len] = '\0';
-        }
-      }
-      else if (c == ':')
-      {
-        path[len++] = '.';
-        path[len] = '\0';
-      }
-    }
-  }
-  else
-  {
-    unc = 0;
-    path[0] = '.';
-    path[1] = '\0';
-    len = 1;
-  }
-
-  exist = (stat(path, &st) >= 0);
-
-  if (!exist || (st.st_mode & S_IFMT) != S_IFDIR)
-  {
-    errno = !exist ? ENOENT : ENOTDIR;
-    return (NULL);
-  }
-
-#else
   _strlcpy (path, dir_name, sizeof(path));
-#endif
 
   dirp = CALLOC (1, sizeof(*dirp));
   if (!dirp)
-  {
-    errno = ENOMEM;
-    return (NULL);
-  }
+     goto enomem;
 
   /* This array get REALLOC()'ed as needed below.
    */
   dirp->dd_contents = CALLOC (1, max_size);
   if (!dirp->dd_contents)
-  {
-    FREE (dirp);
-    errno = ENOMEM;
-    return (NULL);
-  }
+     goto enomem;
 
-  DEBUGF (2, "CALLOC (%u) -> %p\n", max_size, dirp->dd_contents);
+  DEBUGF (2, "CALLOC (%u) -> %p\n", (unsigned)max_size, dirp->dd_contents);
 
-#if !defined(USE_MAKE_ARG_SPEC)
-  c = path[len-1];
-  if (c == '.')
-  {
-    if (len == 1)
-       len--;
-    else
-    {
-      c = path[len-2];
-      if (c == '\\' || c == ':')
-         len--;
-      else
-      {
-        path[len] = '\\';
-        len++;
-      }
-    }
-  }
-  else if (!unc && (len != 1 || !IS_SLASH(c)))
-  {
-    path[len] = '\\';
-    len++;
-  }
-
-  strcpy (path + len, opts->pattern);
-
-#else
-  snprintf (path, sizeof(path), "%s\\%s", dir_name, opts->pattern);
-#endif
-
+  snprintf (path, sizeof(path), "%s\\%s", dir_name, opts ? opts->pattern : "*");
 
   DEBUGF (2, "path: %s\n", path);
 
-  de  = dirp->dd_contents;
-  str = getdirent2 (&hnd, path, &ff);
-  if (!str)
+  file = getdirent2 (&hnd, path, &ff);
+  if (!file)
   {
     FREE (dirp->dd_contents);
     return (dirp);
@@ -261,16 +159,14 @@ DIR2 *opendir2x (const char *dir_name, struct od2x_options *opts)
   do
   {
     de = dirp->dd_contents + dirp->dd_num;
-    if (!setdirent2(de, dir_name, str))
+    if (!setdirent2(de, dir_name, file))
     {
       free_contents (dirp);
       FREE (dirp->dd_contents);
-      FREE (dirp);
-      errno = ENOMEM;
-      return (NULL);
+      goto enomem;
     }
 
-    DEBUGF (3, "adding to de: %p, dirp->dd_num: %u\n", de, dirp->dd_num);
+    DEBUGF (3, "adding to de: %p, dirp->dd_num: %u\n", de, (unsigned)dirp->dd_num);
 
     de->d_attrib      = ff.dwFileAttributes;
     de->d_time_create = ff.ftCreationTime;
@@ -278,10 +174,10 @@ DIR2 *opendir2x (const char *dir_name, struct od2x_options *opts)
     de->d_time_write =  ff.ftLastWriteTime;
     de->d_fsize      =  ((DWORD64)ff.nFileSizeHigh << 32) + ff.nFileSizeLow;
 
-    str = getdirent2 (&hnd, NULL, &ff);
+    file = getdirent2 (&hnd, NULL, &ff);
     dirp->dd_num++;
 
-    if (str && dirp->dd_num == max_cnt)
+    if (file && dirp->dd_num == max_cnt)
     {
       struct dirent2 *more;
 
@@ -289,28 +185,45 @@ DIR2 *opendir2x (const char *dir_name, struct od2x_options *opts)
       max_cnt  *= 5;
 
       more = REALLOC (dirp->dd_contents, max_size);
-      DEBUGF (2, "Limit reached. REALLOC (%u) -> %p\n", max_size, more);
+      DEBUGF (2, "Limit reached. REALLOC (%u) -> %p\n", (unsigned)max_size, more);
 
       if (!more)
       {
-        FREE (dirp);
-        errno = ENOMEM;
-        return (NULL);
+        free_contents (dirp);
+        FREE (dirp->dd_contents);
+        goto enomem;
       }
       dirp->dd_contents = more;
     }
   }
-  while (str);
+  while (file);
 
   dirp->dd_loc = 0;
-  sort_contents (dirp, opts->sort);
+  sort_contents (dirp, opts ? opts->sort : OD2X_UNSORTED);
   return (dirp);
+
+enomem:
+  FREE (dirp);
+  errno = ENOMEM;
+  return (NULL);
 }
 
-static int compare_names (const struct dirent2 *a, const struct dirent2 *b)
+static int sort_reverse = 0;
+
+static int reverse_sort (int rc)
+{
+  if (sort_reverse)
+     return (rc > 1 ? -rc : rc);
+  return (rc);
+}
+
+/*
+ * Alphabetic order comparison routine
+ */
+static int compare_alphasort (const struct dirent2 *a, const struct dirent2 *b)
 {
   DEBUGF (2, "a->d_name: %s, b->d_name: %s\n", a->d_name, b->d_name);
-  return stricmp (a->d_name, b->d_name);
+  return reverse_sort (stricmp (a->d_name, b->d_name));
 }
 
 static int compare_files_first (const struct dirent2 *a, const struct dirent2 *b)
@@ -325,7 +238,7 @@ static int compare_files_first (const struct dirent2 *a, const struct dirent2 *b
 
   DEBUGF (2, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
           basename(a->d_name), basename(b->d_name), a_dir, b_dir, rc);
-  return (rc);
+  return reverse_sort (rc);
 }
 
 static int compare_dirs_first (const struct dirent2 *a, const struct dirent2 *b)
@@ -346,35 +259,54 @@ static int compare_dirs_first (const struct dirent2 *a, const struct dirent2 *b)
 
   DEBUGF (2, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
           basename(a->d_name), basename(b->d_name), a_dir, b_dir, rc);
-  return (rc);
+  return reverse_sort (rc);
+}
+
+int sd_compare_alphasort (const void **a, const void **b)
+{
+  return compare_alphasort (*a, *b);
+}
+
+int sd_compare_files_first (const void **a, const void **b)
+{
+  return compare_files_first (*a, *b);
+}
+
+int sd_compare_dirs_first (const void **a, const void **b)
+{
+  return compare_dirs_first (*a, *b);
 }
 
 /*
  * Sort the 'dirp->dd_contents[]' array using specified sorting method.
+ * Only called from 'opendir2x()'. 'scandir2()' call different sorting-functions.
  */
-typedef int (*QsortCmpFunc) (const void *, const void *);
-
 static void sort_contents (DIR2 *dirp, enum od2x_sorting sort)
 {
+  sort_reverse = 0;
+
   switch (sort)
   {
     case OD2X_FILES_FIRST:
-         DEBUGF (1, "Using compare_files_first().\n");
+         DEBUGF (2, "Using compare_files_first().\n");
          qsort (dirp->dd_contents, dirp->dd_num, sizeof(struct dirent2),
                 (QsortCmpFunc)compare_files_first);
          break;
+
     case OD2X_DIRECTORIES_FIRST:
-         DEBUGF (1, "Using compare_dirs_first().\n");
+         DEBUGF (2, "Using compare_dirs_first().\n");
          qsort (dirp->dd_contents, dirp->dd_num, sizeof(struct dirent2),
                 (QsortCmpFunc)compare_dirs_first);
          break;
+
     case OD2X_ON_NAME:
-         DEBUGF (1, "Using compare_names().\n");
+         DEBUGF (2, "Using compare_alphasort().\n");
          qsort (dirp->dd_contents, dirp->dd_num, sizeof(struct dirent2),
-                (QsortCmpFunc)compare_names);
+                (QsortCmpFunc)compare_alphasort);
          break;
+
     default:
-         DEBUGF (1, "Not sorting.\n");
+         DEBUGF (2, "Not sorting.\n");
          break;
   }
 }
@@ -395,7 +327,7 @@ struct dirent2 *readdir2 (DIR2 *dirp)
   struct dirent2 *de;
 
   DEBUGF (2, "dirp->dd_contents: %p, dirp->dd_loc: %u, dirp->dd_num: %u\n",
-          dirp->dd_contents, dirp->dd_loc, dirp->dd_num);
+          dirp->dd_contents, (unsigned)dirp->dd_loc, (unsigned)dirp->dd_num);
 
   if (!dirp->dd_contents || dirp->dd_loc >= dirp->dd_num)
      return (NULL);
@@ -429,13 +361,13 @@ void rewinddir2 (DIR2 *dp)
 
 static void free_contents (DIR2 *dp)
 {
+  struct dirent2 *de = dp->dd_contents;
   size_t i;
 
-  for (i = 0; i < dp->dd_num; i++)
+  for (i = 0; i < dp->dd_num; i++, de++)
   {
-    struct dirent2 *de = dp->dd_contents + i;
-
-    FREE (de->d_name);
+    if (de)
+       FREE (de->d_name);
   }
   FREE (dp->dd_contents);
 }
@@ -482,33 +414,12 @@ static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
  * readdir2() implementation.
  */
 
-/* Alphabetic order comparison routine
- */
-int alphasort2 (const void **a, const void **b)
-{
-  const struct dirent2 *_a = *(const struct dirent2 **) a;
-  const struct dirent2 *_b = *(const struct dirent2 **) b;
-
-  DEBUGF (2, "_a->d_name: %s, _b->d_name: %s\n", _a->d_name, _b->d_name);
-  return stricmp (_a->d_name, _b->d_name);
-}
-
-static int sd_compare_files_first (const void **a, const void **b)
-{
-  return compare_files_first (*a, *b);
-}
-
-static int sd_compare_dirs_first (const void **a, const void **b)
-{
-  return compare_dirs_first (*a, *b);
-}
-
 /*
  * Arguments:
  *   dir_name:   a plain directory name; no wild-card part.
  *   namelist_p: unallocated array of pointers to dirent2 strctures.
  *   sd_select:  pointer to function to specify which files to include in namelist[].
- *   dcomp:      pointer to sorting function to qsort, e.g. alphasort2().
+ *   dcomp:      pointer to sorting function to qsort, e.g. compare_alphasort().
  *
  * Returns 'number-1' of files added to '*namelist_p[]'.
  *   (highest index allocated in this array).
@@ -519,17 +430,16 @@ static int sd_compare_dirs_first (const void **a, const void **b)
 int scandir2 (const char *dirname,
               struct dirent2 ***namelist_p,
               int (*sd_select) (const struct dirent2 *),
-              int (*dcomp) (const void **, const void **))
+              int (*dcomp) (const void **a, const void **b))
 {
   struct dirent2 **namelist;
-  DIR2  *dirptr;
+  DIR2  *dirptr = NULL;
   int    tdirsize = sizeof(struct dirent2) + _MAX_PATH;
   int    num = 0;
-  int    si = 0;
   size_t max_cnt  = 30;
   size_t max_size = max_cnt * sizeof(struct dirent2);
 
-  dirptr = opendir2 (dirname);
+  dirptr = opendir2 (dirname); /* This will not call qsort() */
   if (!dirptr)
   {
     DEBUGF (1, "opendir2 (\"%s\"): failed\n", dirname);
@@ -539,67 +449,59 @@ int scandir2 (const char *dirname,
   namelist = CALLOC (1, max_size);
   if (!namelist)
   {
-    DEBUGF (1, "CALLOC() of %u bytes failed.\n", max_size);
-    errno = ENOMEM;
-    return (-1);
+    DEBUGF (1, "CALLOC() of %u bytes failed.\n", (unsigned)max_size);
+    goto enomem;
   }
 
   while (1)
   {
     struct dirent2 *de = readdir2 (dirptr);
+    char  *p;
+    int    si;
 
     if (!de)
        break;
 
     DEBUGF (2, "readdir2(): %s.\n", de->d_name);
 
-#if 0
-    if (!sd_select)
-         si = _sd_select (de);
-    else si = (*sd_select) (de);
-#else
-    /* The "." and ".." entries are already filtered out in opendir2().
+    /*
+     * The "." and ".." entries are already filtered out in 'getdirent2()'.
      * The caller can filter out more if needed in a 'sd_select' function.
      * E.g. use fnmatch() to search for a narrow range of files.
      */
     if (sd_select)
          si = (*sd_select) (de);
     else si = 1;
-#endif
 
-    if (si)
+    if (!si)
+       continue;
+
+    namelist [num] = MALLOC (tdirsize);
+    if (!namelist[num])
     {
-      char *p;
+      DEBUGF (1, "MALLOC() of %u bytes failed.\n", tdirsize);
+      goto enomem;
+    }
 
-      namelist [num] = MALLOC (tdirsize);
-      if (!namelist[num])
+    memcpy (namelist[num], de, sizeof(struct dirent2));
+    p = (char*) namelist[num] + sizeof(struct dirent2);
+    strncpy (p, de->d_name, _MAX_PATH);
+    namelist [num++]->d_name = p;
+
+    if (num == max_cnt)
+    {
+      max_size *= 5;
+      max_cnt  *= 5;
+      namelist = REALLOC (namelist, max_size);
+      if (!namelist)
       {
-        DEBUGF (1, "MALLOC() of %u bytes failed.\n", tdirsize);
-        errno = ENOMEM;
-        break;
-      }
-
-      memcpy (namelist[num], de, sizeof(struct dirent2));
-      p =  (char*) namelist[num] + sizeof(struct dirent2);
-      strncpy (p, de->d_name, _MAX_PATH);
-      namelist[num]->d_name = p;
-
-      num++;
-      if (num == max_cnt)
-      {
-        max_size *= 5;
-        max_cnt  *= 5;
-        namelist = REALLOC (namelist, max_size);
-        if (!namelist)
-        {
-          DEBUGF (1, "REALLOC() of %u bytes failed.\n", max_size);
-          errno = ENOMEM;
-          break;
-        }
+        DEBUGF (1, "REALLOC() of %u bytes failed.\n", (unsigned)max_size);
+        goto enomem;
       }
     }
   }
 
+  sort_reverse = 0;
   if (dcomp)
      qsort (namelist, num, sizeof(struct dirent2*), (QsortCmpFunc)dcomp);
 
@@ -607,17 +509,24 @@ int scandir2 (const char *dirname,
 
   *namelist_p = namelist;
   return (num);
+
+enomem:
+  if (dirptr)
+     closedir2 (dirptr);
+  errno = ENOMEM;
+  return (-1);
 }
+
 
 #if defined(DIRLIST_TEST)
 
-#ifdef __MINGW32__
+#if defined(__MINGW32__)
   /*
    * Tell MinGW's CRT to turn off command line globbing by default.
    */
   int _CRT_glob = 0;
 
- #ifndef __MINGW64_VERSION_MAJOR
+  #if !defined(__MINGW64_VERSION_MAJOR)
     /*
      * MinGW-64's CRT seems to NOT glob the cmd-line by default.
      * Hence this doesn't change that behaviour.
@@ -626,9 +535,13 @@ int scandir2 (const char *dirname,
   #endif
 #endif
 
-DWORD  recursion_level = 0;
 struct prog_options opt;
-char  *program_name = "dirent";
+char  *program_name = "dirlist";
+
+static DWORD recursion_level = 0;
+static DWORD num_directories = 0;
+static DWORD num_junctions = 0;
+static DWORD num_files = 0;
 
 void usage (void)
 {
@@ -640,57 +553,42 @@ void usage (void)
   exit (-1);
 }
 
-static void do_dirent2 (const char *dir, const char *spec, int sort, int recursive)
+static void print_de (const struct dirent2 *de, int idx)
 {
-  struct od2x_options opts;
-  DIR2  *dp;
+  int is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+  int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
 
-  opts.pattern   = spec;
-  opts.sort      = sort;
-  opts.recursive = recursive;
-  dp = opendir2x (dir, &opts);
+  if (opt.debug > 0)
+     C_printf ("~1%3d ~0(%lu): ", idx, recursion_level);
+  C_printf ("~4%-7s~6", is_dir ? "<DIR>" : is_junction ? "<LINK>" : "");
 
-  DEBUGF (1, "dir: '%s', spec: '%s', dp: %p\n", dir, spec, dp);
-  if (recursive)
-     DEBUGF (1, "do_dirent2() does not yet support recursive mode.\n");
+  C_setraw (1);
+  C_puts (de->d_name);
+  C_setraw (0);
+  C_puts ("~0\n");
 
-  if (dp)
+  if (!is_dir && !is_junction)
+     num_files++;
+  else
   {
-    struct dirent2 *de;
-    int    is_dir, i = 0;
-
-    while ((de = readdir2(dp)) != NULL)
-    {
-      is_dir = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-      printf ("%3d (%lu): %s %-60s\n", i++, recursion_level, is_dir ? "<DIR>" : "     ", de->d_name);
-#if 1
-      if (recursive && is_dir)
-      {
-        recursion_level++;
-        do_dirent2 (de->d_name, spec, sort, recursive);
-        recursion_level--;
-      }
-#endif
-    }
-
-#if 0
-    rewinddir2 (dp);
-    printf ("After rewinddir2(dp):\n");
-    while ((de = readdir2(dp)) != NULL)
-    {
-      is_dir = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-      printf ("%2d: %s %-60s\n", telldir2(dp), is_dir ? "<DIR>" : "     ", de->d_name);
-    }
-
-#endif
-    closedir2 (dp);
+    if (is_dir)
+       num_directories++;
+    if (is_junction)
+       num_junctions++;
   }
 }
 
+static void final_report (void)
+{
+  C_printf ("# files:       %lu (%lu files and dirs)\n", num_files, num_files+num_directories);
+  C_printf ("# directories: %lu\n", num_directories);
+  C_printf ("# junctions:   %lu\n", num_junctions);
+}
+
 /*
- * scandir2() does not yet support a 'spec'.
+ * Call 'scandir2()' with correct sorting handler.
  */
-static void do_scandir2 (const char *dir, const char *spec, int sort, int recursive)
+void do_scandir2 (const char *dir, const char *spec, int sort, int recursive)
 {
   struct dirent2 **namelist;
   int    i, n;
@@ -698,7 +596,7 @@ static void do_scandir2 (const char *dir, const char *spec, int sort, int recurs
   switch (sort)
   {
     case OD2X_ON_NAME:
-         n = scandir2 (dir, &namelist, NULL, alphasort2);
+         n = scandir2 (dir, &namelist, NULL, sd_compare_alphasort);
          break;
     case OD2X_FILES_FIRST:
          n = scandir2 (dir, &namelist, NULL, sd_compare_files_first);
@@ -720,26 +618,17 @@ static void do_scandir2 (const char *dir, const char *spec, int sort, int recurs
   {
     for (i = 0; i < n; i++)
     {
-      const char *end;
-      const char *file   = namelist[i]->d_name;
-      int         is_dir = (namelist[i]->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+      struct dirent2 *de = namelist[i];
+      int    is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+      int    is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
 
-      end = strchr (file, '\0');
-#if 1
-      if (spec && fnmatch(spec,basename(file),FNM_FLAG_NOCASE|FNM_FLAG_PATHNAME) == FNM_MATCH)
-#endif
-        printf ("%3d (%lu): %s %-60s\n", i, recursion_level, is_dir ? "<DIR>" : "     ", file);
+      if (fnmatch(spec,basename(de->d_name),FNM_FLAG_NOCASE|FNM_FLAG_PATHNAME) == FNM_MATCH)
+         print_de (de, i);
 
-      if (!memcmp("\\.",end-2,2) || !memcmp("\\..",end-3,3))
-      {
-        DEBUGF (0, "Not recursing into \".\" or \"..\"\n");
-        continue;
-      }
-
-      if (recursive && is_dir)
+      if (recursive && (is_dir || is_junction))
       {
         recursion_level++;
-        do_scandir2 (file, spec, sort, recursive);
+        do_scandir2 (de->d_name, spec, sort, recursive);
         recursion_level--;
       }
     }
@@ -749,22 +638,78 @@ static void do_scandir2 (const char *dir, const char *spec, int sort, int recurs
 
     while (n--)
        FREE (namelist[n]);
-    FREE (*namelist);
+    FREE (namelist);
   }
+}
+
+/*
+ * 'recursive' may not work if 'spec != "*"'.
+ * \todo: use 'opendir2()' and do the filtering here (use 'fnmatch()'?).
+ */
+static void do_dirent2 (const char *dir, const char *spec, int sort, int recursive)
+{
+  struct od2x_options opts;
+  struct dirent2     *de;
+  DIR2  *dp;
+  int    i = 0;
+
+  opts.pattern   = spec;
+  opts.sort      = sort;
+  opts.recursive = recursive;
+  dp = opendir2x (dir, &opts);
+
+  DEBUGF (1, "dir: '%s', spec: '%s', dp: %p\n", dir, spec, dp);
+
+  if (!dp)
+     return;
+
+  while ((de = readdir2(dp)) != NULL)
+  {
+    int is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+    int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+
+#if 0
+    if (is_junction)
+    {
+      char result [_MAX_PATH] = "??";
+      BOOL rc = get_reparse_point (path, result, TRUE);
+
+      if (rc)
+      {
+        FREE (de->d_name);
+        de->d_name = STRDUP (result);
+      //total_reparse_points++;
+      }
+    }
+#endif
+
+    print_de (de, i++);
+
+    if (recursive && (is_dir || is_junction))
+    {
+      recursion_level++;
+      do_dirent2 (de->d_name, spec, sort, recursive);
+      recursion_level--;
+    }
+  }
+
+#if 0
+  rewinddir2 (dp);
+  printf ("After rewinddir2(dp):\n");
+  while ((de = readdir2(dp)) != NULL)
+     print_de (de, telldir2(dp));
+#endif
+
+  closedir2 (dp);
 }
 
 /*
  */
 int main (int argc, char **argv)
 {
-  int ch, do_sort = 0, do_scandir = 0, be_recursive = 0, test_make_dir_spec = 0;
-
-#if defined(USE_MAKE_ARG_SPEC)
-  char  dir_buf  [_MAX_PATH];
-  char  spec_buf [_MAX_PATH];
-#else
-  char *dir = NULL, *spec = "*";
-#endif
+  int  ch, do_sort = 0, do_scandir = 0, be_recursive = 0, test_make_dir_spec = 0;
+  char dir_buf  [_MAX_PATH];
+  char spec_buf [_MAX_PATH];
 
   while ((ch = getopt(argc, argv, "mdrsSh?")) != EOF)
      switch (ch)
@@ -792,45 +737,32 @@ int main (int argc, char **argv)
 
   argc -= optind;
   argv += optind;
+  C_use_colours = 1;
 
   if (argc-- < 1 || *argv == NULL)
      usage();
 
-#if defined(USE_MAKE_ARG_SPEC)
   if (test_make_dir_spec)
   {
     opt.debug = 2;
     make_dir_spec (*argv, dir_buf, spec_buf);
     return (0);
   }
-#endif
 
   if (do_scandir)
   {
-#if !defined(USE_MAKE_ARG_SPEC)
-    do_scandir2 (*argv, spec, do_sort, be_recursive);
-#else
     make_dir_spec (*argv, dir_buf, spec_buf);
     do_scandir2 (dir_buf, spec_buf, do_sort, be_recursive);
-#endif
+    final_report();
   }
   else
   {
-#if !defined(USE_MAKE_ARG_SPEC)
-    dir  = dirname (*argv);
-    spec = basename (*argv);
-    do_dirent2 (dir, spec, do_sort, be_recursive);
-#else
     make_dir_spec (*argv, dir_buf, spec_buf);
     do_dirent2 (dir_buf, spec_buf, do_sort, be_recursive);
-#endif
+    final_report();
   }
 
   fflush (stdout);
-
-#if !defined(USE_MAKE_ARG_SPEC)
-  FREE (dir);
-#endif
 
   if (opt.debug)
      mem_report();
