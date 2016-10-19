@@ -164,11 +164,11 @@
 
 #if defined(WIN32) || defined(_WIN32)
   #define DIR_SEP            '\\'
-  #define FILE_EXISTS(file)  (access(file,0) == 0)
-#else
+#else /* I.e. CygWin */
   #define DIR_SEP            '/'
-  #define FILE_EXISTS(file)  (chmod(file,0) == -1 ? 0 : 1)
 #endif
+
+#define FILE_EXISTS(file) (GetFileAttributes(file) != INVALID_FILE_ATTRIBUTES)
 
 #ifndef _S_ISDIR
   #define _S_ISDIR(mode)     (((mode) & _S_IFMT) == _S_IFDIR)
@@ -446,24 +446,6 @@ extern char *fnmatch_res (int rc);
  */
 #define DIM(arr)       (int) (sizeof(arr) / sizeof(arr[0]))
 #define ARGSUSED(foo)  (void)foo
-
-#if 0
-  #ifdef _DEBUG
-    /*
-     * With '-RTCc' in debug-mode, this generates
-     *   Run-Time Check Failure #1 - A cast to a smaller
-     *   data type has caused a loss of data.  If this was intentional, you should
-     *   mask the source of the cast with the appropriate bitmask.
-     *   For example:
-     *     char c = (i & 0xFF);
-     */
-    #define loBYTE(w)   ((BYTE) ((w) & 255))
-    #define hiBYTE(w)   ((BYTE) ((WORD) ((w) & 255) >> 8))
-  #else
-    #define loBYTE(w)   (BYTE)(w)
-    #define hiBYTE(w)   (BYTE)((WORD)(w) >> 8)
-  #endif
-#endif
 
 #define DEBUGF(level, ...)  do {                                        \
                               if (opt.debug >= level) {                 \
