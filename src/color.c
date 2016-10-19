@@ -461,6 +461,9 @@ void C_puts_long_line (size_t indent, const char *start)
   while (*c)
   {
     C_putc (*c++);
+
+    /* Break a long line at a space.
+     */
     if ((size_t)(c - start) > max_len && (*c == ' ' || *c == '\t'))
     {
       C_printf ("\n%*c", indent, ' ');
