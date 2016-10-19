@@ -40,6 +40,7 @@
 
 #include "Everything.h"
 #include "Everything_IPC.h"
+#include "dirlist.h"
 
 #include "color.h"
 #include "envtool.h"
@@ -77,9 +78,9 @@ struct directory_array {
        int      exist;       /* does it exist? */
        int      is_native;   /* and is it a native dir; like %WinDir\sysnative */
        int      is_dir;      /* and is it a dir; _S_ISDIR() */
-       int      is_cwd;      /* and is equal to current_dir[] */
+       int      is_cwd;      /* and is it equal to current_dir[] */
        int      exp_ok;      /* ExpandEnvironmentStrings() returned with no '%'? */
-       int      num_dup;     /* is duplicated elsewhere in %VAR? */
+       int      num_dup;     /* is duplicated elsewhere in %VAR%? */
        unsigned line;        /* Debug: at what line was add_to_dir_array() called */
      };
 
@@ -137,6 +138,7 @@ static int   do_tests (void);
 static void  searchpath_all_cc (void);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
+static int   get_cmake_info (const char **exe, struct ver_info *ver);
 
 /*
  * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
@@ -183,13 +185,13 @@ static void  print_build_ldflags (void);
  * According to:
  *  http://msdn.microsoft.com/en-us/library/windows/desktop/ms683188(v=vs.85).aspx
  */
-#define MAX_ENV_VAR 32767
-#define MAX_INDEXED ('Z' - 'A' + 1)
+#define MAX_ENV_VAR  32767
+#define MAX_INDEXED  ('Z' - 'A' + 1)
 
 static void show_evry_version (HWND wnd, const struct ver_info *ver)
 {
-  char    buf [3*MAX_INDEXED+2], *p = buf, *bits;
-  int     d, num;
+  char buf [3*MAX_INDEXED+2], *p = buf, *bits = "";
+  int  d, num;
 
   if (evry_bitness == bit_unknown)
      get_evry_bitness();
@@ -198,8 +200,6 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
      bits = " (32-bit)";
   else if (evry_bitness == bit_64)
      bits = " (64-bit)";
-  else
-     bits = "";
 
   C_printf ("  Everything search engine ver. %u.%u.%u.%u%s (c)"
             " David Carpenter; http://www.voidtools.com/\n",
@@ -212,7 +212,6 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
       p += sprintf (p, "%c: ", d+'A');
       num++;
     }
-    DEBUGF (4, "d: %d (%c:), num: %d\n", d, d+'A', num);
   }
 
   if (num == 0)
@@ -320,9 +319,9 @@ static void get_evry_bitness (void)
  */
 static int show_version (void)
 {
-  const char     *py_exe;
+  const char     *py_exe, *cmake_exe;
   HWND            wnd;
-  struct ver_info py_ver, evry_ver;
+  struct ver_info py_ver, evry_ver, cmake_ver;
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.~0\n",
             who_am_I, VER_STRING, BUILDER, WIN_VERSTR,
@@ -346,6 +345,10 @@ static int show_version (void)
   if (get_python_info(&py_exe, NULL, &py_ver))
        C_printf ("  Python %u.%u.%u detected -> ~6%s~0.\n", py_ver.val_1, py_ver.val_2, py_ver.val_3, py_exe);
   else C_printf ("  Python ~5not~0 found.\n");
+
+  if (get_cmake_info(&cmake_exe, &cmake_ver))
+       C_printf ("  Cmake %u.%u.%u detected  -> ~6%s~0.\n", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3, cmake_exe);
+  else C_printf ("  Cmake ~5not~0 found.\n");
 
   if (opt.do_version >= 2)
   {
@@ -381,8 +384,7 @@ static int show_help (void)
   #define PFX_GCC  "~4<prefix>~0-~6gcc~0"
   #define PFX_GPP  "~4<prefix>~0-~6g++~0"
 
-  C_printf ("Environment check & search tool.\n"
-            "%s.\n\n"
+  C_printf ("Environment check & search tool.\n\n"
             "Usage: %s ~6[options] <--mode>~0 ~6<file-spec>~0\n"
             "  ~6<--mode>~0 can be at least one of these:\n"
             "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
@@ -408,10 +410,10 @@ static int show_help (void)
             "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
             "    ~6--64~0:           tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
             "                    report only 64-bit PE-files with ~6--pe~0 option.\n"
-            "    ~6-c~0:             don't add current directory to search-list.\n"
+            "    ~6-c~0:             don't add current directory to search-lists.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
             "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n",
-            AUTHOR_STR, who_am_I);
+            who_am_I);
 
   C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in ~6--evry~0 searches.\n"
             "    ~6-s~0, ~6--size~0:     show size of file(s) found.\n"
@@ -446,7 +448,7 @@ static int show_help (void)
             "Notes:\n"
             "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
             "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0 or ~6--dir~0 is used, only\n"
-            "                   matching directories are reported.\n"
+            "              matching directories are reported.\n"
             "  Commonly used options can be put in ~3%%ENVTOOL_OPTIONS%%~0.\n");
   return (0);
 }
@@ -462,15 +464,22 @@ static int show_help (void)
 void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
 {
   struct directory_array *d = dir_array + i;
-  struct stat st;
-  int    j, exp_ok = (*dir != '%');
+  int    j, exp_ok = (dir && *dir != '%');
+  BOOL   exists, is_dir;
+  DWORD  attr;
 
-  memset (&st, 0, sizeof(st));
+  /* Watcom's stat() doesn't handle a 'native' directories.
+   * But we can use this code for all targets since it seems faster.
+   */
+  attr = GetFileAttributes (dir);
+  exists = (attr != INVALID_FILE_ATTRIBUTES);
+  is_dir = (attr & FILE_ATTRIBUTE_DIRECTORY);
+
   d->cyg_dir = NULL;
   d->dir     = STRDUP (dir);
   d->exp_ok  = exp_ok;
-  d->exist   = exp_ok && (stat(dir, &st) == 0);
-  d->is_dir  = _S_ISDIR (st.st_mode);
+  d->exist   = exp_ok && exists;
+  d->is_dir  = is_dir;
   d->is_cwd  = is_cwd;
   d->line    = line;
 
@@ -479,10 +488,10 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
   d->is_native = (stricmp(dir,sys_native_dir) == 0);
 
   if (d->is_native && !have_sys_native_dir)
-    DEBUGF (2, "Native dir '%s' doesn't exist.\n", dir);
+     DEBUGF (2, "Native dir '%s' doesn't exist.\n", dir);
 
   else if (!d->exist)
-    DEBUGF (2, "'%s' doesn't exist.\n", dir);
+     DEBUGF (2, "'%s' doesn't exist.\n", dir);
 
 #if defined(__CYGWIN__)
   {
@@ -890,7 +899,15 @@ static void print_PE_info (const char *file, BOOL chksum_ok,
     raw = C_setraw (1);  /* In case version-info contains a "~" (SFN). */
 
     for (line = strtok(ver_trace,"\n"); line; line = strtok(NULL,"\n"))
-        C_printf ("%s%s\n", filler, line);
+    {
+      const char *colon  = strchr (line, ':');
+      size_t      indent = strlen (filler);
+
+      if (colon)
+         indent += (colon - line + 1);
+      C_puts (filler);
+      C_puts_long_line (indent, line);
+    }
     C_setraw (raw);
     get_PE_version_info_free();
   }
@@ -901,7 +918,6 @@ static int print_PE_file (const char *file, const char *note, const char *filler
 {
   struct ver_info ver;
   enum Bitness    bits;
-  BOOL            print_it   = TRUE;
   BOOL            chksum_ok  = FALSE;
   BOOL            version_ok = FALSE;
   int             raw;
@@ -912,11 +928,9 @@ static int print_PE_file (const char *file, const char *note, const char *filler
   memset (&ver, 0, sizeof(ver));
 
   if (opt.only_32bit && bits != bit_32)
-     print_it = FALSE;
-  else if (opt.only_64bit && bits != bit_64)
-     print_it = FALSE;
+     return (0);
 
-  if (!print_it)
+  if (opt.only_64bit && bits != bit_64)
      return (0);
 
   chksum_ok  = verify_PE_checksum (file);
@@ -933,14 +947,31 @@ static int print_PE_file (const char *file, const char *note, const char *filler
   return (1);
 }
 
-#if 0
 static UINT64 get_directory_size (const char *dir)
 {
-  struct dirent2 **namelist;
-  int    i, n;
-  do_scandir2 (dir, "*", 0, 1);
+  struct dirent2 **namelist = NULL;
+  int    i, n = scandir2 (dir, &namelist, NULL, NULL);
+  UINT64 size = 0;
+
+  for (i = 0; i < n; i++)
+  {
+    if (namelist[i]->d_attrib & FILE_ATTRIBUTE_DIRECTORY)
+    {
+      DEBUGF (1, "Recursing into \"%s\"\n", namelist[i]->d_name);
+      size += get_directory_size (namelist[i]->d_name);
+    }
+    else
+      size += namelist[i]->d_fsize;
+  }
+
+  if (i >= 0)
+  {
+    while (n--)
+      FREE (namelist[n]);
+    FREE (*namelist);
+  }
+  return (size);
 }
-#endif
 
 int report_file (const char *file, time_t mtime, UINT64 fsize,
                  BOOL is_dir, BOOL is_junction, HKEY key)
@@ -950,7 +981,6 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   char        size [30] = "?";
   int         raw;
   BOOL        have_it  = TRUE;
-  BOOL        print_it = TRUE;
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -1001,19 +1031,16 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   if ((!is_dir && opt.dir_mode) || !have_it)
      return (0);
 
- /* \todo:
-  *   Recursively get the size of file under directory matching 'file'.
+ /*
+  * Recursively get the size of files under directory matching 'file'.
   */
-#if 0
   if (opt.show_size && opt.dir_mode)
   {
     fsize = get_directory_size (file);
     total_size += fsize;
     snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
   }
-#endif
-
-  if (opt.show_size && fsize != (__int64)-1)
+  else if (opt.show_size && fsize != (__int64)-1)
   {
     snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
     total_size += fsize;
@@ -1582,6 +1609,7 @@ static int do_check_registry (void)
   sort_reg_array (num);
   found += report_registry (REG_APP_PATH, num);
 
+  report_header = NULL;
   return (found);
 }
 
@@ -1653,14 +1681,13 @@ int process_dir (const char *path, int num_dup, BOOL exist,
 
     len  = snprintf (fqfn, sizeof(fqfn), "%s%c", path, DIR_SEP);
     base = fqfn + len;
-    len += snprintf (base, sizeof(fqfn)-len, "%s%s",
-                     subdir ? subdir : "", ff_data.cFileName);
+    snprintf (base, sizeof(fqfn)-len, "%s%s", subdir ? subdir : "", ff_data.cFileName);
 
     is_dir      = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
     is_junction = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0);
 
-    file   = slashify (fqfn, DIR_SEP);
-    match  = fnmatch (opt.file_spec, base, FNM_FLAG_NOCASE | FNM_FLAG_NOESCAPE);
+    file  = slashify (fqfn, DIR_SEP);
+    match = fnmatch (opt.file_spec, base, FNM_FLAG_NOCASE | FNM_FLAG_NOESCAPE);
 
 #if 0
     if (match == FNM_NOMATCH && strchr(opt.file_spec,'~'))
@@ -1728,22 +1755,25 @@ static const char *evry_strerror (DWORD err)
 
 static void check_sys_dirs (void)
 {
-  struct stat st;
+  BOOL is_dir;
 
-  if (stat(sys_dir, &st) == 0 && _S_ISDIR(st.st_mode))
+  is_dir = (GetFileAttributes(sys_dir) & FILE_ATTRIBUTE_DIRECTORY);
+  if (is_dir)
        DEBUGF (1, "sys_dir: '%s' okay\n", sys_dir);
-  else DEBUGF (1, "sys_dir: '%s', errno: %d\n", sys_dir, errno);
+  else DEBUGF (1, "sys_dir: '%s', GetLastError(): %lu\n", sys_dir, GetLastError());
 
-  if (stat(sys_native_dir, &st) == 0 && _S_ISDIR(st.st_mode))
+  is_dir = (GetFileAttributes(sys_native_dir) & FILE_ATTRIBUTE_DIRECTORY);
+  if (is_dir)
   {
     DEBUGF (1, "sys_native_dir: '%s'\n", sys_native_dir);
     have_sys_native_dir = TRUE;
   }
   else
   {
-    DEBUGF (1, "sys_native_dir: '%s', errno: %d\n", sys_native_dir, errno);
+    DEBUGF (1, "sys_native_dir: '%s', GetLastError(): %lu\n", sys_native_dir, GetLastError());
     have_sys_native_dir = FALSE;
   }
+
 #if (IS_WIN64)
   if (have_sys_native_dir)
      DEBUGF (0, "sys_native_dir: '%s' exists on WIN64!!\n", sys_native_dir);
@@ -1908,9 +1938,6 @@ static int do_check_evry (void)
     char file [_MAX_PATH];
     char prev [_MAX_PATH];
 
-    if (i == 0)
-       prev[0] = '\0';
-
     len = Everything_GetResultFullPathName (i, file, sizeof(file));
     err = Everything_GetLastError();
     if (len == 0 || err != EVERYTHING_OK)
@@ -1920,18 +1947,18 @@ static int do_check_evry (void)
       break;
     }
 
-    if (prev[0] && !strcmp(prev, file))
+    if (i > 0 && !strcmp(prev, file))
     {
       num_evry_dups++;
       DEBUGF (2, "dup (i:%2lu): file: %s\n"
                  "\t\t\t     prev: %s\n", i, file, prev);
+      _strlcpy (prev, file, sizeof(prev));
       continue;
     }
     _strlcpy (prev, file, sizeof(prev));
 
     if (report_evry_file(file))
-         found++;
-    else prev[0] = '\0';
+       found++;
   }
   return (found);
 }
@@ -1998,7 +2025,7 @@ static int do_check_manpath (void)
   report_header = report;
   save = opt.man_mode;
 
-  /* Man-files should have an extension. Hence do no report dotless files as a
+  /* Man-files should have an extension. Hence do not report dotless files as a
    * match in process_dir().
    */
   opt.man_mode = 1;
@@ -2055,6 +2082,27 @@ static int find_cmake_version_cb (char *buf, int index)
   return (0);
 }
 
+static int get_cmake_info (const char **exe, struct ver_info *ver)
+{
+  char cmd [1000];
+
+  *exe = searchpath ("cmake.exe", "PATH");
+  if (*exe == NULL)
+     return (0);
+
+  snprintf (cmd, sizeof(cmd), "%s -version 2>&1", *exe);
+
+  if (popen_run(slashify(cmd,'\\'), find_cmake_version_cb) > 0)
+  {
+    ver->val_1 = cmake_major;
+    ver->val_2 = cmake_minor;
+    ver->val_3 = cmake_micro;
+    ver->val_4 = 0;
+    return (1);
+  }
+  return (0);
+}
+
 static int do_check_cmake (void)
 {
   const char *cmake_bin = searchpath ("cmake.exe", "PATH");
@@ -2082,15 +2130,13 @@ static int do_check_cmake (void)
     if (popen_run(slashify(cmd,'\\'), find_cmake_version_cb) > 0)
     {
       char dir [_MAX_PATH];
-      char report [300];
 
       snprintf (dir, sizeof(dir), "%s\\..\\share\\cmake-%d.%d\\Modules",
                 cmake_root, cmake_major, cmake_minor);
       DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
               cmake_major, cmake_minor, cmake_micro, dir);
 
-      snprintf (report, sizeof(report), "Matches among built-in Cmake modules:\n");
-      report_header = report;
+      report_header = "Matches among built-in Cmake modules:\n";
       found = process_dir (dir, 0, TRUE, 1, TRUE, env_name, NULL, FALSE);
     }
     else
@@ -2111,6 +2157,7 @@ static int do_check_cmake (void)
     report_header = report;
     found += do_check_env ("CMAKE_MODULE_PATH", TRUE);
   }
+  report_header = NULL;
   return (found);
 }
 
@@ -2783,11 +2830,13 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
        break;
   }
 
+#if 0
   if (opt.dir_mode && opt.show_size)
   {
     printf ("Option '-s' cannot yet show directorty sizes for option '-D'.\n");
     exit (1);
   }
+#endif
 
   if (opt.only_32bit && opt.only_64bit)
   {
@@ -3074,7 +3123,7 @@ int main (int argc, char **argv)
   }
 
   final_report (found);
-  return (found);
+  return (found ? 0 : 1);
 }
 
 /*
@@ -3323,10 +3372,10 @@ static void test_searchpath (void)
     is_env = (strchr(env,'\\') == NULL);
     len = C_printf ("  %s:", t->file);
     pad = max (0, 17-len);
-    len = C_printf ("%*s %s%s", pad, "", is_env ? "%" : "", env);
+    C_printf ("%*s %s%s", pad, "", is_env ? "%" : "", env);
     pad = max (0, 26-strlen(env)-is_env);
-    len = C_printf ("%*s -> %s, pos: %d\n", pad, "",
-                    found ? found : strerror(errno), searchpath_pos());
+    C_printf ("%*s -> %s, pos: %d\n", pad, "",
+              found ? found : strerror(errno), searchpath_pos());
   }
   C_putc ('\n');
 }
@@ -3470,6 +3519,10 @@ static void test_SHGetFolderPath (void)
 {
   #undef  ADD_VALUE
   #define ADD_VALUE(v)  { v, #v }
+
+  #ifndef CSIDL_PROGRAM_FILESX86
+  #define CSIDL_PROGRAM_FILESX86  0x002a
+  #endif
 
   static const struct search_list sh_folders[] = {
                       ADD_VALUE (CSIDL_ADMINTOOLS),
