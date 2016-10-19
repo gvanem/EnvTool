@@ -1,16 +1,3 @@
-/*
- *  A public domain implementation of BSD directory routines for
- *  MS-DOS.  Written by Michael Rendell ({uunet,utai}michael@garfield),
- *  August 1987
- *
- *  Enhanced and ported to OS/2 by Kai Uwe Rommel; added scandir() prototype
- *  December 1989, February 1990
- *  Change of MAXPATHLEN for HPFS, October 1990
- *
- *
- *  Cleanup, other hackery, Summer '92, Brian Moran , brianmo@microsoft.com
- */
-
 #ifndef _DIRLIST_H
 #define _DIRLIST_H
 
@@ -31,7 +18,7 @@ enum od2x_sorting {
 struct od2x_options {
        const char       *pattern;
        enum od2x_sorting sort;
-       int  recursive;    /* to-do */
+       int               recursive;
      };
 
 struct dirent2 {
@@ -60,10 +47,15 @@ extern long            telldir2 (DIR2 *dp);
 extern void            rewinddir2 (DIR2 *dp);
 extern void            closedir2 (DIR2 *dp);
 
-
-/* Alphabetic order comparison routine
+/*
+ * Comparison routines for scandir2() and opendir2x():
+ *   If 'od2x_options::sort == OD2X_ON_NAME'           -> use 'sd_compare_alphasort()'.
+ *   If 'od2x_options::sort == OD2X_FILES_FIRST'       -> use 'sd_compare_files_first()'.
+ *   If 'od2x_options::sort == OD2X_DIRECTORIES_FIRST' -> use 'sd_compare_dirs_first()'.
  */
-extern int alphasort2 (const void **a, const void **b);
+extern int sd_compare_alphasort   (const void **a, const void **b);
+extern int sd_compare_files_first (const void **a, const void **b);
+extern int sd_compare_dirs_first  (const void **a, const void **b);
 
 /*
  * arg1 = directory name
