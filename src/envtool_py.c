@@ -33,7 +33,7 @@ struct python_info {
    */
   enum python_variants variant;
 
-  /* Only CPython program can be embeddable from a C-program.
+  /* Only a CPython program can be embeddable from a C-program.
    */
   BOOL is_embeddable;
 
@@ -54,7 +54,7 @@ struct python_info {
   char dll_name [_MAX_PATH];
 
   /* The 'sys.path[]' array of 'program'.
-   * \todo: Use realloc()?
+   * \todo: Use realloc() or a 'smartlist_t' ?
    */
   struct python_array sys_path [500];
 
@@ -179,7 +179,7 @@ const char **python_get_variants (void)
   const struct python_info *py;
   int   i, j;
 
-  for (i = j = 0, py = all_py_programs; i < DIM(all_py_programs); i++, py = all_py_programs+i)
+  for (i = j = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
   {
     switch (py->variant)
     {
@@ -240,7 +240,7 @@ static struct python_info *select_python (enum python_variants which)
   struct python_info *py;
   int    i;
 
-  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); i++, py = all_py_programs+i)
+  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
   {
     if (!py->exe_name[0] || !py->dll_name[0])
        continue;
@@ -290,23 +290,11 @@ static void free_sys_path (struct python_info *py)
 /*
  * This should be the same as 'sys.prefix'.
  * The allocated string (ASCII or Unicode) is freed in 'exit_python()'.
- *
- * It seems CygWin64's Python fail to find the site.py file w/o setting
- * the PYTONPATH explicitly!
  */
 static void get_python_home (struct python_info *py)
 {
-#if defined(__CYGWIN__) && 0
-  char home[_MAX_PATH];
-
-  snprintf (home, sizeof(home), "/usr/lib/python%d.%d", py->ver_major, py->ver_minor);
-  py->home = (void*) strdup (home);
-
-  snprintf (home, sizeof(home), "PYTHONPATH=%s", (char*)py->home);
-  putenv (home);
-
-#elif defined(__CYGWIN__)
-  py->home = (void*) strdup ("/usr/lib");
+#if defined(__CYGWIN__)
+  py->home = (void*) STRDUP ("/usr/lib");
 
 #else
   char *dir = dirname (py->exe_name);
@@ -317,13 +305,13 @@ static void get_python_home (struct python_info *py)
 
     buf[0] = L'\0';
     MultiByteToWideChar (CP_ACP, 0, dir, -1, buf, DIM(buf));
-    py->home = (void*) _wcsdup (buf);
+    py->home = (void*) WCSDUP (buf);
   }
   else
   {
-    /* Reallocate again because free() is used in exit_python()!
+    /* Reallocate again because FREE() is used in exit_python()!
      */
-    py->home = (void*) strdup (dir);
+    py->home = (void*) STRDUP (dir);
   }
   FREE (dir);
 #endif
@@ -332,30 +320,36 @@ static void get_python_home (struct python_info *py)
 static const char *get_prog_name_ascii (void)
 {
   static char prog_name [_MAX_PATH] = "?";
-  static char cyg_name [_MAX_PATH];
 
   GetModuleFileNameA (NULL, prog_name, DIM(prog_name));
 
 #if defined(__CYGWIN__)
-  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, prog_name, cyg_name, sizeof(cyg_name)) == 0)
-     return (cyg_name);
+  {
+    static char cyg_name [_MAX_PATH];
+
+    if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, prog_name, cyg_name, sizeof(cyg_name)) == 0)
+       return (cyg_name);
+  }
 #endif
-  ARGSUSED (cyg_name);
+
   return (prog_name);
 }
 
 static const wchar_t *get_prog_name_wchar (void)
 {
   static wchar_t prog_name [_MAX_PATH] = L"?";
-  static wchar_t cyg_name [_MAX_PATH];
 
   GetModuleFileNameW (NULL, prog_name, DIM(prog_name));
 
 #if defined(__CYGWIN__)
-  if (cygwin_conv_path(CCP_WIN_W_TO_POSIX, prog_name, cyg_name, DIM(cyg_name)) == 0)
-     return (cyg_name);
+  {
+    static wchar_t cyg_name [_MAX_PATH];
+
+    if (cygwin_conv_path(CCP_WIN_W_TO_POSIX, prog_name, cyg_name, DIM(cyg_name)) == 0)
+       return (cyg_name);
+  }
 #endif
-  ARGSUSED (cyg_name);
+
   return (prog_name);
 }
 
@@ -374,8 +368,8 @@ static void exit_python_embedding (void)
     CloseHandle (g_py->dll_hnd);
   }
 
+  FREE (g_py->home);
   g_py->pipe_hnd = g_py->dll_hnd = INVALID_HANDLE_VALUE;
-  g_py->home = NULL;
   g_py = NULL;
 }
 
@@ -387,15 +381,12 @@ void exit_python (void)
   if (g_py)
   {
     if (!g_py->is_embeddable)
-       free_sys_path (g_py);
+      free_sys_path (g_py);
     exit_python_embedding();
   }
 
-  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py = &all_py_programs[++i])
-  {
-    if (py->home)
-       free (py->home);  /* Do not use FREE() since it could have been allocated using _wcsdup(). */
-  }
+  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
+      FREE (py->home);
 }
 
 /*
@@ -530,10 +521,9 @@ failed:
  */
 static char *call_python_func (const char *py_prog)
 {
-  PyObject  *obj;
-  Py_ssize_t size;
-  char      *str = NULL;
-  int        rc;
+  PyObject *obj;
+  char     *str = NULL;
+  int       rc;
 
 #if PY_THREAD_SAVE
   PyThreadState *ts = (*PyEval_SaveThread)();
@@ -552,7 +542,8 @@ static char *call_python_func (const char *py_prog)
 
   if (rc == 0 && obj)
   {
-    size = (*PyString_Size) (obj);
+    Py_ssize_t size = (*PyString_Size) (obj);
+
     if (size > 0)
        str = STRDUP ((*PyString_AsString)(obj));
 
@@ -1172,6 +1163,10 @@ void searchpath_pythons (void)
   BOOL         has_default = FALSE;
   char         version [12];
 
+  /* \todo:
+   * Also check under 'HKLM\Software\Python\PythonCore\x.x\InstallPath' for location
+   * of '*python*.exe'. And use this reg-key 'py->exe_name' not found on PATH.
+  */
   for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py = &all_py_programs[++i])
   {
     char fname [_MAX_PATH];
@@ -1213,14 +1208,14 @@ int init_python (void)
 
   DEBUGF (1, "which_python: %d/%s\n", which_python, python_variant_name(which_python));
 
-  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py = &all_py_programs[++i])
+  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
   {
     len = strlen (py->program);
     if (len > longest_py_program)
        longest_py_program = len;
   }
 
-  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py = &all_py_programs[++i])
+  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
   {
     memset (&py->sys_path, 0, sizeof(py->sys_path));
     py->ver_major = py->ver_minor = py->ver_micro = py->path_pos = -1;
@@ -1247,7 +1242,7 @@ int init_python (void)
   /* Figure out which 'py->program' in list is found first on PATH.
    * That one is the default.
    */
-  for (i = 0, py = all_py_programs, default_py = NULL; i < DIM(all_py_programs); py = &all_py_programs[++i])
+  for (i = 0, py = all_py_programs, default_py = NULL; i < DIM(all_py_programs); py++, i++)
       if (py->path_pos >= 0 && py->path_pos < pos)
       {
         pos = py->path_pos;
@@ -1257,7 +1252,7 @@ int init_python (void)
   if (default_py)
      default_py->is_default = TRUE;
 
-  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py = &all_py_programs[++i])
+  for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
   {
     DEBUGF (1, "%d: \"%s\" %*s -> \"%s\".\n"
                "                    DLL:     %-8s -> \"%s\"\n"
