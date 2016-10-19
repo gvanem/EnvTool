@@ -233,10 +233,7 @@ const char *os_name (void)
     left -= ptr - buf;
   }
   if (build_str[0])
-  {
-    ptr  += snprintf (ptr, left, ". Build %s", build_str);
-    left -= ptr - buf;
-  }
+     snprintf (ptr, left, ". Build %s", build_str);
   return (buf);
 }
 
