@@ -74,11 +74,12 @@ int C_use_ansi_colours = 0;
 
 unsigned C_redundant_flush = 0;
 
-static char  c_buf [C_BUF_SIZE];
-static char *c_head, *c_tail;
-static FILE *c_out = NULL;
-static int   c_raw = 0;
-static int   c_binmode = 0;
+static char   c_buf [C_BUF_SIZE];
+static char  *c_head, *c_tail;
+static FILE  *c_out = NULL;
+static int    c_raw = 0;
+static int    c_binmode = 0;
+static size_t c_screen_width = UINT_MAX;
 
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
 
@@ -141,11 +142,11 @@ static void C_init (void)
 {
   if (!c_head || !c_out)
   {
-    BOOL okay;
+    BOOL        okay;
+    const char *env;
 
 #if !defined(NDEBUG)
-    const char *env = getenv ("COLOUR_TRACE");
-
+    env = getenv ("COLOUR_TRACE");
     if (env)
       trace = *env - '0';
 #endif
@@ -157,6 +158,11 @@ static void C_init (void)
 
     if (okay)
     {
+      c_screen_width = console_info.srWindow.Right - console_info.srWindow.Left + 1;
+      env = getenv ("COLUMNS");
+      if (env && atoi(env) > 0)
+         c_screen_width = atoi (env);
+
       init_colour_map();
 
 #if defined(__CYGWIN__)
@@ -447,4 +453,20 @@ int C_putsn (const char *str, size_t len)
   return (rc);
 }
 
+void C_puts_long_line (size_t indent, const char *start)
+{
+  size_t      max_len = c_screen_width - indent;
+  const char *c = start;
+
+  while (*c)
+  {
+    C_putc (*c++);
+    if ((size_t)(c - start) > max_len && (*c == ' ' || *c == '\t'))
+    {
+      C_printf ("\n%*c", indent, ' ');
+      start = c;
+    }
+  }
+  C_putc ('\n');
+}
 

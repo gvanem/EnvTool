@@ -43,6 +43,7 @@ extern int    C_putc_raw (int ch);
 extern int    C_setraw   (int raw);
 extern int    C_setbin   (int bin);
 extern size_t C_flush    (void);
+extern void   C_puts_long_line (size_t indent, const char *start);
 
 #ifdef __cplusplus
 };
