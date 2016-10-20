@@ -26,6 +26,7 @@ struct dirent2 {
        size_t    d_reclen;       /* more farce */
        size_t    d_namlen;       /* length of d_name */
        char     *d_name;         /* MALLOC()'ed fully qualified file-name */
+       char     *d_link;         /* MALLOC()'ed name of Repare-point */
        DWORD     d_attrib;       /* FILE_ATTRIBUTE_xx. Ref MSDN. */
        FILETIME  d_time_create;
        FILETIME  d_time_access;  /* always midnight local time */

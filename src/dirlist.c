@@ -48,6 +48,7 @@ static BOOL setdirent2 (struct dirent2 *de, const char *dir, const char *file)
   de->d_name   = p;
   de->d_reclen = len;
   de->d_namlen = len - 2;
+  de->d_link   = NULL;
 
   strcpy (p, dir);
   p = strchr (p, '\0');
@@ -367,7 +368,10 @@ static void free_contents (DIR2 *dp)
   for (i = 0; i < dp->dd_num; i++, de++)
   {
     if (de)
-       FREE (de->d_name);
+    {
+      FREE (de->d_name);
+      FREE (de->d_link);
+    }
   }
   FREE (dp->dd_contents);
 }
@@ -560,10 +564,16 @@ static void print_de (const struct dirent2 *de, int idx)
 
   if (opt.debug > 0)
      C_printf ("~1%3d ~0(%lu): ", idx, recursion_level);
-  C_printf ("~4%-7s~6", is_dir ? "<DIR>" : is_junction ? "<LINK>" : "");
+  C_printf ("~4%-7s~6", is_junction ? "<LINK>" : is_dir ? "<DIR>" : "");
 
   C_setraw (1);
   C_puts (de->d_name);
+  if (is_junction)
+  {
+    C_puts ("\n        -> \"");
+    C_puts (de->d_link);
+    C_putc ('"');
+  }
   C_setraw (0);
   C_puts ("~0\n");
 
@@ -622,6 +632,15 @@ void do_scandir2 (const char *dir, const char *spec, int sort, int recursive)
       int    is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
       int    is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
 
+      if (is_junction)
+      {
+        char result [_MAX_PATH] = "??";
+        BOOL rc = get_reparse_point (namelist[i]->d_name, result, TRUE);
+
+        if (rc)
+           namelist[i]->d_link = STRDUP (result);
+      }
+
       if (fnmatch(spec,basename(de->d_name),FNM_FLAG_NOCASE|FNM_FLAG_PATHNAME) == FNM_MATCH)
          print_de (de, i);
 
@@ -668,20 +687,14 @@ static void do_dirent2 (const char *dir, const char *spec, int sort, int recursi
     int is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
     int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
 
-#if 0
     if (is_junction)
     {
       char result [_MAX_PATH] = "??";
-      BOOL rc = get_reparse_point (path, result, TRUE);
+      BOOL rc = get_reparse_point (de->d_name, result, TRUE);
 
       if (rc)
-      {
-        FREE (de->d_name);
-        de->d_name = STRDUP (result);
-      //total_reparse_points++;
-      }
+         de->d_link = STRDUP (result);
     }
-#endif
 
     print_de (de, i++);
 
