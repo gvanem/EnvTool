@@ -214,6 +214,7 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
 
   data.dwStateAction = WTD_STATEACTION_CLOSE;
   WinVerifyTrust (NULL, &action, &data);
+  FREE ((void*)file_info.pcwszFilePath);
 
   if (check_details)
   {
@@ -652,7 +653,7 @@ static wchar_t *evil_char_to_wchar (const char *text)
     return (NULL);
   }
 
-  wtext = malloc (wsize * sizeof(wchar_t));
+  wtext = MALLOC (wsize * sizeof(wchar_t));
   if (wtext && !MultiByteToWideChar (CP_ACP, 0, text, strlen(text)+1, wtext, wsize))
   {
     ERROR ("MultiByteToWideChar");
