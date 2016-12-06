@@ -72,7 +72,8 @@ struct python_info {
 
   /* It's 'sys.prefix' used in Py_SetPythonHome().
    */
-  void *home;
+  char    *home;
+  wchar_t *home_w;  /* for Python 3.x */
 
   PyObject *catcher;
   HANDLE    pipe_hnd, dll_hnd;
@@ -110,8 +111,7 @@ static struct python_info all_py_programs[] = {
 
 static struct python_info *g_py;  /* The global Python instance data. */
 
-#define PY_THREAD_SAVE  0
-#define PY_GET_VERSION  "import sys; print (sys.version[:5])"
+#define PY_GET_VERSION  "import sys; print (sys.version_info)"
 #define PY_PIPE_NAME    "\\\\.\\pipe\\EnvTool"
 
 #define LOAD_FUNC(is_opt, f)  do {                                                 \
@@ -143,15 +143,9 @@ DEF_FUNC (char *,           PyString_AsString,      (PyObject *o));    /* Python
 DEF_FUNC (char *,           PyBytes_AsString,       (PyObject *o));    /* Python 3.x */
 DEF_FUNC (Py_ssize_t,       PyString_Size,          (PyObject *o));    /* Python 2.x */
 DEF_FUNC (Py_ssize_t,       PyBytes_Size,           (PyObject *o));    /* Python 3.x */
-DEF_FUNC (void,             PyObject_Free,          (PyObject *obj));
-DEF_FUNC (void,             Py_DecRef,              (PyObject *obj));
+DEF_FUNC (void,             PyObject_Free,          (PyObject *o));
+DEF_FUNC (void,             Py_DecRef,              (PyObject *o));
 DEF_FUNC (PyObject*,        PyObject_CallMethod,    (PyObject *o, char *method, char *fmt, ...));
-
-#if PY_THREAD_SAVE
-  DEF_FUNC (void,           PyEval_InitThreads,     (void));
-  DEF_FUNC (PyThreadState*, PyEval_SaveThread,      (void));
-  DEF_FUNC (void,           PyEval_RestoreThread,   (PyThreadState *));
-#endif
 
 static const char *python_variant_name (enum python_variants v)
 {
@@ -257,7 +251,7 @@ static struct python_info *select_python (enum python_variants which)
 
 int get_python_info (const char **exe, const char **dll, struct ver_info *ver)
 {
-  struct python_info *py = select_python (DEFAULT_PYTHON);
+  struct python_info *py = select_python (which_python);
 
   if (!py)
      return (0);
@@ -294,8 +288,8 @@ static void free_sys_path (struct python_info *py)
 static void get_python_home (struct python_info *py)
 {
 #if defined(__CYGWIN__)
-  py->home = (void*) STRDUP ("/usr/lib");
-
+  py->home   = STRDUP ("/usr/lib");
+  py->home_w = NULL;
 #else
   char *dir = dirname (py->exe_name);
 
@@ -305,13 +299,15 @@ static void get_python_home (struct python_info *py)
 
     buf[0] = L'\0';
     MultiByteToWideChar (CP_ACP, 0, dir, -1, buf, DIM(buf));
-    py->home = (void*) WCSDUP (buf);
+    py->home_w = WCSDUP (buf);
+    py->home   = STRDUP (dir);
   }
   else
   {
     /* Reallocate again because FREE() is used in exit_python()!
      */
-    py->home = (void*) STRDUP (dir);
+    py->home   = STRDUP (dir);
+    py->home_w = NULL;
   }
   FREE (dir);
 #endif
@@ -369,6 +365,7 @@ static void exit_python_embedding (void)
   }
 
   FREE (g_py->home);
+  FREE (g_py->home_w);
   g_py->pipe_hnd = g_py->dll_hnd = INVALID_HANDLE_VALUE;
   g_py = NULL;
 }
@@ -386,12 +383,15 @@ void exit_python (void)
   }
 
   for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
-      FREE (py->home);
+  {
+    FREE (py->home);
+    FREE (py->home_w);
+  }
 }
 
 /*
  * Setup a class-instance for catching all output written
- * using 'sys.stdout'. I.e. 'print' and 'os.write(1, ...)'.
+ * using 'sys.stdout'. I.e. 'print(...)' and 'os.write(1, ...)'.
  * This instance must reside at the global '__main__' level.
  *
  * Thus the Python printed strings are retrieved in the C-world by
@@ -403,21 +403,31 @@ void exit_python (void)
  */
 static PyObject *setup_stdout_catcher (void)
 {
-  static char code[] = "import sys\n"               \
-                       "class catch_stdout:\n"      \
-                       "  def __init__(self):\n"    \
-                       "    self.value = ''\n"      \
-                       "  def write(self, txt):\n"  \
-                       "    self.value += txt\n"    \
-                       "  def reset(self):\n"       \
-                       "    self.value = ''\n"      \
-                       "old_stdout = sys.stdout\n"  \
+  static char code[] = "import sys\n"                               \
+                       "PY3 = (sys.version_info[0] == 3)\n"         \
+                       "Empty = ['', b''][PY3]\n"                   \
+                       "\n"                                         \
+                       "class catch_stdout:\n"                      \
+                       "  def __init__ (self):\n"                   \
+                       "    self.value = Empty\n"                   \
+                       "  def write (self, txt):\n"                 \
+                       "    if PY3:\n"                              \
+                       "      self.value += bytes(txt,\"UTF-8\")\n" \
+                       "    else:\n"                                \
+                       "      self.value += txt\n"                  \
+                       "  def reset (self):\n"                      \
+                       "    self.value = Empty\n"                   \
+                       "  def flush (self):\n"                      \
+                       "    self.reset()\n"                         \
+                       "\n"                                         \
+                       "old_stdout = sys.stdout\n"                  \
                        "sys.stdout = catcher = catch_stdout()\n";
 
   PyObject *mod = (*PyImport_AddModule) ("__main__");          /* create main module */
   int       rc  = (*PyRun_SimpleString) (code);                /* invoke code to redirect */
   PyObject *obj = (*PyObject_GetAttrString) (mod, "catcher");  /* get our catcher created above */
 
+  DEBUGF (5, "code: '%s'\n", code);
   DEBUGF (4, "mod: %p, rc: %d, obj: %p\n", mod, rc, obj);
   return (obj);
 }
@@ -458,11 +468,6 @@ static int init_python_embedding (void)
   LOAD_FUNC (0, Py_SetProgramName);
   LOAD_FUNC (0, Py_SetPythonHome);
   LOAD_FUNC (0, PyRun_SimpleString);
-#if PY_THREAD_SAVE
-  LOAD_FUNC (0, PyEval_InitThreads);
-  LOAD_FUNC (0, PyEval_SaveThread);
-  LOAD_FUNC (0, PyEval_RestoreThread);
-#endif
   LOAD_FUNC (0, PyObject_GetAttrString);
   LOAD_FUNC (0, PyImport_AddModule);
   LOAD_FUNC (1, PyString_AsString);
@@ -480,11 +485,11 @@ static int init_python_embedding (void)
     PyString_AsString = PyBytes_AsString;
     PyString_Size     = PyBytes_Size;
 
-    DEBUGF (2, "Py_SetProgramName (\"%S\")\n", name);
+    DEBUGF (2, "Py_SetProgramName (\"%" WIDESTR_FMT "\")\n", name);
     (*Py_SetProgramName) ((char*)name);
 
-    DEBUGF (2, "Py_SetPythonHome (\"%S\")\n", (wchar_t*)g_py->home);
-    (*Py_SetPythonHome) (g_py->home);
+    DEBUGF (2, "Py_SetPythonHome (\"%" WIDESTR_FMT "\")\n", g_py->home_w);
+    (*Py_SetPythonHome) (g_py->home_w);
   }
   else
   {
@@ -499,10 +504,6 @@ static int init_python_embedding (void)
 
   (*Py_InitializeEx) (0);
   DEBUGF (3, "Py_InitializeEx (0) passed\n");
-
-#if PY_THREAD_SAVE
-  (*PyEval_InitThreads)();
-#endif
 
   g_py->catcher = setup_stdout_catcher();
   if (g_py->catcher)
@@ -524,12 +525,6 @@ static char *call_python_func (const char *py_prog)
   PyObject *obj;
   char     *str = NULL;
   int       rc;
-
-#if PY_THREAD_SAVE
-  PyThreadState *ts = (*PyEval_SaveThread)();
-
-  DEBUGF (4, "PyEval_SaveThread(): %p\n", ts);
-#endif
 
   DEBUGF (3, "py_prog:\n"
              "----------------------\n%s\n"
@@ -553,18 +548,13 @@ static char *call_python_func (const char *py_prog)
     (*PyObject_CallMethod) (g_py->catcher, "reset", NULL);
     DEBUGF (4, "PyString_Size(): %ld\n", size);
   }
-
-#if PY_THREAD_SAVE
-  (*PyEval_RestoreThread) (ts);
-#endif
-
   return (str);
 }
 
 void test_python_funcs (void)
 {
   const char *prog = "import sys, os\n"
-                     "print (sys.version[0:5] + \"\\n\")\n"
+                     "print (sys.version_info)\n"
                      "for i in range(10):\n"
                      "  print (\"  Hello world\")\n";
   char *str;
@@ -632,7 +622,7 @@ static int add_sys_path (char *dir, int index)
  */
 static int report_zip_file (const char *zip_file, char *output)
 {
-  static char *py_home = NULL;
+  static const char *py_home = NULL;
   static char *sys_prefix = "$PYTHONHOME";
   static BOOL  do_warn = TRUE;
   struct tm    tm;
@@ -689,6 +679,8 @@ static int report_zip_file (const char *zip_file, char *output)
     py_home = getenv ("PYTHONHOME");
     if (!py_home)
        py_home = g_py->home;
+
+    DEBUGF (1, "py_home: %s\n", py_home);
     if (!FILE_EXISTS(py_home))
        WARN ("%s points to non-existing directory: \"%s\".\n", sys_prefix, py_home);
     do_warn = FALSE;
@@ -703,9 +695,9 @@ static int report_zip_file (const char *zip_file, char *output)
   if (IS_SLASH(*p))  /* if 'py_home' doesn't end in a slash. */
      p++;
 
-  DEBUGF (1, "p: '%s', py_home: '%s', zip_file: '%s'\n", p, py_home, zip_file);
+  DEBUGF (1, "p: '%s', g_py->home: '%s', zip_file: '%s'\n", p, g_py->home, zip_file);
 
-  if (p != zip_file && !strnicmp(zip_file,py_home,strlen(py_home)))
+  if (p != zip_file && !strnicmp(zip_file,g_py->home,strlen(g_py->home)))
        snprintf (report+len, sizeof(report)-len, "%s\\%s)", sys_prefix, p);
   else snprintf (report+len, sizeof(report)-len, "%s)", zip_file);
 
@@ -730,23 +722,29 @@ static int report_zip_file (const char *zip_file, char *output)
  *   first. Thus:
  *     "EGG-INFO/requires.txt" -> False
  *     "egg-timer.txt"         -> True
- */
-
-/*
+ *
  * This goes into a buffer used in call_python_func().
  */
 #define PY_ZIP_LIST                                                                   \
-          "import os, fnmatch, zipfile\n"                                             \
+          "import os, sys, fnmatch, zipfile\n"                                        \
+          "PY3 = (sys.version_info[0] == 3)\n"                                        \
+          "\n"                                                                        \
+          "def trace (s):\n"  /* trace to stderr (2) */                               \
+          "  if PY3:\n"                                                               \
+          "    os.write (2, bytes(s,\"UTF-8\"))\n"                                    \
+          "  else:\n"                                                                 \
+          "    os.write (2, s)\n"                                                     \
+          "\n"                                                                        \
           "def print_zline (f, debug):\n"                                             \
           "  base = os.path.basename (f.filename)\n"                                  \
           "  if debug >= 3:\n"                                                        \
-          "     os.write (2, 'egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"  \
+          "    trace ('egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"         \
           "  if fnmatch.fnmatch (f.filename, '%s'):\n"   /* opt.file_spec */          \
           "    date = \"%%4d%%02d%%02d\"  %% (f.date_time[0:3])\n"                    \
           "    time = \"%%02d%%02d%%02d\" %% (f.date_time[3:6])\n"                    \
           "    str = \"%%d %%s.%%s %%s\"  %% (f.file_size, date, time, f.filename)\n" \
-          "    if debug:\n"                                                           \
-          "       os.write (2,'str: \"%%s\"\\n' %% str)\n"                            \
+          "    if debug > 0:\n"                                                       \
+          "      trace ('str: \"%%s\"\\n' %% str)\n"                                  \
           "    print (str)\n"                                                         \
           "\n"                                                                        \
           "zf = zipfile.ZipFile (r\"%s\", 'r')\n"        /* zfile */                  \
@@ -892,119 +890,16 @@ int do_check_python (void)
   return (found);
 }
 
-#if !defined(__CYGWIN__)
-
-#define PY_PIPE_WRITE_PROG                                                                   \
-        "import time, win32pipe, win32file\n"                                                \
-        "handle = win32file.CreateFile (r'%s',\n"                                            \
-        "                               win32file.GENERIC_READ | win32file.GENERIC_WRITE,\n" \
-        "                               0, None,\n"                                          \
-        "                               win32file.OPEN_EXISTING,\n"                          \
-        "                               0, None)\n"                                          \
-        "for (i,p) in enumerate(sys.path):\n"                                                \
-        "  time.sleep (1)\n"                                                                 \
-        "  win32file.WriteFile (handle, '%%s\\n' %% p)\n"
-
-static int fgets_loop (FILE *f, popen_callback callback)
-{
-  char  buf[256];
-  int   i = 0;
-  int   j = 0;
-  int   ch;
-
-  DEBUGF (2, "_fileno(f): %d\n", _fileno(f));
-
-#if 1
-  while ((ch = fgetc(f)) != -1)
-#else
-  while (fgets(buf,sizeof(buf),f))
-#endif
-  {
-#if 1
-    DEBUGF (2, " fgetc(): '%c'\n", ch);
-    j++;
-#else
-    int rc;
-
-    strip_nl (buf);
-    DEBUGF (2, " fgets(): '%s'\n", buf);
-    if (!buf[0])
-       continue;
-    rc = (*callback) (buf, i++);
-    if (rc < 0)
-       break;
-    j += rc;
-#endif
-  }
-  ARGSUSED (i);
-  ARGSUSED (buf);
-  return (j);
-}
-#endif
-
-/*
- * Doesn't work as single-threaded :-(
- * Maybe run the Python pipe-test in a separate thread?
- * Enable this test using 'envtool.exe --python --test'.
- */
-int test_python_pipe (void)
-{
-  int rc = 0;
-
-#if !defined(__CYGWIN__)
-  int   fd = -1;
-  char  py_cmd [500];
-  FILE *f  = NULL;
-
-  if (!init_python_embedding())
-     return (0);
-
-  /* Under Windows, named pipes MUST have the form
-   * "\\<server>\pipe\<pipename>". <server> may be "." for localhost.
-   */
-  g_py->pipe_hnd = CreateNamedPipe (PY_PIPE_NAME,
-                                    PIPE_ACCESS_DUPLEX,  /* read/write pipe */
-                                    PIPE_TYPE_BYTE | PIPE_NOWAIT,
-                                    1, 4*1024, 4*1024, 0, NULL);
-  if (g_py->pipe_hnd == INVALID_HANDLE_VALUE)
-  {
-    WARN ("CreateNamedPipe (\"%s\") failed; %s\n", PY_PIPE_NAME,
-          win_strerror(GetLastError()));
-    return (0);
-  }
-
-  fd = _open_osfhandle ((intptr_t)g_py->pipe_hnd, _O_BINARY /* _O_TEXT */);
-  if (fd < 0)
-  {
-    DEBUGF (1, "_open_osfhandle() failed: %s.\n", strerror(errno));
-    return (0);
-  }
-
-  f = fdopen (fd, "r");
-  if (!f)
-  {
-    DEBUGF (1, "fdopen() failed: %s.\n", strerror(errno));
-    return (0);
-  }
-
-  DEBUGF (3, "pipe_hnd: 0x%p, fd: %d.\n", (void*)g_py->pipe_hnd, fd);
-
-  snprintf (py_cmd, sizeof(py_cmd), PY_PIPE_WRITE_PROG, PY_PIPE_NAME);
-  DEBUGF (2, "py_cmd:\n----------------------\n%s\n----------------------\n",
-          py_cmd);
-
-  rc = (*PyRun_SimpleString) (py_cmd);
-  if (rc == 0)
-     rc = fgets_loop (f, add_sys_path);
-  fclose (f);
-#endif  /* __CYGWIN__ */
-
-  return (rc);
-}
-
 static int report_py_version_cb (char *output, int line)
 {
-  int num = sscanf (output, "%d.%d.%d", &g_py->ver_major, &g_py->ver_minor, &g_py->ver_micro);
+  const char *prefix = "sys.version_info";  /* 'pypy.exe -c "import sys; print(sys.version_info)"' doesn't print this */
+  int         num;
+
+  if (!strncmp(output,prefix,strlen(prefix)))
+    output += strlen (prefix);
+
+  num = sscanf (output, "(major=%d, minor=%d, micro=%d",
+                &g_py->ver_major, &g_py->ver_minor, &g_py->ver_micro);
 
   DEBUGF (1, "Python ver: %d.%d.%d\n", g_py->ver_major, g_py->ver_minor, g_py->ver_micro);
   ARGSUSED (line);
@@ -1159,13 +1054,14 @@ static size_t longest_py_program = 0;
 void searchpath_pythons (void)
 {
   const struct python_info *py;
-  size_t       i;
+  size_t       i, len, longest_py_ver = 0;
   BOOL         has_default = FALSE;
   char         version [12];
 
   /* \todo:
-   * Also check under 'HKLM\Software\Python\PythonCore\x.x\InstallPath' for location
-   * of '*python*.exe'. And use this reg-key 'py->exe_name' not found on PATH.
+   *   Also check under 'HKLM\Software\Python\PythonCore\x.x\InstallPath' for location
+   *   of Python programs. Use this reg-key as basic for 'py->exe_name' and compare with
+   *   those found on PATH.
   */
   for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py = &all_py_programs[++i])
   {
@@ -1177,23 +1073,28 @@ void searchpath_pythons (void)
          _strlcpy (version, "(ver: ?)", sizeof(version));
     else version[0] = '\0';
 
+    len = strlen (version);
+    if (len > longest_py_ver)
+       longest_py_ver = len;
+
     if (py->is_default)
        has_default = TRUE;
 
     _strlcpy (fname, slashify(py->exe_name, opt.show_unix_paths ? '/' : '\\'), sizeof(fname));
 
-    C_printf ("   %s %s%*s %-7s -> ~%c%s~0\n",
-              py->is_default ? "~3(1)~0" : "   ", py->program,
-              (int)(longest_py_program - strlen(py->program)), "", version,
+    C_printf ("   %s %-*s %-*s -> ~%c%s~0\n",
+              py->is_default ? "~3(1)~0" : "   ",
+              (int)(1+longest_py_program), py->program,
+              (int)(2+longest_py_ver), version,
               fname[0] ? '6' : '5',
               fname[0] ? fname : "Not found");
 
     if (py->dll_name[0])
     {
       _strlcpy (fname, slashify(py->exe_name, opt.show_unix_paths ? '/' : '\\'), sizeof(fname));
-      C_printf ("%*s%s (%sembeddable)\n",
-                (int)(longest_py_program + 19), "",
-                fname, py->is_embeddable ? "": "not ");
+      C_printf ("%*s %s (%sembeddable)\n",
+                (int)(14+longest_py_program+longest_py_ver), "", fname,
+                py->is_embeddable ? "": "not ");
      }
   }
   if (has_default)
@@ -1203,7 +1104,7 @@ void searchpath_pythons (void)
 int init_python (void)
 {
   struct python_info *py, *default_py;
-  size_t i, len;
+  size_t i, len, indent;
   int    pos, num = 0;
 
   DEBUGF (1, "which_python: %d/%s\n", which_python, python_variant_name(which_python));
@@ -1252,14 +1153,17 @@ int init_python (void)
   if (default_py)
      default_py->is_default = TRUE;
 
+  indent = strlen (__FILE());
+
   for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
   {
-    DEBUGF (1, "%d: \"%s\" %*s -> \"%s\".\n"
-               "                    DLL:     %-8s -> \"%s\"\n"
-               "                    Variant: %-8s -> %s %s\n",
-            (int)i, py->program, (int)(longest_py_program - strlen(py->program)), "", py->exe_name,
-            "", py->dll_name,
-            "", python_variant_name(py->variant), py->is_default ? "(Default)" : "");
+    DEBUGF (1, "%u: %-*s -> \"%s\".\n"
+               "%*sDLL:          -> \"%s\"\n"
+               "%*sVariant:      -> %s%s\n",
+            (int)i, (int)(2+longest_py_program), py->program, py->exe_name,
+            (int)(indent+longest_py_program), "", py->dll_name,
+            (int)(indent+longest_py_program), "", python_variant_name(py->variant),
+            py->is_default ? " (Default)" : "");
   }
   g_py = NULL;
   return (num);
