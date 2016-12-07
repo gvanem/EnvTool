@@ -114,7 +114,7 @@ int check_if_zip (const char *fname)
 {
   static const char header[4] = { 'P', 'K', 3, 4 };
   const char *ext;
-  char   buf[4];
+  char   buf [sizeof(header)];
   FILE  *f;
   int    rc = 0;
 
@@ -138,7 +138,7 @@ int check_if_zip (const char *fname)
 
 /*
  * Open a fname, read the optional header in PE-header.
- *  - For verify it's signature.
+ *  - For verifying it's signature.
  *  - Showing the version information (if any) in it's resources.
  */
 static const IMAGE_DOS_HEADER *dos;
@@ -661,6 +661,10 @@ char *_fix_path (const char *path, char *result)
   {
     DEBUGF (2, "GetFullPathName(\"%s\") failed: %s\n",
             path, win_strerror(GetLastError()));
+
+    /* 'GetFullPathName()' handle the case where 'path == result'.
+     * So only copy the result if 'path != result'.
+     */
     if (result != path)
        _strlcpy (result, path, _MAX_PATH);
   }
@@ -769,7 +773,7 @@ int disk_ready (int disk)
 
     char  buf [sizeof(FILE_NOTIFY_INFORMATION) + _MAX_PATH + 3];
     DWORD size = sizeof(buf);
-    BOOL  rd_change = ReadDirectoryChangesW (hnd, &buf, size, FALSE, filter, NULL, NULL, NULL);
+    BOOL  rd_change = ReadDirectoryChangesA (hnd, &buf, size, FALSE, filter, NULL, NULL, NULL);
 
     if (!rd_change)
     {
@@ -794,6 +798,67 @@ quit:
      CloseHandle (hnd);
   set_error_mode (1);
   return (rc1 | rc2);
+}
+
+/*
+ * Return TRUE if this program is executed as an 'elevated' process.
+ * Taken from Python 3.5's "src/PC/bdist_wininst/install.c".
+ */
+BOOL is_user_admin (void)
+{
+  typedef BOOL (WINAPI *func_IsUserAnAdmin) (void);
+  func_IsUserAnAdmin p_IsUserAnAdmin;
+
+  HMODULE shell32 = LoadLibrary ("shell32.dll");
+
+  /* This function isn't guaranteed to be available (and it can't hurt
+   * to leave the library loaded)
+   */
+  if (!shell32 || shell32 == INVALID_HANDLE_VALUE)
+     return (FALSE);
+
+  p_IsUserAnAdmin = (func_IsUserAnAdmin) GetProcAddress (shell32, "IsUserAnAdmin");
+  if (!p_IsUserAnAdmin)
+     return (FALSE);
+  return (*p_IsUserAnAdmin)();
+}
+
+/*
+ * Return name of logged-in user.
+ * First try GetUserNameEx() available in Win-2000 Pro.
+ * Then fall-back to a GetUserName() if not present in Secur32l.dll.
+ * Ref:
+ *   https://msdn.microsoft.com/en-us/library/windows/desktop/ms724435(v=vs.85).aspx
+ */
+#define NameSamCompatible 2
+
+const char *get_user_name (void)
+{
+  typedef BOOL (WINAPI *func_GetUserNameEx) (int format, char *user, ULONG *user_len);
+  func_GetUserNameEx  p_GetUserNameEx;
+  static char         user[100];
+  ULONG               ulen;
+  HMODULE             secur32 = LoadLibrary ("secur32.dll");
+
+  strcpy (user, "?");
+
+  /* This function isn't guaranteed to be available (and it can't hurt
+   * to leave the library loaded)
+   */
+  if (!secur32 || secur32 == INVALID_HANDLE_VALUE)
+     goto quit;
+
+  p_GetUserNameEx = (func_GetUserNameEx) GetProcAddress (secur32, "GetUserNameExA");
+  if (p_GetUserNameEx)
+  {
+    ulen = sizeof(user);
+    (*p_GetUserNameEx) (NameSamCompatible, user, &ulen);
+  }
+
+quit:
+  if (secur32 && secur32 != INVALID_HANDLE_VALUE)
+     FreeLibrary (secur32);
+  return (user);
 }
 
 /*
@@ -1619,50 +1684,6 @@ char *_itoa (int value, char *buf, int radix)
 }
 #endif
 
-#define ADD_VALUE(v)  { v, #v }
-
-static const struct search_list sh_folders[] = {
-                    ADD_VALUE (CSIDL_PROFILE),
-                    ADD_VALUE (CSIDL_PERSONAL),
-                    ADD_VALUE (CSIDL_APPDATA),    /* Use this as HOME-dir ("~/") */
-                    ADD_VALUE (CSIDL_LOCAL_APPDATA),
-                    ADD_VALUE (CSIDL_STARTUP),
-                    ADD_VALUE (CSIDL_BITBUCKET),  /* Recycle Bin */
-                    ADD_VALUE (CSIDL_COMMON_ALTSTARTUP),
-                    ADD_VALUE (CSIDL_COMMON_FAVORITES),
-                    ADD_VALUE (CSIDL_ADMINTOOLS),
-                    ADD_VALUE (CSIDL_COOKIES)
-                  };
-
-static const struct search_list sh_flags[] = {
-                    ADD_VALUE (SHGFP_TYPE_CURRENT),
-                    ADD_VALUE (SHGFP_TYPE_DEFAULT)
-                  };
-
-static void get_shell_folder (const struct search_list *folder, DWORD flag)
-{
-  char    path1 [_MAX_PATH];
-  char    path2 [_MAX_PATH];
-  HRESULT rc = SHGetFolderPathA (NULL, folder->value, NULL, flag, path1);
-
-  if (rc >= 0)
-       _fix_path (path1, path2);
-  else strcpy (path2, "<fail>");
-
-  DEBUGF (1, "%-23s (%s) -> '%s'\n", folder->name, list_lookup_name(flag,sh_flags,DIM(sh_flags)), path2);
-}
-
-void get_shell_folders (void)
-{
-  int i;
-
-  for (i = 0; i < DIM(sh_folders); i++)
-  {
-    get_shell_folder (sh_folders+i, SHGFP_TYPE_CURRENT);
-    get_shell_folder (sh_folders+i, SHGFP_TYPE_DEFAULT);
-  }
-}
-
 /*
  * Functions for getting at Reparse Points (Junctions and Symlinks).
  * Code from:
@@ -1847,6 +1868,221 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   return wchar_to_mbchar (slen, sub_name, result);
 }
 
+#if defined(_MSC_VER)
+  /*
+   * Ref. http://msdn.microsoft.com/en-us/library/b0084kay(v=vs.120).aspx
+   *
+   * E.g. "cl /?" prints:
+   *    Microsoft (R) C/C++ Optimizing Compiler Version 18.00.31101 for x86
+   *                       = _MSC_FULL_VER - 180000000  ^----
+   */
+  static const char *msvc_get_micro_ver (void)
+  {
+    static char buf[10];
+
+    buf[0] = '\0';
+
+  #if defined(_MSC_FULL_VER)
+  #if (_MSC_FULL_VER > 190000000)
+    buf[0] = '.';
+    _ultoa (_MSC_FULL_VER-190000000, buf+1, 10);
+  #elif (_MSC_FULL_VER > 180000000)
+    buf[0] = '.';
+    _ultoa (_MSC_FULL_VER-180000000, buf+1, 10);
+  #endif
+  #endif
+    return (buf);
+  }
+
+  const char *compiler_version (void)
+  {
+    static char buf[40];
+  #ifdef _DEBUG
+    #define DBG_REL "debug"
+  #else
+    #define DBG_REL "release"
+  #endif
+
+    snprintf (buf, sizeof(buf), "Visual-C ver %d.%02d%s, %s",
+              (_MSC_VER / 100), (_MSC_VER % 100), msvc_get_micro_ver(), DBG_REL);
+    return (buf);
+  }
+
+#elif defined(__WATCOMC__)
+  const char *compiler_version (void)
+  {
+    static char buf[40];
+  #if (__WATCOMC__ >= 1200)
+    snprintf (buf, sizeof(buf), "OpenWatcom %d.%d", (__WATCOMC__/100) - 11, (__WATCOMC__ % 100) / 10);
+  #else
+    snprintf (buf, sizeof(buf), "Watcom C %d.%d", (__WATCOMC__/100), (__WATCOMC__ % 100));
+  #endif
+    return (buf);
+  }
+
+#elif defined(__MINGW32__)
+  /*
+   * '__MINGW32__' is defined by BOTH mingw.org and by the MinGW-w64
+   * project [1], because both can target Win32. '__MINGW64__' is defined
+   * only when targeting Win64 (__x86_64__).
+   *
+   * [1] http://mingw-w64.sourceforge.net/
+   */
+  const char *compiler_version (void)
+  {
+    static char buf[40];
+  #if defined(__MINGW64_VERSION_MAJOR)
+     snprintf (buf, sizeof(buf), "MinGW-w64 %d.%d (%s), ",
+               __MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, __MINGW64_VERSION_STATE);
+
+  /* mingw.org MinGW. MingW-RT-4+ defines '__MINGW_MAJOR_VERSION'
+   */
+  #elif defined(__MINGW_MAJOR_VERSION)
+    snprintf (buf, sizeof(buf), "MinGW %d.%d, ", __MINGW_MAJOR_VERSION, __MINGW_MINOR_VERSION);
+  #else
+    snprintf (buf, sizeof(buf), "MinGW %d.%d, ", __MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
+  #endif
+    return (buf);
+  }
+
+#elif defined(__CYGWIN__)
+  const char *compiler_version (void)
+  {
+    static char buf[40];
+    snprintf (buf, sizeof(buf), "CygWin %d.%d.%d, ", CYGWIN_VERSION_DLL_MAJOR/1000,
+              CYGWIN_VERSION_DLL_MAJOR % 1000, CYGWIN_VERSION_DLL_MINOR);
+    return (buf);
+  }
+
+#else
+  const char *compiler_version (void)
+  {
+    return (BUILDER);
+  }
+#endif   /* _MSC_VER */
+
+/*
+ * Check if a file-descriptor is coming from CygWin.
+ * Applications now could call 'is_cygwin_tty(STDIN_FILENO)' in order to detect
+ * whether they are running from Cygwin/MSys terminal.
+ *
+ * By Mihail Konev <k.mvc@ya.ru> for the MinGW-w64 project.
+ */
+#undef FILE_EXISTS
+
+#include <io.h>
+#include <wchar.h>
+#include <winternl.h>
+
+#if defined(__WATCOMC__)
+  typedef struct {
+          USHORT  Length;
+          USHORT  MaximumLength;
+          WCHAR  *Buffer;
+        } UNICODE_STRING;
+
+  #define NTAPI                     __stdcall
+  #define NT_SUCCESS(x)             ((LONG)(x) >= 0)
+  #define OBJECT_INFORMATION_CLASS  int
+#endif
+
+#if defined(_MSC_VER) || defined(__WATCOMC__)
+  typedef struct {
+          UNICODE_STRING Name;
+        } OBJECT_NAME_INFORMATION2;
+
+  #define ObjectNameInformation 1
+#else
+  #define OBJECT_NAME_INFORMATION2 OBJECT_NAME_INFORMATION
+#endif
+
+int is_cygwin_tty (int fd)
+{
+  typedef LONG (NTAPI *func_NtQueryObject) (HANDLE, OBJECT_INFORMATION_CLASS, void*, ULONG, ULONG*);
+  func_NtQueryObject  *p_NtQueryObject;
+  HANDLE               h_fd;
+
+  /* NtQueryObject needs space for OBJECT_NAME_INFORMATION.Name->Buffer also.
+   */
+  char                      ntfn_bytes [sizeof(OBJECT_NAME_INFORMATION2) + MAX_PATH * sizeof(WCHAR)];
+  OBJECT_NAME_INFORMATION2 *ntfn = (OBJECT_NAME_INFORMATION2*) ntfn_bytes;
+  LONG                      status;
+  ULONG                     ntfn_size = sizeof(ntfn_bytes);
+  wchar_t                   c, *s;
+  USHORT                    i;
+
+  h_fd = (HANDLE) _get_osfhandle (fd);
+  if (!h_fd || h_fd == INVALID_HANDLE_VALUE)
+  {
+    errno = EBADF;
+    return (0);
+  }
+
+  p_NtQueryObject = (func_NtQueryObject*) GetProcAddress (GetModuleHandle("ntdll.dll"), "NtQueryObject");
+  if (!p_NtQueryObject)
+     goto no_tty;
+
+  memset (ntfn, 0, ntfn_size);
+  status = (*p_NtQueryObject) ((HANDLE)h_fd, ObjectNameInformation, ntfn, ntfn_size, &ntfn_size);
+
+  if (!NT_SUCCESS(status))
+  {
+    /* If it is not NUL (i.e. \Device\Null, which would succeed),
+     * then normal isatty() could be consulted.
+     * */
+    if (_isatty(fd))
+       return (1);
+    goto no_tty;
+  }
+
+  s = ntfn->Name.Buffer;
+  s [ntfn->Name.Length/sizeof(WCHAR)] = 0;
+
+  /* Look for \Device\NamedPipe\(cygwin|msys)-[a-fA-F0-9]{16}-pty[0-9]{1,4}-(from-master|to-master|to-master-cyg)
+   */
+  if (wcsncmp(s, L"\\Device\\NamedPipe\\", 18))
+     goto no_tty;
+  s += 18;
+
+  if (!wcsncmp(s, L"cygwin-", 7))
+       s += 7;
+  else if (!wcsncmp(s, L"msys-", 5))
+       s += 5;
+  else goto no_tty;
+
+  for (i = 0; i < 16; i++)
+  {
+    c = *s++;
+    if (!((c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || (c >= '0' && c <= '9')))
+       goto no_tty;
+  }
+
+  if (wcsncmp(s, L"-pty", 4))
+     goto no_tty;
+  s += 4;
+
+  for (i = 0; i < 4; i++, s++)
+  {
+    c = *s;
+    if (!(c >= '0' && c <= '9'))
+        break;
+  }
+
+  if (i == 0)
+     goto no_tty;
+
+  if (wcscmp(s, L"-from-master") &&
+      wcscmp(s, L"-to-master")   &&
+      wcscmp(s, L"-to-master-cyg"))
+     goto no_tty;
+
+  return (1);
+
+no_tty:
+  errno = EINVAL;
+  return (0);
+}
+
 #if defined(MEM_TEST)
 
 struct prog_options opt;
@@ -1925,3 +2161,4 @@ int main (void)
   return (0);
 }
 #endif  /* MEM_TEST */
+

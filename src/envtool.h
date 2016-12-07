@@ -322,6 +322,11 @@ extern char *win_strerror  (unsigned long err);
 extern void  set_error_mode(int on_off);
 extern int   disk_ready    (int disk);
 
+extern const char *compiler_version (void);
+extern const char *get_user_name (void);
+extern BOOL        is_user_admin (void);
+extern int         is_cygwin_tty (int fd);
+
 extern const char *qword_str (UINT64 val);
 extern const char *dword_str (DWORD val);
 
@@ -421,7 +426,7 @@ extern void     mem_report (void);
   #define REALLOC(p,s)  realloc_at (p, s, __FILE(), __LINE__)
   #define STRDUP(s)     strdup_at (s, __FILE(), __LINE__)
   #define WCSDUP(s)     wcsdup_at (s, __FILE(), __LINE__)
-  #define FREE(p)       (p ? (void) (free_at(p, __FILE(), __LINE__), p = NULL) : (void)0)
+  #define FREE(p)       (p ? (void) (free_at((void*)p, __FILE(), __LINE__), p = NULL) : (void)0)
 #endif
 
 /* Wrapper for popen().
