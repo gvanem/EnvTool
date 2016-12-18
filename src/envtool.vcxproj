@@ -61,7 +61,7 @@
       <OutputFile>$(TargetName)$(TargetExt)</OutputFile>
       <ShowProgress>NotSet</ShowProgress>
       <Version>0.8</Version>
-      <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SetChecksum>true</SetChecksum>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
       <GenerateMapFile>true</GenerateMapFile>
@@ -89,7 +89,7 @@
       <OutputFile>$(TargetName)$(TargetExt)</OutputFile>
       <ShowProgress>NotSet</ShowProgress>
       <Version>0.8</Version>
-      <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SetChecksum>true</SetChecksum>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
       <GenerateMapFile>true</GenerateMapFile>
@@ -106,6 +106,7 @@
     <ClCompile Include="envtool.c" />
     <ClCompile Include="envtool_py.c" />
     <ClCompile Include="Everything.c" />
+    <ClCompile Include="dirlist.c" />
     <ClCompile Include="getopt_long.c" />
     <ClCompile Include="color.c" />
     <ClCompile Include="misc.c" />
