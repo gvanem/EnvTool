@@ -1536,12 +1536,11 @@ char *translate_shell_pattern (const char *pattern)
             *out++ = '.';
             break;
 
-#if 0
-       /* Since this function is only used from do_check_evry() and Everything_SetSearchA()
-        * needs DOS-slashes.
-        */
-       case '/':
-#endif
+       case '+':
+            *out++ = '\\';
+            *out++ = '+';
+            break;
+
        case '\\':
             *out++ = '\\';
             *out++ = '\\';

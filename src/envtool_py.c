@@ -398,6 +398,9 @@ void exit_python (void)
  * 'catcher.value'. I.e:
  *   obj = (*PyObject_GetAttrString) (py_catcher, "value");
  *
+ * \todo:
+ *   Use 'StringIO()' class instead?
+ *
  * Ref:
  *   http://stackoverflow.com/questions/4307187/how-to-catch-python-stdout-in-c-code
  */
@@ -787,7 +790,7 @@ static int process_zip (const char *zfile)
  * 'process_zip()' to list files inside it for a match.
  *
  * Note:
- *   not all .egg-files are ZIP-files. 'check_if_zip()' is used to test
+ *   not all .EGG-files are ZIP-files. 'check_if_zip()' is used to test
  *   that and set 'py->is_zip' accordingly.
  */
 

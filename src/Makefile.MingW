@@ -1,10 +1,10 @@
 #
-# GNU makefile for EnvTool (MinGW/MinGW64/TDM-gcc).
+# GNU makefile for EnvTool (MinGW/MinGW-w64/TDM-gcc).
 #
 
 FORTIFY_SOURCE ?= 1
 USE_DEBUG      ?= 1
-USE_64BIT      ?= 0
+USE_64BIT      ?= 1
 
 CC      = gcc
 CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= \

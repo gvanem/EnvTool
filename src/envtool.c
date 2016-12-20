@@ -34,6 +34,7 @@
 
 #if defined(__CYGWIN__)
   #include <getopt.h>
+  #include <cygwin/version.h>
 #else
   #include "getopt_long.h"
 #endif
@@ -67,7 +68,6 @@
 char *program_name = NULL;
 
 #define REG_APP_PATH    "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths"
-#define KNOWN_DLL_PATH  "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs"
 
 #define MAX_PATHS       500
 #define MAX_ARGS        20
@@ -100,7 +100,8 @@ struct registry_array  reg_array [MAX_PATHS];
 struct prog_options opt;
 
 char   sys_dir        [_MAX_PATH];
-char   sys_native_dir [_MAX_PATH];  /* Not for WIN64 */
+char   sys_native_dir [_MAX_PATH];
+char   sys_wow64_dir  [_MAX_PATH];  /* Not for WIN64 */
 
 static UINT64 total_size = 0;
 static int    num_version_ok = 0;
@@ -108,6 +109,7 @@ static int    num_verified = 0;
 static int    num_evry_dups = 0;
 static BOOL   is_wow64 = FALSE;
 static BOOL   have_sys_native_dir = FALSE;
+static BOOL   have_sys_wow64_dir  = FALSE;
 
 static char *who_am_I = (char*) "envtool";
 
@@ -162,13 +164,9 @@ static int   get_cmake_info (const char **exe, struct ver_info *ver);
  *        Maybe in combination with the EveryThing database (in case %PKG_CONFIG_PATH% is
  *        incorrectly set or have missing .pc files).
  *
- * \todo: if looking for a DLL pattern, the above 'KNOWN_DLL_PATH' should also
- *        be checked. Ref:
- *          http://msdn.microsoft.com/en-us/library/windows/desktop/ms682586%28v=vs.85%29.aspx
- *
  * \todo: Add a '--check' option for 64-bit Windows to check that all .DLLs in:
- *             %SystemRoot%\Sysnative are 64-bit and
- *             %SystemRoot%\SysWOW64  are 32-bit.
+ *             %SystemRoot%\System32 are 64-bit and
+ *             %SystemRoot%\SysWOW64 are 32-bit.
  *
  *        E.g. pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
  *             Machine:                      014C (i386)
@@ -176,9 +174,6 @@ static int   get_cmake_info (const char **exe, struct ver_info *ver);
  *             ....
  *
  *        Also check their Wintrust signature status and version information.
- *
- * \todo: With the '-D' and '-s' options, recursively get the size of file under the
- *        directories matching 'opt.file_spec'.
  */
 
 /*
@@ -271,48 +266,6 @@ static void get_evry_bitness (void)
   DEBUGF (2, "fname: %s, evry_bitness: %d.\n", fname, evry_bitness);
 }
 
-#if defined(_MSC_FULL_VER)
-  /*
-   * Ref. http://msdn.microsoft.com/en-us/library/b0084kay(v=vs.120).aspx
-   *
-   * E.g. "cl /?" prints:
-   *    Microsoft (R) C/C++ Optimizing Compiler Version 18.00.31101 for x86
-   *                       = _MSC_FULL_VER - 180000000  ^----
-   */
-  static const char *msvc_get_micro_ver (void)
-  {
-    static char buf[10];
-
-    buf[0] = '\0';
-
-  #if (_MSC_FULL_VER > 190000000)
-    buf[0] = '.';
-    _ultoa (_MSC_FULL_VER-190000000, buf+1, 10);
-  #elif (_MSC_FULL_VER > 180000000)
-    buf[0] = '.';
-    _ultoa (_MSC_FULL_VER-180000000, buf+1, 10);
-  #endif
-    return (buf);
-  }
-
-  static const char *msvc_get_ver (void)
-  {
-    static char buf[40];
-
-  #ifdef _DEBUG
-    #define DBG_REL "debug"
-  #else
-    #define DBG_REL "release"
-  #endif
-
-    snprintf (buf, sizeof(buf), "Visual-C ver %d.%02d%s, %s",
-              (_MSC_VER / 100), _MSC_VER % 100, msvc_get_micro_ver(), DBG_REL);
-    return (buf);
-  }
-  #undef  BUILDER
-  #define BUILDER msvc_get_ver()
-#endif   /* _MSC_FULL_VER */
-
 /*
  * Show some basic version information:    option '-V'.
  * Show more detailed version information: option '-VV'.
@@ -322,9 +275,10 @@ static int show_version (void)
   const char     *py_exe, *cmake_exe;
   HWND            wnd;
   struct ver_info py_ver, evry_ver, cmake_ver;
+  int             len = 0;
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.~0\n",
-            who_am_I, VER_STRING, BUILDER, WIN_VERSTR,
+            who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
             is_wow64 ? ", ~1WOW64" : "", AUTHOR_STR);
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
@@ -343,16 +297,40 @@ static int show_version (void)
   C_printf ("\r                             \r");
 
   if (get_python_info(&py_exe, NULL, &py_ver))
-       C_printf ("  Python %u.%u.%u detected -> ~6%s~0.\n", py_ver.val_1, py_ver.val_2, py_ver.val_3, py_exe);
-  else C_printf ("  Python ~5not~0 found.\n");
+  {
+    len = C_printf ("  Python %u.%u.%u detected", py_ver.val_1, py_ver.val_2, py_ver.val_3);
+    C_printf (" -> ~6%s~0.\n", py_exe);
+  }
+  else
+    C_printf ("  Python ~5not~0 found.\n");
 
   if (get_cmake_info(&cmake_exe, &cmake_ver))
-       C_printf ("  Cmake %u.%u.%u detected  -> ~6%s~0.\n", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3, cmake_exe);
-  else C_printf ("  Cmake ~5not~0 found.\n");
+  {
+    C_printf ("  Cmake %u.%u.%u detected", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
+    C_printf ("%*s -> ~6%s~0.\n", len ? len-22 : 0, "", cmake_exe);
+  }
+  else
+    C_printf ("  Cmake ~5not~0 found.\n");
 
   if (opt.do_version >= 2)
   {
-    C_printf ("  OS-version: %s.\n", os_name());
+    char kernel32 [_MAX_PATH], *os_bits = "Unknow bitness";
+    enum Bitness bits = bit_unknown;
+
+    if (have_sys_native_dir)
+         snprintf (kernel32, sizeof(kernel32), "%s\\%s", sys_native_dir, "kernel32.dll");
+    else snprintf (kernel32, sizeof(kernel32), "%s\\%s", sys_dir, "kernel32.dll");
+
+    if (FILE_EXISTS(kernel32) && check_if_PE(kernel32, &bits))
+    {
+      if (bits == bit_32)
+         os_bits = "32 bits";
+      else if (bits == bit_64)
+         os_bits = "64 bits";
+    }
+
+    C_printf ("  OS-version: %s (%s).\n", os_name(), os_bits);
+    C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : " not");
 
     C_puts ("\n  Compile command and ~3CFLAGS~0:");
     print_build_cflags();
@@ -468,12 +446,12 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
   BOOL   exists, is_dir;
   DWORD  attr;
 
-  /* Watcom's stat() doesn't handle a 'native' directories.
+  /* Watcom's stat() doesn't handle 'native' directories.
    * But we can use this code for all targets since it seems faster.
    */
   attr = GetFileAttributes (dir);
   exists = (attr != INVALID_FILE_ATTRIBUTES);
-  is_dir = (attr & FILE_ATTRIBUTE_DIRECTORY);
+  is_dir = exists && (attr & FILE_ATTRIBUTE_DIRECTORY);
 
   d->cyg_dir = NULL;
   d->dir     = STRDUP (dir);
@@ -514,15 +492,15 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
 
 static void dump_dir_array (const char *where)
 {
-  const struct directory_array *d = dir_array;
-  int   i;
+  const struct directory_array *dir = dir_array;
+  size_t       i;
 
   DEBUGF (3, "%s now\n", where);
-  for (i = 0; i < DIM(dir_array); i++, d++)
+  for (i = 0; i < DIM(dir_array); i++, dir++)
   {
     DEBUGF (3, "  dir_array[%d]: exist:%d, num_dup:%d, %s  %s\n",
-            i, d->exist, d->num_dup, d->dir, d->cyg_dir ? d->cyg_dir : "");
-    if (!d->dir)
+            (int)i, dir->exist, dir->num_dup, dir->dir, dir->cyg_dir ? dir->cyg_dir : "");
+    if (!dir->dir)
        break;
   }
 }
@@ -574,6 +552,17 @@ static void free_dir_array (void)
 {
   struct directory_array *arr;
 
+#if 1
+  size_t i;
+
+  for (i = 0, arr = dir_array; i < DIM(dir_array); i++, arr++)
+  {
+    FREE (arr->dir);
+    FREE (arr->cyg_dir);
+    memset (arr, '\0', sizeof(*arr));
+  }
+#else
+
   for (arr = arr0; arr && arr->dir; arr++)
   {
     FREE (arr->dir);
@@ -581,6 +570,7 @@ static void free_dir_array (void)
   }
   arr0 = NULL;
   memset (&dir_array, '\0', sizeof(dir_array));
+#endif
 }
 
 static void check_dir_array (void)
@@ -645,30 +635,25 @@ static void add_to_reg_array (int *idx, HKEY key, const char *fname, const char 
 /*
  * `Sort the 'reg_array' on 'path' + 'real_fname'.
  */
-#define DO_SORT  1
+typedef int (*CmpFunc) (const void *, const void *);
 
-#if DO_SORT
-  typedef int (*CmpFunc) (const void *, const void *);
+static int reg_array_compare (const struct registry_array *a,
+                              const struct registry_array *b)
+{
+  char fqdn_a [_MAX_PATH];
+  char fqdn_b [_MAX_PATH];
+  int  slash = (opt.show_unix_paths ? '/' : '\\');
 
-  static int reg_array_compare (const struct registry_array *a,
-                                const struct registry_array *b)
-  {
-    char fqdn_a [_MAX_PATH];
-    char fqdn_b [_MAX_PATH];
-    int  slash = (opt.show_unix_paths ? '/' : '\\');
+  if (!a->path || !a->real_fname || !b->path || !b->real_fname)
+     return (0);
+  snprintf (fqdn_a, sizeof(fqdn_a), "%s%c%s", slashify(a->path, slash), slash, a->real_fname);
+  snprintf (fqdn_b, sizeof(fqdn_b), "%s%c%s", slashify(b->path, slash), slash, b->real_fname);
 
-    if (!a->path || !a->real_fname || !b->path || !b->real_fname)
-       return (0);
-    snprintf (fqdn_a, sizeof(fqdn_a), "%s%c%s", slashify(a->path, slash), slash, a->real_fname);
-    snprintf (fqdn_b, sizeof(fqdn_b), "%s%c%s", slashify(b->path, slash), slash, b->real_fname);
-
-    return stricmp (fqdn_a, fqdn_b);
-  }
-#endif
+  return stricmp (fqdn_a, fqdn_b);
+}
 
 static void sort_reg_array (int num)
 {
-#if DO_SORT
   int i, slash = (opt.show_unix_paths ? '/' : '\\');
 
   DEBUGF (3, "before qsort():\n");
@@ -680,7 +665,6 @@ static void sort_reg_array (int num)
   DEBUGF (3, "after qsort():\n");
   for (i = 0; i < num; i++)
      DEBUGF (3, "%2d: FQDN: %s%c%s.\n", i, reg_array[i].path, slash, reg_array[i].real_fname);
-#endif
 }
 
 /*
@@ -1347,7 +1331,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
            break;
 
       case REG_LINK:
-           DEBUGF (1, "    num: %lu, REG_LINK, value: \"%S\", data: \"%S\"\n",
+           DEBUGF (1, "    num: %lu, REG_LINK, value: \"%" WIDESTR_FMT "\", data: \"%" WIDESTR_FMT "\"\n",
                       num, (wchar_t*)value, (wchar_t*)data);
            break;
 
@@ -1758,31 +1742,23 @@ static const char *evry_strerror (DWORD err)
   return (buf);
 }
 
+static void check_sys_dir (const char *dir, const char *name, BOOL *have_it)
+{
+  BOOL is_dir = (GetFileAttributes(dir) & FILE_ATTRIBUTE_DIRECTORY);
+
+  if (is_dir)
+       DEBUGF (1, "%s: '%s' okay\n", name, dir);
+  else DEBUGF (1, "%s: '%s', GetLastError(): %lu\n", name, dir, GetLastError());
+
+  if (have_it)
+     *have_it = is_dir;
+}
+
 static void check_sys_dirs (void)
 {
-  BOOL is_dir;
-
-  is_dir = (GetFileAttributes(sys_dir) & FILE_ATTRIBUTE_DIRECTORY);
-  if (is_dir)
-       DEBUGF (1, "sys_dir: '%s' okay\n", sys_dir);
-  else DEBUGF (1, "sys_dir: '%s', GetLastError(): %lu\n", sys_dir, GetLastError());
-
-  is_dir = (GetFileAttributes(sys_native_dir) & FILE_ATTRIBUTE_DIRECTORY);
-  if (is_dir)
-  {
-    DEBUGF (1, "sys_native_dir: '%s'\n", sys_native_dir);
-    have_sys_native_dir = TRUE;
-  }
-  else
-  {
-    DEBUGF (1, "sys_native_dir: '%s', GetLastError(): %lu\n", sys_native_dir, GetLastError());
-    have_sys_native_dir = FALSE;
-  }
-
-#if (IS_WIN64)
-  if (have_sys_native_dir)
-     DEBUGF (0, "sys_native_dir: '%s' exists on WIN64!!\n", sys_native_dir);
-#endif
+  check_sys_dir (sys_dir, "sys_dir", NULL);
+  check_sys_dir (sys_native_dir, "sys_native_dir", &have_sys_native_dir);
+  check_sys_dir (sys_wow64_dir, "sys_wow64_dir", &have_sys_wow64_dir);
 }
 
 /*
@@ -1839,9 +1815,9 @@ static const char *get_sysnative_file (const char *file, time_t *mtime_p, UINT64
  * But then we need a-priori knowledge that 'X:' is remote. Like
  *  'C:\> net use'  does:
  *
- *  Status       Local     Exxternal                 Network
+ *  Status       Local     External                  Network
  *  -------------------------------------------------------------------------------
- *  Disconnected X:        \\DONALD\D-PART           Microsoft Windows Network
+ *  Disconnected X:        \\DONALD\X-PARTITION      Microsoft Windows Network
  *  ^^
  *   where to get this state?
  */
@@ -1922,15 +1898,13 @@ static int do_check_evry (void)
 
   if (num == 0)
   {
-    const char *fmt = opt.use_regex ?
-                        "Nothing matched your regexp \"%s\".\n"
-                        "Are you sure it is correct? Try quoting it.\n" :
-                        "Nothing matched your search \"%s\".\n"
-                        "Are you sure all NTFS disks are indexed by EveryThing? Try adding folders manually.\n";
-    char buf [5000];
-
-    snprintf (buf, sizeof(buf), fmt, opt.use_regex ? opt.file_spec_re : opt.file_spec);
-    WARN ("%s", buf);
+    if (opt.use_regex)
+         WARN ("Nothing matched your regexp \"%s\".\n"
+               "Are you sure it is correct? Try quoting it.\n",
+               opt.file_spec_re);
+    else WARN ("Nothing matched your search \"%s\".\n"
+               "Are you sure all NTFS disks are indexed by EveryThing? Try adding folders manually.\n",
+               opt.file_spec);
     return (0);
   }
 
@@ -2292,11 +2266,14 @@ static int find_library_path_cb (char *buf, int index)
   return (i);
 }
 
+
 #if defined(__CYGWIN__)
-  #define GCC_DUMP_FMT "%s %s -v -dM -xc -c - < /dev/null 2>&1"
+  #define CLANG_DUMP_FMT "clang -v -dM -xc -c - < /dev/null 2>&1"
+  #define GCC_DUMP_FMT   "%s %s -v -dM -xc -c - < /dev/null 2>&1"
 #else
-  #define GCC_DUMP_FMT "%s %s -o NUL -v -dM -xc -c - < NUL 2>&1"
-#endif            /* gcc ^, ^ '', '-m32' or '-m64' */
+  #define CLANG_DUMP_FMT "clang -o NUL -v -dM -xc -c - < NUL 2>&1"
+  #define GCC_DUMP_FMT   "%s %s -o NUL -v -dM -xc -c - < NUL 2>&1"
+#endif             /* gcc ^, ^ '', '-m32' or '-m64' */
 
 static int setup_gcc_includes (const char *gcc)
 {
@@ -2835,14 +2812,6 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
        break;
   }
 
-#if 0
-  if (opt.dir_mode && opt.show_size)
-  {
-    printf ("Option '-s' cannot yet show directorty sizes for option '-D'.\n");
-    exit (1);
-  }
-#endif
-
   if (opt.only_32bit && opt.only_64bit)
   {
     printf ("Specifying both '--32' and '--64' doesn't make sense.\n");
@@ -2997,9 +2966,13 @@ static void init_all (void)
   {
     const char *rslash = strrchr (sys_dir,'\\');
 
-    if (rslash)
-       snprintf (sys_native_dir, sizeof(sys_native_dir), "%.*s\\sysnative",
-                 (int)(rslash - sys_dir), sys_dir);
+    if (rslash > sys_dir)
+    {
+      snprintf (sys_native_dir, sizeof(sys_native_dir), "%.*s\\sysnative",
+                (int)(rslash - sys_dir), sys_dir);
+      snprintf (sys_wow64_dir, sizeof(sys_wow64_dir), "%.*s\\SysWOW64",
+                (int)(rslash - sys_dir), sys_dir);
+    }
   }
 }
 
@@ -3178,7 +3151,7 @@ char *getenv_expand (const char *variable)
  */
 void test_split_env (const char *env)
 {
-  struct directory_array *arr, *arr0;
+  struct directory_array *arr;
   char  *value;
   int    i;
 
@@ -3227,7 +3200,7 @@ void test_split_env (const char *env)
 
 void test_split_env_cygwin (const char *env)
 {
-  struct directory_array *arr, *arr0;
+  struct directory_array *arr;
   char  *value, *cyg_value;
   int    i, rc, needed, save = opt.conv_cygdrive;
 
@@ -3327,12 +3300,19 @@ struct test_table1 {
 static const struct test_table1 tab1[] = {
                   { "kernel32.dll",      "PATH" },
                   { "notepad.exe",       "PATH" },
+
+                  /* Relative test:
+                   *   'c:\Windows\system32\Resources\Themes\aero.theme' is present in Win-10
+                   *   and 'c:\Windows\system32' should always be on PATH.
+                   */
+                  { "..\\Resources\\Themes\\aero.theme", "PATH" },
+
                   { "./envtool.c",       "FOO-BAR" },       /* CWD should always be at pos 0 regarless of env-var. */
                   { "msvcrt.lib",        "LIB" },
-                  { "libgcc.a",          "LIBRARY_PATH" },  /* MinGW-w64 doesn't seems to have libgcc.a */
+                  { "libgcc.a",          "LIBRARY_PATH" },  /* MinGW-w64 doesn't seem to have libgcc.a */
                   { "libgmon.a",         "LIBRARY_PATH" },
                   { "stdio.h",           "INCLUDE" },
-                  { "os.py",             "PYTHONPATH" },
+                  { "../os.py",          "PYTHONPATH" },
 
                   /* test if _fix_path() works for Short File Names
                    * (%WinDir\systems32\PresentationHost.exe).
@@ -3341,10 +3321,13 @@ static const struct test_table1 tab1[] = {
                    */
                   { "PRESEN~~1.EXE",      "PATH" },
 
-                  /* test if _fix_path() works with "%WinDir%\sysnative" on Win-7+
+                  /* test if _fix_path() works with "%WinDir%\sysnative" on Win-7+.
                    */
+#if (IS_WIN64)
+                  { "NDIS.SYS",          "%WinDir%\\system32\\drivers" },
+#else
                   { "NDIS.SYS",          "%WinDir%\\sysnative\\drivers" },
-
+#endif
                   { "SWAPFILE.SYS",      "c:\\" },  /* test if searchpath() finds hidden files. */
                   { "\\\\localhost\\$C", "PATH" },  /* Does it work on a share too? */
                   { "\\\\.\\C:",         "PATH" },  /* Or as a device name? */
@@ -3359,24 +3342,16 @@ static void test_searchpath (void)
   int    is_env, pad;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
-  C_printf ("  ~6What \t\t  Where\t\t\t     Result~0\n");
+  C_printf ("  ~6What \t\t\t\t    Where\t\t\t     Result~0\n");
 
   for (t = tab1; i < DIM(tab1); t++, i++)
   {
     const char *env   = t->env;
     const char *found = searchpath (t->file, env);
 
-#if 0
-    if (found)
-    {
-      char buf [_MAX_PATH];
-      found = _fix_path (found, buf);
-    }
-#endif
-
     is_env = (strchr(env,'\\') == NULL);
     len = C_printf ("  %s:", t->file);
-    pad = max (0, 17-len);
+    pad = max (0, 35-len);
     C_printf ("%*s %s%s", pad, "", is_env ? "%" : "", env);
     pad = max (0, 26-strlen(env)-is_env);
     C_printf ("%*s -> %s, pos: %d\n", pad, "",
@@ -3547,44 +3522,95 @@ static void test_SHGetFolderPath (void)
                       ADD_VALUE (CSIDL_NETHOOD),
                       ADD_VALUE (CSIDL_PERSONAL),
                       ADD_VALUE (CSIDL_PROFILE),
+                      ADD_VALUE (CSIDL_PROGRAM_FILES),
+                      ADD_VALUE (CSIDL_PROGRAM_FILESX86),
                       ADD_VALUE (CSIDL_PROGRAM_FILES_COMMON),
                       ADD_VALUE (CSIDL_PROGRAM_FILES_COMMONX86),
-                      ADD_VALUE (CSIDL_PROGRAM_FILESX86),
-                      ADD_VALUE (CSIDL_PROGRAM_FILES),
                       ADD_VALUE (CSIDL_STARTUP),
                       ADD_VALUE (CSIDL_SYSTEM),
                       ADD_VALUE (CSIDL_SYSTEMX86),
                       ADD_VALUE (CSIDL_TEMPLATES),
                       ADD_VALUE (CSIDL_WINDOWS)
                     };
+
+#if 0
+#define CSIDL_INTERNET                  0x0001        // Internet Explorer (icon on desktop)
+#define CSIDL_PROGRAMS                  0x0002        // Start Menu\Programs
+#define CSIDL_CONTROLS                  0x0003        // My Computer\Control Panel
+#define CSIDL_PRINTERS                  0x0004        // My Computer\Printers
+#define CSIDL_PERSONAL                  0x0005        // My Documents
+#define CSIDL_FAVORITES                 0x0006        // <user name>\Favorites
+#define CSIDL_STARTUP                   0x0007        // Start Menu\Programs\Startup
+#define CSIDL_RECENT                    0x0008        // <user name>\Recent
+#define CSIDL_SENDTO                    0x0009        // <user name>\SendTo
+#define CSIDL_BITBUCKET                 0x000a        // <desktop>\Recycle Bin
+#define CSIDL_STARTMENU                 0x000b        // <user name>\Start Menu
+#define CSIDL_MYMUSIC                   0x000d        // "My Music" folder
+#define CSIDL_MYVIDEO                   0x000e        // "My Videos" folder
+#define CSIDL_DESKTOPDIRECTORY          0x0010        // <user name>\Desktop
+#define CSIDL_DRIVES                    0x0011        // My Computer
+#define CSIDL_NETWORK                   0x0012        // Network Neighborhood (My Network Places)
+#define CSIDL_NETHOOD                   0x0013        // <user name>\nethood
+#define CSIDL_FONTS                     0x0014        // windows\fonts
+#define CSIDL_TEMPLATES                 0x0015
+#define CSIDL_COMMON_STARTMENU          0x0016        // All Users\Start Menu
+#define CSIDL_COMMON_PROGRAMS           0X0017        // All Users\Start Menu\Programs
+#define CSIDL_COMMON_STARTUP            0x0018        // All Users\Startup
+#define CSIDL_COMMON_DESKTOPDIRECTORY   0x0019        // All Users\Desktop
+#define CSIDL_APPDATA                   0x001a        // <user name>\Application Data
+#define CSIDL_PRINTHOOD                 0x001b        // <user name>\PrintHood
+#define CSIDL_LOCAL_APPDATA             0x001c        // <user name>\Local Settings\Applicaiton Data (non roaming)
+#define CSIDL_ALTSTARTUP                0x001d        // non localized startup
+#define CSIDL_COMMON_ALTSTARTUP         0x001e        // non localized common startup
+#define CSIDL_COMMON_FAVORITES          0x001f
+#define CSIDL_INTERNET_CACHE            0x0020
+#define CSIDL_COOKIES                   0x0021
+#define CSIDL_HISTORY                   0x0022
+#define CSIDL_COMMON_APPDATA            0x0023        // All Users\Application Data
+#define CSIDL_WINDOWS                   0x0024        // GetWindowsDirectory()
+#define CSIDL_SYSTEM                    0x0025        // GetSystemDirectory()
+#define CSIDL_PROGRAM_FILES             0x0026        // C:\Program Files
+#define CSIDL_MYPICTURES                0x0027        // C:\Program Files\My Pictures
+#define CSIDL_PROFILE                   0x0028        // USERPROFILE
+#define CSIDL_SYSTEMX86                 0x0029        // x86 system directory on RISC
+#define CSIDL_PROGRAM_FILESX86          0x002a        // x86 C:\Program Files on RISC
+#define CSIDL_PROGRAM_FILES_COMMON      0x002b        // C:\Program Files\Common
+#define CSIDL_PROGRAM_FILES_COMMONX86   0x002c        // x86 Program Files\Common on RISC
+#define CSIDL_COMMON_TEMPLATES          0x002d        // All Users\Templates
+#define CSIDL_COMMON_DOCUMENTS          0x002e        // All Users\Documents
+#define CSIDL_COMMON_ADMINTOOLS         0x002f        // All Users\Start Menu\Programs\Administrative Tools
+#define CSIDL_ADMINTOOLS                0x0030        // <user name>\Start Menu\Programs\Administrative Tools
+#define CSIDL_CONNECTIONS               0x0031        // Network and Dial-up Connections
+#define CSIDL_COMMON_MUSIC              0x0035        // All Users\My Music
+#define CSIDL_COMMON_PICTURES           0x0036        // All Users\My Pictures
+#define CSIDL_COMMON_VIDEO              0x0037        // All Users\My Video
+#define CSIDL_RESOURCES                 0x0038        // Resource Direcotry
+#define CSIDL_RESOURCES_LOCALIZED       0x0039        // Localized Resource Direcotry
+#define CSIDL_COMMON_OEM_LINKS          0x003a        // Links to All Users OEM specific apps
+#define CSIDL_CDBURN_AREA               0x003b        // USERPROFILE\Local Settings\Application Data\Microsoft\CD Burning
+#define CSIDL_COMPUTERSNEARME           0x003d        // Computers Near Me (computered from Workgroup membership)
+
+#endif
+
   int i;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
-  if (opt.debug > 0)
-  {
-    void get_shell_folders (void); /* in misc.c */
-
-    get_shell_folders();
-    return;
-  }
-
   for (i = 0; i < DIM(sh_folders); i++)
   {
-    char                      path1 [_MAX_PATH];
-    char                      path2 [_MAX_PATH];
+    char                      buf [_MAX_PATH];
     const struct search_list *folder   = sh_folders + i;
     const char               *flag_str = opt.verbose ? "SHGFP_TYPE_CURRENT" : "SHGFP_TYPE_DEFAULT";
     DWORD                     flag     = opt.verbose ?  SHGFP_TYPE_CURRENT  :  SHGFP_TYPE_DEFAULT;
-    HRESULT                   rc       = SHGetFolderPath (NULL, folder->value, NULL,
-                                                          flag, path1);
+    HRESULT                   rc       = SHGetFolderPath (NULL, folder->value, NULL, flag, buf);
+
     if (rc == S_OK)
-         _fix_path (path1, path2);
-    else snprintf (path2, sizeof(path2), "~5Failed: %s",
+         _fix_drive (buf);
+    else snprintf (buf, sizeof(buf), "~5Failed: %s",
                    win_strerror(GetLastError()));
 
-    C_printf ("  SHGetFolderPath (%s, %s):\n    ~2%s~0\n",
-              folder->name, flag_str, path2);
+    C_printf ("  ~3SHGetFolderPath~0 (~6%s~0, ~6%s~0):\n    ~2%s~0\n",
+              folder->name, flag_str, buf);
   }
   C_putc ('\n');
 }
@@ -3739,7 +3765,7 @@ static int do_tests (void)
 
   if (opt.do_python)
   {
-    if (/* test_python_pipe() && */ !halt_flag)
+    if (!halt_flag)
     {
       test_pythons();
       test_python_funcs();

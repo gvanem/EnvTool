@@ -25,14 +25,20 @@ int searchpath_pos (void)
 }
 
 /*
+ * Window Vista's+ 'SearchPath()' (in Kernel32.dll) uses this function while
+ * searching for .EXEs.
+ * \todo: Can we do the same?
+ *
+ * Ref:
+ *   https://msdn.microsoft.com/en-us/library/ms684269
+ */
+typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_name);
+
+/*
  * Search '%env_var' for the first 'file' (not a 'file_spec').
  * If successful, store the full pathname in static buffer and return a
  * pointer to it. If not sucessful, return NULL.
  * This is what the Borland searchpath() library function does.
- *
- * \todo: Return the truename (correct casing) for file.
- *        Like Python's "ntpath.abspath (path)" does.
- *        Use GetLongPathName() ?
  *
  * \note: if 'env_var' is just a dirname, the 'file' is just tested for
  *        presence in current directory and that dirname. E.g.
@@ -45,6 +51,17 @@ char *searchpath (const char *file, const char *env_var)
   char   *p, *path, *test_dir;
   size_t  alloc;
   int     save_debug = opt.debug;
+  static  func_NeedCurrentDirectoryForExePathA p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)-1;
+
+  if (p_NeedCurrentDirectoryForExePathA == (func_NeedCurrentDirectoryForExePathA)-1)
+  {
+    HANDLE hnd = GetModuleHandle ("kernel32.dll");
+
+    if (hnd && hnd != INVALID_HANDLE_VALUE)
+       p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)
+          GetProcAddress (hnd, "NeedCurrentDirectoryForExePathA");
+    DEBUGF (2, "p_NeedCurrentDirectoryForExePathA(): 0x%p\n", p_NeedCurrentDirectoryForExePathA);
+  }
 
   last_pos = -1;
 
@@ -54,6 +71,7 @@ char *searchpath (const char *file, const char *env_var)
     errno = EINVAL;
     return (NULL);
   }
+
   if (!env_var || !*env_var)
   {
     DEBUGF (1, "given a bogus 'env_var'\n");
@@ -75,6 +93,7 @@ char *searchpath (const char *file, const char *env_var)
   {
     DEBUGF (1, "calloc() failed");
     FREE (p);
+    errno = ENOMEM;
     return (NULL);
   }
 
@@ -126,12 +145,6 @@ char *searchpath (const char *file, const char *env_var)
     }
   }
 
-  /* Borland's version (as of BC 3.1) always disregards the leading
-   * directories and only looks at the file-name component. So, for
-   * example, "foo/bar/baz.exe" could find "c:/bin/baz.exe". But that
-   * doesn't seem right, so we don't follow their lead here.
-   */
-
   /* If the file name includes slashes or the drive letter, maybe they
    * already have a good name.
    */
@@ -153,6 +166,9 @@ char *searchpath (const char *file, const char *env_var)
     FREE (p);
     FREE (path);
     last_pos = 0;
+
+    if (strstr(found,".."))
+       _fix_path (found, found);
     return (found);
   }
 
@@ -179,6 +195,8 @@ char *searchpath (const char *file, const char *env_var)
     {
       FREE (p);
       FREE (path);
+      if (strstr(found,".."))
+         _fix_path (found, found);
       return (found);
     }
 
@@ -197,6 +215,7 @@ char *searchpath (const char *file, const char *env_var)
    * this first... ;-)
    */
   last_pos = -1;
+  errno = ENOENT;
   return (NULL);
 }
 

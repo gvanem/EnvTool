@@ -116,13 +116,6 @@ void get_PE_version_info_free (void)
   trace_buf = trace_head = NULL;
 }
 
-/*
- * Defined in newer <sal.h> for MSVC.
- */
-#ifndef _Printf_format_string_
-#define _Printf_format_string_
-#endif
-
 #if defined(__POCC__)
   static _CRTCHK(printf,1,2) void do_printf (const char *fmt, ...);
 #else
@@ -521,7 +514,7 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
       for (; (const BYTE*)pST < (const BYTE*)pSFI + pSFI->wLength;
             pST = (const struct StringTable*) ROUND_POS ((BYTE*)pST + pST->wLength, pST, 4))
       {
-        do_printf ("  LangID:         %S\n", pST->szKey);
+        do_printf ("  LangID:         %" WIDESTR_FMT "\n", pST->szKey);
 
         ASSERT (!pST->wValueLength);
 
@@ -556,7 +549,7 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
       for (; (const BYTE*)pV < (const BYTE*)pVFI + pVFI->wLength;
            pV = (const struct Var*) ROUND_POS ((const BYTE*)pV + pV->wLength, pV, 4))
       {
-        do_printf ("  %S:    ", pV->szKey);
+        do_printf ("  %" WIDESTR_FMT ":    ", pV->szKey);
 
         /* Iterate through the array of pairs of 16-bit language ID values that make up
          * the standard 'Translation' VarFileInfo element.

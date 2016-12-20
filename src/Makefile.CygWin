@@ -11,7 +11,7 @@ CC = gcc
 CFLAGS  = -Wall -static-libgcc -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl # -D_WIN32
 LDFLAGS = -Wl,--print-map,--sort-common,--cref -L/usr/lib/w32api
 RCFLAGS = -O COFF
-GCC_VER = 4.9.2
+GCC_VER ?= 4.9.2
 
 ifeq ($(USE_64BIT),1)
   CFLAGS  += -m64

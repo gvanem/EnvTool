@@ -3,7 +3,7 @@
 #
 
 DEBUG  = 0
-STATIC = 0
+STATIC = 1
 
 CC      = cl
 CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 \
@@ -54,7 +54,7 @@ OBJECTS = envtool.obj envtool_py.obj color.obj Everything.obj dirlist.obj getopt
 
 all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
 	copy /y envtool.exe ..
-	@echo $@ successfully built.
+	@echo '"envtool.exe win_glob.exe win_ver.exe dirlist.exe" successfully built.'
 
 envtool.exe: $(OBJECTS) envtool.res
 	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) > link.tmp

@@ -23,15 +23,14 @@ enum python_variants {
 
 extern enum python_variants which_python;
 
-extern int   init_python        (void);
-extern void  exit_python        (void);
-extern int   get_python_info    (const char **exe, const char **dll, struct ver_info *ver);
-extern int   do_check_python    (void);
-extern void  test_python_funcs  (void);
-extern int   test_python_pipe   (void);
-extern int   test_pythons       (void);
-extern void  searchpath_pythons (void);
-const char **python_get_variants(void);
+extern int          init_python         (void);
+extern void         exit_python         (void);
+extern int          get_python_info     (const char **exe, const char **dll, struct ver_info *ver);
+extern int          do_check_python     (void);
+extern void         test_python_funcs   (void);
+extern int          test_pythons        (void);
+extern void         searchpath_pythons  (void);
+extern const char **python_get_variants (void);
 
 #endif  /* _ENVTOOL_PY_H */
 

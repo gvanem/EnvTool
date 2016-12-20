@@ -718,9 +718,9 @@ void usage (void)
   exit (-1);
 }
 
-static int callback (const char *epath, int eerno)
+static int callback (const char *epath, int error)
 {
-//printf ("callback: rc: %d, '%s'\n", eerno, epath);
+//printf ("callback: rc: %d, '%s'\n", error, epath);
   return (0);
 }
 
@@ -791,7 +791,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
      attr_str[9] = 'N';
 
   if (ff->ff_attrib & FILE_ATTRIBUTE_NO_SCRUB_DATA)
-     attr_str[10] = 'N';
+     attr_str[10] = 'n';
 
   if (ff->ff_attrib & FILE_ATTRIBUTE_VIRTUAL)
      attr_str[11] = 'V';
@@ -804,7 +804,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
 
     if (rc)
     {
-      snprintf (orig, sizeof(orig), "[%s\\]", path);
+      snprintf (orig, sizeof(orig), " [%s\\]", path);
       orig_path = orig;
       path      = _fix_drive (result);
       total_reparse_points++;
@@ -815,7 +815,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
   if (is_dir || is_junction)
   {
     total_dirs++;
-    printf ("%2lu, %14s: %s %s\\ %s\n", recursion_level, "<N/A>", attr_str, path, orig_path);
+    printf ("%2lu, %14s: %s %s\\%s\n", recursion_level, "<N/A>", attr_str, path, orig_path);
   }
   else
   {
@@ -901,6 +901,7 @@ static void do_glob_new (const char *spec)
   else
     dot_spec = NULL;
 
+  total_files = total_dirs = total_reparse_points = total_size = 0;
   recursion_level = num_ignored_errors = 0;
 
   DEBUGF (1, "dir: '%s', global_spec: '%s', orig_spec: '%s', dot_spec: '%s'\n",

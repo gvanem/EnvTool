@@ -466,7 +466,7 @@ void C_puts_long_line (size_t indent, const char *start)
      */
     if ((size_t)(c - start) > max_len && (*c == ' ' || *c == '\t'))
     {
-      C_printf ("\n%*c", indent, ' ');
+      C_printf ("\n%*c", (int)indent, ' ');
       start = c;
     }
   }

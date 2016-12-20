@@ -12,13 +12,15 @@ enum od2x_sorting {
      OD2X_UNSORTED,
      OD2X_ON_NAME,
      OD2X_FILES_FIRST,
-     OD2X_DIRECTORIES_FIRST
+     OD2X_DIRECTORIES_FIRST,
+     OD2X_SORT_REVERSE = 0x800
    };
 
 struct od2x_options {
        const char       *pattern;
        enum od2x_sorting sort;
        int               recursive;
+       int               unixy_paths;
      };
 
 struct dirent2 {
@@ -26,7 +28,7 @@ struct dirent2 {
        size_t    d_reclen;       /* more farce */
        size_t    d_namlen;       /* length of d_name */
        char     *d_name;         /* MALLOC()'ed fully qualified file-name */
-       char     *d_link;         /* MALLOC()'ed name of Repare-point */
+       char     *d_link;         /* MALLOC()'ed name of Repare-Point (Junction target) */
        DWORD     d_attrib;       /* FILE_ATTRIBUTE_xx. Ref MSDN. */
        FILETIME  d_time_create;
        FILETIME  d_time_access;  /* always midnight local time */
@@ -41,7 +43,7 @@ typedef struct _dirdesc2 {
       } DIR2;
 
 extern DIR2           *opendir2 (const char *dir);
-extern DIR2           *opendir2x (const char *dir, struct od2x_options *_opts);
+extern DIR2           *opendir2x (const char *dir, const struct od2x_options *_opts);
 extern struct dirent2 *readdir2 (DIR2 *dp);
 extern void            seekdir2 (DIR2 *dp, long ofs);
 extern long            telldir2 (DIR2 *dp);
