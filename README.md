@@ -1,4 +1,4 @@
-EnvTool v0.99:
+EnvTool v1.0:
 ==============
 
 A tool to search along various environment variables for files (or a wildcard). The following option-modes handles
@@ -141,20 +141,16 @@ envtool.exe --evry -r "misc\\.*\\foo.*\.bar"
 ```
 
 **E.g. 8**: More than one option-mode can combined. For example:
-`envtool.exe --man --evry gzip*.[1-9]*`:
+`envtool.exe --man --evry awk*.[1-9]*`:
 ```
 Matches in %MANPATH:
-      13 Mar 2011 - 19:47:43: f:\CygWin\usr\share\man\man1\gzip.1.gz
-      09 Dec 1997 - 17:55:20: e:\djgpp\share\man\man1\gzip.1
-      15 Dec 2004 - 02:06:32: e:\djgpp\share\man\cat1\gzip.1
+      13 Mar 2011 - 19:47:43: f:\CygWin\usr\share\man\man1\awk.1.gz (f:\CygWin\usr\share\man\man1\gawk.1)
+      09 Dec 1997 - 17:55:20: e:\djgpp\share\man\man1\awk.1
+      15 Dec 2004 - 02:06:32: e:\djgpp\share\man\cat1\awk.1
 Matches from EveryThing:
-<DIR> 24 May 2014 - 12:48:16: e:\DJGPP\gnu\gzip-1.3-3\
-      15 Dec 2004 - 02:06:32: e:\DJGPP\share\man\cat1\gzip.1
-      09 Dec 1997 - 17:55:20: e:\DJGPP\share\man\man1\gzip.1
-      13 Mar 2011 - 19:47:43: f:\CygWin\usr\share\man\man1\gzip.1.gz
-      11 Nov 2013 - 14:05:46: f:\MingW32\msys32\usr\share\man\man1\gzip.1.gz
-<DIR> 01 Sep 2014 - 17:49:32: f:\MingW32\msys32\var\lib\pacman\local\gzip-1.6-1\
-      30 Sep 2013 - 13:07:53: f:\MingW32\var\cache\mingw-get\packages\gzip-1.3.12-2-msys-1.0.13-bin.tar.lzma
+<DIR> 24 May 2014 - 12:48:16: e:\DJGPP\gnu\awk-1.3-3\
+      09 Dec 1997 - 17:55:20: e:\DJGPP\share\man\man1\awk.1
+<DIR> 01 Sep 2014 - 17:49:32: f:\MingW32\msys32\var\lib\pacman\local\awk-1.6-1\
 ```
 
 C-source included in ./src. Makefiles for MinGW, Cygwin, Watcom and MSVC. Use at own
