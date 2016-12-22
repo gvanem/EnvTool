@@ -176,11 +176,6 @@ static int   get_cmake_info (const char **exe, struct ver_info *ver);
  *        Also check their Wintrust signature status and version information.
  */
 
-/*
- * According to:
- *  http://msdn.microsoft.com/en-us/library/windows/desktop/ms683188(v=vs.85).aspx
- */
-#define MAX_ENV_VAR  32767
 #define MAX_INDEXED  ('Z' - 'A' + 1)
 
 static void show_evry_version (HWND wnd, const struct ver_info *ver)
@@ -1039,12 +1034,14 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 
   if (key != HKEY_PYTHON_EGG)
   {
-    char buf [_MAX_PATH];
+    char  buf [_MAX_PATH];
+    char *p = _fix_path (file, NULL);  /* Has '\\' slashes */
 
-    _fix_path (file, buf);  /* Has '\\' slashes */
-    file = buf;
     if (opt.show_unix_paths)
-       file = slashify (file, '/');
+         strcpy (buf, slashify(p,'/'));
+    else strcpy (buf, p);
+    file = buf;
+    FREE (p);
   }
 
   if (report_header)
@@ -1071,6 +1068,16 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 
     if (end > file && end[-1] != '\\' && end[-1] != '/')
        C_putc (opt.show_unix_paths ? '/' : '\\');
+  }
+  else if (key == HKEY_MAN_FILE)
+  {
+    if (check_if_gzip(file))
+    {
+      const char *link = get_gzip_link (file);
+
+      if (link)
+         C_printf (" (%s)", link);
+    }
   }
 
   C_putc ('\n');
@@ -2020,7 +2027,7 @@ static int do_check_manpath (void)
 
     if (!stricmp(arr->dir,current_dir))
     {
-      found += process_dir (".\\", 0, TRUE, 1, TRUE, env_name, NULL, FALSE);
+      found += process_dir (".\\", 0, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
       continue;
     }
 
@@ -2028,7 +2035,7 @@ static int do_check_manpath (void)
     {
       snprintf (subdir, sizeof(subdir), "%s\\%s", arr->dir, sub_dirs[i]);
       if (FILE_EXISTS(subdir))
-         found += process_dir (subdir, 0, TRUE, 1, TRUE, env_name, NULL, FALSE);
+         found += process_dir (subdir, 0, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
     }
   }
   opt.man_mode = save;
@@ -3102,48 +3109,6 @@ int main (int argc, char **argv)
 
   final_report (found);
   return (found ? 0 : 1);
-}
-
-/*
- * Returns the expanded version of an environment variable.
- * Stolen from curl. But I wrote the Win32 part of it...
- *
- * E.g. If "INCLUDE=c:\VC\include;%C_INCLUDE_PATH%" and
- * "C_INCLUDE_PATH=c:\MinGW\include", the expansion returns
- * "c:\VC\include;c:\MinGW\include".
- *
- * Note: Windows (cmd only?) requires a trailing '%' in
- *       "%C_INCLUDE_PATH".
- */
-char *getenv_expand (const char *variable)
-{
-  const char *orig_var = variable;
-  char *rc, *env = NULL;
-  char  buf1 [MAX_ENV_VAR], buf2 [MAX_ENV_VAR];
-  DWORD ret;
-
-  /* Don't use getenv(); it doesn't find variable added after program was
-   * started. Don't accept truncated results (i.e. rc >= sizeof(buf1)).
-   */
-  ret = GetEnvironmentVariable (variable, buf1, sizeof(buf1));
-  if (ret > 0 && ret < sizeof(buf1))
-  {
-    env = buf1;
-    variable = buf1;
-  }
-  if (strchr(variable,'%'))
-  {
-    /* buf2 == variable if not expanded.
-     */
-    ret = ExpandEnvironmentStrings (variable, buf2, sizeof(buf2));
-    if (ret > 0 && ret < sizeof(buf2) &&
-        !strchr(buf2,'%'))    /* no variables still un-expanded */
-      env = buf2;
-  }
-
-  rc = (env && env[0]) ? STRDUP(env) : NULL;
-  DEBUGF (1, "env: '%s', expanded: '%s'\n", orig_var, rc);
-  return (rc);
 }
 
 /*
