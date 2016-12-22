@@ -177,37 +177,41 @@ int check_if_gzip (const char *fname)
 /*
  * Open a GZIP-file and extract first line to check if it contains a
  * ".so real-file-name". This is typical for CygWin man-pages.
- * Return the "<dir-name>/real-file-name".
+ * Return result as "<dir_name>/real-file-name". Which is just an
+ * assumtion; the "real-file-name" can be anywhere on %MANPATH%.
  */
 static char gzip_link_name [_MAX_PATH];
 
 static int gzip_cb (char *buf, int index)
 {
-  if (index == 0 && sscanf(buf, ".so %s", gzip_link_name) == 1)
+  if (index == 0 && strlen(buf) < sizeof(gzip_link_name)-3 &&
+      sscanf(buf, ".so %s", gzip_link_name) == 1)
      return (1);
   return (-1);  /* causes popen_run() to quit */
 }
 
 const char *get_gzip_link (const char *file)
 {
-  char cmd [1000];
+  char  cmd [1000];
   const char *gzip = searchpath ("gzip.exe", "PATH");
 
   if (!gzip)
-     return (0);
+     return (NULL);
 
   gzip_link_name[0] = '\0';
-  snprintf (cmd, sizeof(cmd), "%s -cd %s 2> %s",  gzip, file, DEV_NULL);
-  DEBUGF (1, "Running \"%s\".\n", cmd);
+  snprintf (cmd, sizeof(cmd), "%s -cd %s 2> %s", gzip, file, DEV_NULL);
 
   if (popen_run(slashify(cmd,'\\'), gzip_cb) > 0)
   {
-    char *dir_name       = dirname (file);
-    char *link_fqfn_name = MALLOC (strlen(dir_name)+strlen(gzip_link_name)+2);
+    static char fqfn_name [_MAX_PATH];
+    char       *dir_name = dirname (file);
 
-    sprintf (link_fqfn_name, "%s\\%s", dir_name, gzip_link_name);
+    DEBUGF (2, "gzip_link_name: \"%s\", dir_name: \"%s\".\n", gzip_link_name, dir_name);
+    snprintf (fqfn_name, sizeof(fqfn_name), "%s%c%s", dir_name, DIR_SEP, gzip_link_name);
     FREE (dir_name);
-    return (link_fqfn_name);
+    if (opt.show_unix_paths)
+       return slashify (fqfn_name, '/');
+    return (fqfn_name);
   }
   return (NULL);
 }
