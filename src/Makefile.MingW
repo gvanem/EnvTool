@@ -63,23 +63,23 @@ all: cflags_MinGW.h ldflags_MinGW.h envtool.exe
 envtool.exe: $(OBJECTS) envtool.res
 	$(CC) $(LDFLAGS) -o $@ $^ $(EX_LIBS) > envtool.map
 
-mem_test.exe: misc.c color.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -DMEM_TEST -o $@ $^ $(EX_LIBS) > mem_test.map
-	rm -f misc.o
-
-win_glob.exe: win_glob.c misc.c color.c getopt_long.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
-	rm -f win_glob.o
-
-win_ver.exe: win_ver.c misc.c color.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
-	rm -f win_ver.o
-
-dirlist.exe: dirlist.c misc.c color.c getopt_long.c
+dirlist.exe: dirlist.c misc.c color.c getopt_long.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
 	rm -f dirlist.o
 
-win_trust.exe: win_trust.c getopt_long.c misc.c color.c
+mem_test.exe: misc.c color.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DMEM_TEST -o $@ $^ $(EX_LIBS) > mem_test.map
+	rm -f misc.o
+
+win_glob.exe: win_glob.c misc.c color.c getopt_long.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
+	rm -f win_glob.o
+
+win_ver.exe: win_ver.c misc.c color.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
+	rm -f win_ver.o
+
+win_trust.exe: win_trust.c getopt_long.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
 	rm -f win_trust.o
 

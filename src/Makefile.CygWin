@@ -62,15 +62,15 @@ envtool.exe: $(OBJECTS) envtool.res
 envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc
 
-win_glob.exe: win_glob.c misc.c color.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
-	rm -f win_glob.o
-
-dirlist.exe: dirlist.c misc.c color.c
+dirlist.exe: dirlist.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
 	rm -f dirlist.o
 
-win_trust.exe: win_trust.c misc.c color.c
+win_glob.exe: win_glob.c misc.c color.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
+	rm -f win_glob.o
+
+win_trust.exe: win_trust.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
 	rm -f win_trust.o
 

@@ -23,15 +23,15 @@ envtool.exe: $(OBJECTS) envtool.res
 	@echo $*.exe successfully built.
 
 .ERASE
-dirlist.exe: dirlist.c misc.obj color.obj getopt_long.obj
+dirlist.exe: dirlist.c misc.obj color.obj getopt_long.obj searchpath.obj
 	$(CC) $(CFLAGS) -DDIRLIST_TEST dirlist.c
-	$(LINK) name $*.exe file { dirlist.obj misc.obj color.obj getopt_long.obj } library { $(EX_LIBS) }
+	$(LINK) name $*.exe file { dirlist.obj misc.obj color.obj getopt_long.obj searchpath.obj } library { $(EX_LIBS) }
 	rm dirlist.obj
 
 .ERASE
-win_trust.exe: win_trust.c misc.obj color.obj getopt_long.obj
+win_trust.exe: win_trust.c misc.obj color.obj getopt_long.obj searchpath.obj
 	$(CC) $(CFLAGS) -DWINTRUST_TEST win_trust.c
-	$(LINK) name $*.exe file { win_trust.obj misc.obj color.obj getopt_long.obj } &
+	$(LINK) name $*.exe file { win_trust.obj misc.obj color.obj getopt_long.obj searchpath.obj } &
 	        library { $(EX_LIBS) }
 	rm win_trust.obj
 
