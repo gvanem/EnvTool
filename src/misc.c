@@ -137,6 +137,84 @@ int check_if_zip (const char *fname)
 }
 
 /*
+ * Open a fname and check if there's a "GZIP" or "TAR.GZ" signature in header.
+ */
+int check_if_gzip (const char *fname)
+{
+  static const BYTE header[4] = { 0x1F, 0x8B, 0x08, 0x08 };
+  const char *ext;
+  char   buf [sizeof(header)];
+  FILE  *f;
+  BOOL   is_gzip, is_tgz;
+  int    rc = 0;
+
+  /* Accept only ".gz" or ".tgz" extensions.
+   */
+  ext = get_file_ext (fname);
+  is_gzip = (stricmp(ext,"gz") == 0);
+  is_tgz  = (stricmp(ext,"tgz") == 0);
+
+  if (!is_gzip && !is_tgz)
+  {
+    DEBUGF (1, "\n\"%s\" does have wrong extension: '%s'.\n", fname, ext);
+    return (0);
+  }
+
+  f = fopen (fname, "rb");
+  if (f)
+  {
+    rc = (fread(&buf,1,sizeof(buf),f) == sizeof(buf));
+    if (is_gzip && !memcmp(&buf,&header,sizeof(buf)))
+       rc += 1;
+    else if (is_tgz && !memcmp(&buf,&header,sizeof(buf)-1))
+       rc += 1;
+    fclose (f);
+  }
+  DEBUGF (1, "\n\"%s\" is %sa GZIP-file.\n", fname, rc == 2 ? "": "not ");
+  return (rc == 2);
+}
+
+/*
+ * Open a GZIP-file and extract first line to check if it contains a
+ * ".so real-file-name". This is typical for CygWin man-pages.
+ * Return the "<dir-name>/real-file-name".
+ */
+static char gzip_link_name [_MAX_PATH];
+
+static int gzip_cb (char *buf, int index)
+{
+  if (index == 0 && sscanf(buf, ".so %s", gzip_link_name) == 1)
+     return (1);
+  return (-1);  /* causes popen_run() to quit */
+}
+
+const char *get_gzip_link (const char *file)
+{
+  char cmd [1000];
+  const char *gzip = searchpath ("gzip.exe", "PATH");
+
+  if (!gzip)
+     return (0);
+
+  gzip_link_name[0] = '\0';
+  snprintf (cmd, sizeof(cmd), "%s -cd %s 2> %s",  gzip, file, DEV_NULL);
+  DEBUGF (1, "Running \"%s\".\n", cmd);
+
+  if (popen_run(slashify(cmd,'\\'), gzip_cb) > 0)
+  {
+    char *dir_name       = dirname (file);
+    char *link_fqfn_name = MALLOC (strlen(dir_name)+strlen(gzip_link_name)+2);
+
+    sprintf (link_fqfn_name, "%s\\%s", dir_name, gzip_link_name);
+    FREE (dir_name);
+    return (link_fqfn_name);
+  }
+  return (NULL);
+}
+
+//-----------------------
+
+/*
  * Open a fname, read the optional header in PE-header.
  *  - For verifying it's signature.
  *  - Showing the version information (if any) in it's resources.
@@ -1506,6 +1584,48 @@ int popen_run (const char *cmd, popen_callback callback)
 quit:
   FREE (cmd2);
   return (j);
+}
+
+/*
+ * Returns the expanded version of an environment variable.
+ * Stolen from curl. But I wrote the Win32 part of it...
+ *
+ * E.g. If "INCLUDE=c:\VC\include;%C_INCLUDE_PATH%" and
+ * "C_INCLUDE_PATH=c:\MinGW\include", the expansion returns
+ * "c:\VC\include;c:\MinGW\include".
+ *
+ * Note: Windows (cmd only?) requires a trailing '%' in
+ *       "%C_INCLUDE_PATH".
+ */
+char *getenv_expand (const char *variable)
+{
+  const char *orig_var = variable;
+  char *rc, *env = NULL;
+  char  buf1 [MAX_ENV_VAR], buf2 [MAX_ENV_VAR];
+  DWORD ret;
+
+  /* Don't use getenv(); it doesn't find variable added after program was
+   * started. Don't accept truncated results (i.e. rc >= sizeof(buf1)).
+   */
+  ret = GetEnvironmentVariable (variable, buf1, sizeof(buf1));
+  if (ret > 0 && ret < sizeof(buf1))
+  {
+    env = buf1;
+    variable = buf1;
+  }
+  if (strchr(variable,'%'))
+  {
+    /* buf2 == variable if not expanded.
+     */
+    ret = ExpandEnvironmentStrings (variable, buf2, sizeof(buf2));
+    if (ret > 0 && ret < sizeof(buf2) &&
+        !strchr(buf2,'%'))    /* no variables still un-expanded */
+      env = buf2;
+  }
+
+  rc = (env && env[0]) ? STRDUP(env) : NULL;
+  DEBUGF (1, "env: '%s', expanded: '%s'\n", orig_var, rc);
+  return (rc);
 }
 
 /*

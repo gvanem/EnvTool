@@ -109,12 +109,14 @@
 
   #define stricmp(s1, s2)        strcasecmp (s1, s2)
   #define strnicmp(s1, s2, len)  strncasecmp (s1, s2, len)
+  #define DEV_NULL               "/dev/null"
 
   extern char *_itoa (int value, char *buf, int radix);
 
 #else
   #include <direct.h>
-  #define  stat _stati64
+  #define  stat     _stati64
+  #define  DEV_NULL "NUL"
 
   #if !defined(_WINSOCK2API_) && !defined(_WINSOCK2_H) && !defined(_BSDTYPES_DEFINED)
     #define u_long unsigned long
@@ -237,6 +239,7 @@ extern "C" {
 
 #define HKEY_PYTHON_EGG                (HKEY) 0x7FFF
 #define HKEY_EVERYTHING                (HKEY) 0x7FFE
+#define HKEY_MAN_FILE                  (HKEY) 0x7FFD
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
@@ -301,6 +304,12 @@ extern int  process_dir (const char *path, int num_dup, BOOL exist,
   _CRTCHK(printf,1,2)
 #endif
   int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1,2);
+
+/*
+ * According to:
+ *  http://msdn.microsoft.com/en-us/library/windows/desktop/ms683188(v=vs.85).aspx
+ */
+#define MAX_ENV_VAR  32767
 
 extern char *_strlcpy      (char *dst, const char *src, size_t len);
 extern char *_strsep       (char **s, const char *delim);
@@ -385,6 +394,8 @@ extern int         get_PE_version_info (const char *file, struct ver_info *ver);
 extern char       *get_PE_version_info_buf (void);
 extern void        get_PE_version_info_free (void);
 extern int         check_if_zip (const char *fname);
+extern int         check_if_gzip (const char *fname);
+extern const char *get_gzip_link (const char *file);
 extern int         check_if_PE (const char *fname, enum Bitness *bits);
 extern int         verify_PE_checksum (const char *fname);
 extern BOOL        is_wow64_active (void);
