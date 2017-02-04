@@ -911,7 +911,7 @@ BOOL is_user_admin (void)
 /*
  * Return name of logged-in user.
  * First try GetUserNameEx() available in Win-2000 Pro.
- * Then fall-back to a GetUserName() if not present in Secur32l.dll.
+ * Then fall-back to a GetUserName() if not present in Secur32.dll.
  * Ref:
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/ms724435(v=vs.85).aspx
  */
@@ -933,12 +933,11 @@ const char *get_user_name (void)
   if (!secur32 || secur32 == INVALID_HANDLE_VALUE)
      goto quit;
 
+  ulen = sizeof(user);
   p_GetUserNameEx = (func_GetUserNameEx) GetProcAddress (secur32, "GetUserNameExA");
   if (p_GetUserNameEx)
-  {
-    ulen = sizeof(user);
-    (*p_GetUserNameEx) (NameSamCompatible, user, &ulen);
-  }
+       (*p_GetUserNameEx) (NameSamCompatible, user, &ulen);
+  else GetUserName (user, &ulen);
 
 quit:
   if (secur32 && secur32 != INVALID_HANDLE_VALUE)
