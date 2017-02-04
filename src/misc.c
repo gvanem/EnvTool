@@ -612,7 +612,6 @@ char *fnmatch_res (int rc)
           rc == FNM_NOMATCH ? "FNM_NOMATCH" : "??");
 }
 
-
 /*
  * Strip drive-letter, directory and suffix from a filename.
  */
@@ -796,6 +795,7 @@ char *create_temp_file (void)
   if (tmp)
   {
     char *t = STRDUP (tmp);
+
     DEBUGF (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
     free (tmp);
     return (t);     /* Caller must FREE() */
@@ -892,17 +892,20 @@ BOOL is_user_admin (void)
   func_IsUserAnAdmin p_IsUserAnAdmin;
 
   HMODULE shell32 = LoadLibrary ("shell32.dll");
+  BOOL    rc;
 
-  /* This function isn't guaranteed to be available (and it can't hurt
-   * to leave the library loaded)
+  /* This function isn't guaranteed to be available.
    */
   if (!shell32 || shell32 == INVALID_HANDLE_VALUE)
      return (FALSE);
 
   p_IsUserAnAdmin = (func_IsUserAnAdmin) GetProcAddress (shell32, "IsUserAnAdmin");
   if (!p_IsUserAnAdmin)
-     return (FALSE);
-  return (*p_IsUserAnAdmin)();
+       rc = FALSE;
+  else rc = (*p_IsUserAnAdmin)();
+
+  FreeLibrary (shell32);
+  return (rc);
 }
 
 /*
@@ -1185,7 +1188,8 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
   head = calloc (1, size);
 
   if (!head)
-     FATAL ("calloc() failed at %s, line %u\n", file, line);
+     FATAL ("calloc (%u, %u) failed at %s, line %u\n",
+            (unsigned)num, (unsigned)(size-sizeof(*head)), file, line);
 
   head->marker = MEM_MARKER;
   head->size   = size;
@@ -1199,33 +1203,6 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
  * A realloc() that fails if no memory. It's pretty hopeless to continue
  * this program if realloc() fails.
  */
-#define USE_REALLOC 0
-
-#if USE_REALLOC
-void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
-{
-  struct mem_head *head = (struct mem_head*) ptr;
-
-  if (head)
-     head--;
-
-  size += sizeof(*head);
-
-  head = realloc (head, size);
-
-  if (!head)
-     FATAL ("realloc() failed at %s, line %u\n", file, line);
-
-  head->marker = MEM_MARKER;
-  head->size   = size;
-//add_to_mem_list (head, file, line);
-  mem_max += size;
-  mem_reallocs++;
-//mem_allocs++;
-  return (head+1);
-}
-#else
-
 void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
 {
   struct mem_head *p;
@@ -1257,7 +1234,6 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
   }
   return (ptr);
 }
-#endif  /* USE_REALLOC==1 */
 
 /*
  * A free() that checks the 'ptr' and decrements the 'mem_frees' value.
