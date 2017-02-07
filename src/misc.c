@@ -250,7 +250,10 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   nt  = NULL;
 
   if (len < sizeof(file_buf))
-     return (FALSE);
+  {
+    DEBUGF (3, "%s: failed fread(). errno: %d\n", fname, errno);
+    return (FALSE);
+  }
 
   dos = (const IMAGE_DOS_HEADER*) file_buf;
   nt  = (const IMAGE_NT_HEADERS*) ((const BYTE*)file_buf + dos->e_lfanew);
