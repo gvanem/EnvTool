@@ -1969,7 +1969,21 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   return wchar_to_mbchar (slen, sub_name, result);
 }
 
-#if defined(_MSC_VER)
+#if defined(__POCC__)
+  const char *compiler_version (void)
+  {
+    static char buf[40];
+  #ifdef _DEBUG
+    #define DBG_REL "debug"
+  #else
+    #define DBG_REL "release"
+  #endif
+
+    snprintf (buf, sizeof(buf), "PellesC ver %d.%d, %s", __POCC__ / 100, __POCC__ % 100, DBG_REL);
+    return (buf);
+  }
+
+#elif defined(_MSC_VER)
   /*
    * Ref. http://msdn.microsoft.com/en-us/library/b0084kay(v=vs.120).aspx
    *
@@ -2004,8 +2018,8 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
     #define DBG_REL "release"
   #endif
 
-    snprintf (buf, sizeof(buf), "Visual-C ver %d.%02d%s, %s",
-              (_MSC_VER / 100), (_MSC_VER % 100), msvc_get_micro_ver(), DBG_REL);
+    snprintf (buf, sizeof(buf), "Visual-C %d.%02d%s, %s",
+              _MSC_VER / 100, _MSC_VER % 100, msvc_get_micro_ver(), DBG_REL);
     return (buf);
   }
 
@@ -2016,7 +2030,7 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   #if (__WATCOMC__ >= 1200)
     snprintf (buf, sizeof(buf), "OpenWatcom %d.%d", (__WATCOMC__/100) - 11, (__WATCOMC__ % 100) / 10);
   #else
-    snprintf (buf, sizeof(buf), "Watcom C %d.%d", (__WATCOMC__/100), (__WATCOMC__ % 100));
+    snprintf (buf, sizeof(buf), "Watcom C %d.%d", __WATCOMC__/100, __WATCOMC__ % 100);
   #endif
     return (buf);
   }
@@ -2073,9 +2087,12 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 
 #include <io.h>
 #include <wchar.h>
-#include <winternl.h>
 
-#if defined(__WATCOMC__)
+#if !defined(__POCC__)
+#include <winternl.h>
+#endif
+
+#if defined(__WATCOMC__) || defined(__POCC__)
   typedef struct {
           USHORT  Length;
           USHORT  MaximumLength;
