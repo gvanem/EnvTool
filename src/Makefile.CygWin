@@ -48,7 +48,7 @@ endif
 EX_LIBS += -limagehlp -lversion -lwintrust -lcrypt32 -lkernel32
 
 SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
-          Everything.c envtool_py.c win_trust.c win_ver.c
+          Everything.c envtool_py.c smartlist.c win_trust.c win_ver.c
 
 OBJECTS = $(SOURCES:.c=.o)
 
