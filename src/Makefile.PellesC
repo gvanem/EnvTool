@@ -47,6 +47,7 @@ ifeq ($(USE_64BIT),1)
               Win64/advapi32.lib           \
               Win64/imagehlp.lib           \
               Win64/crypt32.lib            \
+              Win64/psapi.lib              \
               Win64/wintrust.lib           \
               Win64/version.lib)
 else
@@ -63,11 +64,12 @@ else
               Win/advapi32.lib             \
               Win/imagehlp.lib             \
               Win/crypt32.lib              \
+              Win/psapi.lib                \
               Win/wintrust.lib             \
               Win/version.lib)
 endif
 
-SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
+SOURCES = envtool.c color.c misc.c searchpath.c smartlist.c show_ver.c dirlist.c \
           Everything.c envtool_py.c getopt_long.c win_ver.c win_trust.c
 
 OBJECTS = $(SOURCES:.c=.obj)
