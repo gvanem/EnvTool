@@ -150,9 +150,9 @@ char *searchpath (const char *file, const char *env_var)
    */
   if (strpbrk(file, "/\\:") != 0 && FILE_EXISTS(file))
   {
-    if (file[0] == '/' || file[0] == '\\' || file[1] == ':' ||
-        (file[0] == '.' && (file[1] == '/' || file[1] == '\\' ||
-         (file[1] == '.' && (file[2] == '/' || file[2] == '\\')))))
+    if (IS_SLASH(file[0]) || file[1] == ':' ||
+        (file[0] == '.' && IS_SLASH(file[1]) ||
+         (file[1] == '.' && IS_SLASH(file[2]))) )
     {
       /* Either absolute file name or it begins with a "./".  */
       strcpy (found, file);
