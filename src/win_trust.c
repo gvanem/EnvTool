@@ -193,6 +193,11 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
                        WINTRUST_ACTION_TRUSTPROVIDER_TEST;
 #endif
 
+  if (!FILE_EXISTS(pe_file))
+  {
+    SetLastError (last_err = ERROR_FILE_NOT_FOUND);
+    return (last_err);
+  }
 
   memset (&data, 0, sizeof(data));
   memset (&file_info, 0, sizeof(file_info));
@@ -232,6 +237,8 @@ const char *wintrust_check_result (DWORD rc)
   {
     case ERROR_SUCCESS:
          return ("Verified");
+    case ERROR_FILE_NOT_FOUND:
+         return ("Not found");
     case TRUST_E_NOSIGNATURE:
     case TRUST_E_SUBJECT_FORM_UNKNOWN:
     case TRUST_E_PROVIDER_UNKNOWN:
