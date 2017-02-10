@@ -213,17 +213,17 @@
  * Format for printing an hex linear address.
  * E.g. printf (buf, "0x%"ADDR_FMT, ADDR_CAST(ptr));
  */
-#if defined(__x86_64__) || defined(_M_X64)         /* 64-bit targets */
+#if defined(__x86_64__) || defined(_M_X64)   /* 64-bit targets */
   #if defined(_MSC_VER) || defined(__MINGW32__)
     #define ADDR_FMT      "016I64X"
-  #elif defined(__CYGWIN__) || defined(__linux__)  /* CygWin64 or Travis-CI */
+  #elif defined(__CYGWIN__)                  /* CygWin64  */
     #define ADDR_FMT     "016llX"
   #else
     #error "Unsupported compiler"
   #endif
   #define ADDR_CAST(x)  ((unsigned long long)(x))
 
-#else                                       /* 32-bit targets */
+#else                                        /* 32-bit targets */
   #define ADDR_FMT     "08lX"
   #define ADDR_CAST(x)  ((unsigned long)(x))
 #endif
