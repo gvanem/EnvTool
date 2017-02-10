@@ -1,0 +1,20 @@
+
+language: c
+
+os: windows
+
+before_install:
+  - git clone git://github.com/gvanem/EnvTool
+  - pwd
+  - make -C src -f Makefile.MinGW USE_64BIT=1 FORTIFY_SOURCE=0 depend all
+
+script:
+   - pwd
+
+notifications:
+  email:
+    on_failure: always
+    on_success: change
+    recipients:
+      - gvanem@yahoo.no
+
