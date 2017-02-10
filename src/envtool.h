@@ -105,7 +105,6 @@
   #define _fileno(f)             fileno (f)
   #define _tempnam(dir,prefix)   tempnam (dir,prefix)
   #define _wcsdup(s)             wcsdup(s)
-  #define _vsnprintf             vsnprintf
 
   #define stricmp(s1, s2)        strcasecmp (s1, s2)
   #define strnicmp(s1, s2, len)  strncasecmp (s1, s2, len)
@@ -137,6 +136,11 @@
    *   warning #1058: Invalid token produced by ##, from ',' and 'env_name'.
    */
   #pragma warn (disable: 1058)
+
+  /*
+   * warning #2130: Result of comparison is constant.
+   */
+  #pragma warn (disable: 2130)
 
 #elif defined(_MSC_VER) && defined(_DEBUG)
   #undef  _malloca                /* Avoid MSVC-9 <malloc.h>/<crtdbg.h> name-clash */
@@ -209,10 +213,10 @@
  * Format for printing an hex linear address.
  * E.g. printf (buf, "0x%"ADDR_FMT, ADDR_CAST(ptr));
  */
-#if defined(__x86_64__) || defined(_M_X64)  /* 64-bit targets */
+#if defined(__x86_64__) || defined(_M_X64)         /* 64-bit targets */
   #if defined(_MSC_VER) || defined(__MINGW32__)
     #define ADDR_FMT      "016I64X"
-  #elif defined(__CYGWIN__)
+  #elif defined(__CYGWIN__) || defined(__linux__)  /* CygWin64 or Travis-CI */
     #define ADDR_FMT     "016llX"
   #else
     #error "Unsupported compiler"
@@ -351,8 +355,8 @@ extern const char *last_reparse_err;
 extern BOOL        get_reparse_point (const char *dir, char *result,
                                       BOOL return_print_name);
 
-
-/* Generic program version information (in resource).
+/*
+ * Generic program version information (in resource).
  *
  *  Implemented by        | For what
  * -----------------------|---------------------------
@@ -399,6 +403,12 @@ extern const char *get_gzip_link (const char *file);
 extern int         check_if_PE (const char *fname, enum Bitness *bits);
 extern int         verify_PE_checksum (const char *fname);
 extern BOOL        is_wow64_active (void);
+
+extern REGSAM      reg_read_access (void);
+extern const char *reg_type_name (DWORD type);
+extern const char *reg_top_key_name (HKEY key);
+extern const char *reg_access_name (REGSAM acc);
+extern DWORD       reg_swap_long (DWORD val);
 
 /* Stuff in win_ver.c:
  */
