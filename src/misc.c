@@ -341,8 +341,14 @@ int verify_PE_checksum (const char *fname)
  */
 BOOL is_wow64_active (void)
 {
-  BOOL rc    = FALSE;
-  BOOL wow64 = FALSE;
+  static BOOL rc    = FALSE;
+  static BOOL init  = FALSE;
+  static BOOL wow64 = FALSE;
+
+  if (init)
+     goto quit;
+
+  init = TRUE;
 
 #if (IS_WIN64 == 0)
   typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
@@ -373,8 +379,85 @@ BOOL is_wow64_active (void)
   FreeLibrary (hnd);
 #endif  /* IS_WIN64 */
 
+quit:
   DEBUGF (2, "IsWow64Process(): rc: %d, wow64: %d.\n", rc, wow64);
   return (rc);
+}
+
+/*
+ * Helper functions for Registry access.
+ */
+REGSAM reg_read_access (void)
+{
+  REGSAM access = KEY_READ;
+
+#if defined(KEY_WOW64_32KEY) && defined(KEY_WOW64_64KEY)
+#if (IS_WIN64)
+  access |= KEY_WOW64_32KEY;
+#elif 0
+  if (is_wow64_active())
+     access |= KEY_WOW64_64KEY;
+#endif
+#endif  /* KEY_WOW64_32KEY && KEY_WOW64_64KEY */
+
+  return (access);
+}
+
+const char *reg_type_name (DWORD type)
+{
+  return (type == REG_SZ               ? "REG_SZ" :
+          type == REG_MULTI_SZ         ? "REG_MULTI_SZ" :
+          type == REG_EXPAND_SZ        ? "REG_EXPAND_SZ" :
+          type == REG_LINK             ? "REG_LINK" :
+          type == REG_BINARY           ? "REG_BINARY" :
+          type == REG_DWORD            ? "REG_DWORD" :
+          type == REG_RESOURCE_LIST    ? "REG_RESOURCE_LIST" :
+          type == REG_DWORD_BIG_ENDIAN ? "REG_DWORD_BIG_ENDIAN" :
+          type == REG_QWORD            ? "REG_QWORD" : "?");
+}
+
+const char *reg_top_key_name (HKEY key)
+{
+  return (key == HKEY_LOCAL_MACHINE ? "HKEY_LOCAL_MACHINE" :
+          key == HKEY_CURRENT_USER  ? "HKEY_CURRENT_USER" :
+          "?");
+}
+
+const char *reg_access_name (REGSAM acc)
+{
+  #define ADD_VALUE(v)  { v, #v }
+
+  static const struct search_list access[] = {
+                                  ADD_VALUE (KEY_CREATE_LINK),
+                                  ADD_VALUE (KEY_CREATE_SUB_KEY),
+                                  ADD_VALUE (KEY_ENUMERATE_SUB_KEYS),
+                                  ADD_VALUE (KEY_NOTIFY),
+                                  ADD_VALUE (KEY_QUERY_VALUE),
+                                  ADD_VALUE (KEY_SET_VALUE),
+#if defined(KEY_WOW64_32KEY)
+                                  ADD_VALUE (KEY_WOW64_32KEY),
+#endif
+#if defined(KEY_WOW64_64KEY)
+                                  ADD_VALUE (KEY_WOW64_64KEY)
+#endif
+                                };
+
+  acc &= ~STANDARD_RIGHTS_READ;  /* == STANDARD_RIGHTS_WRITE, STANDARD_RIGHTS_EXECUTE */
+
+  if ((acc & KEY_ALL_ACCESS) == KEY_ALL_ACCESS)
+     return ("KEY_ALL_ACCESS");
+  return flags_decode (acc, access, DIM(access));
+}
+
+/*
+ * Swap bytes in a 32-bit value.
+ */
+DWORD reg_swap_long (DWORD val)
+{
+  return ((val & 0x000000FFU) << 24) |
+         ((val & 0x0000FF00U) <<  8) |
+         ((val & 0x00FF0000U) >>  8) |
+         ((val & 0xFF000000U) >> 24);
 }
 
 /*
@@ -1286,6 +1369,13 @@ void mem_report (void)
 #endif
 }
 
+#if defined(__POCC__) && !defined(__MT__) && defined(_M_AMD64)
+  /*
+   * Some bug (?) causes a reference to this symbol in 'pocc -MD -Tx64-coff'.
+   */
+  DWORD __ullongfix;
+#endif
+
 const char *get_file_size_str (UINT64 size)
 {
   static const char *suffixes[] = { "B ", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
@@ -1508,7 +1598,7 @@ int popen_run (const char *cmd, popen_callback callback)
    */
   if (env)
   {
-    DEBUGF (2, "%%COMSPEC: %s.\n", env);
+    DEBUGF (3, "%%COMSPEC: %s.\n", env);
 #if !defined(__WATCOMC__)
     env = strlwr (basename(env));
     if (!strcmp(env,"4nt.exe") || !strcmp(env,"tcc.exe"))
@@ -1606,7 +1696,7 @@ char *getenv_expand (const char *variable)
   }
 
   rc = (env && env[0]) ? STRDUP(env) : NULL;
-  DEBUGF (1, "env: '%s', expanded: '%s'\n", orig_var, rc);
+  DEBUGF (3, "env: '%s', expanded: '%s'\n", orig_var, rc);
   return (rc);
 }
 
@@ -1830,7 +1920,7 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
   }
 
   va_start (args, fmt);
-  _vsnprintf (err_buf, sizeof(err_buf), fmt, args);
+  vsnprintf (err_buf, sizeof(err_buf), fmt, args);
   va_end (args);
   last_reparse_err = err_buf;
   DEBUGF (dbg_level, last_reparse_err);
