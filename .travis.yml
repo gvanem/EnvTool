@@ -6,7 +6,7 @@ os: windows
 before_install:
   - git clone git://github.com/gvanem/EnvTool
   - pwd
-  - make -C src -f Makefile.MinGW USE_64BIT=1 all
+  - make -C src -f Makefile.MingW USE_64BIT=1 all
 
 script:
    - pwd
