@@ -3,7 +3,18 @@
 // this project builds the dll (visual studio will also build the lib for us)
 // we declare all exported calls to __stdcall, so theres no need to set the default calling standard.
 
-#ifdef _MSC_VER
+#if defined(__POCC__)
+  /*
+   * warning #2130: Result of comparison is constant.
+   */
+  #pragma warn (disable: 2130)
+
+  /*
+   * warning #2154: Unreachable code.
+   */
+  #pragma warn (disable: 2154)
+
+#elif defined(_MSC_VER)
   // disable warnings
   #pragma warning(disable : 4996) // deprecation
 #endif
@@ -20,7 +31,7 @@
 #include <wchar.h>
 
 #include "Everything.h"
-#include "Everything_IPC.h"
+#include "everything_ipc.h"
 
 #if defined(__CYGWIN__)
   #define stricmp(s1, s2)  strcasecmp (s1, s2)
