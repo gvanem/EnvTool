@@ -1,0 +1,121 @@
+#
+# GNU makefile for EnvTool (MinGW/MinGW-w64/TDM-gcc).
+#
+
+FORTIFY_SOURCE ?= 1
+USE_DEBUG      ?= 1
+USE_64BIT      ?= 0
+
+CC      = gcc
+CFLAGS  = -Wall -Wno-strict-aliasing -DEVERYTHINGUSERAPI= \
+          -DEVERYTHINGAPI=__cdecl -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN
+
+LDFLAGS = -Wl,--print-map,--sort-common,--cref
+RCFLAGS = -O COFF
+
+ifeq ($(USE_64BIT),1)
+  CFLAGS  += -m64
+  LDFLAGS += -m64
+  RCFLAGS += --preprocessor-arg=-m64 --target=pe-x86-64
+else
+  CFLAGS  += -m32
+  LDFLAGS += -m32
+  RCFLAGS += --preprocessor-arg=-m32 --target=pe-i386
+endif
+
+ifeq ($(USE_DEBUG),1)
+  CFLAGS  += -O0 -D_DEBUG -ggdb
+  LDFLAGS +=
+else
+  CFLAGS  += -O2 -fomit-frame-pointer
+  LDFLAGS += -s
+endif
+
+ifneq ($(FORTIFY_SOURCE),0)
+  ifneq ($(USE_DEBUG),1)
+    $(error $$(FORTIFY_SOURCE) needs 'USE_DEBUG=1')
+  endif
+
+  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) -fstack-protector-all # -Wstack-protector
+
+  #
+  #
+  CFLAGS += -std=c11
+
+  #
+  # Use the static 'libssp.a'
+  #
+  LDFLAGS += -Wl,-static
+  EX_LIBS  = -lssp
+endif
+
+EX_LIBS += -lpsapi -limagehlp -lversion -lwintrust -lcrypt32
+
+SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
+          Everything.c envtool_py.c getopt_long.c smartlist.c win_trust.c win_ver.c
+
+OBJECTS = $(SOURCES:.c=.o)
+
+all: cflags_MinGW.h ldflags_MinGW.h envtool.exe
+	cp --update envtool.exe ..
+	@echo '../envtool.exe successfully built.'
+
+envtool.exe: $(OBJECTS) envtool.res
+	$(CC) $(LDFLAGS) -o $@ $^ $(EX_LIBS) > envtool.map
+
+dirlist.exe: dirlist.c misc.c color.c getopt_long.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
+	rm -f dirlist.o
+
+mem_test.exe: misc.c color.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DMEM_TEST -o $@ $^ $(EX_LIBS) > mem_test.map
+	rm -f misc.o
+
+win_glob.exe: win_glob.c misc.c color.c getopt_long.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
+	rm -f win_glob.o
+
+win_ver.exe: win_ver.c misc.c color.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
+	rm -f win_ver.o
+
+win_trust.exe: win_trust.c getopt_long.c misc.c color.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
+	rm -f win_trust.o
+
+envtool.res: envtool.rc
+	windres $(RCFLAGS) -o envtool.res -i envtool.rc
+
+%.o: %.c
+	$(CC) -c $(CFLAGS) $<
+	@echo
+
+%.i: %.c
+	$(CC) -c -E $(CFLAGS) $< > $@
+	@echo
+
+clean:
+	rm -f $(OBJECTS) .depend.MinGW envtool.res envtool.exe envtool.map cflags_MinGW.h ldflags_MinGW.h
+	@echo
+
+vclean: clean
+	rm -f win_glob.exe win_glob.map win_trust.exe win_trust.map mem_test.exe mem_test.map
+
+cflags_MinGW.h: Makefile.MinGW
+	echo 'const char *cflags = "$(CC) $(CFLAGS)";' > $@
+	@echo
+
+ldflags_MinGW.h: Makefile.MinGW
+	echo 'const char *ldflags = "$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)";' > $@
+	@echo
+
+REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
+
+depend: cflags_MinGW.h ldflags_MinGW.h
+	$(CC) -MM $(CFLAGS) $(SOURCES) dirlist.c win_glob.c | $(REPLACE) > .depend.MinGW
+	echo ''                                                         >> .depend.MinGW
+	echo 'envtool.res: envtool.h'                                   >> .depend.MinGW
+
+-include .depend.MinGW
+
+
