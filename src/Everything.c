@@ -31,7 +31,7 @@
 #include <wchar.h>
 
 #include "Everything.h"
-#include "everything_ipc.h"
+#include "Everything_IPC.h"
 
 #if defined(__CYGWIN__)
   #define stricmp(s1, s2)  strcasecmp (s1, s2)
