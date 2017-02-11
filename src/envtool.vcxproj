@@ -8,7 +8,7 @@
   <CustomBuildStep>
     <Command>
       echo const char *cflags  = "cl /c /Zi /nologo /W3 /WX- /O2 /Oi /Oy- /GL /D WIN32 /D EVERYTHINGUSERAPI= /D NDEBUG /D _CONSOLE /D _MBCS /Gm- /EHsc /MT /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope"; > cflags_MSVC.h
-      echo const char *ldflags = "link /errorreport:none /out:"envtool.exe" /version:"0.8" /INCREMENTAL:NO /NOLOGO version.lib advapi32.lib imagehlp.lib wintrust.lib crypt32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"F:\gv\VC_project\EnvTool\src\Release\envtool.pdb" /MAP:"envtool.map" /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /LTCG:incremental /TLBID:1 /RELEASE /DYNAMICBASE /NXCOMPAT /MACHINE:X86 /SAFESEH Release\envtool.res;" > ldflags_MSVC.h
+      echo const char *ldflags = "link /errorreport:none /out:envtool.exe /version:0.8 /INCREMENTAL:NO /NOLOGO version.lib advapi32.lib imagehlp.lib wintrust.lib crypt32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /manifest:embed /DEBUG /MAP:envtool.map /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /LTCG:incremental /TLBID:1 /RELEASE /DYNAMICBASE /NXCOMPAT /MACHINE:X86 /SAFESEH Release\envtool.res;" > ldflags_MSVC.h
     </Command>
     <Outputs>None</Outputs>
   </CustomBuildStep>
