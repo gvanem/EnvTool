@@ -349,34 +349,36 @@ BOOL is_wow64_active (void)
      goto quit;
 
 #if (IS_WIN64 == 0)
-  typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
-  func_IsWow64Process p_IsWow64Process;
-
-  const char *dll = "kernel32.dll";
-  HANDLE hnd = LoadLibrary (dll);
-
-  if (!hnd || hnd == INVALID_HANDLE_VALUE)
   {
-    DEBUGF (1, "Failed to load %s; %s\n",
-            dll, win_strerror(GetLastError()));
-    init = TRUE;
-    return (rc);
-  }
+    typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
+    func_IsWow64Process p_IsWow64Process;
 
-  p_IsWow64Process = (func_IsWow64Process) GetProcAddress (hnd, "IsWow64Process");
-  if (!p_IsWow64Process)
-  {
-    DEBUGF (1, "Failed to find \"p_IsWow64Process()\" in %s; %s\n",
-            dll, win_strerror(GetLastError()));
+    const char *dll = "kernel32.dll";
+    HANDLE hnd = LoadLibrary (dll);
+
+    if (!hnd || hnd == INVALID_HANDLE_VALUE)
+    {
+      DEBUGF (1, "Failed to load %s; %s\n",
+              dll, win_strerror(GetLastError()));
+      init = TRUE;
+      return (rc);
+    }
+
+    p_IsWow64Process = (func_IsWow64Process) GetProcAddress (hnd, "IsWow64Process");
+    if (!p_IsWow64Process)
+    {
+      DEBUGF (1, "Failed to find \"p_IsWow64Process()\" in %s; %s\n",
+              dll, win_strerror(GetLastError()));
+      FreeLibrary (hnd);
+      init = TRUE;
+      return (rc);
+    }
+
+    if (p_IsWow64Process)
+       if ((*p_IsWow64Process) (GetCurrentProcess(), &wow64))
+          rc = wow64;
     FreeLibrary (hnd);
-    init = TRUE;
-    return (rc);
   }
-
-  if (p_IsWow64Process)
-     if ((*p_IsWow64Process) (GetCurrentProcess(), &wow64))
-        rc = wow64;
-  FreeLibrary (hnd);
 #endif  /* IS_WIN64 */
 
   init = TRUE;
