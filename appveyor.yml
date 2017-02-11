@@ -1,5 +1,4 @@
 build_script:
     - cd src
-    - nmake -nologo -f Makefile.VC clean all
-  # - msbuild -nologo -p:Configuration=Release envtool.sln
+    - msbuild -nologo -p:Configuration=Release envtool.sln
     - envtool -VV
