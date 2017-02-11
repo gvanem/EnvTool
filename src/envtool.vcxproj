@@ -1,5 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <CustomBuildBeforeTargets>ClCompile</CustomBuildBeforeTargets>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+  <CustomBuildStep>
+    <Command>
+      echo const char *cflags = "cl -nologo -MD %(AdditionalOptions)"; > cflags_MSVC.h
+      echo const char *ldflags = "link -nologo -verbose -out:envtool.exe .obj envtool.res %(AdditionalDependencies)"; > ldflags_MSVC.h
+    </Command>
+    <Outputs>None</Outputs>
+  </CustomBuildStep>
+  </ItemDefinitionGroup>
+
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -10,6 +24,7 @@
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+
   <PropertyGroup Label="Globals">
     <ProjectGuid>{47A4EE11-5847-41F7-B00C-1627C75FAC12}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
@@ -52,7 +67,7 @@
       <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE  /DWIN32_LEAN_AND_MEAN %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -127,4 +142,5 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+
 </Project>
