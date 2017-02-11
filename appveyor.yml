@@ -1,0 +1,4 @@
+build_script:
+    - cd src
+    - msbuild -nologo -p:Configuration=Release envtool.sln
+    - envtool -VV
