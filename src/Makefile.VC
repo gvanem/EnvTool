@@ -2,7 +2,7 @@
 # EnvTool MSVC Nmake makefile.
 #
 
-DEBUG  = 1
+DEBUG  = 0
 STATIC = 1
 
 CC      = cl
@@ -19,7 +19,7 @@ LDFLAGS = -nologo -incremental:no -debug -map
 LDFLAGS = $(LDFLAGS) -subsystem:console,5.02
 RCFLAGS = -nologo -D_MSC_VER -r
 MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII
-EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib version.lib shell32.lib user32.lib
+EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib psapi.lib version.lib shell32.lib user32.lib
 
 !if "$(DEBUG)" == "1"
 D       = d
