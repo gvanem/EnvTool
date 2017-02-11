@@ -22,6 +22,8 @@
   #include <unistd.h>
   #define _fileno(f)         fileno (f)
   #define _write(f,buf,len)  write (f,buf,len)
+#elif defined(_MSC_VER) && (_MSC_VER <= 1600)
+  #define snprintf  _snprintf
 #endif
 
 #define loBYTE(w)     (BYTE)(w)
