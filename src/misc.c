@@ -348,8 +348,6 @@ BOOL is_wow64_active (void)
   if (init)
      goto quit;
 
-  init = TRUE;
-
 #if (IS_WIN64 == 0)
   typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
   func_IsWow64Process p_IsWow64Process;
@@ -361,6 +359,7 @@ BOOL is_wow64_active (void)
   {
     DEBUGF (1, "Failed to load %s; %s\n",
             dll, win_strerror(GetLastError()));
+    init = TRUE;
     return (rc);
   }
 
@@ -370,6 +369,7 @@ BOOL is_wow64_active (void)
     DEBUGF (1, "Failed to find \"p_IsWow64Process()\" in %s; %s\n",
             dll, win_strerror(GetLastError()));
     FreeLibrary (hnd);
+    init = TRUE;
     return (rc);
   }
 
@@ -378,6 +378,8 @@ BOOL is_wow64_active (void)
         rc = wow64;
   FreeLibrary (hnd);
 #endif  /* IS_WIN64 */
+
+  init = TRUE;
 
 quit:
   DEBUGF (2, "IsWow64Process(): rc: %d, wow64: %d.\n", rc, wow64);
@@ -791,6 +793,26 @@ void make_path (char *path, const char *drive, const char *dir, const char *file
   _makepath (path, drive, dir, filename, ext);
 #endif
 }
+
+#if !defined(__CYGWIN__)
+/*
+ * Create a CygWin compatible path name from a Windows path.
+ */
+void make_cyg_path (const char *path, char *result)
+{
+  char *p = STRDUP (slashify(path, '/'));
+  char  buf [_MAX_PATH+20], *res = buf;
+
+  if (strlen(p) > 2 && p[1] == ':' && IS_SLASH(p[2]))
+  {
+    sprintf (buf, "/cygdrive/%c/%s", tolower(p[0]), p+3);
+    _strlcpy (result, buf, _MAX_PATH);
+  }
+  else
+    _strlcpy (result, p, _MAX_PATH);
+  FREE (p);
+}
+#endif
 
 /*
  * Canonize file and paths names. E.g. convert this:
