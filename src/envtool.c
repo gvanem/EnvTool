@@ -2014,15 +2014,6 @@ static int get_cmake_info (const char **exe, struct ver_info *ver)
 {
   char cmd [1000];
 
-  /* Figure out why AppVeyor doesn't find cmake.exe allthough it's in the %PATH.
-   * /Q: Display the owner of the file.
-   */
-  if (!strcmp(get_user_name(), "APPVYR-WIN\\appveyor"))
-  {
-    system ("dir c:\\Program Files (x86)\\CMake\\bin /Q");
-    return (0);
-  }
-
   *exe = searchpath ("cmake.exe", "PATH");
   if (*exe == NULL)
      return (0);
