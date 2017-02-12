@@ -121,7 +121,7 @@ static struct python_info all_py_programs[] = {
     { "python.exe",    PY2_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
     { "python.exe",    PY3_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
 
-#if defined(__CYGWIN__) || 1
+#if defined(__CYGWIN__)
     { "python2.7.exe", PY2_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
     { "python3.5.exe", PY3_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
 #endif
@@ -1290,9 +1290,9 @@ int py_test (void)
     C_printf ("~6Will%s try to test: %s/~3%s~0%s (%sembeddable): %s\n",
               test_it ? "" : " ~5not~6",
               py->program, py_variant_name(py->variant),
-              py->is_default     ? " ~6(Default)~0, " : "",
-              !py->is_embeddable ? "not "             : "",
-              py->exe_name       ? py->exe_name       : "~5Not found~0");
+              py->is_default     ? " ~6(Default)~0," : "",
+              !py->is_embeddable ? "not "            : "",
+              py->exe_name       ? py->exe_name      : "~5Not found~0");
 
     if (test_it)
     {
