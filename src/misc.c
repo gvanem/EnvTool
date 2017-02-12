@@ -803,7 +803,7 @@ void make_path (char *path, const char *drive, const char *dir, const char *file
 void make_cyg_path (const char *path, char *result)
 {
   char *p = STRDUP (slashify(path, '/'));
-  char  buf [_MAX_PATH+20], *res = buf;
+  char  buf [_MAX_PATH+20];
 
   if (strlen(p) > 2 && p[1] == ':' && IS_SLASH(p[2]))
   {
