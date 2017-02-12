@@ -2,8 +2,10 @@ build_script:
     - cd src
     - msbuild -nologo -p:Configuration=Release envtool.sln
     - echo Testing version output
-    - envtool -VV
+    - Release\envtool -VV
     - echo Testing test output
-    - envtool --test
+    - Release\envtool --test
     - echo Testing Python test output
-    - envtool --test --python
+    - Release\envtool --test --python
+  # - echo Testing win_glob
+  # - Release\win_glob -fr "c:\Program Files (x86)\CMake"
