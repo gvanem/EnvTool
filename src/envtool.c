@@ -2014,6 +2014,15 @@ static int get_cmake_info (const char **exe, struct ver_info *ver)
 {
   char cmd [1000];
 
+  /* Figure out why AppVeyor doesn't find cmake.exe allthough it's in the %PATH.
+   * /Q: Display the owner of the file.
+   */
+  if (!strcmp(get_user_name(), "APPVYR-WIN\\appveyor"))
+  {
+    system ("dir c:\\Program Files (x86)\\CMake\\bin /Q");
+    return (0);
+  }
+
   *exe = searchpath ("cmake.exe", "PATH");
   if (*exe == NULL)
      return (0);
@@ -3209,7 +3218,7 @@ static const struct test_table1 tab1[] = {
                    */
                   { "..\\Resources\\Themes\\aero.theme", "PATH" },
 
-                  { "./envtool.c",       "FOO-BAR" },       /* CWD should always be at pos 0 regarless of env-var. */
+                  { "./envtool.c",       "FOO-BAR" },       /* CWD should always be at pos 0 regardless of env-var. */
                   { "msvcrt.lib",        "LIB" },
                   { "libgcc.a",          "LIBRARY_PATH" },  /* MinGW-w64 doesn't seem to have libgcc.a */
                   { "libgmon.a",         "LIBRARY_PATH" },
