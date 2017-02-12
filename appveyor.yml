@@ -1,4 +1,9 @@
 build_script:
     - cd src
     - msbuild -nologo -p:Configuration=Release envtool.sln
+    - echo Testing version output
     - envtool -VV
+    - echo Testing test output
+    - envtool --test
+    - echo Testing Python test output
+    - envtool --test --python
