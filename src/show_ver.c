@@ -270,7 +270,7 @@ static const char *show_file_flags (DWORD dwFileFlags)
   }
 
   if (!pos)
-    memcpy (s, "0", 2);
+     memcpy (s, "0", 2);
   return (s);
 }
 
@@ -475,10 +475,13 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
   const struct VS_VERSIONINFO *pVS     = (const struct VS_VERSIONINFO*) pVer;
   const BYTE                  *pVS_max = (const BYTE*) pVer + size;
   const BYTE                  *pVt;
+  const VS_FIXEDFILEINFO      *pValue;
+  const struct StringFileInfo *pSFI;
 
 #if 0
   BYTE* nEndRaw   = ROUND_POS ((((BYTE*)pVer) + size), pVer, 4);
   BYTE* nEndNamed = ROUND_POS ((((BYTE*) pVS) + pVS->wLength), pVS, 4);
+
   ASSERT (nEndRaw == nEndNamed); /* size reported from GetFileVersionInfoSize is much padded for some reason. */
 #endif
 
@@ -487,7 +490,7 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
 
   pVt = (const BYTE*) &pVS->szKey [wcslen(pVS->szKey)+1];
 
-  const VS_FIXEDFILEINFO *pValue = (const VS_FIXEDFILEINFO *) ROUND_POS (pVt, pVS, 4);
+  pValue = (const VS_FIXEDFILEINFO *) ROUND_POS (pVt, pVS, 4);
 
   if (pVS->wValueLength)
      show_FIXEDFILEINFO (pValue, ver_p); /* Show the 'Value' element */
@@ -495,13 +498,17 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
   /* Iterate over the 'Children' elements of VS_VERSIONINFO (either a
    * 'struct StringFileInfo' or 'struct VarFileInfo').
    */
-  const struct StringFileInfo *pSFI = (struct StringFileInfo*) ROUND_POS (((BYTE*)pValue) + pVS->wValueLength, pValue, 4);
+  pSFI = (struct StringFileInfo*) ROUND_POS (((BYTE*)pValue) + pVS->wValueLength, pValue, 4);
 
   for (; ((const BYTE*)pSFI) < (((const BYTE*)pVS) + pVS->wLength);
          pSFI = (const struct StringFileInfo*) ROUND_POS ((((const BYTE*)pSFI) + pSFI->wLength), pSFI, 4))
   {                             /* 'struct StringFileInfo' or 'struct VarFileInfo' */
     if (!wcscmp(pSFI->szKey, L"StringFileInfo"))
     {
+      const struct StringTable *pST;
+      const struct String      *pS;
+      const wchar_t            *psVal;
+
       /* The current child is a 'struct StringFileInfo' element
        */
       ASSERT (1 == pSFI->wType);
@@ -509,7 +516,7 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
 
       /* Iterate through the 'struct StringTable' elements of 'struct StringFileInfo'
        */
-      const struct StringTable *pST = (const struct StringTable*) ROUND_POS (&pSFI->szKey[wcslen(pSFI->szKey)+1], pSFI, 4);
+      pST = (const struct StringTable*) ROUND_POS (&pSFI->szKey[wcslen(pSFI->szKey)+1], pSFI, 4);
 
       for (; (const BYTE*)pST < (const BYTE*)pSFI + pSFI->wLength;
             pST = (const struct StringTable*) ROUND_POS ((BYTE*)pST + pST->wLength, pST, 4))
@@ -520,23 +527,23 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
 
         /* Iterate through the String elements of 'struct StringTable'
          */
-        const struct String *pS = (const struct String*) ROUND_POS (&pST->szKey[wcslen(pST->szKey) + 1], pST, 4);
+        pS = (const struct String*) ROUND_POS (&pST->szKey[wcslen(pST->szKey) + 1], pST, 4);
 
         for (; (const BYTE*)pS < (const BYTE*)pST + pST->wLength;
              pS = (const struct String*) ROUND_POS ((BYTE*)pS + pS->wLength, pS, 4))
         {
-          const wchar_t *psVal = (const wchar_t*) ROUND_POS (&pS->szKey[wcslen(pS->szKey)+1], pS, 4);
-
-          do_printf ("  %-17S: %.*S\n", pS->szKey, (int)pS->wValueLength, psVal); // print <sKey> : <sValue>
+          psVal = (const wchar_t*) ROUND_POS (&pS->szKey[wcslen(pS->szKey)+1], pS, 4);
+          do_printf ("  %-17S: %.*S\n", pS->szKey, (int)pS->wValueLength, psVal);    // print <sKey> : <sValue>
         }
       }
     }
     else
     {
+      const struct VarFileInfo *pVFI = (const struct VarFileInfo*) pSFI;
+      const struct Var         *pV;
+
       /* The current child is a 'struct VarFileInfo' element */
       ASSERT (1 == pSFI->wType); /* ?? it just seems to be this way... */
-
-      const struct VarFileInfo *pVFI = (const struct VarFileInfo*) pSFI;
 
       ASSERT (!wcscmp(pVFI->szKey, L"VarFileInfo"));
       ASSERT (!pVFI->wValueLength);
@@ -544,17 +551,19 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
       /* Iterate through the Var elements of 'struct VarFileInfo'
        * (there should be only one, but just in case...)
        */
-      const struct Var *pV = (const struct Var*) ROUND_POS (&pVFI->szKey[wcslen(pVFI->szKey)+1], pVFI, 4);
+      pV = (const struct Var*) ROUND_POS (&pVFI->szKey[wcslen(pVFI->szKey)+1], pVFI, 4);
 
       for (; (const BYTE*)pV < (const BYTE*)pVFI + pVFI->wLength;
            pV = (const struct Var*) ROUND_POS ((const BYTE*)pV + pV->wLength, pV, 4))
       {
+        const WORD *wpos, *pwV;
+
         do_printf ("  %" WIDESTR_FMT ":    ", pV->szKey);
 
         /* Iterate through the array of pairs of 16-bit language ID values that make up
          * the standard 'Translation' VarFileInfo element.
          */
-        const WORD *wpos, *pwV = (const WORD*) ROUND_POS (&pV->szKey[wcslen(pV->szKey)+1], pV, 4);
+        pwV = (const WORD*) ROUND_POS (&pV->szKey[wcslen(pV->szKey)+1], pV, 4);
 
         for (wpos = pwV; (const BYTE*)wpos < (const BYTE*)pwV + pV->wValueLength; wpos += 2)
         {

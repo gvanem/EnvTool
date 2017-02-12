@@ -2,10 +2,9 @@
 # EnvTool OpenWatcom makefile.
 #
 
-CC      = wcc386
-CPP     = wpp386
-CFLAGS  = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul &
-          -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl
+CC     = wcc386
+CFLAGS = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul &
+         -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl
 
 LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort global
 EX_LIBS = advapi32.lib imagehlp.lib version.lib shfolder.lib &
@@ -35,10 +34,6 @@ win_trust.exe: win_trust.c misc.obj color.obj getopt_long.obj searchpath.obj
 	$(LINK) name $*.exe file { win_trust.obj misc.obj color.obj getopt_long.obj searchpath.obj } &
 	        library { $(EX_LIBS) }
 	rm win_trust.obj
-
-.ERASE
-show_ver.obj: show_ver.c
-	$(CPP) $(CFLAGS) $[@
 
 .ERASE
 .c.obj:
