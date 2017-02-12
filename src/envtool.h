@@ -334,6 +334,7 @@ extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
 extern void  set_error_mode(int on_off);
 extern int   disk_ready    (int disk);
+extern void  make_cyg_path (const char *path, char *result);
 
 extern const char *compiler_version (void);
 extern const char *get_user_name (void);

@@ -100,14 +100,13 @@ struct registry_array  reg_array [MAX_PATHS];
 struct prog_options opt;
 
 char   sys_dir        [_MAX_PATH];
-char   sys_native_dir [_MAX_PATH];
+char   sys_native_dir [_MAX_PATH];  /* Not for WIN64 */
 char   sys_wow64_dir  [_MAX_PATH];  /* Not for WIN64 */
 
 static UINT64 total_size = 0;
 static int    num_version_ok = 0;
 static int    num_verified = 0;
 static int    num_evry_dups = 0;
-static BOOL   is_wow64 = FALSE;
 static BOOL   have_sys_native_dir = FALSE;
 static BOOL   have_sys_wow64_dir  = FALSE;
 
@@ -274,7 +273,7 @@ static int show_version (void)
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
-            is_wow64 ? ", ~1WOW64" : "", AUTHOR_STR);
+            is_wow64_active() ? ", ~1WOW64" : "", AUTHOR_STR);
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (wnd)
@@ -288,10 +287,10 @@ static int show_version (void)
 
   C_printf ("  Checking Python programs...");
   C_flush();
-  init_python();
+  py_init();
   C_printf ("\r                             \r");
 
-  if (get_python_info(&py_exe, NULL, &py_ver))
+  if (py_get_info(&py_exe, NULL, &py_ver))
   {
     len = C_printf ("  Python %u.%u.%u detected", py_ver.val_1, py_ver.val_2, py_ver.val_3);
     C_printf (" -> ~6%s~0.\n", py_exe);
@@ -309,14 +308,16 @@ static int show_version (void)
 
   if (opt.do_version >= 2)
   {
-    char kernel32 [_MAX_PATH], *os_bits = "Unknow bitness";
+    char kernel32 [_MAX_PATH], *os_bits = "Unknown bitness";
     enum Bitness bits = bit_unknown;
 
     if (have_sys_native_dir)
          snprintf (kernel32, sizeof(kernel32), "%s\\%s", sys_native_dir, "kernel32.dll");
     else snprintf (kernel32, sizeof(kernel32), "%s\\%s", sys_dir, "kernel32.dll");
 
-    if (FILE_EXISTS(kernel32) && check_if_PE(kernel32, &bits))
+    DEBUGF (2, "kernel32: %s, exists: %d\n", kernel32, FILE_EXISTS(kernel32));
+
+    if (check_if_PE(kernel32, &bits))
     {
       if (bits == bit_32)
          os_bits = "32 bits";
@@ -337,7 +338,7 @@ static int show_version (void)
     searchpath_all_cc();
 
     C_printf ("\n  Pythons on ~3PATH~0:\n");
-    searchpath_pythons();
+    py_searchpaths();
   }
   return (0);
 }
@@ -356,6 +357,8 @@ static int show_help (void)
 {
   #define PFX_GCC  "~4<prefix>~0-~6gcc~0"
   #define PFX_GPP  "~4<prefix>~0-~6g++~0"
+
+  const char **py = py_get_variants();
 
   C_printf ("Environment check & search tool.\n\n"
             "Usage: %s ~6[options] <--mode>~0 ~6<file-spec>~0\n"
@@ -398,15 +401,18 @@ static int show_help (void)
             "    ~6-V~0:             show program version information. ~6-VV~0 prints more info.\n"
             "    ~6-h~0, ~6-?~0:         show this help.\n"
             "\n"
-            "  ~2[1]~0 The ~6--python~0 option can be detailed further with ~3=X~0:\n"
-            "      ~6py2~0    use a Python2 program only.\n"
-            "      ~6py3~0    use a Python3 program only.\n"
-            "      ~6ipy2~0   use a IronPython2 program only.\n"
-            "      ~6ipy3~0   use a IronPython3 program only.\n"
-            "      ~6pypy~0   use a PyPy program only.\n"
-            "      ~6jython~0 use a Jython program only.\n"
-            "      ~6all~0    use all of the above Python programs.\n"
-            "             otherwise use only first Python found on PATH (i.e. the default).\n"
+            "  ~2[1]~0 The ~6--python~0 option can be detailed further with ~3=X~0:\n");
+
+  for (; *py; py++)
+  {
+    unsigned v = py_variant_value (*py, NULL);
+
+    if (v == ALL_PYTHONS)
+         C_printf ("      ~6%-6s~0 use all of the above Python programs.\n", *py);
+    else C_printf ("      ~6%-6s~0 use a %s program only.\n", *py, py_variant_name(v));
+  }
+
+  C_printf ("             otherwise use only first Python found on PATH (i.e. the default).\n"
             "\n"
             "  ~2[2]~0 Unless ~6--no-gcc~0 and/or ~6--no-g++~0 is used, the\n"
             "      ~3%%C_INCLUDE_PATH%%~0 and ~3%%CPLUS_INCLUDE_PATH%%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
@@ -416,16 +422,15 @@ static int show_help (void)
             "      ~3%%LIBRARY_PATH%%~0 is also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
             "\n"
             "  ~2[4]~0 The ~6--evry~0 option requires that the Everything filename search engine is installed.\n"
-            "       Ref. ~3http://www.voidtools.com/support/everything/~0\n"
+            "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
             "\n"
             "Notes:\n"
             "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
             "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0 or ~6--dir~0 is used, only\n"
             "              matching directories are reported.\n"
-            "  Commonly used options can be put in ~3%%ENVTOOL_OPTIONS%%~0.\n");
+            "  Commonly used options can be set in ~3%%ENVTOOL_OPTIONS%%~0.\n");
   return (0);
 }
-
 
 /*
  * Add the 'dir' to 'dir_array[]' at index 'i'.
@@ -460,11 +465,18 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
    */
   d->is_native = (stricmp(dir,sys_native_dir) == 0);
 
+#if (IS_WIN64)
+  if (d->is_native && !d->exist)  /* No access to this directory from WIN64; ignore */
+  {
+    d->exist = d->is_dir = TRUE;
+    DEBUGF (2, "Ignore native dir '%s'.\n", dir);
+  }
+#else
   if (d->is_native && !have_sys_native_dir)
      DEBUGF (2, "Native dir '%s' doesn't exist.\n", dir);
-
   else if (!d->exist)
      DEBUGF (2, "'%s' doesn't exist.\n", dir);
+#endif
 
 #if defined(__CYGWIN__)
   {
@@ -793,7 +805,7 @@ static int found_in_python_egg = 0;
 static int found_in_default_env = 0;
 
 /* Use this as an indication that the EveryThing database is not up-to-date with
- * the reality; files have been deleted after the DB was last updated.
+ * the reality; files have been deleted after the database was last updated.
  * Unless we're running a 64-bit version of envtool and a file was found in
  * the 'sys_native_dir[]' and we 'have_sys_native_dir == 0'.
  */
@@ -994,8 +1006,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   else if (key == HKEY_EVERYTHING)
   {
 #if (IS_WIN64)
-    if (mtime == 0 && !have_sys_native_dir &&
-        !strnicmp(file,sys_native_dir,strlen(sys_native_dir)))
+    if (mtime == 0 && !strnicmp(file,sys_native_dir,strlen(sys_native_dir)))
        have_it = FALSE;
 #endif
     if (is_dir)
@@ -1192,97 +1203,24 @@ static char *fix_filespec (char **sub_dir)
   return (fspec);
 }
 
-const char *reg_type_name (DWORD type)
-{
-  return (type == REG_SZ               ? "REG_SZ" :
-          type == REG_MULTI_SZ         ? "REG_MULTI_SZ" :
-          type == REG_EXPAND_SZ        ? "REG_EXPAND_SZ" :
-          type == REG_LINK             ? "REG_LINK" :
-          type == REG_BINARY           ? "REG_BINARY" :
-          type == REG_DWORD            ? "REG_DWORD" :
-          type == REG_RESOURCE_LIST    ? "REG_RESOURCE_LIST" :
-          type == REG_DWORD_BIG_ENDIAN ? "REG_DWORD_BIG_ENDIAN" :
-          type == REG_QWORD            ? "REG_QWORD" : "?");
-}
-
-/*
- * Swap bytes in a 32-bit value.
- */
-static DWORD swap_long (DWORD val)
-{
-  return ((val & 0x000000FFU) << 24) |
-         ((val & 0x0000FF00U) <<  8) |
-         ((val & 0x00FF0000U) >>  8) |
-         ((val & 0xFF000000U) >> 24);
-}
-
-static const char *top_key_name (HKEY key)
-{
-  return (key == HKEY_LOCAL_MACHINE ? "HKEY_LOCAL_MACHINE" :
-          key == HKEY_CURRENT_USER  ? "HKEY_CURRENT_USER" :
-          "?");
-}
-
-static const char *access_name (REGSAM acc)
-{
-  #define ADD_VALUE(v)  { v, #v }
-
-  static const struct search_list access[] = {
-                                  ADD_VALUE (KEY_CREATE_LINK),
-                                  ADD_VALUE (KEY_CREATE_SUB_KEY),
-                                  ADD_VALUE (KEY_ENUMERATE_SUB_KEYS),
-                                  ADD_VALUE (KEY_NOTIFY),
-                                  ADD_VALUE (KEY_QUERY_VALUE),
-                                  ADD_VALUE (KEY_SET_VALUE),
-#if defined(KEY_WOW64_32KEY)
-                                  ADD_VALUE (KEY_WOW64_32KEY),
-#endif
-#if defined(KEY_WOW64_64KEY)
-                                  ADD_VALUE (KEY_WOW64_64KEY)
-#endif
-                                };
-
-  acc &= ~STANDARD_RIGHTS_READ;  /* == STANDARD_RIGHTS_WRITE, STANDARD_RIGHTS_EXECUTE */
-
-  if ((acc & KEY_ALL_ACCESS) == KEY_ALL_ACCESS)
-     return ("KEY_ALL_ACCESS");
-  return flags_decode (acc, access, DIM(access));
-}
-
-static REGSAM read_access (void)
-{
-  REGSAM access = KEY_READ;
-
-#if defined(KEY_WOW64_32KEY) && defined(KEY_WOW64_64KEY)
-#if (IS_WIN64)
-  access |= KEY_WOW64_32KEY;
-#else
-  if (is_wow64)
-     access |= KEY_WOW64_64KEY;
-#endif
-#endif  /* KEY_WOW32_64KEY && KEY_WOW64_64KEY */
-
-  return (access);
-}
-
 static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **ret)
 {
   HKEY   key = NULL;
   u_long num;
   DWORD  rc;
-  REGSAM acc = read_access();
+  REGSAM acc = reg_read_access();
   const char *ext = strrchr (key_name, '.');
 
   *ret = NULL;
   rc = RegOpenKeyEx (top_key, key_name, 0, acc, &key);
 
   DEBUGF (1, "  RegOpenKeyEx (%s\\%s, %s):\n                  %s\n",
-          top_key_name(top_key), key_name, access_name(acc), win_strerror(rc));
+          reg_top_key_name(top_key), key_name, reg_access_name(acc), win_strerror(rc));
 
   if (rc != ERROR_SUCCESS)
   {
     WARN ("    Error opening registry key \"%s\\%s\", rc=%lu\n",
-          top_key_name(top_key), key_name, (u_long)rc);
+          reg_top_key_name(top_key), key_name, (u_long)rc);
     return (FALSE);
   }
 
@@ -1343,7 +1281,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
            break;
 
       case REG_DWORD_BIG_ENDIAN:
-           val32 = swap_long (*(DWORD*)&data[0]);
+           val32 = reg_swap_long (*(DWORD*)&data[0]);
            /* fall through */
 
       case REG_DWORD:
@@ -1384,11 +1322,11 @@ static int build_reg_array_app_path (HKEY top_key)
 {
   HKEY   key = NULL;
   int    num, idx = 0;
-  REGSAM acc = read_access();
+  REGSAM acc = reg_read_access();
   DWORD  rc  = RegOpenKeyEx (top_key, REG_APP_PATH, 0, acc, &key);
 
   DEBUGF (1, "  RegOpenKeyEx (%s\\%s, %s):\n                   %s\n",
-          top_key_name(top_key), REG_APP_PATH, access_name(acc), win_strerror(rc));
+          reg_top_key_name(top_key), REG_APP_PATH, reg_access_name(acc), win_strerror(rc));
 
   for (num = idx = 0; rc == ERROR_SUCCESS; num++)
   {
@@ -1436,11 +1374,11 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
                                   char **path, char **inc, char **lib)
 {
   HKEY   key = NULL;
-  REGSAM acc = read_access();
+  REGSAM acc = reg_read_access();
   DWORD  num, rc = RegOpenKeyEx (top_key, sub_key, 0, acc, &key);
 
   DEBUGF (1, "RegOpenKeyEx (%s\\%s, %s):\n                 %s\n",
-          top_key_name(top_key), sub_key, access_name(acc), win_strerror(rc));
+          reg_top_key_name(top_key), sub_key, reg_access_name(acc), win_strerror(rc));
 
   for (num = 0; rc == ERROR_SUCCESS; num++)
   {
@@ -1559,12 +1497,12 @@ static int report_registry (const char *reg_key, int num)
     snprintf (fqdn, sizeof(fqdn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
 
     DEBUGF (1, "i=%2d: exist=%d, match=%d, key=%s, fname=%s, path=%s\n",
-            i, arr->exist, match, top_key_name(arr->key), arr->fname, arr->path);
+            i, arr->exist, match, reg_top_key_name(arr->key), arr->fname, arr->path);
 
     if (!arr->exist)
     {
       WARN ("\"%s\\%s\" points to\n  '%s\\%s'. But this file does not exist.\n\n",
-            top_key_name(arr->key), reg_key, arr->path, arr->fname);
+            reg_top_key_name(arr->key), reg_key, arr->path, arr->fname);
     }
     else
     {
@@ -1764,8 +1702,12 @@ static void check_sys_dir (const char *dir, const char *name, BOOL *have_it)
 static void check_sys_dirs (void)
 {
   check_sys_dir (sys_dir, "sys_dir", NULL);
+#if (IS_WIN64 == 0)
   check_sys_dir (sys_native_dir, "sys_native_dir", &have_sys_native_dir);
   check_sys_dir (sys_wow64_dir, "sys_wow64_dir", &have_sys_wow64_dir);
+#else
+  ARGSUSED (have_sys_wow64_dir);
+#endif
 }
 
 /*
@@ -2633,53 +2575,47 @@ static int *values_tab[] = {
             &opt.gcc_no_prefixed  /* 27 */
           };
 
-static void set_python_variant (const char *o)
+/*
+ * 'getopt_long()' handler for "--python=<short_name>".
+ *
+ * Accept only a Python 'short_name' which is compiled in.
+ * Ref. the 'all_py_programs[]' array in envtool_py.c.
+ */
+static void set_python_variant (const char *arg)
 {
-  DEBUGF (2, "optarg: '%s'\n", o);
+  const char **py = py_get_variants();
+  unsigned     v  = UNKNOWN_PYTHON;
+  int          i;
 
-  if (!o)
-     which_python = DEFAULT_PYTHON;
+  DEBUGF (2, "optarg: '%s'\n", arg);
+  ASSERT (arg);
 
-  else if (!strcmp("py2",o))
-     which_python = PY2_PYTHON;
+  for (i = 0; py[i]; i++)
+     if (!stricmp(arg,py[i]))
+     {
+       v = py_variant_value (arg, NULL);
+       break;
+    }
 
-  else if (!strcmp("py3",o))
-     which_python = PY3_PYTHON;
-
-  else if (!strcmp("ipy",o))
-     which_python = IRON2_PYTHON;
-
-  else if (!strcmp("ipy2",o))
-     which_python = IRON2_PYTHON;
-
-  else if (!strcmp("ipy3",o))
-     which_python = IRON3_PYTHON;
-
-  else if (!strcmp("pypy",o))
-     which_python = PYPY_PYTHON;
-
-  else if (!strcmp("jython",o))
-     which_python = JYTHON_PYTHON;
-
-  else if (!strcmp("all",o))
-     which_python = ALL_PYTHONS;
-
-  else
+  if (v == UNKNOWN_PYTHON)
   {
-    const char **py = python_get_variants();
-    char buf [100], *p = buf;
-    int  i, left = sizeof(buf)-1;
+    char buf[100], *p = buf;
+    int  left = sizeof(buf)-1;
 
-    for (i = 0; *py && left > 4; i++, py++)
+    for (i = 0; py[i] && left > 4; i++)
     {
-      p += snprintf (p, left, "\"%s\", ", *py);
+      p += snprintf (p, left, "\"%s\", ", py[i]);
       left = sizeof(buf) - (p - buf);
     }
     if (p > buf+2)
        p[-2] = '\0';
     usage ("Illegal '--python' option: '%s'.\n"
-           "Use one of these: %s.\n", o, buf);
+           "Use one of these: %s.\n", arg, buf);
   }
+
+  /* Found a valid match
+   */
+  py_which = (enum python_variants) v;
 }
 
 static void set_short_option (int c)
@@ -2746,11 +2682,14 @@ static void set_long_option (int o)
   DEBUGF (2, "got long option \"--%s\". Setting value %d -> 1. o: %d.\n",
           long_options[o].name, *values_tab[o], o);
 
-  if (!strcmp("python",long_options[o].name))
-     set_python_variant (optarg);
+  if (optarg)
+  {
+    if (!strcmp("python",long_options[o].name))
+       set_python_variant (optarg);
 
-  else if (optarg && !strcmp("debug",long_options[o].name))
-    opt.debug = atoi (optarg);
+    else if (!strcmp("debug",long_options[o].name))
+      opt.debug = atoi (optarg);
+  }
 
   val_ptr = values_tab [o];
   *val_ptr = 1;
@@ -2869,10 +2808,10 @@ static void cleanup (void)
   int i;
 
   /* If we're called from the SIGINT thread, don't do any Python stuff.
-   * That will crash in Py_Finalize().
+   * That will probably crash in Py_Finalize().
    */
   if (halt_flag == 0)
-     exit_python();
+     py_exit();
 
   free_dir_array();
   check_dir_array();
@@ -2952,8 +2891,6 @@ static void init_all (void)
   crtdbug_init();
 #endif
 
-  is_wow64 = is_wow64_active();
-
   tzset();
   memset (&opt, 0, sizeof(opt));
   opt.add_cwd = 1;
@@ -3008,7 +2945,7 @@ int main (int argc, char **argv)
      return show_version();
 
   if (opt.do_python)
-     init_python();
+     py_init();
 
   if (opt.do_tests)
      return do_tests();
@@ -3095,10 +3032,10 @@ int main (int argc, char **argv)
     char        report [_MAX_PATH+50];
     const char *py_exe = NULL;
 
-    get_python_info (&py_exe, NULL, NULL);
+    py_get_info (&py_exe, NULL, NULL);
     snprintf (report, sizeof(report), "Matches in \"%s\" sys.path[]:\n", py_exe);
     report_header = report;
-    found += do_check_python();
+    found += py_search();
   }
 
   if (opt.do_evry)
@@ -3307,7 +3244,7 @@ static void test_searchpath (void)
   int    is_env, pad;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
-  C_printf ("  ~6What \t\t\t\t    Where\t\t\t     Result~0\n");
+  C_printf ("  ~6What \t\t\t\t    Where\t\t       Result~0\n");
 
   for (t = tab1; i < DIM(tab1); t++, i++)
   {
@@ -3631,11 +3568,12 @@ static void test_ReparsePoints (void)
  */
 static void test_PE_wintrust (void)
 {
-  static char *files[] = {
+  static const char *files[] = {
               "%s\\kernel32.dll",
               "%s\\drivers\\usbport.sys",
               "notepad.exe",
-              "cl.exe"
+              "cl.exe",
+              "cl-not-found.exe"
             };
   int i;
 
@@ -3643,7 +3581,7 @@ static void test_PE_wintrust (void)
 
   for (i = 0; i < DIM(files); i++)
   {
-    char *file = files[i];
+    char *file = (char*) files[i];
     char  path [_MAX_PATH];
     char *is_sys = strchr (file, '%');
     DWORD rc;
@@ -3657,6 +3595,9 @@ static void test_PE_wintrust (void)
       file = searchpath (file, "PATH");
 
     rc = wintrust_check (file, FALSE, FALSE);
+    if (!file)
+       file = _strlcpy (path, files[i], sizeof(path)-1);
+
     C_printf ("  %d: %s %*s->", i, _fix_drive(file), (int)(45-strlen(file)), "");
     C_printf (" ~2%s~0\n", wintrust_check_result(rc));
   }
@@ -3731,10 +3672,7 @@ static int do_tests (void)
   if (opt.do_python)
   {
     if (!halt_flag)
-    {
-      test_pythons();
-      test_python_funcs();
-    }
+       py_test();
     return (0);
   }
 
