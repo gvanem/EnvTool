@@ -85,6 +85,7 @@ void smartlist_free (smartlist_t *sl)
     ASSERT (*val != 0xDDDDDDDD);
 #endif
 
+    sl->num_used = 0;
     FREE (sl->list);
     FREE (sl);
   }
