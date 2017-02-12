@@ -2,8 +2,9 @@
 # GNU makefile for EnvTool (PellesC 32/64-bit).
 #
 
-USE_DEBUG ?= 0
-USE_64BIT ?= 0
+USE_DEBUG     ?= 1
+USE_64BIT     ?= 0
+USE_POCRT_DLL ?= 0
 
 POCC_ROOT = $(realpath $(PELLESC))
 
@@ -14,8 +15,8 @@ LD = $(POCC_ROOT)/bin/polink
 RC = $(POCC_ROOT)/bin/porc
 CC = $(POCC_ROOT)/bin/pocc
 
-CFLAGS = -MT -X -W1 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl     \
-         -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN -W1 -Go -Zi -Zl -Ze \
+CFLAGS = -X -W1 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
+         -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN -Go -Zi -Zl -Ze \
          -I$(POCC_ROOT)/include -I$(POCC_ROOT)/include/win -std:C11
 
 #
@@ -26,6 +27,14 @@ CFLAGS += -D_MALLOC_H
 LDFLAGS = -map -subsystem:console -debug -verbose -nodefaultlib
 
 RCFLAGS = -D__POCC__
+
+ifeq ($(USE_POCRT_DLL),1)
+  CFLAGS += -MD
+  CRT_LIB = pocrt
+else
+  CFLAGS += -MT
+  CRT_LIB = crtmt
+endif
 
 ifeq ($(USE_DEBUG),1)
   CFLAGS += -D_DEBUG
@@ -38,35 +47,35 @@ ifeq ($(USE_64BIT),1)
   LDFLAGS += -machine:x64
   RCFLAGS += -D_WIN64
 
-  EX_LIBS = $(addprefix $(POCC_ROOT)/lib/, \
-              crtmt64.lib                  \
-              oldnames64.lib               \
-              Win64/user32.lib             \
-              Win64/shell32.lib            \
-              Win64/kernel32.lib           \
-              Win64/advapi32.lib           \
-              Win64/imagehlp.lib           \
-              Win64/crypt32.lib            \
-              Win64/psapi.lib              \
-              Win64/wintrust.lib           \
-              Win64/version.lib)
+  EX_LIBS += $(addprefix $(POCC_ROOT)/lib/, \
+               $(CRT_LIB)64.lib             \
+               oldnames64.lib               \
+               Win64/user32.lib             \
+               Win64/shell32.lib            \
+               Win64/kernel32.lib           \
+               Win64/advapi32.lib           \
+               Win64/imagehlp.lib           \
+               Win64/crypt32.lib            \
+               Win64/psapi.lib              \
+               Win64/wintrust.lib           \
+               Win64/version.lib)
 else
   CFLAGS  += -Tx86-coff
   LDFLAGS += -machine:x86
   RCFLAGS += -D_WIN32
 
-  EX_LIBS = $(addprefix $(POCC_ROOT)/lib/, \
-              crtmt.lib                    \
-              oldnames.lib                 \
-              Win/user32.lib               \
-              Win/shell32.lib              \
-              Win/kernel32.lib             \
-              Win/advapi32.lib             \
-              Win/imagehlp.lib             \
-              Win/crypt32.lib              \
-              Win/psapi.lib                \
-              Win/wintrust.lib             \
-              Win/version.lib)
+  EX_LIBS += $(addprefix $(POCC_ROOT)/lib/, \
+               $(CRT_LIB).lib               \
+               oldnames.lib                 \
+               Win/user32.lib               \
+               Win/shell32.lib              \
+               Win/kernel32.lib             \
+               Win/advapi32.lib             \
+               Win/imagehlp.lib             \
+               Win/crypt32.lib              \
+               Win/psapi.lib                \
+               Win/wintrust.lib             \
+               Win/version.lib)
 endif
 
 SOURCES = envtool.c color.c misc.c searchpath.c smartlist.c show_ver.c dirlist.c \
