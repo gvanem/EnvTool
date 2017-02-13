@@ -924,7 +924,7 @@ static int get_zip_output (char *str, int index)
 static int process_zip (struct python_info *py, const char *zfile)
 {
   char  cmd [_MAX_PATH + 1000];
-  char *line, *str, *tmp;
+  char *line, *tmp, *str = NULL;
   int   len, found = 0;
 
   if (sizeof(cmd) < sizeof(PY_ZIP_LIST) + _MAX_PATH + 100)
@@ -1356,7 +1356,7 @@ void py_searchpaths (void)
   }
 
   if (num > 0)
-     C_puts ("   ~3(1)~0 Default Python (found first on PATH).\n");
+     C_puts ("   ~3(1)~0 Default Python (first found on PATH).\n");
 }
 
 /*
