@@ -3203,8 +3203,8 @@ static const struct test_table1 tab1[] = {
                   { "kernel32.dll",      "PATH" },
                   { "notepad.exe",       "PATH" },
 
-                  /* Relative test:
-                   *   'c:\Windows\system32\Resources\Themes\aero.theme' is present in Win-10
+                  /* Relative file-name test:
+                   *   'c:\Windows\system32\Resources\Themes\aero.theme' is present in Win-8.1+
                    *   and 'c:\Windows\system32' should always be on PATH.
                    */
                   { "..\\Resources\\Themes\\aero.theme", "PATH" },
