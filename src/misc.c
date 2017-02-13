@@ -216,8 +216,6 @@ const char *get_gzip_link (const char *file)
   return (NULL);
 }
 
-//-----------------------
-
 /*
  * Open a fname, read the optional header in PE-header.
  *  - For verifying it's signature.

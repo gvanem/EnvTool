@@ -533,7 +533,7 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
              pS = (const struct String*) ROUND_POS ((BYTE*)pS + pS->wLength, pS, 4))
         {
           psVal = (const wchar_t*) ROUND_POS (&pS->szKey[wcslen(pS->szKey)+1], pS, 4);
-          do_printf ("  %-17S: %.*S\n", pS->szKey, (int)pS->wValueLength, psVal);    // print <sKey> : <sValue>
+          do_printf ("  %-17S: %.*S\n", pS->szKey, (int)pS->wValueLength, psVal);   /* print <sKey> : <sValue> */
         }
       }
     }
