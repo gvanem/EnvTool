@@ -345,6 +345,7 @@ extern const char *qword_str (UINT64 val);
 extern const char *dword_str (DWORD val);
 
 extern void        format_and_print_line (const char *line, int indent);
+extern void        print_long_line (const char *line, size_t indent);
 extern char       *translate_shell_pattern (const char *pattern);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);

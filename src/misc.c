@@ -1512,6 +1512,37 @@ void format_and_print_line (const char *line, int indent)
 }
 
 /*
+ * As above, but without a STRDUP().
+ */
+void print_long_line (const char *line, size_t indent)
+{
+  size_t      room, left = MAX_CHARS_PER_LINE - indent;
+  const char *c = line;
+
+  while (*c)
+  {
+    /* Break a long line only at 'break char'.
+     * Check if room for a flag-component ("foo|") before we must break the line.
+     */
+    if (*c == ' ')
+    {
+      room = (size_t) (line - strchr(c+1,' '));
+      if (c[1] && room < left)
+      {
+        C_printf ("%c\n%*c", *c++, (int)indent, ' ');
+        left = MAX_CHARS_PER_LINE - indent;
+        line = c;
+        continue;
+      }
+    }
+    C_putc (*c++);
+    left--;
+  }
+  C_putc ('\n');
+}
+
+
+/*
  * Search 'list' for 'value' and return it's name.
  */
 const char *list_lookup_name (unsigned value, const struct search_list *list, int num)
