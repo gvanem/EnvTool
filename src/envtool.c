@@ -3733,9 +3733,10 @@ static void print_build_cflags (void)
 {
 #if defined(CFLAGS)
   #include CFLAGS
-  format_and_print_line (cflags, 4);
+  C_puts ("\n    ");
+  print_long_line (cflags, 4);
 #else
-  format_and_print_line ("Unknown", 4);
+  print_long_line (" Unknown", 4);
 #endif
 }
 
@@ -3743,9 +3744,11 @@ static void print_build_ldflags (void)
 {
 #if defined(LDFLAGS)
   #include LDFLAGS
-  format_and_print_line (ldflags, 4);
+  C_puts ("\n    ");
+  print_long_line (ldflags, 4);
 #else
-  format_and_print_line ("Unknown", 4);
+  print_long_line (" Unknown", 4);
 #endif
 }
+
 
