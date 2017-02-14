@@ -39,6 +39,14 @@
 #define IMAGE_FILE_MACHINE_ALPHA 0x123456
 #endif
 
+#ifndef KEY_WOW64_32KEY
+#define KEY_WOW64_32KEY         0x0200
+#endif
+
+#ifndef KEY_WOW64_64KEY
+#define KEY_WOW64_64KEY         0x0100
+#endif
+
 #define TOUPPER(c)    toupper ((int)(c))
 #define TOLOWER(c)    tolower ((int)(c))
 
@@ -178,7 +186,7 @@ int check_if_gzip (const char *fname)
  * Open a GZIP-file and extract first line to check if it contains a
  * ".so real-file-name". This is typical for CygWin man-pages.
  * Return result as "<dir_name>/real-file-name". Which is just an
- * assumtion; the "real-file-name" can be anywhere on %MANPATH%.
+ * assumption; the "real-file-name" can be anywhere on %MANPATH%.
  */
 static char gzip_link_name [_MAX_PATH];
 
@@ -393,14 +401,12 @@ REGSAM reg_read_access (void)
 {
   REGSAM access = KEY_READ;
 
-#if defined(KEY_WOW64_32KEY) && defined(KEY_WOW64_64KEY)
 #if (IS_WIN64)
   access |= KEY_WOW64_32KEY;
 #elif 0
   if (is_wow64_active())
      access |= KEY_WOW64_64KEY;
 #endif
-#endif  /* KEY_WOW64_32KEY && KEY_WOW64_64KEY */
 
   return (access);
 }
@@ -436,12 +442,8 @@ const char *reg_access_name (REGSAM acc)
                                   ADD_VALUE (KEY_NOTIFY),
                                   ADD_VALUE (KEY_QUERY_VALUE),
                                   ADD_VALUE (KEY_SET_VALUE),
-#if defined(KEY_WOW64_32KEY)
                                   ADD_VALUE (KEY_WOW64_32KEY),
-#endif
-#if defined(KEY_WOW64_64KEY)
                                   ADD_VALUE (KEY_WOW64_64KEY)
-#endif
                                 };
 
   acc &= ~STANDARD_RIGHTS_READ;  /* == STANDARD_RIGHTS_WRITE, STANDARD_RIGHTS_EXECUTE */
@@ -1115,7 +1117,7 @@ char *_strsep (char **stringp, const char *delim)
 }
 
 /*
- * For consistentcy and nice looks, replace (single or multiple) '\\'
+ * For consistency and nice looks, replace (single or multiple) '\\'
  * with single '/' if use == '/'. And vice-versa.
  * All (?) Windows core functions functions should handle
  * '/' just fine.
@@ -1144,7 +1146,7 @@ char *slashify (const char *path, char use)
 }
 
 /*
- * Heristic alert!
+ * Heuristic alert!
  *
  * Return 1 if file A is newer than file B.
  * Based on modification times 'mtime_a', 'mtime_b' and file-versions
@@ -1422,17 +1424,15 @@ const char *get_file_size_str (UINT64 size)
 }
 
 /*
- * Reurn a time-string for 'time_t==0' (non-time).
+ * Return a time-string for 'time_t==0' (non-time).
  */
 const char *empty_time (void)
 {
-  return (opt.decimal_timestamp ?
-          "00000000.000000" :
-          "01 Jan 1970 - 00:00:00");
+  return (opt.decimal_timestamp ? "00000000.000000" : "01 Jan 1970 - 00:00:00");
 }
 
 /*
- * strftime() under MSVC sometimes crashes mysterously. Use this
+ * strftime() under MSVC sometimes crashes mysteriously. Use this
  * home-grown version. Also tests on 'time_t == 0' which often
  * is returned on a 'stat()' of a protected .sys-file.
  */
@@ -1614,7 +1614,7 @@ int popen_run (const char *cmd, popen_callback callback)
   const char *comspec = "";
   const char *setdos  = "";
 
-  /* OpenWatcom's popen() always uses cmd.exe regardles of %COMSPEC.
+  /* OpenWatcom's popen() always uses cmd.exe regardless of %COMSPEC.
    * If we're using 4NT/TCC shell, set all variable expansion to off
    * by prepending "setdos /x-3" to 'cmd' buffer.
    */
