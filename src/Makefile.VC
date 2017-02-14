@@ -100,7 +100,7 @@ clean vclean:
 	       win_ver.exe win_ver.map win_ver.pdb \
 	        *.sbr vc1*.idb vc*.pdb cflags_MSVC.h ldflags_MSVC.h msbuild.log
 
-msbuild: cflags_MSVC.h ldflags_MSVC.h
+msbuild:
 	$(MSBUILD) envtool.sln
 	copy /y envtool.exe ..
 	@echo envtool.exe successfully built.
