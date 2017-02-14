@@ -2260,7 +2260,7 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 int is_cygwin_tty (int fd)
 {
   typedef LONG (NTAPI *func_NtQueryObject) (HANDLE, OBJECT_INFORMATION_CLASS, void*, ULONG, ULONG*);
-  func_NtQueryObject  *p_NtQueryObject;
+  func_NtQueryObject   p_NtQueryObject;
   HANDLE               h_fd;
 
   /* NtQueryObject needs space for OBJECT_NAME_INFORMATION.Name->Buffer also.
@@ -2275,19 +2275,25 @@ int is_cygwin_tty (int fd)
   h_fd = (HANDLE) _get_osfhandle (fd);
   if (!h_fd || h_fd == INVALID_HANDLE_VALUE)
   {
+    DEBUGF (2, "_get_osfhandle (%d) failed\n", fd);
     errno = EBADF;
     return (0);
   }
 
-  p_NtQueryObject = (func_NtQueryObject*) GetProcAddress (GetModuleHandle("ntdll.dll"), "NtQueryObject");
+  p_NtQueryObject = (func_NtQueryObject) GetProcAddress (GetModuleHandle("ntdll.dll"), "NtQueryObject");
   if (!p_NtQueryObject)
-     goto no_tty;
+  {
+    DEBUGF (2, "NtQueryObject() not found in ntdll.dll.\n");
+    goto no_tty;
+  }
 
   memset (ntfn, 0, ntfn_size);
-  status = (*p_NtQueryObject) ((HANDLE)h_fd, ObjectNameInformation, ntfn, ntfn_size, &ntfn_size);
+  status = (p_NtQueryObject) ((HANDLE)h_fd, ObjectNameInformation, ntfn, ntfn_size, &ntfn_size);
 
   if (!NT_SUCCESS(status))
   {
+    DEBUGF (2, "NtQueryObject() failed.\n");
+
     /* If it is not NUL (i.e. \Device\Null, which would succeed),
      * then normal isatty() could be consulted.
      * */
@@ -2302,7 +2308,11 @@ int is_cygwin_tty (int fd)
   /* Look for \Device\NamedPipe\(cygwin|msys)-[a-fA-F0-9]{16}-pty[0-9]{1,4}-(from-master|to-master|to-master-cyg)
    */
   if (wcsncmp(s, L"\\Device\\NamedPipe\\", 18))
-     goto no_tty;
+  {
+    DEBUGF (2, "Not a Cygwin pipe: '%" WIDESTR_FMT "'.\n", s);
+    goto no_tty;
+  }
+
   s += 18;
 
   if (!wcsncmp(s, L"cygwin-", 7))
