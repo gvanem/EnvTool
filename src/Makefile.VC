@@ -69,11 +69,6 @@ dirlist.exe: dirlist.c misc.c color.c getopt_long.c searchpath.c
 	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q dirlist.obj searchpath.obj
 
-mem_test.exe: misc.c color.c searchpath.c
-	$(CC) $(CFLAGS) -DMEM_TEST -c $**
-	link $(LDFLAGS) -out:$@ $(**:.c=.obj) imagehlp.lib
-	del /q misc.obj
-
 win_glob.exe: win_glob.c misc.c color.c getopt_long.c searchpath.c
 	$(CC) $(CFLAGS) -DWIN_GLOB_TEST -c $**
 	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
@@ -100,7 +95,7 @@ ldflags_MSVC.h: Makefile.VC
 
 clean vclean:
 	del /q $(OBJECTS) envtool.map envtool.exe envtool.pdb envtool.res \
-	       dirlist.exe dirlist.map dirlist.pdb mem_test.exe mem_test.map mem_test.pdb \
+	       dirlist.exe dirlist.map dirlist.pdb \
 	       win_glob.obj win_glob.exe win_glob.map win_glob.pdb \
 	       win_ver.exe win_ver.map win_ver.pdb \
 	        *.sbr vc1*.idb vc*.pdb cflags_MSVC.h ldflags_MSVC.h msbuild.log

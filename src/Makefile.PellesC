@@ -90,10 +90,6 @@ all: cflags_PellesC.h ldflags_PellesC.h envtool.exe
 envtool.exe: $(OBJECTS) envtool.res
 	$(call link_exe, $@, $^)
 
-mem_test.exe: misc.c color.obj
-	$(CC) -c $(CFLAGS) -DMEM_TEST $^
-	$(call link_exe, $@, misc.obj color.obj)
-
 win_trust.exe: win_trust.c getopt_long.obj misc.obj color.obj
 	$(CC) -c $(CFLAGS) -DWIN_TRUST_TEST $^
 	$(call link_exe, $@, win_trust.obj getopt_long.obj misc.obj color.obj)
@@ -122,7 +118,7 @@ clean:
 	@echo
 
 vclean: clean
-	rm -f win_glob.exe win_glob.map mem_test.exe mem_test.map
+	rm -f win_glob.exe win_glob.map
 
 cflags_PellesC.h: Makefile.PellesC
 	echo 'const char *cflags = "$(CC) $(CFLAGS)";' > $@
