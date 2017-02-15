@@ -4,4 +4,4 @@ compiler:
   - gcc
 
 script:
-  - make -C src -f Makefile.MinGW USE_64BIT=1 FORTIFY_SOURCE=0 depend all
+  - make -C src -f Makefile.MinGW USE_64BIT=1 FORTIFY_SOURCE=0 TRAVIS_BUILD=1 depend all
