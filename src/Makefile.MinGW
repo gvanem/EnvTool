@@ -31,6 +31,10 @@ else
   LDFLAGS += -s
 endif
 
+ifeq ($(TRAVIS_BUILD),1)
+  CFLAGS += -DTRAVIS_BUILD
+endif
+
 ifneq ($(FORTIFY_SOURCE),0)
   ifneq ($(USE_DEBUG),1)
     $(error $$(FORTIFY_SOURCE) needs 'USE_DEBUG=1')

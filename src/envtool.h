@@ -216,7 +216,8 @@
 #if defined(__x86_64__) || defined(_M_X64)   /* 64-bit targets */
   #if defined(_MSC_VER) || defined(__MINGW32__)
     #define ADDR_FMT      "016I64X"
-  #elif defined(__CYGWIN__)                  /* CygWin64  */
+  #elif defined(__CYGWIN__)  ||              /* CygWin64  */
+        defined(TRAVIS_BUILD)                /* Travis-CI build */
     #define ADDR_FMT     "016llX"
   #else
     #error "Unsupported compiler"
