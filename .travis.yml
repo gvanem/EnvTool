@@ -4,8 +4,10 @@ compiler:
   - gcc
 
 before_script:
-   - sudo apt-get install wine
+   - sudo apt-add-repository -y ppa:ubuntu-wine/ppa
+   - sudo apt-get update
+   - sudo apt-get build-dep wine
 
 script:
-  - ls -lR
+  - env
   - make -C src -f Makefile.MinGW USE_64BIT=1 FORTIFY_SOURCE=0 TRAVIS_BUILD=1 depend all
