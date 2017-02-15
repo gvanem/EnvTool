@@ -7,4 +7,5 @@ before_script:
    - sudo apt-get install wine
 
 script:
+  - ls -lR
   - make -C src -f Makefile.MinGW USE_64BIT=1 FORTIFY_SOURCE=0 TRAVIS_BUILD=1 depend all
