@@ -1,0 +1,7 @@
+language: c
+
+compiler:
+  - gcc
+
+script:
+  - make -C src -f Makefile.MinGW USE_64BIT=1 FORTIFY_SOURCE=0 depend all
