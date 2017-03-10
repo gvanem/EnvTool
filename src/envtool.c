@@ -3678,6 +3678,28 @@ static void test_libssp (void)
 #endif /* (_FORTIFY_SOURCE > 0) */
 }
 
+/*
+ * This should run when user-name is "APPVYR-WIN\appveyor".
+ * Figure out why it fails to find 'cmake.exe' even though the
+ * %PATH% contain "c:\Program Files (x86)\CMake\bin", it fails to
+ * run and report it's version.
+ */
+static void test_AppVeyor (void)
+{
+  const char *cmake = searchpath ("cmake.exe", "PATH");
+  char  cmd [100];
+  int   rc;
+
+  if (!cmake)
+  {
+    C_printf ("cmake.exe not on %%PATH.\n");
+    return;
+  }
+  snprintf (cmd, sizeof(cmd), "%s -version", cmake);
+  rc = system (cmd);
+  C_printf ("system() reported %d.\n", rc);
+}
+
 static int do_tests (void)
 {
   int save;
@@ -3721,6 +3743,9 @@ static int do_tests (void)
   test_SHGetFolderPath();
   test_ReparsePoints();
   test_libssp();
+
+  if (!stricmp(get_user_name(),"APPVYR-WIN\\appveyor"))
+     test_AppVeyor();
   return (0);
 }
 
