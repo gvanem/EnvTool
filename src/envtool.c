@@ -2031,7 +2031,7 @@ static int get_cmake_info (const char **exe, struct ver_info *ver)
   if (*exe == NULL)
      return (0);
 
-  snprintf (cmd, sizeof(cmd), "%s -version 2>&1", *exe);
+  snprintf (cmd, sizeof(cmd), "\"%s\" -version 2>&1", *exe);
 
   if (popen_run(slashify(cmd,'\\'), find_cmake_version_cb) > 0)
   {
@@ -3695,7 +3695,7 @@ static void test_AppVeyor (void)
     C_printf ("cmake.exe not on %%PATH.\n");
     return;
   }
-  snprintf (cmd, sizeof(cmd), "%s -version", cmake);
+  snprintf (cmd, sizeof(cmd), "\"%s\" -version", cmake);
   rc = system (cmd);
   C_printf ("system() reported %d.\n", rc);
 }
