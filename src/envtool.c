@@ -2936,7 +2936,7 @@ static void init_all (void)
 int main (int argc, char **argv)
 {
   int   found = 0;
-  char *end, *ext;
+  char *end;
 
   init_all();
 
@@ -2985,19 +2985,14 @@ int main (int argc, char **argv)
     FREE (fspec);
   }
 
+  end = strrchr (opt.file_spec, '\0');
+
+  if (!opt.use_regex && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
+     opt.file_spec = _stracat (opt.file_spec, ".*");
+
   opt.file_spec_re = opt.file_spec;
 
-  end = strchr (opt.file_spec, '\0');
-  ext = (char*) get_file_ext (opt.file_spec);
-
-  if (!opt.use_regex && end[-1] != '*' && end[-1] != '$' && *ext == '\0')
-  {
-    end[0] = '.';
-    end[1] = '*';
-    end[2] = '\0';
-  }
-
-  DEBUGF (1, "file_spec: %s, file_spec_re: %s\n", opt.file_spec, opt.file_spec_re);
+  DEBUGF (1, "file_spec: '%s', file_spec_re: '%s'.\n", opt.file_spec, opt.file_spec_re);
 
   if (!opt.no_sys_env)
      found += scan_system_env();
