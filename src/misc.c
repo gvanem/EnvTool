@@ -2135,23 +2135,30 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
    * Ref. http://msdn.microsoft.com/en-us/library/b0084kay(v=vs.120).aspx
    *
    * E.g. "cl /?" prints:
-   *    Microsoft (R) C/C++ Optimizing Compiler Version 18.00.31101 for x86
-   *                       = _MSC_FULL_VER - 180000000  ^----
+   *    Microsoft (R) C/C++ Optimizing Compiler Version 18.00.31101.x for x86
+   *                       = _MSC_FULL_VER - 180000000  ^----       ^_MSC_BUILD
    */
   static const char *msvc_get_micro_ver (void)
   {
-    static char buf[10];
+    static char buf[20];
+    char  *end;
 
     buf[0] = '\0';
 
   #if defined(_MSC_FULL_VER)
-  #if (_MSC_FULL_VER > 190000000)
-    buf[0] = '.';
-    _ultoa (_MSC_FULL_VER-190000000, buf+1, 10);
-  #elif (_MSC_FULL_VER > 180000000)
-    buf[0] = '.';
-    _ultoa (_MSC_FULL_VER-180000000, buf+1, 10);
+    #if (_MSC_FULL_VER > 190000000)
+      buf[0] = '.';
+      _ultoa (_MSC_FULL_VER-190000000, buf+1, 10);
+    #elif (_MSC_FULL_VER > 180000000)
+      buf[0] = '.';
+      _ultoa (_MSC_FULL_VER-180000000, buf+1, 10);
+    #endif
   #endif
+
+  #if defined(_MSC_BUILD)
+    end = strrchr (buf, '\0');
+    *end++ = '.';
+    _itoa (_MSC_BUILD, end, 10);
   #endif
     return (buf);
   }
