@@ -23,7 +23,7 @@
   #define _fileno(f)         fileno (f)
   #define _write(f,buf,len)  write (f,buf,len)
 #elif defined(_MSC_VER) && (_MSC_VER <= 1600)
-  #define snprintf  _snprintf
+  #define snprintf           _snprintf
 #endif
 
 #define loBYTE(w)     (BYTE)(w)
@@ -63,16 +63,16 @@
  */
 int C_use_colours = 0;
 
-/* The program using color.c must set this to 1 if fwrite() shall
- * be used in 'C_flush()'. This can be needed to syncronise the output
- * with other calls (libraries?) that writes to stdout using fwrite().
- */
-int C_use_fwrite = 0;
-
 /* For CygWin or if we detect we're running under mintty.exe (or some other program lacking
  * WinCon support), this variable means we must use ANSI-sequences to set colours.
  */
 int C_use_ansi_colours = 0;
+
+/* The program using color.c must set this to 1 if fwrite() shall
+ * be used in 'C_flush()'. This can be needed to synchronize the output
+ * with other calls (libraries?) that writes to stdout using fwrite().
+ */
+int C_use_fwrite = 0;
 
 unsigned C_redundant_flush = 0;
 
@@ -82,6 +82,7 @@ static FILE  *c_out = NULL;
 static int    c_raw = 0;
 static int    c_binmode = 0;
 static size_t c_screen_width = UINT_MAX;
+static int    c_always_set_bg = 0;
 
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
 
@@ -158,6 +159,17 @@ static void C_init (void)
             GetConsoleScreenBufferInfo(console_hnd, &console_info) &&
             GetFileType(console_hnd) == FILE_TYPE_CHAR);
 
+#if defined(__CYGWIN__)
+     if (!okay) /* Use ANSI-colours even when stdout is redirected */
+     {
+       console_info.srWindow.Right = 100;
+       console_info.srWindow.Left  = 0;
+       console_info.wAttributes    = 0x1F;   /* Bright white on blue background */
+       c_always_set_bg = 1;
+       okay = TRUE;
+     }
+#endif
+
     if (okay)
     {
       c_screen_width = console_info.srWindow.Right - console_info.srWindow.Left + 1;
@@ -194,6 +206,8 @@ static void C_set (WORD col)
 {
   static WORD last_attr = (WORD)-1;
   WORD   attr;
+
+  assert (!C_use_ansi_colours);
 
   if (col == 0)     /* restore to default colour */
      attr = console_info.wAttributes;
@@ -264,7 +278,7 @@ static const char *wincon_to_ansi (WORD col)
 
   bold = (col & BACKGROUND_INTENSITY);
   bg   = (col & ~BACKGROUND_INTENSITY) >> 4;
-  if (bg && bg != (console_info.wAttributes >> 4))
+  if (c_always_set_bg || (bg && bg != (console_info.wAttributes >> 4)))
   {
     TRACE (2, "col: %u, bg: 0x%02X, console_info.wAttributes: 0x%04X\n",
            col, bg, console_info.wAttributes);

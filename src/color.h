@@ -18,6 +18,10 @@ extern int C_use_colours;
  */
 extern int C_use_ansi_colours;
 
+/* Set this to 1 to use 'fwrite()' in 'C_flush()'.
+ */
+extern int C_use_fwrite;
+
 /*
  * Defined in newer <sal.h> for MSVC.
  */
