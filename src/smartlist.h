@@ -3,25 +3,11 @@
 
 #include <stdlib.h>
 
-/*
- * From Tor's src/common/container.h:
- *
- * A resizeable list of pointers, with associated helpful functionality.
- *
- * The members of this struct are exposed only so that macros and inlines can
- * use them; all access to smartlist internals should go through the functions
- * and macros defined here.
- */
-typedef struct smartlist_t {
-        /*
-         * 'list' (of anything) has enough capacity to store exactly 'capacity'
-         * elements before it needs to be resized. Only the first 'num_used'
-         * (<= capacity) elements point to valid data.
-         */
-        void **list;
-        int    num_used;
-        int    capacity;
-      } smartlist_t;
+#if defined(INSIDE_SMARTLIST_C)
+  typedef struct smartlist_t smartlist_t;        /* Forward */
+#else
+  typedef struct smartlist_internal smartlist_t; /* Opaque struct */
+#endif
 
 int          smartlist_len (const smartlist_t *sl);
 void        *smartlist_get (const smartlist_t *sl, int idx);

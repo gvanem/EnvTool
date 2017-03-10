@@ -1,5 +1,30 @@
+/*
+ * 'smartlist' functions for the envtool program.
+ */
+#define INSIDE_SMARTLIST_C
+
 #include "envtool.h"
 #include "smartlist.h"
+
+/*
+ * From Tor's src/common/container.h:
+ *
+ * A resizeable list of pointers, with associated helpful functionality.
+ *
+ * The members of this struct are exposed only so that macros and inlines can
+ * use them; all access to smartlist internals should go through the functions
+ * and macros defined here.
+ */
+typedef struct smartlist_t {
+        /*
+         * 'list' (of anything) has enough capacity to store exactly 'capacity'
+         * elements before it needs to be resized. Only the first 'num_used'
+         * (<= capacity) elements point to valid data.
+         */
+        void **list;
+        int    num_used;
+        int    capacity;
+      } smartlist_t;
 
 /*
  * All newly allocated smartlists have this capacity.
@@ -13,18 +38,26 @@
  */
 #define SMARTLIST_MAX_CAPACITY  INT_MAX
 
+#if defined(_CRTDBG_MAP_ALLOC)
+ /*
+  * In MSVC '_DEBUG' mode (-MDd), if 'free()' was called on 'sl', the start-value
+  * (or the whole block?) gets filled with '0xDDDDDDD'.
+  */
+  #define ASSERT_VAL(x) do {                                     \
+                          const size_t *val = (const size_t*) x; \
+                          ASSERT (*val != 0xDDDDDDDD);           \
+                        } while (0)
+#else
+  #define ASSERT_VAL(x) (void) 0
+#endif
+
 /*
  * Return the number of items in 'sl'.
  */
 int smartlist_len (const smartlist_t *sl)
 {
-#ifdef _CRTDBG_MAP_ALLOC
-  const size_t *val = (const size_t*) sl;
-
-  ASSERT (*val != 0xDDDDDDDD);
-#endif
-
   ASSERT (sl);
+  ASSERT_VAL (sl);
   return (sl->num_used);
 }
 
@@ -33,13 +66,8 @@ int smartlist_len (const smartlist_t *sl)
  */
 void *smartlist_get (const smartlist_t *sl, int idx)
 {
-#ifdef _CRTDBG_MAP_ALLOC
-  const size_t *val = (const size_t*) sl;
-
-  ASSERT (*val != 0xDDDDDDDD);
-#endif
-
   ASSERT (sl);
+  ASSERT_VAL (sl);
   ASSERT (idx >= 0);
   ASSERT (sl->num_used > idx);
   return (sl->list[idx]);
@@ -77,14 +105,8 @@ void smartlist_free (smartlist_t *sl)
 {
   if (sl)
   {
-#ifdef _CRTDBG_MAP_ALLOC
-    const size_t *val = (const size_t*) sl->list;
-
-    ASSERT (*val != 0xDDDDDDDD);
-    val = (const size_t*) sl;
-    ASSERT (*val != 0xDDDDDDDD);
-#endif
-
+    ASSERT_VAL (sl->list);  /* detect a double smartlist_free() */
+    ASSERT_VAL (sl);
     sl->num_used = 0;
     FREE (sl->list);
     FREE (sl);
@@ -142,6 +164,7 @@ void smartlist_ensure_capacity (smartlist_t *sl, size_t num)
  */
 void smartlist_add (smartlist_t *sl, void *element)
 {
+  ASSERT (sl);
   smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
   sl->list [sl->num_used++] = element;
 }
