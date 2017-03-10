@@ -1121,6 +1121,25 @@ char *_strsep (char **stringp, const char *delim)
 }
 
 /*
+ * "string allocate and concatinate".
+ * Assumes 's1' is allocated. Thus 'free(s1)' after concat is done.
+ */
+char *_stracat (char *s1, const char *s2)
+{
+  size_t sz = strlen(s1) + strlen(s2) + 1;
+  char  *s  = CALLOC (1, sz);
+  char *start = s;
+
+  sz = strlen (s1);
+  memcpy (s, s1, sz);
+  FREE (s1);
+  s += sz;
+  sz = strlen (s2) + 1;
+  memcpy (s, s2, sz);
+  return (start);
+}
+
+/*
  * For consistency and nice looks, replace (single or multiple) '\\'
  * with single '/' if use == '/'. And vice-versa.
  * All (?) Windows core functions functions should handle
