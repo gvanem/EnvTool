@@ -32,6 +32,10 @@
 
 #include <imagehlp.h>
 
+#if defined(__CYGWIN__)
+  #include <cygwin/version.h>
+#endif
+
 #include "color.h"
 #include "envtool.h"
 
