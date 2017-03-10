@@ -2066,7 +2066,7 @@ static int do_check_cmake (void)
     char *cmake_root = dirname (cmake_bin);
 
     DEBUGF (3, "cmake -> '%s', cmake_root: '%s'\n", cmake_bin, cmake_root);
-    snprintf (cmd, sizeof(cmd), "%s -version 2>&1", cmake_bin);
+    snprintf (cmd, sizeof(cmd), "\"%s\" -version 2>&1", cmake_bin);
 
     if (popen_run(slashify(cmd,'\\'), find_cmake_version_cb) > 0)
     {
@@ -2081,7 +2081,7 @@ static int do_check_cmake (void)
       found = process_dir (dir, 0, TRUE, 1, TRUE, env_name, NULL, FALSE);
     }
     else
-      WARN ("Calling %s failed.\n", cmake_bin);
+      WARN ("Calling '%s' failed.\n", cmake_bin);
 
     FREE (cmake_root);
   }
@@ -3575,7 +3575,6 @@ static void test_ReparsePoints (void)
   C_putc ('\n');
 }
 
-
 /*
  * Test PE-file WinTrust crypto signature verification.
  */
@@ -3585,8 +3584,7 @@ static void test_PE_wintrust (void)
               "%s\\kernel32.dll",
               "%s\\drivers\\usbport.sys",
               "notepad.exe",
-              "cl.exe",
-              "cl-not-found.exe"
+              "cl.exe"
             };
   int i;
 

@@ -211,7 +211,7 @@ const char *get_gzip_link (const char *file)
      return (NULL);
 
   gzip_link_name[0] = '\0';
-  snprintf (cmd, sizeof(cmd), "%s -cd %s 2> %s", gzip, file, DEV_NULL);
+  snprintf (cmd, sizeof(cmd), "\"%s\" -cd %s 2> %s", gzip, file, DEV_NULL);
 
   if (popen_run(slashify(cmd,'\\'), gzip_cb) > 0)
   {
