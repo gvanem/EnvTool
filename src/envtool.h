@@ -103,8 +103,9 @@
   #define _popen(cmd, mode)      popen (cmd, mode)
   #define _pclose(fil)           pclose (fil)
   #define _fileno(f)             fileno (f)
+  #define _isatty(fd)            isatty (fd)
   #define _tempnam(dir,prefix)   tempnam (dir,prefix)
-  #define _wcsdup(s)             wcsdup(s)
+  #define _wcsdup(s)             wcsdup (s)
 
   #define stricmp(s1, s2)        strcasecmp (s1, s2)
   #define strnicmp(s1, s2, len)  strncasecmp (s1, s2, len)
@@ -174,7 +175,24 @@
   #define DIR_SEP            '/'
 #endif
 
-#define FILE_EXISTS(file) (GetFileAttributes(file) != INVALID_FILE_ATTRIBUTES)
+#if defined(__CYGWIN__)
+  #include <sys/stat.h>
+  /*
+   * Cannot use 'GetFileAttributes()' in case file is on Posix form.
+   * E.g. "/cygdrive/c/foo"
+   */
+  static inline int FILE_EXISTS (const char *f)
+  {
+    struct stat st;
+    return (stat(f,&st) == 0);
+  }
+#else
+  static __inline int FILE_EXISTS (const char *f)
+  {
+    return (GetFileAttributes(f) != INVALID_FILE_ATTRIBUTES);
+  }
+#endif
+
 
 #ifndef _S_ISDIR
   #define _S_ISDIR(mode)     (((mode) & _S_IFMT) == _S_IFDIR)
