@@ -34,7 +34,6 @@
 
 #if defined(__CYGWIN__)
   #include <getopt.h>
-  #include <cygwin/version.h>
 #else
   #include "getopt_long.h"
 #endif
@@ -446,12 +445,21 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
   BOOL   exists, is_dir;
   DWORD  attr;
 
+#if defined(__CYGWIN__)
+  struct stat st;
+
+  exists = is_dir = FALSE;
+  if (stat(dir,&st) == 0)
+    is_dir = exists = S_ISDIR (st.st_mode);
+#else
+
   /* Watcom's stat() doesn't handle 'native' directories.
    * But we can use this code for all targets since it seems faster.
    */
   attr = GetFileAttributes (dir);
   exists = (attr != INVALID_FILE_ATTRIBUTES);
   is_dir = exists && (attr & FILE_ATTRIBUTE_DIRECTORY);
+#endif
 
   d->cyg_dir = NULL;
   d->dir     = STRDUP (dir);
@@ -977,6 +985,11 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   char        size [30] = "?";
   int         raw;
   BOOL        have_it  = TRUE;
+
+  /* This variable mysteriously gets set to 0 in some place.
+   */
+  if (!opt.no_colours)
+     C_use_colours = 1;
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -3135,7 +3148,7 @@ void test_split_env_cygwin (const char *env)
     if (arr->num_dup > 0)
        C_puts ("  ~4**duplicated**~0");
     if (!arr->exist)
-       C_puts ("  ~0**not existing**~0");
+       C_puts ("  ~5**not existing**~0");
     if (!arr->is_dir)
        C_puts ("  ~4**not a dir**~0");
     C_putc ('\n');
@@ -3690,7 +3703,11 @@ static int do_tests (void)
 
   save = opt.add_cwd;
   opt.add_cwd = 0;
+#ifdef __CYGWIN__
+  setenv ("FOO", "/cygdrive/c", 1);
+#else
   putenv ("FOO=c:\\");
+#endif
   test_split_env ("FOO");
   opt.add_cwd = save;
 #endif
