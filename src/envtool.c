@@ -2936,7 +2936,7 @@ static void init_all (void)
 int main (int argc, char **argv)
 {
   int   found = 0;
-  char *end;
+  char *end, *dot;
 
   init_all();
 
@@ -2986,8 +2986,9 @@ int main (int argc, char **argv)
   }
 
   end = strrchr (opt.file_spec, '\0');
+  dot = strrchr (opt.file_spec, '.');
 
-  if (!opt.use_regex && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
+  if (!opt.use_regex && !dot && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
      opt.file_spec = _stracat (opt.file_spec, ".*");
 
   opt.file_spec_re = opt.file_spec;
