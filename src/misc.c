@@ -1127,7 +1127,7 @@ char *_strsep (char **stringp, const char *delim)
 char *_stracat (char *s1, const char *s2)
 {
   size_t sz = strlen(s1) + strlen(s2) + 1;
-  char  *s  = CALLOC (1, sz);
+  char  *s  = MALLOC (sz);
   char *start = s;
 
   sz = strlen (s1);
