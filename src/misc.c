@@ -2145,7 +2145,23 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
     #define DBG_REL "release"
   #endif
 
-    snprintf (buf, sizeof(buf), "PellesC ver %d.%d, %s", __POCC__ / 100, __POCC__ % 100, DBG_REL);
+    snprintf (buf, sizeof(buf), "PellesC ver %d.%d, %s",
+              __POCC__ / 100, __POCC__ % 100, DBG_REL);
+    return (buf);
+  }
+
+#elif defined(__clang__)
+  const char *compiler_version (void)
+  {
+    static char buf[40];
+  #ifdef _DEBUG
+    #define DBG_REL "debug"
+  #else
+    #define DBG_REL "release"
+  #endif
+
+    snprintf (buf, sizeof(buf), "clang-cl %d.%d.%d, %s",
+              __clang_major__, __clang_minor__, __clang_patchlevel__, DBG_REL);
     return (buf);
   }
 
