@@ -22,6 +22,13 @@
     #define BUILDER  "PellesC, release"
   #endif
 
+#elif defined(__clang__)
+  #ifdef _DEBUG
+    #define BUILDER  "Clang-CL, debug"
+  #else
+    #define BUILDER  "Clang-CL, release"
+  #endif
+
 #elif defined(_MSC_VER)
   #ifdef _DEBUG
     #define BUILDER  "Visual-C, debug"
