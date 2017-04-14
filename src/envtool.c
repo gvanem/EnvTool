@@ -270,9 +270,9 @@ static int show_version (void)
   struct ver_info py_ver, evry_ver, cmake_ver;
   int             len = 0;
 
-  C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.~0\n",
+  C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.\n  Hosted at: ~6%s~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
-            is_wow64_active() ? ", ~1WOW64" : "", AUTHOR_STR);
+            is_wow64_active() ? ", ~1WOW64" : "", AUTHOR_STR, GITHUB_STR);
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (wnd)
@@ -985,11 +985,6 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   char        size [30] = "?";
   int         raw;
   BOOL        have_it  = TRUE;
-
-  /* This variable mysteriously gets set to 0 in some place.
-   */
-  if (!opt.no_colours)
-     C_use_colours = 1;
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -3751,6 +3746,10 @@ static int do_tests (void)
 #elif defined(__POCC__)
   #define CFLAGS   "cflags_PellesC.h"
   #define LDFLAGS  "ldflags_PellesC.h"
+
+#elif defined(__clang__)
+  #define CFLAGS   "cflags_clang.h"
+  #define LDFLAGS  "ldflags_clang.h"
 
 #elif defined(_MSC_VER)
   #define CFLAGS   "cflags_MSVC.h"

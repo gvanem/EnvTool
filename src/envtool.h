@@ -6,6 +6,7 @@
 #define MINOR_VER   0
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
+#define GITHUB_STR    "https://github.com/gvanem/EnvTool"
 
 #if defined(_UNICODE) || defined(UNICODE)
 #error This program is not longer UNICODE compatible. Good riddance Microsoft.
