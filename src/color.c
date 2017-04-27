@@ -140,6 +140,7 @@ static void C_exit (void)
      C_flush();
   c_head = c_tail = NULL;
   c_out = NULL;
+  DeleteCriticalSection (&crit);
 }
 
 static void C_init (void)
@@ -354,6 +355,7 @@ int C_printf (const char *fmt, ...)
   int     len;
   va_list args;
 
+  C_init();
   va_start (args, fmt);
   len = C_vprintf (fmt, args);
   va_end (args);
