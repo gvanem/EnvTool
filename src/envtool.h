@@ -511,6 +511,11 @@ extern char *fnmatch_res (int rc);
                               }                                         \
                             } while (0)
 
+#define DEBUG_NL(level)    do {                                         \
+                              if (opt.debug >= level)                   \
+                                C_putc ('\n');                          \
+                           } while (0)
+
 #define WARN(...)           do {                                        \
                               if (!opt.quiet) {                         \
                                 C_puts ("~5");                          \

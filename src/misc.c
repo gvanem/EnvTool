@@ -66,10 +66,13 @@ struct mem_head {
 
 static struct mem_head *mem_list = NULL;
 
-static DWORD  mem_max      = 0;  /* Max bytes allocated at one time */
-static size_t mem_allocs   = 0;  /* # of allocations */
-static size_t mem_reallocs = 0;  /* # of realloc() */
-static size_t mem_frees    = 0;  /* # of mem-frees */
+#if !defined(_CRTDBG_MAP_ALLOC) && !defined(__CYGWIN__)
+  static DWORD  mem_max      = 0;  /* Max bytes allocated at one time */
+  static size_t mem_reallocs = 0;  /* # of realloc() */
+#endif
+
+static size_t mem_allocs = 0;      /* # of allocations */
+static size_t mem_frees  = 0;      /* # of mem-frees */
 
 static void add_to_mem_list (struct mem_head *m, const char *file, unsigned line)
 {
@@ -168,7 +171,8 @@ int check_if_gzip (const char *fname)
 
   if (!is_gzip && !is_tgz)
   {
-    DEBUGF (1, "\n\"%s\" does have wrong extension: '%s'.\n", fname, ext);
+    DEBUG_NL (1);
+    DEBUGF (1, "\"%s\" does have wrong extension: '%s'.\n", fname, ext);
     return (0);
   }
 
@@ -182,7 +186,8 @@ int check_if_gzip (const char *fname)
        rc += 1;
     fclose (f);
   }
-  DEBUGF (1, "\n\"%s\" is %sa GZIP-file.\n", fname, rc == 2 ? "": "not ");
+  DEBUG_NL (1);
+  DEBUGF (1, "\"%s\" is %sa GZIP-file.\n", fname, rc == 2 ? "": "not ");
   return (rc == 2);
 }
 
@@ -268,7 +273,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   dos = (const IMAGE_DOS_HEADER*) file_buf;
   nt  = (const IMAGE_NT_HEADERS*) ((const BYTE*)file_buf + dos->e_lfanew);
 
-  DEBUGF (3, "\n");
+  DEBUG_NL (3);
 
   /* Probably not a PE-file at all.
    * Check 'nt < file_buf' too in case 'e_lfanew' folds 'nt' to a negative value.
