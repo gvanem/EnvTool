@@ -355,7 +355,6 @@ int C_printf (const char *fmt, ...)
   int     len;
   va_list args;
 
-  C_init();
   va_start (args, fmt);
   len = C_vprintf (fmt, args);
   va_end (args);
@@ -366,9 +365,10 @@ int C_vprintf (const char *fmt, va_list args)
 {
   int len1, len2;
 
+  C_init();
+
   if (c_raw)
   {
-    C_init();
     C_flush();
     len1 = vfprintf (c_out, fmt, args);
     fflush (c_out);
