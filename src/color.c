@@ -85,6 +85,7 @@ static size_t c_screen_width = UINT_MAX;
 static int    c_always_set_bg = 0;
 
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
+static CRITICAL_SECTION           crit;
 
 static HANDLE console_hnd = INVALID_HANDLE_VALUE;
 
@@ -192,6 +193,7 @@ static void C_init (void)
     c_out  = stdout;
     c_head = c_buf;
     c_tail = c_head + C_BUF_SIZE - 1;
+    InitializeCriticalSection (&crit);
     atexit (C_exit);
   }
 }
@@ -234,6 +236,11 @@ static void C_set (WORD col)
   if (attr != last_attr)
      SetConsoleTextAttribute (console_hnd, attr);
   last_attr = attr;
+}
+
+void C_reset (void)
+{
+  SetConsoleTextAttribute (console_hnd, console_info.wAttributes);
 }
 
 /*
@@ -331,12 +338,14 @@ size_t C_flush (void)
     return (0);
   }
 
+  EnterCriticalSection (&crit);
   assert (c_out);
   if (C_use_fwrite)
        len = fwrite (c_buf, 1, len, c_out);
   else len = _write (_fileno(c_out), c_buf, (unsigned int)len);
 
   c_head = c_buf;   /* restart buffer */
+  LeaveCriticalSection (&crit);
   return (len);
 }
 
@@ -366,9 +375,11 @@ int C_vprintf (const char *fmt, va_list args)
   {
     char buf [2*C_BUF_SIZE];
 
+    EnterCriticalSection (&crit);
     buf [sizeof(buf)-1] = '\0';
     len2 = vsnprintf (buf, sizeof(buf)-1, fmt, args);
     len1 = C_puts (buf);
+    LeaveCriticalSection (&crit);
     if (len2 < len1)
       FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
              len1, len2, (int)(c_head - c_buf), c_buf, buf);
