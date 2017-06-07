@@ -32,7 +32,7 @@ else
 endif
 
 #
-# The .travis.yml should have a  'TRAVIS_BUILD=1' on the make invokation line.
+# The .travis.yml should have a 'TRAVIS_BUILD=1' on the make invokation line.
 #
 ifeq ($(TRAVIS_BUILD),1)
   CFLAGS += -DTRAVIS_BUILD
