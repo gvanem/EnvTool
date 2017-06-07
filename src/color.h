@@ -51,7 +51,7 @@ extern void   C_reset    (void);
 extern void   C_puts_long_line (size_t indent, const char *start);
 
 #ifdef __cplusplus
-};
+}
 #endif
 
 #endif
