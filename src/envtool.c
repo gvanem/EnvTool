@@ -126,7 +126,7 @@ static int   new_argc;             /* 1... to highest allocated cmd-line compone
 static int   path_separator = ';';
 static char  current_dir [_MAX_PATH];
 
-static volatile int halt_flag;
+volatile int halt_flag;
 
 /* Get the bitness (32/64-bit) of the EveryThing program.
  */
@@ -158,10 +158,6 @@ static int   get_cmake_info (const char **exe, struct ver_info *ver);
  *        look into GNU locatedb (%LOCATE_PATH=/cygdrive/f/Cygwin32/locatedb)
  *        information too.
  *
- * \todo: Add '--pkg' option to search for pkg-config .pc-files (and their dependent packages?)
- *        Maybe in combination with the EveryThing database (in case %PKG_CONFIG_PATH% is
- *        incorrectly set or have missing .pc files).
- *
  * \todo: Add a '--check' option for 64-bit Windows to check that all .DLLs in:
  *             %SystemRoot%\System32 are 64-bit and
  *             %SystemRoot%\SysWOW64 are 32-bit.
@@ -190,7 +186,7 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
      bits = " (64-bit)";
 
   C_printf ("  Everything search engine ver. %u.%u.%u.%u%s (c)"
-            " David Carpenter; http://www.voidtools.com/\n",
+            " David Carpenter; ~6http://www.voidtools.com/~0\n",
             ver->val_1, ver->val_2, ver->val_3, ver->val_4, bits);
   *p = '\0';
   for (d = num = 0; d < MAX_INDEXED; d++)
@@ -362,18 +358,19 @@ static int show_help (void)
   C_printf ("Environment check & search tool.\n\n"
             "Usage: %s ~6[options] <--mode>~0 ~6<file-spec>~0\n"
             "  ~6<--mode>~0 can be at least one of these:\n"
-            "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
-            "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[1]~0\n"
-            "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0.                   ~2[2]~0\n"
-            "    ~6--lib~0:          check and search in ~3%%LIB%%~0 and ~3%%LIBRARY_PATH%%~0.    ~2[3]~0\n"
-            "    ~6--man~0:          check and search in ~3%%MANPATH%%~0.\n"
             "    ~6--cmake~0:        check and search in ~3%%CMAKE_MODULE_PATH%%~0 and it's built-in module-path.\n"
-            "    ~6--evry~0:         check and search in the ~6EveryThing database~0.     ~2[4]~0\n"
+            "    ~6--evry~0:         check and search in the ~6EveryThing database~0.     ~2[3]~0\n"
+            "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0.                   ~2[2]~0\n"
+            "    ~6--lib~0:          check and search in ~3%%LIB%%~0 and ~3%%LIBRARY_PATH%%~0.    ~2[2]~0\n"
+            "    ~6--man~0:          check and search in ~3%%MANPATH%%~0.\n"
+            "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
+            "    ~6--pkg~0:          check and search in ~3%%PKG_CONFIG_PATH%%~0.\n"
+            "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[1]~0\n"
             "\n"
             "  ~6Options~0:\n"
-            "    ~6--no-gcc~0:       don't spawn " PFX_GCC " prior to checking.      ~2[2,3]~0\n"
-            "    ~6--no-g++~0:       don't spawn " PFX_GPP " prior to checking.      ~2[2,3]~0\n"
-            "    ~6--no-prefix~0:    don't check any ~4<prefix>~0-ed programs. Only ~6gcc~0/~6g++~0.\n"
+            "    ~6--no-gcc~0:       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
+            "    ~6--no-g++~0:       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
+            "    ~6--no-prefix~0:    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs     ~2[2]~0.\n"
             "    ~6--no-sys~0:       don't scan ~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0.\n"
             "    ~6--no-usr~0:       don't scan ~3HKCU\\Environment~0.\n"
             "    ~6--no-app~0:       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
@@ -391,13 +388,14 @@ static int show_help (void)
             who_am_I);
 
   C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in ~6--evry~0 searches.\n"
-            "    ~6-s~0, ~6--size~0:     show size of file(s) found.\n"
+            "    ~6-s~0, ~6--size~0:     show size of file(s) found. With ~6--dir~0 option, recursively show\n"
+            "                    the size of all files under directories matching ~6<file-spec>~0.\n"
             "    ~6-q~0, ~6--quiet~0:    disable warnings.\n"
             "    ~6-t~0:             do some internal tests.\n"
             "    ~6-T~0:             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
             "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
             "    ~6-v~0:             increase verbose level (currently only used in ~6--pe~0).\n"
-            "    ~6-V~0:             show program version information. ~6-VV~0 prints more info.\n"
+            "    ~6-V~0:             show program version information. ~6-VV~0 and ~6-VVV~0  prints more info.\n"
             "    ~6-h~0, ~6-?~0:         show this help.\n"
             "\n"
             "  ~2[1]~0 The ~6--python~0 option can be detailed further with ~3=X~0:\n");
@@ -413,14 +411,11 @@ static int show_help (void)
 
   C_printf ("             otherwise use only first Python found on PATH (i.e. the default).\n"
             "\n"
-            "  ~2[2]~0 Unless ~6--no-gcc~0 and/or ~6--no-g++~0 is used, the\n"
-            "      ~3%%C_INCLUDE_PATH%%~0 and ~3%%CPLUS_INCLUDE_PATH%%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
+            "  ~2[2]~0 Unless ~6--no-prefix~0 is used, the ~3%%C_INCLUDE_PATH%%~0, ~3%%CPLUS_INCLUDE_PATH%%~0 and\n"
+            "      ~3%%LIBRARY_PATH%%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
             "      These ~4<prefix>~0-es are built-in: { ~6x86_64-w64-mingw32~0 | ~6i386-mingw32~0 | ~6i686-w64-mingw32~0 | ~6avr~0 }.\n"
             "\n"
-            "  ~2[3]~0 Unless ~6--no-gcc~0 and/or ~6--no-g++~0 is used, the\n"
-            "      ~3%%LIBRARY_PATH%%~0 is also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
-            "\n"
-            "  ~2[4]~0 The ~6--evry~0 option requires that the Everything filename search engine is installed.\n"
+            "  ~2[3]~0 The ~6--evry~0 option requires that the Everything filename search engine is installed.\n"
             "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
             "\n"
             "Notes:\n"
@@ -566,8 +561,6 @@ static struct directory_array *arr0 = NULL;
 static void free_dir_array (void)
 {
   struct directory_array *arr;
-
-#if 1
   size_t i;
 
   for (i = 0, arr = dir_array; i < DIM(dir_array); i++, arr++)
@@ -576,16 +569,6 @@ static void free_dir_array (void)
     FREE (arr->cyg_dir);
     memset (arr, '\0', sizeof(*arr));
   }
-#else
-
-  for (arr = arr0; arr && arr->dir; arr++)
-  {
-    FREE (arr->dir);
-    FREE (arr->cyg_dir);
-  }
-  arr0 = NULL;
-  memset (&dir_array, '\0', sizeof(dir_array));
-#endif
 }
 
 static void check_dir_array (void)
@@ -1014,7 +997,12 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   else if (key == HKEY_EVERYTHING)
   {
 #if (IS_WIN64)
-    if (mtime == 0 && !strnicmp(file,sys_native_dir,strlen(sys_native_dir)))
+    /*
+     * If e.g. a 32-bit EveryThing program is finding matches is "%WinDir\\System32",
+     * don't set 'found_everything_db_dirty=1' when we don't 'have_sys_native_dir'.
+     */
+    if (mtime == 0 &&
+        (!have_sys_native_dir || !strnicmp(file,sys_native_dir,strlen(sys_native_dir))))
        have_it = FALSE;
 #endif
     if (is_dir)
@@ -1068,7 +1056,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 
   report_header = NULL;
 
-  if (opt.PE_check)
+  if (opt.PE_check && key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE)
      return print_PE_file (file, note, filler, size, mtime);
 
   C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
@@ -1106,6 +1094,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 static void final_report (int found)
 {
   BOOL do_warn = FALSE;
+  char duplicates [50] = "";
 
   if ((found_in_hkey_current_user || found_in_hkey_current_user_env ||
        found_in_hkey_local_machine || found_in_hkey_local_machine_sess_man) &&
@@ -1144,8 +1133,11 @@ static void final_report (int found)
               "  Hence running an application from the Start-Button may result in different .EXE/.DLL\n"
               "  to be loaded than from the command-line. Revise the above registry-keys.\n\n~0");
 
-  C_printf ("%d match%s found for \"%s\".",
-            found, (found == 0 || found > 1) ? "es" : "", opt.file_spec);
+  if (num_evry_dups)
+     snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)", num_evry_dups);
+
+  C_printf ("%s match%s found for \"%s\"%s.",
+            dword_str((DWORD)found), (found == 0 || found > 1) ? "es" : "", opt.file_spec, duplicates);
 
   if (opt.show_size && total_size > 0)
      C_printf (" Totalling %s (%s bytes). ",
@@ -1253,12 +1245,12 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
     if (type == REG_EXPAND_SZ && strchr(data,'%'))
     {
       char  exp_buf [MAX_ENV_VAR] = "<none>";
-      DWORD ret = ExpandEnvironmentStrings (data, exp_buf, sizeof(exp_buf));
+      DWORD rc2 = ExpandEnvironmentStrings (data, exp_buf, sizeof(exp_buf));
 
-      DEBUGF (1, "    ExpandEnvironmentStrings(): ret: %lu, exp_buf: \"%s\"\n",
-              (u_long)ret, exp_buf);
+      DEBUGF (1, "    ExpandEnvironmentStrings(): rc2: %lu, exp_buf: \"%s\"\n",
+              (u_long)rc2, exp_buf);
 
-      if (ret > 0)
+      if (rc2 > 0)
          _strlcpy (data, exp_buf, sizeof(data));
     }
 
@@ -1810,6 +1802,8 @@ static int do_check_evry (void)
   char *base  = NULL;
   int   found = 0;
 
+  num_evry_dups = 0;
+
   if (evry_bitness == bit_unknown)
      get_evry_bitness();
 
@@ -1843,6 +1837,9 @@ static int do_check_evry (void)
   err = Everything_GetLastError();
   DEBUGF (1, "Everything_Query: %s\n", evry_strerror(err));
 
+  if (halt_flag > 0)
+     return (0);
+
   if (err == EVERYTHING_ERROR_IPC)
   {
     WARN ("Everything IPC service is not running.\n");
@@ -1874,6 +1871,9 @@ static int do_check_evry (void)
     char file [_MAX_PATH];
     char prev [_MAX_PATH];
 
+    if (halt_flag > 0)
+       break;
+
     len = Everything_GetResultFullPathName (i, file, sizeof(file));
     err = Everything_GetLastError();
     if (len == 0 || err != EVERYTHING_OK)
@@ -1883,7 +1883,7 @@ static int do_check_evry (void)
       break;
     }
 
-    if (i > 0 && !strcmp(prev, file))
+    if (i > 0 && !opt.dir_mode && !strcmp(prev, file))
     {
       num_evry_dups++;
       DEBUGF (2, "dup (i:%2lu): file: %s\n"
@@ -1929,8 +1929,8 @@ static int do_check_env (const char *env_name, BOOL recursive)
  * The MANPATH checking needs to be recursive (1 level); check all
  * 'man*' and 'cat*' directories under each directory in %MANPATH.
  *
- * If ".\\" (or "./") is in MANPATH, just test for existence in
- * 'current_dir'.
+ * If ".\\" (or "./") is in MANPATH, test for existence in 'current_dir'
+ * first.
  */
 static int do_check_manpath (void)
 {
@@ -1974,13 +1974,18 @@ static int do_check_manpath (void)
       WARN ("%s: directory \"%s\" doesn't exist.\n", env_name, arr->dir);
       continue;
     }
-
+#if 0
     if (!stricmp(arr->dir,current_dir))
     {
-      found += process_dir (".\\", 0, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
-      continue;
-    }
+      DEBUGF (2, "Checking in current_dir '%s'\n", current_dir);
 
+      if (process_dir(".\\", 0, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE))
+      {
+        found++;
+        continue;
+      }
+    }
+#endif
     for (i = 0; i < DIM(sub_dirs); i++)
     {
       snprintf (subdir, sizeof(subdir), "%s\\%s", arr->dir, sub_dirs[i]);
@@ -1993,6 +1998,54 @@ static int do_check_manpath (void)
   FREE (orig_e);
   return (found);
 }
+
+/*
+ * Search and check along %PKG_CONFIG_PATH%.
+ */
+static int do_check_pkg (void)
+{
+  struct directory_array *arr;
+  int    num, prev_num = 0, found = 0;
+  BOOL   do_warn = FALSE;
+  char  *orig_e;
+  char   report[300];
+  static const char env_name[] = "PKG_CONFIG_PATH";
+
+  orig_e = getenv_expand (env_name);
+  arr0   = orig_e ? split_env_var (env_name, orig_e) : NULL;
+  if (!arr0)
+  {
+    DEBUGF (1, "Env-var %s not defined.\n", env_name);
+    return (0);
+  }
+
+  snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
+  report_header = report;
+
+  for (arr = arr0; arr->dir; arr++)
+  {
+    DEBUGF (2, "Checking in dir '%s'\n", arr->dir);
+    num = process_dir (arr->dir, 0, arr->exist, arr->is_dir, arr->exp_ok, env_name, NULL, FALSE);
+
+    if (arr->num_dup == 0 && prev_num > 0 && num > 0)
+       do_warn = TRUE;
+    if (prev_num == 0 && num > 0)
+       prev_num = num;
+    found += num;
+  }
+
+  free_dir_array();
+  FREE (orig_e);
+
+  if (do_warn && !opt.quiet)
+  {
+    WARN ("Note: ");
+    C_printf ("~6There seems to be several '%s' files in different %%%s directories.\n"
+              "      \"pkgconfig\" will only select the first.~0\n", opt.file_spec, env_name);
+  }
+  return (found);
+}
+
 
 /*
  * Before checking the CMAKE_MODULE_PATH, we need to find the version and location
@@ -2255,7 +2308,7 @@ static int setup_gcc_includes (const char *gcc)
   return (found);
 }
 
-static int setup_gcc_library_path (const char *gcc)
+static int setup_gcc_library_path (const char *gcc, BOOL warn)
 {
   const char *m_cpu;
   char  cmd [1000];
@@ -2285,7 +2338,8 @@ static int setup_gcc_library_path (const char *gcc)
   found = popen_run (cmd, find_library_path_cb);
   if (found <= 0)
   {
-    WARN ("Calling %s returned %d.\n", gcc, found);
+    if (warn)
+       WARN ("Calling %s returned %d.\n", gcc, found);
     return (found);
   }
 
@@ -2323,7 +2377,7 @@ static int process_gcc_dirs (const char *gcc)
   {
     DEBUGF (2, "dir: %s\n", arr->dir);
     found += process_dir (arr->dir, arr->num_dup, arr->exist,
-                          arr->is_dir, arr->exp_ok, gcc, NULL,
+                          arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE,
                           FALSE);
   }
   free_dir_array();
@@ -2398,6 +2452,53 @@ static void get_longest (const char **cc, size_t num)
 }
 
 /*
+ * Print the internal '*gcc/*g++' LIBRARY_PATH returned from 'setup_gcc_library_path()'.
+ * I.e. only the directories NOT in %LIBRARY_PATH.
+ */
+static void print_gcc_internal_dirs (const char *env_name, const char *env_value)
+{
+  struct directory_array *arr = dir_array;
+  char                   *copy [DIM(dir_array)];
+  size_t                  i, j;
+  int                     ch = opt.show_unix_paths ? '/' : '\\';
+  static BOOL             done_note = FALSE;
+
+  if (!env_name || !env_value)
+     return;
+
+  for (i = 0; i < DIM(dir_array) && arr->dir; i++, arr++)
+     copy[i] = STRDUP (slashify(arr->dir,ch));
+  copy[i] = NULL;
+
+  arr = split_env_var (env_name, env_value);
+
+  for (i = 0; copy[i]; i++)
+  {
+    BOOL  found = FALSE;
+    const char *dir;
+
+    for (j = 0, arr = dir_array; arr->dir; j++, arr++)
+    {
+      dir = slashify (arr->dir, ch);
+      if (!stricmp(dir,copy[i]))
+      {
+        found = TRUE;
+        break;
+      }
+    }
+    if (!found)
+    {
+      C_printf ("%*s%s %s\n", longest_cc+8, "", copy[i], done_note ? "" : "~3(1)~0");
+      done_note = TRUE;
+    }
+  }
+
+  for (i = 0; copy[i]; i++)
+      FREE (copy[i]);
+  free_dir_array();
+}
+
+/*
  * Called during 'envtool -VV' to print:
  *  Compilers on PATH:
  *    gcc.exe                    -> f:\MingW32\TDM-gcc\bin\gcc.exe
@@ -2405,11 +2506,14 @@ static void get_longest (const char **cc, size_t num)
  *
  * 'get_longest()' called to align the 1st column (gcc.exe) to fit the
  * compiler with the longest name. I.e. "x86_64-w64-mingw32-gcc.exe".
+ *
+ * 'envtool -VVV' (print_lib_path = TRUE) will print the internal
+ * '*gcc/*g++' library paths.
  */
-static void searchpath_compilers (const char **cc, size_t num)
+static void searchpath_compilers (const char **cc, size_t num, BOOL print_lib_path)
 {
   const char *found;
-  size_t i, len;
+  size_t      i, len;
 
   for (i = 0; i < num; i++)
   {
@@ -2418,25 +2522,34 @@ static void searchpath_compilers (const char **cc, size_t num)
     C_printf ("    %s%*s -> ~%c%s~0\n",
               cc[i], (int)(longest_cc-len), "",
               found ? '6' : '5', found ? found : "Not found");
+
+    if (!found || !print_lib_path)
+       continue;
+
+    if ((cc == gcc || cc == gpp) && setup_gcc_library_path(cc[i],FALSE) > 0)
+    {
+      char *env = getenv_expand ("LIBRARY_PATH");
+
+      print_gcc_internal_dirs ("LIBRARY_PATH", env);
+      FREE (env);
+    }
   }
 }
 
 static size_t num_gcc (void)
 {
-  if (opt.do_version)
-     return (_num_gcc);
   return (opt.gcc_no_prefixed ? 1 : _num_gcc);
 }
 
 static size_t num_gpp (void)
 {
-  if (opt.do_version)
-     return (_num_gpp);
   return (opt.gcc_no_prefixed ? 1 : _num_gpp);
 }
 
 static void searchpath_all_cc (void)
 {
+  BOOL print_lib_path = (opt.do_version >= 3);
+
   build_gnu_prefixes();
 
   get_longest ((const char**)gcc, num_gcc());
@@ -2444,10 +2557,13 @@ static void searchpath_all_cc (void)
   get_longest (cl,  DIM(cl));
   get_longest (wcc, DIM(wcc));
 
-  searchpath_compilers ((const char**)gcc, num_gcc());
-  searchpath_compilers ((const char**)gpp, num_gpp());
-  searchpath_compilers (cl,  DIM(cl));
-  searchpath_compilers (wcc, DIM(wcc));
+  searchpath_compilers ((const char**)gcc, num_gcc(), print_lib_path);
+  searchpath_compilers ((const char**)gpp, num_gpp(), print_lib_path);
+  searchpath_compilers (cl,  DIM(cl), print_lib_path);
+  searchpath_compilers (wcc, DIM(wcc), print_lib_path);
+
+  if (print_lib_path)
+     C_puts ("    ~3(1)~0: internal GCC library paths.\n");
 }
 
 static int do_check_gcc_includes (void)
@@ -2503,7 +2619,7 @@ static int do_check_gcc_library_paths (void)
   build_gnu_prefixes();
 
   for (i = 0; i < num_gcc(); i++)
-      if (setup_gcc_library_path(gcc[i]) > 0)
+      if (setup_gcc_library_path(gcc[i],TRUE) > 0)
       {
         snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", gcc[i]);
         report_header = report;
@@ -2546,9 +2662,10 @@ static const struct option long_options[] = {
            { "size",        no_argument,       NULL, 0 },
            { "man",         no_argument,       NULL, 0 },    /* 23 */
            { "cmake",       no_argument,       NULL, 0 },
-           { "32",          no_argument,       NULL, 0 },    /* 25 */
-           { "64",          no_argument,       NULL, 0 },
-           { "no-prefix",   no_argument,       NULL, 0 },    /* 27 */
+           { "pkg",         no_argument,       NULL, 0 },    /* 25 */
+           { "32",          no_argument,       NULL, 0 },
+           { "64",          no_argument,       NULL, 0 },    /* 27 */
+           { "no-prefix",   no_argument,       NULL, 0 },
            { NULL,          no_argument,       NULL, 0 }
          };
 
@@ -2578,9 +2695,10 @@ static int *values_tab[] = {
             &opt.show_size,
             &opt.do_man,          /* 23 */
             &opt.do_cmake,
-            &opt.only_32bit,      /* 25 */
-            &opt.only_64bit,
-            &opt.gcc_no_prefixed  /* 27 */
+            &opt.do_pkg,          /* 25 */
+            &opt.only_32bit,
+            &opt.only_64bit,      /* 27 */
+            &opt.gcc_no_prefixed
           };
 
 /*
@@ -2766,11 +2884,14 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
        break;
   }
 
-  if (opt.only_32bit && opt.only_64bit)
+  if (!(opt.do_lib || opt.do_include) && opt.only_32bit && opt.only_64bit)
   {
-    printf ("Specifying both '--32' and '--64' doesn't make sense.\n");
+    WARN ("Specifying both '--32' and '--64' doesn't make sense.\n");
     exit (1);
   }
+
+  if (!opt.PE_check && opt.do_lib && (opt.only_32bit || opt.only_64bit))
+     opt.PE_check = TRUE;
 
   if (opt.no_colours)
   {
@@ -2852,6 +2973,11 @@ static void cleanup (void)
   if (halt_flag == 0 && opt.debug > 0)
      mem_report();
 
+  if (halt_flag > 0)
+     C_puts ("~5Quitting.\n~0");
+
+  C_reset();
+
 #if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
   crtdbg_exit();
 #endif
@@ -2883,12 +3009,12 @@ static void halt (int sig)
   else
 #endif
 
-  if (sig == SIGILL)
-       C_puts ("\n~5Illegal instruction.~0\n");
-  else C_puts ("~5Quitting.\n~0");
-
-  cleanup();
-  ExitProcess (GetCurrentProcessId());
+  if (sig == SIGILL) /* Get out as fast as possible */
+  {
+    C_puts ("\n~5Illegal instruction.~0\n");
+    C_reset();
+    ExitProcess (GetCurrentProcessId());
+  }
 }
 
 static void init_all (void)
@@ -2965,9 +3091,9 @@ int main (int argc, char **argv)
      opt.no_sys_env = opt.no_usr_env = 1;
 
   if (!opt.do_path && !opt.do_include && !opt.do_lib && !opt.do_python &&
-      !opt.do_evry && !opt.do_man && !opt.do_cmake)
-     usage ("Use at least one of; \"--inc\", \"--lib\", \"--evry\", \"--cmake\", "
-            "\"--man\", \"--python\" and/or \"--path\".\n");
+      !opt.do_evry && !opt.do_man && !opt.do_cmake && !opt.do_pkg)
+     usage ("Use at least one of; \"--evry\", \"--cmake\", \"--inc\", \"--lib\", "
+            "\"--man\", \"--path\", \"--pkg\" and/or \"--python\".\n");
 
   if (!opt.file_spec)
      usage ("You must give a ~1filespec~0 to search for.\n");
@@ -2983,7 +3109,10 @@ int main (int argc, char **argv)
   end = strrchr (opt.file_spec, '\0');
   dot = strrchr (opt.file_spec, '.');
 
-  if (!opt.use_regex && !dot && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
+  if (opt.do_pkg && !dot && end > opt.file_spec && end[-1] != '*')
+    opt.file_spec = _stracat (opt.file_spec, ".pc*");
+
+  else if (!opt.use_regex && !dot && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
      opt.file_spec = _stracat (opt.file_spec, ".*");
 
   opt.file_spec_re = opt.file_spec;
@@ -3030,6 +3159,9 @@ int main (int argc, char **argv)
 
   if (opt.do_man)
      found += do_check_manpath();
+
+  if (opt.do_pkg)
+     found += do_check_pkg();
 
   if (opt.do_python)
   {
