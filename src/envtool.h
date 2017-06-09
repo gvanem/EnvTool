@@ -364,7 +364,9 @@ extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
 extern void  set_error_mode(int on_off);
 extern int   disk_ready    (int disk);
-extern void  make_cyg_path (const char *path, char *result);
+
+extern char       *make_cyg_path (const char *path, char *result);
+extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);
 
 extern const char *compiler_version (void);
 extern const char *get_user_name (void);
@@ -486,7 +488,8 @@ extern void     mem_report (void);
  */
 typedef int (*popen_callback) (char *buf, int index);
 
-int popen_run (const char *cmd, popen_callback callback);
+int popen_run  (popen_callback callback, const char *cmd);
+int popen_runf (popen_callback callback, const char *fmt, ...);
 
 /* fnmatch() ret-values and flags:
  */

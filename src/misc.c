@@ -209,16 +209,22 @@ static int gzip_cb (char *buf, int index)
 
 const char *get_gzip_link (const char *file)
 {
-  char  cmd [1000];
-  const char *gzip = searchpath ("gzip.exe", "PATH");
+  static char gzip [_MAX_PATH];
+  static BOOL done = FALSE;
 
-  if (!gzip)
+  if (!done)
+  {
+    const char *p = searchpath ("gzip.exe", "PATH");
+    if (p)
+      _strlcpy (gzip, slashify(p,'\\'), sizeof(gzip));
+    done = TRUE;
+  }
+
+  if (!gzip[0])
      return (NULL);
 
   gzip_link_name[0] = '\0';
-  snprintf (cmd, sizeof(cmd), "\"%s\" -cd %s 2> %s", gzip, file, DEV_NULL);
-
-  if (popen_run(slashify(cmd,'\\'), gzip_cb) > 0)
+  if (popen_runf(gzip_cb, "\"%s\" -cd %s 2> %s", gzip, file, DEV_NULL) > 0)
   {
     static char fqfn_name [_MAX_PATH];
     char       *dir_name = dirname (file);
@@ -740,59 +746,57 @@ char *basename (const char *fname)
  */
 char *dirname (const char *fname)
 {
-  const char *p  = fname;
+  const char *p = fname;
   const char *slash = NULL;
+  size_t      dirlen;
+  char       *dirpart;
 
-  if (fname)
+  if (!fname)
+     return (NULL);
+
+  if (*fname && fname[1] == ':')
   {
-    size_t dirlen;
-    char  *dirpart;
-
-    if (*fname && fname[1] == ':')
-    {
-      slash = fname + 1;
-      p += 2;
-    }
-
-    /* Find the rightmost slash.
-     */
-    while (*p)
-    {
-      if (IS_SLASH(*p))
-         slash = p;
-      p++;
-    }
-
-    if (slash == NULL)
-    {
-      fname = ".";
-      dirlen = 1;
-    }
-    else
-    {
-      /* Remove any trailing slashes.
-       */
-      while (slash > fname && (IS_SLASH(slash[-1])))
-          slash--;
-
-      /* How long is the directory we will return?
-       */
-      dirlen = slash - fname + (slash == fname || slash[-1] == ':');
-      if (*slash == ':' && dirlen == 1)
-         dirlen += 2;
-    }
-
-    dirpart = MALLOC (dirlen + 1);
-    if (dirpart)
-    {
-      strncpy (dirpart, fname, dirlen);
-      if (slash && *slash == ':' && dirlen == 3)
-         dirpart[2] = '.';      /* for "x:foo" return "x:." */
-      dirpart[dirlen] = '\0';
-    }
-    return (dirpart);
+    slash = fname + 1;
+    p += 2;
   }
-  return (NULL);
+
+  /* Find the rightmost slash.
+   */
+  while (*p)
+  {
+    if (IS_SLASH(*p))
+       slash = p;
+    p++;
+  }
+
+  if (slash == NULL)
+  {
+    fname = ".";
+    dirlen = 1;
+  }
+  else
+  {
+    /* Remove any trailing slashes.
+     */
+    while (slash > fname && (IS_SLASH(slash[-1])))
+        slash--;
+
+    /* How long is the directory we will return?
+     */
+    dirlen = slash - fname + (slash == fname || slash[-1] == ':');
+    if (*slash == ':' && dirlen == 1)
+       dirlen += 2;
+  }
+
+  dirpart = MALLOC (dirlen + 1);
+  if (dirpart)
+  {
+    strncpy (dirpart, fname, dirlen);
+    if (slash && *slash == ':' && dirlen == 3)
+       dirpart[2] = '.';      /* for "x:foo" return "x:." */
+    dirpart[dirlen] = '\0';
+  }
+  return (dirpart);
 }
 
 /*
@@ -809,7 +813,7 @@ void make_path (char *path, const char *drive, const char *dir, const char *file
 /*
  * Create a CygWin compatible path name from a Windows path.
  */
-void make_cyg_path (const char *path, char *result)
+char *make_cyg_path (const char *path, char *result)
 {
   char *p = STRDUP (slashify(path, '/'));
   char  buf [_MAX_PATH+20];
@@ -822,6 +826,26 @@ void make_cyg_path (const char *path, char *result)
   else
     _strlcpy (result, p, _MAX_PATH);
   FREE (p);
+  return (result);
+}
+
+/*
+ * The wide version of the above.
+ */
+wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
+{
+  wchar_t *p = WCSDUP (path);
+  wchar_t  buf [_MAX_PATH+20];
+
+  if (wcslen(p) > 2 && p[1] == ':' && IS_SLASH(p[2]))
+  {
+    _swprintf (buf, L"/cygdrive/%c/%s", towlower(p[0]), p+3);
+    wcsncpy (result, buf, _MAX_PATH);
+  }
+  else
+    wcsncpy (result, p, _MAX_PATH);
+  FREE (p);
+  return (result);
 }
 #endif
 
@@ -1661,7 +1685,7 @@ int debug_printf (const char *format, ...)
  *
  * Returns total number of matches from 'callback'.
  */
-int popen_run (const char *cmd, popen_callback callback)
+int popen_run (popen_callback callback, const char *cmd)
 {
   char   buf[1000];
   int    i = 0;
@@ -1737,6 +1761,20 @@ int popen_run (const char *cmd, popen_callback callback)
 quit:
   FREE (cmd2);
   return (j);
+}
+
+/*
+ * A var-arg version of 'popen_run()'.
+ */
+int popen_runf (popen_callback callback, const char *fmt, ...)
+{
+  char cmd [5000];
+  va_list args;
+
+  va_start (args, fmt);
+  vsnprintf (cmd, sizeof(cmd), fmt, args);
+  va_end (args);
+  return popen_run (callback, cmd);
 }
 
 /*
