@@ -1314,9 +1314,11 @@ int py_test (void)
 
   for (i = 0; i < max; i++)
   {
-    pi = smartlist_get (py_programs, i);
     enum python_variants which = py_which;
-    BOOL test_it = ( which == ALL_PYTHONS || pi->variant == which ||
+    BOOL test_it;
+
+    pi = smartlist_get (py_programs, i);
+    test_it = ( which == ALL_PYTHONS || pi->variant == which ||
                     (which == DEFAULT_PYTHON && pi->is_default) ) &&
                    pi->exe_name;
 
