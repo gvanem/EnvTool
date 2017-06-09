@@ -68,7 +68,7 @@ static int _sd_select (const struct dirent2 *de)
 
   if (!strcmp(de->d_name,".") || !strcmp(de->d_name,".."))
      rc = 0;
-  DEBUGF (2, "rc: %d, de->d_name: %s\n", rc, de->d_name);
+  DEBUGF (3, "rc: %d, de->d_name: %s\n", rc, de->d_name);
   return (rc);
 }
 
@@ -158,7 +158,7 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   */
   snprintf (path, sizeof(path), "%s\\%s", dir_name, opts ? opts->pattern : "*");
 
-  DEBUGF (2, "path: %s\n", path);
+  DEBUGF (3, "path: %s\n", path);
 
   file = getdirent2 (&hnd, path, &ff);
   if (!file)
@@ -198,7 +198,7 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
       max_cnt  *= 5;
 
       more = REALLOC (dirp->dd_contents, max_size);
-      DEBUGF (2, "Limit reached. REALLOC (%u) -> %p\n", (unsigned)max_size, more);
+      DEBUGF (3, "Limit reached. REALLOC (%u) -> %p\n", (unsigned)max_size, more);
 
       if (!more)
       {
@@ -244,7 +244,7 @@ struct dirent2 *readdir2 (DIR2 *dirp)
 {
   struct dirent2 *de;
 
-  DEBUGF (2, "dirp->dd_contents: %p, dirp->dd_loc: %u, dirp->dd_num: %u\n",
+  DEBUGF (3, "dirp->dd_contents: %p, dirp->dd_loc: %u, dirp->dd_num: %u\n",
           dirp->dd_contents, (unsigned)dirp->dd_loc, (unsigned)dirp->dd_num);
 
   if (!dirp->dd_contents || dirp->dd_loc >= dirp->dd_num)
@@ -458,7 +458,7 @@ static int compare_alphasort (const struct dirent2 *a, const struct dirent2 *b)
   const char *base_b = basename (b->d_name);
   int         rc     = reverse_sort (stricmp(base_a, base_b));
 
-  DEBUGF (2, "base_a: %s, base_b: %s, rc: %d\n", base_a, base_b, rc);
+  DEBUGF (3, "base_a: %s, base_b: %s, rc: %d\n", base_a, base_b, rc);
   return (rc);
 }
 
@@ -476,7 +476,7 @@ static int compare_dirs_first (const struct dirent2 *a, const struct dirent2 *b)
        rc = reverse_sort (1);
   else rc = compare_alphasort (a, b);
 
-  DEBUGF (2, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
+  DEBUGF (3, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
           basename(a->d_name), basename(b->d_name), a_dir, b_dir, rc);
   return (rc);
 }
@@ -495,7 +495,7 @@ static int compare_files_first (const struct dirent2 *a, const struct dirent2 *b
        rc = reverse_sort (-1);
   else rc = compare_alphasort (a, b);
 
-  DEBUGF (2, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
+  DEBUGF (3, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
           basename(a->d_name), basename(b->d_name), a_dir, b_dir, rc);
   return (rc);
 }
@@ -527,7 +527,7 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
   switch (s)
   {
     case OD2X_FILES_FIRST:
-         DEBUGF (2, "Using compare_files_first(), sort_reverse: %d\n", sort_reverse);
+         DEBUGF (3, "Using compare_files_first(), sort_reverse: %d\n", sort_reverse);
          if (qsort_func)
             *qsort_func = (QsortCmpFunc) compare_files_first;
          if (sd_cmp_func)
@@ -535,7 +535,7 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
          break;
 
     case OD2X_DIRECTORIES_FIRST:
-         DEBUGF (2, "Using compare_dirs_first(), sort_reverse: %d\n", sort_reverse);
+         DEBUGF (3, "Using compare_dirs_first(), sort_reverse: %d\n", sort_reverse);
          if (qsort_func)
             *qsort_func = (QsortCmpFunc) compare_dirs_first;
          if (sd_cmp_func)
@@ -543,7 +543,7 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
          break;
 
     case OD2X_ON_NAME:
-         DEBUGF (2, "Using compare_alphasort(), sort_reverse: %d\n", sort_reverse);
+         DEBUGF (3, "Using compare_alphasort(), sort_reverse: %d\n", sort_reverse);
          if (qsort_func)
             *qsort_func = (QsortCmpFunc) compare_alphasort;
          if (sd_cmp_func)
@@ -551,7 +551,7 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
          break;
 
     default:
-         DEBUGF (2, "Not sorting.\n");
+         DEBUGF (3, "Not sorting.\n");
          if (qsort_func)
             *qsort_func = NULL;
          if (sd_cmp_func)
@@ -611,8 +611,6 @@ void usage (void)
           "       -s type: sort the listing on \"name\", \"files\", \"dirs\". Optionally with \",reverse\".\n");
   exit (-1);
 }
-
-
 
 static UINT64 get_alloc_size (const char *file, UINT64 size)
 {
@@ -686,7 +684,6 @@ static void final_report (void)
   C_printf ("  total-size:       %s bytes", qword_str(total_size));
   C_printf (" (allocated: %s)\n", qword_str(total_size_alloc));
 }
-
 
 /*
  * Recursive handler for 'scandir2()'.
