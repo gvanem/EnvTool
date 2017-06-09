@@ -138,6 +138,7 @@ static int   do_tests (void);
 static void  searchpath_all_cc (void);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
+static int   get_pkg_config_info (const char **exe, struct ver_info *ver);
 static int   get_cmake_info (const char **exe, struct ver_info *ver);
 
 /*
@@ -261,10 +262,7 @@ static void get_evry_bitness (void)
  */
 static int show_version (void)
 {
-  const char     *py_exe, *cmake_exe;
-  HWND            wnd;
-  struct ver_info py_ver, evry_ver, cmake_ver;
-  int             len = 0;
+  HWND wnd;
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.\n  Hosted at: ~6%s~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
@@ -273,6 +271,8 @@ static int show_version (void)
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (wnd)
   {
+    struct ver_info evry_ver;
+
     if (get_evry_version(wnd,&evry_ver))
          show_evry_version (wnd, &evry_ver);
     else C_printf ("  Everything search engine not responding.\n");
@@ -285,21 +285,55 @@ static int show_version (void)
   py_init();
   C_printf ("\r                             \r");
 
-  if (py_get_info(&py_exe, NULL, &py_ver))
   {
-    len = C_printf ("  Python %u.%u.%u detected", py_ver.val_1, py_ver.val_2, py_ver.val_3);
-    C_printf (" -> ~6%s~0.\n", py_exe);
-  }
-  else
-    C_printf ("  Python ~5not~0 found.\n");
+    static const char *found_fmt[] = { "  Python %u.%u.%u detected",
+                                       "  Cmake %u.%u.%u detected",
+                                       "  pkg-config %u.%u detected",
+                                     };
 
-  if (get_cmake_info(&cmake_exe, &cmake_ver))
-  {
-    C_printf ("  Cmake %u.%u.%u detected", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
-    C_printf ("%*s -> ~6%s~0.\n", len ? len-22 : 0, "", cmake_exe);
+    static const char *not_found_fmt[] = { "  Python ~5not~0 found.\n",
+                                           "  Cmake ~5not~0 found.\n",
+                                           "  pkg-config ~5not~0 found.\n"
+                                         };
+    char found [3][100];
+    int  _len, len [3] = { 0,0,0 };
+    const char     *py_exe, *cmake_exe, *pkg_config_exe;
+    struct ver_info py_ver, cmake_ver, pkg_config_ver;
+
+    py_get_info (&py_exe, NULL, &py_ver);
+    get_cmake_info (&cmake_exe, &cmake_ver);
+
+    /* Because searchpath() returns a static buffer
+     */
+    cmake_exe = STRDUP (cmake_exe);
+    get_pkg_config_info (&pkg_config_exe, &pkg_config_ver);
+
+    if (py_exe)
+       len[0] = snprintf (found[0], sizeof(found[0]), found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
+
+    if (cmake_exe)
+       len[1] = snprintf (found[1], sizeof(found[1]), found_fmt[1], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
+
+    if (pkg_config_exe)
+       len[2] = snprintf (found[2], sizeof(found[2]), found_fmt[2], pkg_config_ver.val_1, pkg_config_ver.val_2);
+
+    _len = max (len[0], len[1]);
+    _len = max (len[1], len[2]);
+
+    if (py_exe)
+         C_printf ("%-*s -> ~6%s~0\n", _len, found[0], py_exe);
+    else C_printf (not_found_fmt[0]);
+
+    if (cmake_exe)
+         C_printf ("%-*s -> ~6%s~0\n", _len, found[1], cmake_exe);
+    else C_printf (not_found_fmt[1]);
+
+    if (pkg_config_exe)
+         C_printf ("%-*s -> ~6%s~0\n", _len, found[2], pkg_config_exe);
+    else C_printf (not_found_fmt[2]);
+
+    FREE (cmake_exe);
   }
-  else
-    C_printf ("  Cmake ~5not~0 found.\n");
 
   if (opt.do_version >= 2)
   {
@@ -2000,6 +2034,35 @@ static int do_check_manpath (void)
 }
 
 /*
+ * Find the version and location pkg-config.exe (on PATH).
+ */
+static int pkg_config_major, pkg_config_minor;
+
+static int find_pkg_config_version_cb (char *buf, int index)
+{
+  ARGSUSED (index);
+  if (sscanf (buf, "%d.%d", &pkg_config_major, &pkg_config_minor) == 2)
+     return (1);
+  return (0);
+}
+
+static int get_pkg_config_info (const char **exe, struct ver_info *ver)
+{
+  pkg_config_major = pkg_config_minor = -1;
+  *exe = searchpath ("pkg-config.exe", "PATH");
+  if (*exe == NULL)
+     return (0);
+
+  if (popen_runf(find_pkg_config_version_cb, "\"%s\" --version", slashify(*exe,'\\')) > 0)
+  {
+    ver->val_1 = pkg_config_major;
+    ver->val_2 = pkg_config_minor;
+    return (1);
+  }
+  return (0);
+}
+
+/*
  * Search and check along %PKG_CONFIG_PATH%.
  */
 static int do_check_pkg (void)
@@ -2046,7 +2109,6 @@ static int do_check_pkg (void)
   return (found);
 }
 
-
 /*
  * Before checking the CMAKE_MODULE_PATH, we need to find the version and location
  * of cmake.exe (on PATH). Then assume it's built-in Module-path is relative to this.
@@ -2073,15 +2135,12 @@ static int find_cmake_version_cb (char *buf, int index)
 
 static int get_cmake_info (const char **exe, struct ver_info *ver)
 {
-  char cmd [1000];
-
+  cmake_major = cmake_minor = cmake_micro = -1;
   *exe = searchpath ("cmake.exe", "PATH");
   if (*exe == NULL)
      return (0);
 
-  snprintf (cmd, sizeof(cmd), "\"%s\" -version 2>&1", *exe);
-
-  if (popen_run(slashify(cmd,'\\'), find_cmake_version_cb) > 0)
+  if (popen_runf(find_cmake_version_cb, "\"%s\" -version 2>&1", slashify(*exe,'\\')) > 0)
   {
     ver->val_1 = cmake_major;
     ver->val_2 = cmake_minor;
@@ -2110,13 +2169,11 @@ static int do_check_cmake (void)
 
   if (cmake_bin)
   {
-    char  cmd [1000];
     char *cmake_root = dirname (cmake_bin);
 
     DEBUGF (3, "cmake -> '%s', cmake_root: '%s'\n", cmake_bin, cmake_root);
-    snprintf (cmd, sizeof(cmd), "\"%s\" -version 2>&1", cmake_bin);
 
-    if (popen_run(slashify(cmd,'\\'), find_cmake_version_cb) > 0)
+    if (popen_runf(find_cmake_version_cb, "\"%s\" -version 2>&1", slashify(cmake_bin,'\\')) > 0)
     {
       char dir [_MAX_PATH];
 
@@ -2287,8 +2344,7 @@ static int find_library_path_cb (char *buf, int index)
 
 static int setup_gcc_includes (const char *gcc)
 {
-  char cmd [1000];
-  int  found;
+  int found;
 
   free_dir_array();
 
@@ -2296,12 +2352,11 @@ static int setup_gcc_includes (const char *gcc)
    * Hence redirect stderr + stdout into the same pipe for us to read.
    * Also assume that the '*gcc' is on PATH.
    */
-  snprintf (cmd, sizeof(cmd), GCC_DUMP_FMT, gcc, "");
   found_index = 0;
   found_search_line = FALSE;
   looks_like_cygwin = FALSE;
 
-  found = popen_run (cmd, find_include_path_cb);
+  found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
   if (found > 0)
        DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
   else WARN ("Calling %s returned %d.\n", gcc, found);
@@ -2311,7 +2366,6 @@ static int setup_gcc_includes (const char *gcc)
 static int setup_gcc_library_path (const char *gcc, BOOL warn)
 {
   const char *m_cpu;
-  char  cmd [1000];
   int   found;
 
   free_dir_array();
@@ -2329,13 +2383,11 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
    * Hence redirect stderr + stdout into the same pipe for us to read.
    * Also assume that the '*gcc' is on PATH.
    */
-  snprintf (cmd, sizeof(cmd), GCC_DUMP_FMT, gcc, m_cpu);
-
   found_index = 0;
   found_search_line = FALSE;
   looks_like_cygwin = FALSE;
 
-  found = popen_run (cmd, find_library_path_cb);
+  found = popen_runf (find_library_path_cb, GCC_DUMP_FMT, gcc, m_cpu);
   if (found <= 0)
   {
     if (warn)
@@ -2452,7 +2504,7 @@ static void get_longest (const char **cc, size_t num)
 }
 
 /*
- * Print the internal '*gcc/*g++' LIBRARY_PATH returned from 'setup_gcc_library_path()'.
+ * Print the internal '*gcc' or '*g++' LIBRARY_PATH returned from 'setup_gcc_library_path()'.
  * I.e. only the directories NOT in %LIBRARY_PATH.
  */
 static void print_gcc_internal_dirs (const char *env_name, const char *env_value)
@@ -2470,6 +2522,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
      copy[i] = STRDUP (slashify(arr->dir,ch));
   copy[i] = NULL;
 
+  free_dir_array();
   arr = split_env_var (env_name, env_value);
 
   for (i = 0; copy[i]; i++)
@@ -2508,7 +2561,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
  * compiler with the longest name. I.e. "x86_64-w64-mingw32-gcc.exe".
  *
  * 'envtool -VVV' (print_lib_path = TRUE) will print the internal
- * '*gcc/*g++' library paths.
+ * '*gcc' or '*g++' library paths.
  */
 static void searchpath_compilers (const char **cc, size_t num, BOOL print_lib_path)
 {
@@ -2526,7 +2579,7 @@ static void searchpath_compilers (const char **cc, size_t num, BOOL print_lib_pa
     if (!found || !print_lib_path)
        continue;
 
-    if ((cc == gcc || cc == gpp) && setup_gcc_library_path(cc[i],FALSE) > 0)
+    if (setup_gcc_library_path(cc[i],FALSE) > 0)
     {
       char *env = getenv_expand ("LIBRARY_PATH");
 
@@ -2559,8 +2612,8 @@ static void searchpath_all_cc (void)
 
   searchpath_compilers ((const char**)gcc, num_gcc(), print_lib_path);
   searchpath_compilers ((const char**)gpp, num_gpp(), print_lib_path);
-  searchpath_compilers (cl,  DIM(cl), print_lib_path);
-  searchpath_compilers (wcc, DIM(wcc), print_lib_path);
+  searchpath_compilers (cl,  DIM(cl), FALSE);
+  searchpath_compilers (wcc, DIM(wcc), FALSE);
 
   if (print_lib_path)
      C_puts ("    ~3(1)~0: internal GCC library paths.\n");
