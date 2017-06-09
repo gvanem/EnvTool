@@ -479,44 +479,6 @@ static void set_python_home (struct python_info *py)
   py->home_a = STRDUP ("/usr/lib");
   py->home_w = NULL;
 #else
-  char *dir = dirname (py->exe_name);
-
-  if (py->ver_major >= 3)
-  {
-    wchar_t buf [_MAX_PATH];
-
-    buf[0] = L'\0';
-    MultiByteToWideChar (CP_ACP, 0, dir, -1, buf, DIM(buf));
-    if (py->is_cygwin)
-    {
-      py->home_w = WCSDUP (L"/usr");
-      py->home_a = STRDUP ("/usr");
-    }
-    else
-    {
-      py->home_w = WCSDUP (buf);
-      py->home_a = STRDUP (dir);
-    }
-  }
-  else
-  {
-    /* Reallocate again because FREE() is used in py_exit()!
-     */
-    if (py->is_cygwin)
-         py->home_a = STRDUP ("/usr");
-    else py->home_a = STRDUP (dir);
-    py->home_w = NULL;
-  }
-  FREE (dir);
-#endif
-}
-
-static void set_python_home2 (struct python_info *py)
-{
-#if defined(__CYGWIN__)
-  py->home_a = STRDUP ("/usr/lib");
-  py->home_w = NULL;
-#else
   char *dir = py->dir;
 
   if (py->ver_major >= 3)
@@ -1287,7 +1249,7 @@ static int match_python_exe (const char *dir)
              py2->bitness_ok = TRUE;
 
           fix_python_variant2 (py2, py->variant);
-          set_python_home2 (py2);
+          set_python_home (py2);
           set_python_prog (py2);
         }
       }
