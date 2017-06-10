@@ -300,6 +300,10 @@ static int show_version (void)
     const char     *py_exe, *cmake_exe, *pkg_config_exe;
     struct ver_info py_ver, cmake_ver, pkg_config_ver;
 
+    memset (&py_ver, '\0', sizeof(py_ver));
+    memset (&cmake_ver, '\0', sizeof(cmake_ver));
+    memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
+
     py_get_info (&py_exe, NULL, &py_ver);
     get_cmake_info (&cmake_exe, &cmake_ver);
 
@@ -2541,7 +2545,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
     }
     if (!found)
     {
-      C_printf ("%*s%s %s\n", longest_cc+8, "", copy[i], done_note ? "" : "~3(1)~0");
+      C_printf ("%*s%s %s\n", (int)(longest_cc+8), "", copy[i], done_note ? "" : "~3(1)~0");
       done_note = TRUE;
     }
   }
