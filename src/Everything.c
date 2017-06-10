@@ -14,6 +14,14 @@
    */
   #pragma warn (disable: 2154)
 
+#elif defined(__clang__)
+  /*
+   * Turn off these:
+   *   Everything.c(1165,14):  warning: comparison of unsigned expression < 0 is always false [-Wtautological-compare]
+   *               if (nIndex < 0)
+   */
+  #pragma GCC diagnostic ignored "-Wtautological-compare"
+
 #elif defined(_MSC_VER)
   // disable warnings
   #pragma warning(disable : 4996) // deprecation
