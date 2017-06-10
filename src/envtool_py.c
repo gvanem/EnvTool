@@ -36,7 +36,7 @@ struct python_info {
 
   /* The basename of the specific Python interpreter.
    */
-  const char *program;
+  char program [20];
 
   /* Which variant is this?
    */
@@ -50,7 +50,7 @@ struct python_info {
    * Tested for existance in either %SystemDir% and/or directory
    * of 'exe_name[]'
    */
-  const char *libraries [4];
+  const char *libraries [3];
 
   /* The FQFN of 'program'.
    */
@@ -62,10 +62,9 @@ struct python_info {
    */
   char *dll_name;
 
-  /* The directory and basename of above 'exe_name'.
+  /* The directory of above 'exe_name'.
    */
   char dir [_MAX_PATH];
-  char prog [20];
 
   /* The 'sys.path[]' array of above 'exe_name'.
    */
@@ -120,18 +119,18 @@ struct python_info {
 static struct python_info all_py_programs[] = {
 
     /* PyPy */
-    { "pypy.exe",      PYPY_PYTHON,   FALSE, { "~\\libpypy-c.dll", NULL }, },
+    { "pypy.exe",   PYPY_PYTHON,   FALSE, { "~\\libpypy-c.dll", NULL }, },
 
     /* CPython */
-    { "python.exe",    PY3_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
-    { "python.exe",    PY2_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
+    { "python.exe", PY3_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
+    { "python.exe", PY2_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
 
     /* IronPython */
-    { "ipy.exe",       IRON2_PYTHON,  FALSE, { "~\\IronPython.dll", NULL }, },
-    { "ipy64.exe",     IRON2_PYTHON,  FALSE, { "~\\IronPython.dll", NULL }, },
+    { "ipy.exe",    IRON2_PYTHON,  FALSE, { "~\\IronPython.dll", NULL }, },
+    { "ipy64.exe",  IRON2_PYTHON,  FALSE, { "~\\IronPython.dll", NULL }, },
 
     /* JavaPython */
-    { "jython.exe",    JYTHON_PYTHON, FALSE, { "~\\jpython.dll", NULL }, }
+    { "jython.exe", JYTHON_PYTHON, FALSE, { "~\\jpython.dll", NULL }, }
   };
 
 /* The global Python instance data.
@@ -140,6 +139,9 @@ static struct python_info *g_py;
 static int    our_bitness = (int) 8*sizeof(void*);
 
 static int tmp_ver_major, tmp_ver_minor, tmp_ver_micro;
+static int longest_py_program = 0;  /* set in py_init() */
+static int longest_py_version = 0;  /* set in py_init() */
+
 static int get_python_version (const char *exe_name);
 
 /* The list Pythons from the PATH and from 'HKLM\Software\Python\PythonCore\xx\InstallPath'
@@ -373,11 +375,9 @@ static void fix_python_variant2 (struct python_info *py, enum python_variants v)
     py->variant = v;
 }
 
-static void free_sys_path (int i, struct python_info *pi)
+static void free_sys_path (const struct python_info *pi)
 {
-  int max = smartlist_len (pi->sys_path);
-
-  DEBUGF (3, "%d: %s, max: %d.\n", i, pi == g_py ? "is g_py " : "not g_py", max);
+  int i, max = smartlist_len (pi->sys_path);
 
   for (i = 0; i < max; i++)
   {
@@ -387,17 +387,14 @@ static void free_sys_path (int i, struct python_info *pi)
   }
 }
 
-static int longest_py_program = 0;  /* set in py_init() */
-static int longest_py_version = 0;  /* set in py_init() */
-
-static void print_sys_path (struct python_info *pi, size_t indent)
+static void print_sys_path (const struct python_info *pi, size_t indent)
 {
   int i, max = smartlist_len (pi->sys_path);
 
   for (i = 0; i < max; i++)
   {
-    struct python_path *pp = smartlist_get (pi->sys_path, i);
-    const char *dir = slashify (_fix_drive(pp->dir), opt.show_unix_paths ? '/' : '\\');
+    struct python_path *pp  = smartlist_get (pi->sys_path, i);
+    const char         *dir = slashify (_fix_drive(pp->dir), opt.show_unix_paths ? '/' : '\\');
 
     if (indent)
          C_printf ("%*s%s\n", indent+longest_py_program, "", dir);
@@ -543,7 +540,7 @@ void py_exit (void)
 
       if (py->sys_path)
       {
-        free_sys_path (i, py);
+        free_sys_path (py);
         smartlist_free (py->sys_path);
       }
       FREE (py);
@@ -1219,8 +1216,7 @@ static int match_python_exe (const char *dir)
       py2 = CALLOC (sizeof(*py2), 1);
 
       _strlcpy (py2->dir, de->d_name, base - de->d_name);
-      _strlcpy (py2->prog, base, sizeof(py2->prog));
-      py2->program = py->program;
+      _strlcpy (py2->program, py->program, sizeof(py2->program));
       py2->exe_name = _fix_path (de->d_name, NULL);
       py2->dll_hnd  = INVALID_HANDLE_VALUE;
       py2->do_warn  = TRUE;
@@ -1270,36 +1266,21 @@ static int match_python_exe (const char *dir)
 /*
  * Search all directories on PATH for matches to 'all_py_programs::program'.
  */
-static int get_python_exe_names (void)
+static void get_python_exe_names (void)
 {
   char *path = getenv_expand ("PATH");
   char *dir, dir_sep[2] = ";";
-  int   max, i, found;
 
 #ifdef __CYGWIN__
   dir_sep[0] = ':';
 #endif
 
-  dir = strtok (path, dir_sep);
-  DEBUGF (1, "\n");
-
-  for (found = 0; dir; dir = strtok(NULL,dir_sep))
+  for (dir = strtok(path, dir_sep); dir; dir = strtok(NULL,dir_sep))
   {
-     if (!match_python_exe(dir))
-        break;
-     found++;
-  }
-
-  max = smartlist_len (py_programs);
-  for (i = 0; i < max; i++)
-  {
-    const struct python_info *pi = smartlist_get (py_programs, i);
-
-    DEBUGF (1, "%d: %s\\%s, %d.%d.%d\n",
-            i, pi->dir, pi->prog, pi->ver_major, pi->ver_minor, pi->ver_micro);
+    if (!match_python_exe(dir))
+       break;
   }
   FREE (path);
-  return (found);
 }
 
 /*
@@ -1328,7 +1309,7 @@ int py_test (void)
 
       /* This should never become TRUE.
        */
-      if (pi2->variant == pi->variant && !stricmp(pi2->prog,pi->prog))
+      if (pi2->variant == pi->variant && !stricmp(pi2->program,pi->program))
          test_it = FALSE;
     }
     if (which == ALL_PYTHONS)
@@ -1436,7 +1417,7 @@ void py_searchpaths (void)
  * Add the REG_SZ data in a 'HKLM\Software\Python\PythonCore\xx\InstallPath' key
  * to the 'py_programs' smartlist.
  */
-static void get_install_path (const char *key_name, const struct python_info *pi)
+static void get_install_path (const char *key_name, struct python_info *pi)
 {
   HKEY  key = NULL;
   DWORD rc  = RegOpenKeyEx (HKEY_LOCAL_MACHINE, key_name, 0, reg_read_access(), &key);
@@ -1470,7 +1451,7 @@ static void get_install_path (const char *key_name, const struct python_info *pi
       pi2->ver_minor = pi->ver_minor;
       pi2->bitness   = pi->bitness;
       _strlcpy (pi2->dir, data, end-data);
-      _strlcpy (pi2->prog, slash+1, slash-data);
+      _strlcpy (pi2->program, slash+1, slash-data);
       pi2->exe_name = STRDUP (data);
       smartlist_add (py_programs, pi2);
     }
@@ -1486,8 +1467,8 @@ static void get_install_path (const char *key_name, const struct python_info *pi
       pi2->ver_minor = pi->ver_minor;
       pi2->bitness   = pi->bitness;
       _strlcpy (pi2->dir, data, sizeof(pi2->dir));
-      _strlcpy (pi2->prog, "python.exe", sizeof(pi2->prog));
-      snprintf (data, sizeof(data), "%s\\%s", pi2->dir, pi2->prog);
+      _strlcpy (pi2->program, "python.exe", sizeof(pi2->program));
+      snprintf (data, sizeof(data), "%s\\%s", pi2->dir, pi2->program);
       pi2->exe_name = STRDUP (data);
       smartlist_add (py_programs, pi2);
     }
@@ -1545,7 +1526,7 @@ static void enum_python_install_paths (const char *key_name)
      RegCloseKey (key);
 }
 
-int py_init (void)
+void py_init (void)
 {
   static HANDLE ex_hnd = NULL;
   int    i, max;
@@ -1560,10 +1541,9 @@ int py_init (void)
 
   get_python_exe_names();
 
-/* enum_python_install_paths ("Software\\Python\\PythonCore");
- */
-
-  /* \todo: compare 'exe_name' against 'py_programs' smartlist */
+#if 0
+  enum_python_install_paths ("Software\\Python\\PythonCore");
+#endif
 
   DEBUGF (1, "py_which: %d/%s\n\n", py_which, py_variant_name(py_which));
 
@@ -1574,14 +1554,14 @@ int py_init (void)
     int   len, indent = 1 + strlen (__FILE());
     char  version [20];
 
+    len = (int) strlen (pi->program);
+    if (len > longest_py_program)
+       longest_py_program = len;
+
     snprintf (version, sizeof(version), "(%d.%d.%d)", pi->ver_major, pi->ver_minor, pi->ver_micro);
     len = (int) strlen (version);
     if (len > longest_py_version)
        longest_py_version = len;
-
-    len = (int) strlen (pi->program);
-    if (len > longest_py_program)
-       longest_py_program = len;
 
     DEBUGF (1, "%u: %-*s -> \"%s\".  ver: %s\n"
                "%*sDLL:         -> \"%s\"\n"
@@ -1593,5 +1573,4 @@ int py_init (void)
             pi->is_default ? " (Default)" : "",
             indent+longest_py_program, "", pi->bitness);
   }
-  return (max);
 }

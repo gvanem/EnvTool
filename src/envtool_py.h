@@ -17,7 +17,7 @@ extern enum python_variants py_which;
 
 struct python_info;
 
-extern int          py_init          (void);
+extern void         py_init          (void);
 extern void         py_exit          (void);
 extern int          py_search        (void);
 extern void         py_searchpaths   (void);
