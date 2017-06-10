@@ -387,7 +387,7 @@ static void free_sys_path (const struct python_info *pi)
   }
 }
 
-static void print_sys_path (const struct python_info *pi, size_t indent)
+static void print_sys_path (const struct python_info *pi, int indent)
 {
   int i, max = smartlist_len (pi->sys_path);
 
@@ -1539,7 +1539,7 @@ void py_init (void)
 
   get_python_exe_names();
 
-#if 0
+#if 0  /* \todo */
   enum_python_install_paths ("Software\\Python\\PythonCore");
 #endif
 
