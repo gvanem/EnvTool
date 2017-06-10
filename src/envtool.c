@@ -257,6 +257,64 @@ static void get_evry_bitness (void)
 }
 
 /*
+ * Show version information for various programs.
+ */
+static void show_ext_versions (void)
+{
+  static const char *found_fmt[] = { "  Python %u.%u.%u detected",
+                                     "  Cmake %u.%u.%u detected",
+                                     "  pkg-config %u.%u detected",
+                                   };
+
+  static const char *not_found_fmt[] = { "  Python ~5not~0 found.\n",
+                                         "  Cmake ~5not~0 found.\n",
+                                         "  pkg-config ~5not~0 found.\n"
+                                       };
+  char found [3][100];
+  int  _len, len [3] = { 0,0,0 };
+  const char     *py_exe, *cmake_exe, *pkg_config_exe;
+  struct ver_info py_ver, cmake_ver, pkg_config_ver;
+
+  memset (&py_ver, '\0', sizeof(py_ver));
+  memset (&cmake_ver, '\0', sizeof(cmake_ver));
+  memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
+
+  py_get_info (&py_exe, NULL, &py_ver);
+  get_cmake_info (&cmake_exe, &cmake_ver);
+
+  /* Because searchpath() returns a static buffer
+   */
+  cmake_exe = STRDUP (cmake_exe);
+  get_pkg_config_info (&pkg_config_exe, &pkg_config_ver);
+
+  if (py_exe)
+     len[0] = snprintf (found[0], sizeof(found[0]), found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
+
+  if (cmake_exe)
+     len[1] = snprintf (found[1], sizeof(found[1]), found_fmt[1], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
+
+  if (pkg_config_exe)
+     len[2] = snprintf (found[2], sizeof(found[2]), found_fmt[2], pkg_config_ver.val_1, pkg_config_ver.val_2);
+
+  _len = max (len[0], len[1]);
+  _len = max (len[1], len[2]);
+
+  if (py_exe)
+       C_printf ("%-*s -> ~6%s~0\n", _len, found[0], py_exe);
+  else C_printf (not_found_fmt[0]);
+
+  if (cmake_exe)
+       C_printf ("%-*s -> ~6%s~0\n", _len, found[1], cmake_exe);
+  else C_printf (not_found_fmt[1]);
+
+  if (pkg_config_exe)
+       C_printf ("%-*s -> ~6%s~0\n", _len, found[2], pkg_config_exe);
+  else C_printf (not_found_fmt[2]);
+
+  FREE (cmake_exe);
+}
+
+/*
  * Show some basic version information:    option '-V'.
  * Show more detailed version information: option '-VV'.
  */
@@ -285,59 +343,7 @@ static int show_version (void)
   py_init();
   C_printf ("\r                             \r");
 
-  {
-    static const char *found_fmt[] = { "  Python %u.%u.%u detected",
-                                       "  Cmake %u.%u.%u detected",
-                                       "  pkg-config %u.%u detected",
-                                     };
-
-    static const char *not_found_fmt[] = { "  Python ~5not~0 found.\n",
-                                           "  Cmake ~5not~0 found.\n",
-                                           "  pkg-config ~5not~0 found.\n"
-                                         };
-    char found [3][100];
-    int  _len, len [3] = { 0,0,0 };
-    const char     *py_exe, *cmake_exe, *pkg_config_exe;
-    struct ver_info py_ver, cmake_ver, pkg_config_ver;
-
-    memset (&py_ver, '\0', sizeof(py_ver));
-    memset (&cmake_ver, '\0', sizeof(cmake_ver));
-    memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
-
-    py_get_info (&py_exe, NULL, &py_ver);
-    get_cmake_info (&cmake_exe, &cmake_ver);
-
-    /* Because searchpath() returns a static buffer
-     */
-    cmake_exe = STRDUP (cmake_exe);
-    get_pkg_config_info (&pkg_config_exe, &pkg_config_ver);
-
-    if (py_exe)
-       len[0] = snprintf (found[0], sizeof(found[0]), found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
-
-    if (cmake_exe)
-       len[1] = snprintf (found[1], sizeof(found[1]), found_fmt[1], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
-
-    if (pkg_config_exe)
-       len[2] = snprintf (found[2], sizeof(found[2]), found_fmt[2], pkg_config_ver.val_1, pkg_config_ver.val_2);
-
-    _len = max (len[0], len[1]);
-    _len = max (len[1], len[2]);
-
-    if (py_exe)
-         C_printf ("%-*s -> ~6%s~0\n", _len, found[0], py_exe);
-    else C_printf (not_found_fmt[0]);
-
-    if (cmake_exe)
-         C_printf ("%-*s -> ~6%s~0\n", _len, found[1], cmake_exe);
-    else C_printf (not_found_fmt[1]);
-
-    if (pkg_config_exe)
-         C_printf ("%-*s -> ~6%s~0\n", _len, found[2], pkg_config_exe);
-    else C_printf (not_found_fmt[2]);
-
-    FREE (cmake_exe);
-  }
+  show_ext_versions();
 
   if (opt.do_version >= 2)
   {
@@ -3701,8 +3707,7 @@ static void test_SHGetFolderPath (void)
 
     if (rc == S_OK)
          _fix_drive (buf);
-    else snprintf (buf, sizeof(buf), "~5Failed: %s",
-                   win_strerror(GetLastError()));
+    else snprintf (buf, sizeof(buf), "~5Failed: %s", win_strerror(rc));
 
     C_printf ("  ~3SHGetFolderPath~0 (~6%s~0, ~6%s~0):\n    ~2%s~0\n",
               folder->name, flag_str, buf);
