@@ -1399,7 +1399,7 @@ void py_searchpaths (void)
        C_printf (" (embeddable, but not %d bits)", our_bitness);
     else if (pi->dll_name)
        C_printf (" (%sembeddable)", pi->is_embeddable ? "": "not ");
-    C_printf (", %d bits\n", pi->bitness);
+    C_putc ('\n');
 
     if (pi->exe_name && opt.do_version >= 3)
     {
@@ -1449,7 +1449,6 @@ static void get_install_path (const char *key_name, struct python_info *pi)
 
       pi2->ver_major = pi->ver_major;
       pi2->ver_minor = pi->ver_minor;
-      pi2->bitness   = pi->bitness;
       _strlcpy (pi2->dir, data, end-data);
       _strlcpy (pi2->program, slash+1, slash-data);
       pi2->exe_name = STRDUP (data);
@@ -1465,7 +1464,6 @@ static void get_install_path (const char *key_name, struct python_info *pi)
 
       pi2->ver_major = pi->ver_major;
       pi2->ver_minor = pi->ver_minor;
-      pi2->bitness   = pi->bitness;
       _strlcpy (pi2->dir, data, sizeof(pi2->dir));
       _strlcpy (pi2->program, "python.exe", sizeof(pi2->program));
       snprintf (data, sizeof(data), "%s\\%s", pi2->dir, pi2->program);
@@ -1565,12 +1563,10 @@ void py_init (void)
 
     DEBUGF (1, "%u: %-*s -> \"%s\".  ver: %s\n"
                "%*sDLL:         -> \"%s\"\n"
-               "%*sVariant:     -> %s%s\n"
-               "%*sBitness:     -> %d\n",
+               "%*sVariant:     -> %s%s\n",
             i, 2+longest_py_program, pi->program, pi->exe_name, version,
             indent+longest_py_program, "", pi->dll_name,
             indent+longest_py_program, "", py_variant_name(pi->variant),
-            pi->is_default ? " (Default)" : "",
-            indent+longest_py_program, "", pi->bitness);
+            pi->is_default ? " (Default)" : "");
   }
 }
