@@ -1239,8 +1239,12 @@ static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
  */
 char *win_strerror (unsigned long err)
 {
-  static char buf[512+20];
-  char   err_buf[512], *p;
+  static  char buf[512+20];
+  char    err_buf[512], *p;
+  HRESULT hr = 0;
+
+  if (HRESULT_SEVERITY(err))
+     hr = err;
 
   if (err == ERROR_SUCCESS)
      strcpy (err_buf, "No error");
@@ -1256,13 +1260,16 @@ char *win_strerror (unsigned long err)
        strcpy (err_buf, "Unknown error");
   }
 
-  snprintf (buf, sizeof(buf), "%lu: %s", err, err_buf);
+  if (hr)
+       snprintf (buf, sizeof(buf), "0x%08lX: %s", hr, err_buf);
+  else snprintf (buf, sizeof(buf), "%lu: %s", err, err_buf);
   strip_nl (buf);
   p = strrchr (buf, '.');
   if (p && p[1] == '\0')
      *p = '\0';
   return (buf);
 }
+
 
 #if !defined(_CRTDBG_MAP_ALLOC) && !defined(__CYGWIN__)
 
