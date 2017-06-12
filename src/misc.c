@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <math.h>
 #include <io.h>
+#include <wchar.h>
 #include <windows.h>
 #include <wincon.h>
 #include <winioctl.h>
