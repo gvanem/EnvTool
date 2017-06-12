@@ -272,7 +272,7 @@ static void show_ext_versions (void)
                                        };
   char found [3][100];
   int  _len, len [3] = { 0,0,0 };
-  const char     *py_exe, *cmake_exe, *pkg_config_exe;
+  const char     *py_exe = NULL, *cmake_exe = NULL, *pkg_config_exe = NULL;
   struct ver_info py_ver, cmake_ver, pkg_config_ver;
 
   memset (&py_ver, '\0', sizeof(py_ver));
@@ -280,11 +280,13 @@ static void show_ext_versions (void)
   memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
 
   py_get_info (&py_exe, NULL, &py_ver);
-  get_cmake_info (&cmake_exe, &cmake_ver);
+  if (get_cmake_info (&cmake_exe, &cmake_ver))
+  {
+   /* Because searchpath() returns a static buffer
+    */
+    cmake_exe = STRDUP (cmake_exe);
+  }
 
-  /* Because searchpath() returns a static buffer
-   */
-  cmake_exe = STRDUP (cmake_exe);
   get_pkg_config_info (&pkg_config_exe, &pkg_config_ver);
 
   if (py_exe)
