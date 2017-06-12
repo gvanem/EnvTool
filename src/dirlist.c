@@ -598,6 +598,7 @@ char  *program_name = "dirlist";
 static DWORD  recursion_level = 0;
 static DWORD  num_directories = 0;
 static DWORD  num_junctions = 0;
+static DWORD  num_junctions_err = 0;
 static DWORD  num_files = 0;
 static UINT64 total_size = 0;
 static UINT64 total_size_alloc = 0;
@@ -656,7 +657,7 @@ static void print_de (const struct dirent2 *de, int idx)
   {
     C_puts ("\n             -> ~3");
     C_setraw (1);
-    C_puts (de->d_link);
+    C_puts (de->d_link ? de->d_link : "??");
     C_setraw (0);
   }
   C_puts ("~0\n");
@@ -672,7 +673,11 @@ static void print_de (const struct dirent2 *de, int idx)
     if (is_dir)
        num_directories++;
     if (is_junction)
-       num_junctions++;
+    {
+      num_junctions++;
+      if (!de->d_link)
+         num_junctions_err++;
+    }
   }
 }
 
@@ -680,7 +685,7 @@ static void final_report (void)
 {
   C_printf ("  Num files:        %lu (%lu files and dirs)\n", num_files, num_files+num_directories);
   C_printf ("  Num directories:  %lu\n", num_directories);
-  C_printf ("  Num junctions:    %lu\n", num_junctions);
+  C_printf ("  Num junctions:    %lu (errors: %lu)\n", num_junctions, num_junctions_err);
   C_printf ("  total-size:       %s bytes", qword_str(total_size));
   C_printf (" (allocated: %s)\n", qword_str(total_size_alloc));
 }
