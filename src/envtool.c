@@ -279,23 +279,18 @@ static void show_ext_versions (void)
   memset (&cmake_ver, '\0', sizeof(cmake_ver));
   memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
 
-  py_get_info (&py_exe, NULL, &py_ver);
-  if (get_cmake_info (&cmake_exe, &cmake_ver))
+  if (py_get_info(&py_exe, NULL, &py_ver))
+     len[0] = snprintf (found[0], sizeof(found[0]), found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
+
+  if (get_cmake_info(&cmake_exe, &cmake_ver))
   {
    /* Because searchpath() returns a static buffer
     */
     cmake_exe = STRDUP (cmake_exe);
+    len[1] = snprintf (found[1], sizeof(found[1]), found_fmt[1], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
   }
 
-  get_pkg_config_info (&pkg_config_exe, &pkg_config_ver);
-
-  if (py_exe)
-     len[0] = snprintf (found[0], sizeof(found[0]), found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
-
-  if (cmake_exe)
-     len[1] = snprintf (found[1], sizeof(found[1]), found_fmt[1], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
-
-  if (pkg_config_exe)
+  if (get_pkg_config_info(&pkg_config_exe, &pkg_config_ver))
      len[2] = snprintf (found[2], sizeof(found[2]), found_fmt[2], pkg_config_ver.val_1, pkg_config_ver.val_2);
 
   _len = max (len[0], len[1]);
@@ -323,10 +318,11 @@ static void show_ext_versions (void)
 static int show_version (void)
 {
   HWND wnd;
+  BOOL wow64 = is_wow64_active();
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.\n  Hosted at: ~6%s~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
-            is_wow64_active() ? ", ~1WOW64" : "", AUTHOR_STR, GITHUB_STR);
+            wow64 ? ", ~1WOW64" : "", AUTHOR_STR, GITHUB_STR);
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (wnd)
@@ -365,9 +361,11 @@ static int show_version (void)
       else if (bits == bit_64)
          os_bits = "64 bits";
     }
+    else if (!wow64)
+      os_bits = "32 bits";
 
     C_printf ("  OS-version: %s (%s).\n", os_name(), os_bits);
-    C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : " not");
+    C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
 
     C_puts ("\n  Compile command and ~3CFLAGS~0:");
     print_build_cflags();
