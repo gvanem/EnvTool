@@ -345,26 +345,7 @@ static int show_version (void)
 
   if (opt.do_version >= 2)
   {
-    char kernel32 [_MAX_PATH], *os_bits = "Unknown bitness";
-    enum Bitness bits = bit_unknown;
-
-    if (have_sys_native_dir)
-         snprintf (kernel32, sizeof(kernel32), "%s\\%s", sys_native_dir, "kernel32.dll");
-    else snprintf (kernel32, sizeof(kernel32), "%s\\%s", sys_dir, "kernel32.dll");
-
-    DEBUGF (2, "kernel32: %s, exists: %d\n", kernel32, FILE_EXISTS(kernel32));
-
-    if (check_if_PE(kernel32, &bits))
-    {
-      if (bits == bit_32)
-         os_bits = "32 bits";
-      else if (bits == bit_64)
-         os_bits = "64 bits";
-    }
-    else if (!wow64)
-      os_bits = "32 bits";
-
-    C_printf ("  OS-version: %s (%s).\n", os_name(), os_bits);
+    C_printf ("  OS-version: %s (%s bits).\n", os_name(), os_bits());
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
 
     C_puts ("\n  Compile command and ~3CFLAGS~0:");
@@ -376,7 +357,7 @@ static int show_version (void)
     C_printf ("\n  Compilers on ~3PATH~0:\n");
     searchpath_all_cc();
 
-    C_printf ("\n  Pythons on ~3PATH~0:\n");
+    C_printf ("\n  Pythons on ~3PATH~0:");
     py_searchpaths();
   }
   return (0);
@@ -986,7 +967,8 @@ static UINT64 get_directory_size (const char *dir)
 
     if (is_junction)
     {
-      DEBUGF (1, "Not recursing into junction \"%s\"\n", namelist[i]->d_link);
+      const char *link = namelist[i]->d_link ? namelist[i]->d_link : "?";
+      DEBUGF (1, "Not recursing into junction \"%s\"\n", link);
     }
     else if (is_dir)
     {
@@ -1733,7 +1715,8 @@ static const char *evry_strerror (DWORD err)
 
 static void check_sys_dir (const char *dir, const char *name, BOOL *have_it)
 {
-  BOOL is_dir = (GetFileAttributes(dir) & FILE_ATTRIBUTE_DIRECTORY);
+  DWORD attr = GetFileAttributes (dir);
+  BOOL  is_dir = (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
 
   if (is_dir)
        DEBUGF (1, "%s: '%s' okay\n", name, dir);
