@@ -1980,7 +1980,7 @@ static int do_check_manpath (void)
   arr0   = orig_e ? split_env_var (env_name, orig_e) : NULL;
   if (!arr0)
   {
-    DEBUGF (1, "Env-var %s not defined.\n", env_name);
+    WARN ("Env-var %s not defined.\n", env_name);
     return (0);
   }
 
@@ -2071,7 +2071,7 @@ static int do_check_pkg (void)
   arr0   = orig_e ? split_env_var (env_name, orig_e) : NULL;
   if (!arr0)
   {
-    DEBUGF (1, "Env-var %s not defined.\n", env_name);
+    WARN ("Env-var %s not defined.\n", env_name);
     return (0);
   }
 
@@ -2185,7 +2185,7 @@ static int do_check_cmake (void)
   }
   else
   {
-    WARN ("cmake.exe not found on PATH.");
+    WARN ("cmake.exe not found on PATH.\n");
     if (check_env)
        WARN (" Checking %%%s anyway.\n", env_name);
   }
