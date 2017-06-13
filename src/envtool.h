@@ -447,6 +447,7 @@ extern DWORD       reg_swap_long (DWORD val);
 /* Stuff in win_ver.c:
  */
 extern const char *os_name (void);
+extern const char *os_bits (void);
 
 /* Stuff in win_trust.c:
  */
