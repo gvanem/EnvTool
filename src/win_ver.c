@@ -237,6 +237,16 @@ const char *os_name (void)
   return (buf);
 }
 
+const char *os_bits (void)
+{
+#if (IS_WIN64 == 1)
+  return ("64");
+#else
+  char dir [_MAX_PATH];
+  return (GetSystemWow64Directory(dir,sizeof(dir)) ? "64" : "32");
+#endif
+}
+
 #if defined(WIN_VER_TEST)
 
 struct prog_options opt;
@@ -261,7 +271,8 @@ int main (void)
   }
 
   ver = os_name();
-  DEBUGF (1, "Result from os_name():\n  %s\n", ver);
+  DEBUGF (1, "Result from os_name(): %s\n", ver);
+  DEBUGF (1, "Result from os_bits(): %s bits\n", os_bits());
   return (0);
 }
 #endif
