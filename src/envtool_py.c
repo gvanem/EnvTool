@@ -48,7 +48,7 @@ struct python_info {
 
   /* The list of expected .DLLs for this specific Python.
    * Tested for existance in either %SystemDir% and/or directory
-   * of 'exe_name[]'
+   * of '*exe_name'
    */
   const char *libraries [3];
 
@@ -74,9 +74,9 @@ struct python_info {
    */
   int ver_major, ver_minor, ver_micro;
 
-  /* Bitness of 'exe_name'; 0, 32 or 64.
+  /* Bitness of 'dll_name'.
    */
-  int bitness;
+  enum Bitness bitness;
 
   /* Embedding requires bitness of CPython is the same as this program.
    */
@@ -136,7 +136,7 @@ static struct python_info all_py_programs[] = {
 /* The global Python instance data.
  */
 static struct python_info *g_py;
-static int    our_bitness = (int) 8*sizeof(void*);
+static enum Bitness        our_bitness;
 
 static int tmp_ver_major, tmp_ver_minor, tmp_ver_micro;
 static int longest_py_program = 0;  /* set in py_init() */
@@ -207,6 +207,10 @@ static const struct search_list full_names[] = {
                   { JYTHON_PYTHON, "Jython"      }
                 };
 
+/*
+ * Return a variant value from a short or a full name.
+ * E.g. 'py_variant_value("all",NULL)' -> ALL_PYTHONS.
+ */
 int py_variant_value (const char *short_name, const char *full_name)
 {
   unsigned v = UINT_MAX;
@@ -220,6 +224,10 @@ int py_variant_value (const char *short_name, const char *full_name)
   return (int) v;
 }
 
+/*
+ * Return a full-name from a variant value.
+ * E.g. 'py_variant_name(ALL_PYTHONS)' -> "All"
+ */
 const char *py_variant_name (enum python_variants v)
 {
   switch (v)
@@ -363,7 +371,7 @@ int py_get_info (const char **exe, const char **dll, struct ver_info *ver)
   return (1);
 }
 
-static void fix_python_variant2 (struct python_info *py, enum python_variants v)
+static void fix_python_variant (struct python_info *py, enum python_variants v)
 {
   if (v == PY2_PYTHON || v == PY3_PYTHON)
   {
@@ -507,6 +515,9 @@ static void set_python_home (struct python_info *py)
 #endif
 }
 
+/*
+ * Free the Python DLL handle allocated by 'py_init_embedding()'.
+ */
 static void py_exit_embedding (struct python_info *py)
 {
   if (py->dll_hnd && py->dll_hnd != INVALID_HANDLE_VALUE)
@@ -518,6 +529,9 @@ static void py_exit_embedding (struct python_info *py)
   py->dll_hnd = INVALID_HANDLE_VALUE;
 }
 
+/*
+ * Free memory allocated during 'py_init()'.
+ */
 void py_exit (void)
 {
   struct python_info *py;
@@ -601,19 +615,12 @@ static PyObject *setup_stdout_catcher (void)
  */
 static int py_init_embedding (struct python_info *py)
 {
-  char *exe, *dll;
+  char *exe = py->exe_name;
+  char *dll = py->dll_name;
 
-#if 0
-  g_py = py_select (py_which);
-  if (!g_py)
-     return (0);
-#endif
-
-  exe = py->exe_name;
-  dll = py->dll_name;
-  if (!exe || !dll)
+  if (!dll)
   {
-    WARN ("Failed to find any Python DLLs.\n");
+    WARN ("Failed to find Python DLL for %s.\n", exe);
     return (0);
   }
 
@@ -669,7 +676,6 @@ static int py_init_embedding (struct python_info *py)
   }
 
   (*Py_InitializeEx) (0);
-  DEBUGF (3, "Py_InitializeEx (0) passed\n");
 
   py->catcher = setup_stdout_catcher();
   if (py->catcher)
@@ -717,6 +723,9 @@ static char *call_python_func (struct python_info *py, const char *py_prog)
   return (str);
 }
 
+/*
+ * A simple embedded test; capture the output from Python's 'print()' function.
+ */
 static BOOL test_python_funcs (struct python_info *py)
 {
   const char *prog = "import sys, os\n"
@@ -726,7 +735,7 @@ static BOOL test_python_funcs (struct python_info *py)
   const char *name = py_variant_name (py->variant);
   char *str;
 
-  if (!py_init_embedding(py))
+  if (!py->bitness_ok || !py_init_embedding(py))
      return (FALSE);
 
   /* The 'str' should now contain the Python output of above 'prog'.
@@ -745,6 +754,28 @@ static BOOL test_python_funcs (struct python_info *py)
   C_printf ("~3Captured output of %s now:~0\n** %s **\n", name, str);
   FREE (str);
   return (TRUE);
+}
+
+/*
+ * Check if a Python .DLL has the correct bitness for LoadLibrary().
+ */
+static BOOL check_bitness (struct python_info *pi, char **needed_bits)
+{
+  if (sizeof(void*) == 4)
+     our_bitness = bit_32;
+  else if (sizeof(void*) == 8)
+     our_bitness = bit_64;
+
+  if (pi->bitness == bit_unknown)
+    pi->bitness_ok = (pi->dll_name && check_if_PE(pi->dll_name, &pi->bitness));
+
+  if (pi->bitness_ok && pi->bitness != our_bitness)
+     pi->bitness_ok = FALSE;
+
+  if (needed_bits)
+     *needed_bits = (our_bitness == bit_32 ? "32" : "64");
+
+  return (pi->bitness_ok);
 }
 
 /*
@@ -1180,6 +1211,51 @@ int py_search (void)
   return (found);
 }
 
+/*
+ * Allocate a new 'python_info' node, fill it and return it
+ * for adding to 'py_programs' smartlist.
+ */
+static struct python_info *add_python (const char *exe, struct python_info *py)
+{
+  struct python_info *py2 = CALLOC (sizeof(*py2), 1);
+  const char *base = basename (exe);
+
+  _strlcpy (py2->dir, exe, base - exe);
+  _strlcpy (py2->program, py->program, sizeof(py2->program));
+  py2->exe_name = _fix_path (exe, NULL);
+  py2->dll_hnd  = INVALID_HANDLE_VALUE;
+  py2->do_warn  = TRUE;
+  py2->sys_path = smartlist_new();
+
+  tmp_ver_major = tmp_ver_minor = tmp_ver_micro = -1;
+
+  if (get_python_version(exe) >= 1)
+  {
+    py2->ver_major = tmp_ver_major;
+    py2->ver_minor = tmp_ver_minor;
+    py2->ver_micro = tmp_ver_micro;
+    if (get_dll_name(py2, py->libraries))
+    {
+     /* If embeddable, test the bitness of the .DLL to check
+      * if LoadLibrary() will succeed.
+      */
+      py2->is_embeddable = py->is_embeddable;
+      if (py2->is_embeddable)
+         check_bitness (py2, NULL);
+
+      fix_python_variant (py2, py->variant);
+      set_python_home (py2);
+      set_python_prog (py2);
+    }
+  }
+  return (py2);
+}
+
+/*
+ * For each 'dir' in PATH, try to match a Python from the ones in
+ * 'all_py_programs[]'.
+ * Figure out it's version and .DLL-name (if embeddable).
+ */
 static int match_python_exe (const char *dir)
 {
   struct od2x_options opts;
@@ -1213,43 +1289,18 @@ static int match_python_exe (const char *dir)
       DEBUGF (1, "de->d_name: %s matches: '%s', variant: %d\n",
               de->d_name, py->program, py->variant);
 
-      py2 = CALLOC (sizeof(*py2), 1);
+      py2 = add_python (de->d_name, py);
 
-      _strlcpy (py2->dir, de->d_name, base - de->d_name);
-      _strlcpy (py2->program, py->program, sizeof(py2->program));
-      py2->exe_name = _fix_path (de->d_name, NULL);
-      py2->dll_hnd  = INVALID_HANDLE_VALUE;
-      py2->do_warn  = TRUE;
-
-      /* First Python found is defined as default.
+      /* First Python found is default.
        */
       if (found == 1)
          py2->is_default = TRUE;
-
-      py2->sys_path = smartlist_new();
-
-      tmp_ver_major = tmp_ver_minor = tmp_ver_micro = -1;
-
-      if (get_python_version(de->d_name) >= 1)
-      {
-        py2->ver_major = tmp_ver_major;
-        py2->ver_minor = tmp_ver_minor;
-        py2->ver_micro = tmp_ver_micro;
-        if (get_dll_name(py2, py->libraries))
-        {
-         /* Only CPythons are embeddable here.
-          * For now, assume the bitness is okay (LoadLibrary() will succeed).
-          */
-          py2->is_embeddable = (py->variant == PY2_PYTHON || py->variant == PY3_PYTHON);
-          if (py2->is_embeddable)
-             py2->bitness_ok = TRUE;
-
-          fix_python_variant2 (py2, py->variant);
-          set_python_home (py2);
-          set_python_prog (py2);
-        }
-      }
       smartlist_add (py_programs, py2);
+
+      /* If we specified 'envtool -V', just show the default Python found.
+       */
+      if (opt.do_version == 1)
+         rc = 0;
 
       /* If we found all Pythons we can handle, there is no point searching
        * further along the PATH. Stop by returning 0.
@@ -1266,7 +1317,7 @@ static int match_python_exe (const char *dir)
 /*
  * Search all directories on PATH for matches to 'all_py_programs::program'.
  */
-static void get_python_exe_names (void)
+static void enum_pythons_on_path (void)
 {
   char *path = getenv_expand ("PATH");
   char *dir, dir_sep[2] = ";";
@@ -1299,9 +1350,9 @@ int py_test (void)
     BOOL test_it;
 
     pi = smartlist_get (py_programs, i);
-    test_it = ( which == ALL_PYTHONS || pi->variant == which ||
-                    (which == DEFAULT_PYTHON && pi->is_default) ) &&
-                   pi->exe_name;
+    test_it = (which == ALL_PYTHONS || pi->variant == which ||
+               (which == DEFAULT_PYTHON && pi->is_default)) &&
+              pi->exe_name;
 
     if (i > 0)
     {
@@ -1312,15 +1363,16 @@ int py_test (void)
       if (pi2->variant == pi->variant && !stricmp(pi2->program,pi->program))
          test_it = FALSE;
     }
+
     if (which == ALL_PYTHONS)
        py_which = pi->variant;
 
     C_printf ("~6Will%s try to test: ~3%s~0%s (%sembeddable): %s\n",
-              test_it ? "" : " ~5not~6",
+              test_it ? "" : " not",
               py_variant_name(pi->variant),
-              pi->is_default     ? " ~6(Default)~0," : "",
-              !pi->is_embeddable ? "not "            : "",
-              pi->exe_name       ? pi->exe_name      : "~5Not found~0");
+              pi->is_default    ? " ~6(Default)~0," : "",
+              pi->is_embeddable ? ""                : "not ",
+              pi->exe_name      ? pi->exe_name      : "~5Not found~0");
 
     if (test_it)
     {
@@ -1334,6 +1386,9 @@ int py_test (void)
     }
     py_which = which;
   }
+
+  if (max == 0)
+     C_puts ("Found no Pythons to test.\n");
   return (found);
 }
 
@@ -1365,6 +1420,11 @@ static int get_python_version (const char *exe_name)
   return (popen_runf (report_py_version_cb, "%s -c \"%s\"", exe_name, PY_GET_VERSION) >= 1);
 }
 
+/*
+ * Called from 'show_version()':
+ *   Print informatioon for all found Pythons.
+ *   Print the 'sys_path[]' if 'envtool -VVV' was issued.
+ */
 void py_searchpaths (void)
 {
   struct python_info *pi;
@@ -1372,8 +1432,9 @@ void py_searchpaths (void)
 
   for (i = 0; i < max; i++)
   {
-    char fname [_MAX_PATH] = { '\0' };
-    char version [12] = { '\0' };
+    char  fname [_MAX_PATH] = { '\0' };
+    char  version [12] = { '\0' };
+    char *bitness = "?";
 
     pi = smartlist_get (py_programs, i);
 
@@ -1388,6 +1449,9 @@ void py_searchpaths (void)
       num++;
     }
 
+    if (i == 0)
+      C_putc ('\n');
+
     C_printf ("   %s %-*s %-*s -> ~%c%s~0",
               pi->is_default ? "~3(1)~0" : "   ",
               1+longest_py_program, pi->program,
@@ -1395,8 +1459,8 @@ void py_searchpaths (void)
               fname[0] ? '6' : '5',
               fname[0] ? fname : "Not found");
 
-    if (pi->is_embeddable && !pi->bitness_ok)
-       C_printf (" (embeddable, but not %d bits)", our_bitness);
+    if (pi->is_embeddable && !check_bitness(pi,&bitness))
+       C_printf (" (embeddable, but not %s bits)", bitness);
     else if (pi->dll_name)
        C_printf (" (%sembeddable)", pi->is_embeddable ? "": "not ");
     C_putc ('\n');
@@ -1410,14 +1474,15 @@ void py_searchpaths (void)
   }
 
   if (num > 0)
-     C_puts ("   ~3(1)~0 Default Python (first found on PATH).\n");
+       C_puts ("   ~3(1)~0 Default Python (first found on PATH).\n");
+  else C_puts (" <None>.\n");
 }
 
 /*
  * Add the REG_SZ data in a 'HKLM\Software\Python\PythonCore\xx\InstallPath' key
  * to the 'py_programs' smartlist.
  */
-static void get_install_path (const char *key_name, struct python_info *pi)
+static void get_install_path (const char *key_name, const struct python_info *pi)
 {
   HKEY  key = NULL;
   DWORD rc  = RegOpenKeyEx (HKEY_LOCAL_MACHINE, key_name, 0, reg_read_access(), &key);
@@ -1443,7 +1508,7 @@ static void get_install_path (const char *key_name, struct python_info *pi)
 
     if (value[0] && data[0] && !stricmp(value,"ExecutablePath"))
     {
-      struct python_info *pi2 = MALLOC (sizeof(*pi2));
+      struct python_info *pi2 = CALLOC (sizeof(*pi2), 1);
       char  *slash = strrchr (data, '\\');
       char  *end = strchr (data,'\0') - 1;
 
@@ -1452,11 +1517,12 @@ static void get_install_path (const char *key_name, struct python_info *pi)
       _strlcpy (pi2->dir, data, end-data);
       _strlcpy (pi2->program, slash+1, slash-data);
       pi2->exe_name = STRDUP (data);
+      pi2->sys_path = smartlist_new();
       smartlist_add (py_programs, pi2);
     }
     else if (data[0] && !value[0])
     {
-      struct python_info *pi2 = MALLOC (sizeof(*pi2));
+      struct python_info *pi2 = CALLOC (sizeof(*pi2), 1);
       char  *end = strchr (data,'\0') - 1;
 
       if (*end == '\\')
@@ -1468,6 +1534,7 @@ static void get_install_path (const char *key_name, struct python_info *pi)
       _strlcpy (pi2->program, "python.exe", sizeof(pi2->program));
       snprintf (data, sizeof(data), "%s\\%s", pi2->dir, pi2->program);
       pi2->exe_name = STRDUP (data);
+      pi2->sys_path = smartlist_new();
       smartlist_add (py_programs, pi2);
     }
   }
@@ -1479,7 +1546,7 @@ static void get_install_path (const char *key_name, struct python_info *pi)
  * Recursively walks the Registry branch under "HKLM\Software\Python\PythonCore".
  * Look for "InstallPath" keys and gather the REG_SZ "InstallPath" values.
  */
-static void enum_python_install_paths (const char *key_name)
+static void enum_python_in_registry (const char *key_name)
 {
   static struct python_info pi;   /* filled in sscanf() below */
   static int rec_level = 0;       /* recursion level */
@@ -1507,16 +1574,16 @@ static void enum_python_install_paths (const char *key_name)
 
     if (sscanf(value,"%d.%d-%2s", &pi.ver_major, &pi.ver_minor, bitness) >= 2)
     {
-      if (bitness[0])
-           pi.bitness = atoi (bitness);
-      else pi.bitness = 32;
-      DEBUGF (2, " ver %d.%d, bitness %d\n", pi.ver_major, pi.ver_major, pi.bitness);
+      if (bitness[0] == '6' && bitness[1] == '4' )
+           pi.bitness = bit_64;
+      else pi.bitness = bit_32;
+      DEBUGF (2, " ver: %d.%d, bitness:s %d\n", pi.ver_major, pi.ver_major, pi.bitness);
     }
     else if (!stricmp(value,"InstallPath"))
             get_install_path (sub_key, &pi);
 
     rec_level++;
-    enum_python_install_paths (sub_key);
+    enum_python_in_registry (sub_key);
     rec_level--;
   }
 
@@ -1524,6 +1591,12 @@ static void enum_python_install_paths (const char *key_name)
      RegCloseKey (key);
 }
 
+/*
+ * Main initialiser function for this module;
+ *  Find the details of all supported Pythons in 'all_py_programs[]'.
+ *  Walk the PATH and Registry (not yet) to find this information.
+ *  Add each Python found to the 'py_programs' smartlist as they are found.
+ */
 void py_init (void)
 {
   static HANDLE ex_hnd = NULL;
@@ -1537,10 +1610,10 @@ void py_init (void)
 
   py_programs = smartlist_new();
 
-  get_python_exe_names();
+  enum_pythons_on_path();
 
 #if 0  /* \todo */
-  enum_python_install_paths ("Software\\Python\\PythonCore");
+  enum_python_in_registry ("Software\\Python\\PythonCore");
 #endif
 
   DEBUGF (1, "py_which: %d/%s\n\n", py_which, py_variant_name(py_which));
