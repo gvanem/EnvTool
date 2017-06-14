@@ -2165,7 +2165,7 @@ static int get_cmake_info (const char **exe, struct ver_info *ver)
   if (*exe == NULL)
      return (0);
 
-  if (popen_runf(find_cmake_version_cb, "\"%s\" -version 2>&1", slashify(*exe,'\\')) > 0)
+  if (popen_runf(find_cmake_version_cb, "\"%s\" -version", slashify(*exe,'\\')) > 0)
   {
     ver->val_1 = cmake_major;
     ver->val_2 = cmake_minor;
@@ -2198,7 +2198,7 @@ static int do_check_cmake (void)
 
     DEBUGF (3, "cmake -> '%s', cmake_root: '%s'\n", cmake_bin, cmake_root);
 
-    if (popen_runf(find_cmake_version_cb, "\"%s\" -version 2>&1", slashify(cmake_bin,'\\')) > 0)
+    if (popen_runf(find_cmake_version_cb, "\"%s\" -version", slashify(cmake_bin,'\\')) > 0)
     {
       char dir [_MAX_PATH];
 
@@ -3888,12 +3888,14 @@ static void test_AppVeyor (void)
   char  cmd [100];
   int   rc;
 
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+
   if (!cmake)
   {
     C_printf ("cmake.exe not on %%PATH.\n");
     return;
   }
-  snprintf (cmd, sizeof(cmd), "\"%s\" -version", cmake);
+  snprintf (cmd, sizeof(cmd), "\"%s\" -version > " DEV_NULL, cmake);
   rc = system (cmd);
   C_printf ("system() reported %d.\n", rc);
 }
