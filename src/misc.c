@@ -68,8 +68,10 @@ struct mem_head {
 static struct mem_head *mem_list = NULL;
 
 #if !defined(_CRTDBG_MAP_ALLOC) && !defined(__CYGWIN__)
-  static DWORD  mem_max      = 0;  /* Max bytes allocated at one time */
-  static size_t mem_reallocs = 0;  /* # of realloc() */
+  static DWORD  mem_max         = 0;  /* Max bytes allocated at one time */
+  static DWORD  mem_allocated   = 0;  /* Total bytes allocated */
+  static DWORD  mem_deallocated = 0;  /* Bytes deallocated */
+  static size_t mem_reallocs    = 0;  /* # of realloc() */
 #endif
 
 static size_t mem_allocs = 0;      /* # of allocations */
@@ -81,6 +83,10 @@ static void add_to_mem_list (struct mem_head *m, const char *file, unsigned line
   m->line = line;
   _strlcpy (m->file, file, sizeof(m->file));
   mem_list = m;
+  mem_allocated += (DWORD) m->size;
+  if (mem_allocated > mem_max)
+     mem_max = mem_allocated;
+  mem_allocs++;
 }
 
 #define IS_MARKER(m) ( ( (m)->marker == MEM_MARKER) || ( (m)->marker == MEM_FREED) )
@@ -103,6 +109,8 @@ static void del_from_mem_list (const struct mem_head *m, unsigned line)
     if (m == mem_list)
          mem_list   = m1->next;
     else prev->next = m1->next;
+    mem_deallocated += (DWORD) m->size;
+    mem_allocated   -= (DWORD) m->size;
     break;
   }
   if (i > max_loops)
@@ -1299,8 +1307,6 @@ char *strdup_at (const char *str, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = len;
   add_to_mem_list (head, file, line);
-  mem_max += (DWORD) len;
-  mem_allocs++;
   return (char*) (head+1);
 }
 
@@ -1322,8 +1328,6 @@ wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = len;
   add_to_mem_list (head, file, line);
-  mem_max += (DWORD) len;
-  mem_allocs++;
   return (wchar_t*) (head+1);
 }
 
@@ -1346,8 +1350,6 @@ void *malloc_at (size_t size, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = size;
   add_to_mem_list (head, file, line);
-  mem_max += (DWORD) size;
-  mem_allocs++;
   return (head+1);
 }
 
@@ -1370,8 +1372,6 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = size;
   add_to_mem_list (head, file, line);
-  mem_max += (DWORD) size;
-  mem_allocs++;
   return (head+1);
 }
 
@@ -1404,7 +1404,6 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
     size = p->size - sizeof(*p);
     memmove (ptr, p+1, size);        /* Since memory could be overlapping */
     del_from_mem_list (p, __LINE__);
-    mem_max -= (DWORD) p->size;
     mem_reallocs++;
     free (p);
   }
@@ -1426,7 +1425,6 @@ void free_at (void *ptr, const char *file, unsigned line)
      FATAL ("free() of unknown block at %s, line %u.\n", file, line);
 
   head->marker = MEM_FREED;
-  mem_max -= (DWORD) head->size;
   del_from_mem_list (head, __LINE__);
   mem_frees++;
   free (head);
