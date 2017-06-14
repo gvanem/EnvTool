@@ -157,9 +157,10 @@ int check_if_zip (const char *fname)
  */
 int check_if_gzip (const char *fname)
 {
-  static const BYTE header[4] = { 0x1F, 0x8B, 0x08, 0x08 };
+  static const BYTE header1[4] = { 0x1F, 0x8B, 0x08, 0x08 };
+  static const BYTE header2[4] = { 0x1F, 0x8B, 0x08, 0x00 };
   const char *ext;
-  char   buf [sizeof(header)];
+  char   buf [sizeof(header1)];
   FILE  *f;
   BOOL   is_gzip, is_tgz;
   int    rc = 0;
@@ -180,16 +181,14 @@ int check_if_gzip (const char *fname)
   f = fopen (fname, "rb");
   if (f)
   {
-    rc = (fread(&buf,1,sizeof(buf),f) == sizeof(buf));
-    if (is_gzip && !memcmp(&buf,&header,sizeof(buf)))
-       rc += 1;
-    else if (is_tgz && !memcmp(&buf,&header,sizeof(buf)-1))
-       rc += 1;
+    if (fread(&buf,1,sizeof(buf),f) == sizeof(buf) &&
+        (!memcmp(&buf,&header1,sizeof(buf)) || !memcmp(&buf,&header2,sizeof(buf))) )
+       rc = 1;
     fclose (f);
   }
   DEBUG_NL (1);
   DEBUGF (1, "\"%s\" is %sa GZIP-file.\n", fname, rc == 2 ? "": "not ");
-  return (rc == 2);
+  return (rc);
 }
 
 /*
