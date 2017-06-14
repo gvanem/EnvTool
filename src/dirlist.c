@@ -134,8 +134,8 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   WIN32_FIND_DATA ff;
   DIR2           *dirp;
   HANDLE          hnd;
-  size_t          max_cnt  = 50;
-  size_t          max_size = max_cnt * sizeof(struct dirent2);
+  size_t          max_cnt  = 100;
+  size_t          max_size = max_cnt * sizeof(*de);
   char            path [_MAX_PATH];
   char           *file;
 
@@ -367,7 +367,7 @@ int scandir2 (const char       *dirname,
   DIR2  *dirptr = NULL;
   int    tdirsize = sizeof(struct dirent2) + _MAX_PATH;
   int    num = 0;
-  size_t max_cnt  = 30;
+  size_t max_cnt  = 100;
   size_t max_size = max_cnt * sizeof(struct dirent2);
 
   dirptr = opendir2 (dirname);   /* This will match anything and not call qsort() */
@@ -602,6 +602,7 @@ static DWORD  num_junctions_err = 0;
 static DWORD  num_files = 0;
 static UINT64 total_size = 0;
 static UINT64 total_size_alloc = 0;
+static UINT   cluster_size = 4*1024;
 
 void usage (void)
 {
@@ -630,10 +631,16 @@ static UINT64 get_alloc_size (const char *file, UINT64 size)
       err = win_strerror (GetLastError());
       bytes_per_sector = 512;
     }
-    DEBUGF (1, "GetDiskFreeSpace(): sect_per_cluster: %lu, bytes_per_sector: %lu, error: %s\n",
-            sect_per_cluster, bytes_per_sector, err);
+    cluster_size = sect_per_cluster * bytes_per_sector;
+    DEBUGF (1, "GetDiskFreeSpace(): sect_per_cluster: %lu, bytes_per_sector: %lu, cluster_size: %u, error: %s\n",
+            sect_per_cluster, bytes_per_sector, cluster_size, err);
     init = TRUE;
   }
+
+  /* Is this correct for a directory?
+   */
+  if (size == 0)
+     return (bytes_per_sector);
 
   num_sect = size / bytes_per_sector;
   if (size % bytes_per_sector)
@@ -671,7 +678,10 @@ static void print_de (const struct dirent2 *de, int idx)
   else
   {
     if (is_dir)
-       num_directories++;
+    {
+      num_directories++;
+      total_size_alloc += get_alloc_size (de->d_name, 0);
+    }
     if (is_junction)
     {
       num_junctions++;
