@@ -71,6 +71,16 @@ char *program_name = NULL;
 #define MAX_PATHS       500
 #define MAX_ARGS        20
 
+/* These were added in Everything 1.4
+ */
+#ifndef EVERYTHING_IPC_IS_DB_LOADED
+#define EVERYTHING_IPC_IS_DB_LOADED 401
+#endif
+
+#ifndef EVERYTHING_IPC_IS_DB_BUSY
+#define EVERYTHING_IPC_IS_DB_BUSY   402
+#endif
+
 struct directory_array {
        char    *dir;         /* FQDN of this entry */
        char    *cyg_dir;     /* The Cygwin POSIX form of the above */
@@ -131,7 +141,7 @@ volatile int halt_flag;
 /* Get the bitness (32/64-bit) of the EveryThing program.
  */
 static enum Bitness evry_bitness = bit_unknown;
-static void get_evry_bitness (void);
+static void get_evry_bitness (HWND wnd);
 
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
 static int   do_tests (void);
@@ -179,7 +189,7 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
   int  d, num;
 
   if (evry_bitness == bit_unknown)
-     get_evry_bitness();
+     get_evry_bitness (wnd);
 
   if (evry_bitness == bit_32)
      bits = " (32-bit)";
@@ -189,6 +199,7 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
   C_printf ("  Everything search engine ver. %u.%u.%u.%u%s (c)"
             " David Carpenter; ~6http://www.voidtools.com/~0\n",
             ver->val_1, ver->val_2, ver->val_3, ver->val_4, bits);
+
   *p = '\0';
   for (d = num = 0; d < MAX_INDEXED; d++)
   {
@@ -226,15 +237,13 @@ static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
 /*
  * Get the bitness (32/64-bit) of the EveryThing program.
  */
-static void get_evry_bitness (void)
+static void get_evry_bitness (HWND wnd)
 {
-  HWND         wnd;
   DWORD        e_pid, e_tid;
   HANDLE       hnd;
   char         fname [_MAX_PATH] = "?";
   enum Bitness bits = bit_unknown;
 
-  wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (!wnd)
      return;
 
@@ -1821,6 +1830,23 @@ static int report_evry_file (const char *file)
   return report_file (file, mtime, fsize, is_dir, FALSE, HKEY_EVERYTHING);
 }
 
+/*
+ * Check if EveryThing database is loaded and not busy indexing itself.
+ */
+static BOOL evry_IsDBLoaded (HWND wnd)
+{
+  int loaded = 0;
+  int busy = 0;
+
+  if (wnd)
+  {
+    loaded = SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_LOADED, 0);
+    busy   = SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_BUSY, 0);
+  }
+  DEBUGF (1, "wnd: %p, loaded: %d, busy: %d.\n", wnd, loaded, busy);
+  return (loaded && !busy);
+}
+
 static int do_check_evry (void)
 {
   DWORD err, num, len, i;
@@ -1828,11 +1854,12 @@ static int do_check_evry (void)
   char *dir   = NULL;
   char *base  = NULL;
   int   found = 0;
+  HWND  wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
 
   num_evry_dups = 0;
 
   if (evry_bitness == bit_unknown)
-     get_evry_bitness();
+     get_evry_bitness (wnd);
 
   /* EveryThing seems to need '\\' only. Must split the 'opt.file_spec'
    * into a 'dir' and 'base' part.
@@ -1870,6 +1897,11 @@ static int do_check_evry (void)
   if (err == EVERYTHING_ERROR_IPC)
   {
     WARN ("Everything IPC service is not running.\n");
+    return (0);
+  }
+  if (!evry_IsDBLoaded(wnd))
+  {
+    WARN ("Everything is busy loading it's database.\n");
     return (0);
   }
 
