@@ -67,7 +67,7 @@ struct mem_head {
 
 static struct mem_head *mem_list = NULL;
 
-#if !defined(_CRTDBG_MAP_ALLOC) && !defined(__CYGWIN__)
+#if !defined(_CRTDBG_MAP_ALLOC)
   static DWORD  mem_max         = 0;  /* Max bytes allocated at one time */
   static DWORD  mem_allocated   = 0;  /* Total bytes allocated */
   static DWORD  mem_deallocated = 0;  /* Bytes deallocated */
@@ -1173,7 +1173,7 @@ char *_stracat (char *s1, const char *s2)
 {
   size_t sz = strlen(s1) + strlen(s2) + 1;
   char  *s  = MALLOC (sz);
-  char *start = s;
+  char  *start = s;
 
   sz = strlen (s1);
   memcpy (s, s1, sz);
@@ -1690,6 +1690,66 @@ int debug_printf (const char *format, ...)
 }
 
 /*
+ * Duplicate memory and fix the 'cmd' before calling 'popen()'.
+ */
+static char *popen_setup (const char *cmd)
+{
+  char *cmd2;
+
+#if defined(__CYGWIN__)
+  char *p, *space;
+
+  if (!system(NULL))
+  {
+    WARN ("/bin/sh not found.\n");
+    return (NULL);
+  }
+  cmd2 = STRDUP (cmd);
+
+  /* Replace '\\' with '/' up to the first space.
+   */
+  space = strchr (cmd2, ' ');
+  for (p = cmd2; p < space; p++)
+      if (*p == '\\')
+         *p = '/';
+
+#else
+  char       *env = getenv ("COMSPEC");
+  const char *comspec = "";
+  const char *setdos  = "";
+  size_t      len;
+
+  /* OpenWatcom's popen() always uses cmd.exe regardless of %COMSPEC.
+   * If we're using 4NT/TCC shell, set all variable expansion to off
+   * by prepending "setdos /x-3 & " to 'cmd' buffer.
+   */
+  if (env)
+  {
+    DEBUGF (3, "%%COMSPEC: %s.\n", env);
+#if !defined(__WATCOMC__)
+    env = strlwr (basename(env));
+    if (!strcmp(env,"4nt.exe") || !strcmp(env,"tcc.exe"))
+       setdos = "setdos /x-3 & ";
+#endif
+  }
+  else
+    comspec = "set COMSPEC=cmd.exe & ";
+
+  len = strlen(setdos) + strlen(comspec) + strlen(cmd) + 1;
+
+  /*
+   * Use MALLOC() here because of gcc warning on 'alloca()' used previously:
+   *  'warning: stack protector not protecting local variables: variable length buffer [-Wstack-protector]'
+   */
+  cmd2 = MALLOC (len);
+  strcpy (cmd2, setdos);
+  strcat (cmd2, comspec);
+  strcat (cmd2, cmd);
+#endif
+  return (cmd2);
+}
+
+/*
  * A wrapper for popen().
  *  'cmd':      the program + args to run.
  *  'callback': function to call for each line from popen().
@@ -1700,52 +1760,14 @@ int debug_printf (const char *format, ...)
  */
 int popen_run (popen_callback callback, const char *cmd)
 {
-  char   buf[1000];
-  int    i = 0;
-  int    j = 0;
-  size_t len;
-  FILE  *f;
-  char  *env = getenv ("COMSPEC");
-  char  *cmd2;
-  const char *comspec = "";
-  const char *setdos  = "";
+  char  buf[1000];
+  int   i = 0;
+  int   j = 0;
+  FILE *f;
+  char *cmd2 = popen_setup (cmd);
 
-  /* OpenWatcom's popen() always uses cmd.exe regardless of %COMSPEC.
-   * If we're using 4NT/TCC shell, set all variable expansion to off
-   * by prepending "setdos /x-3" to 'cmd' buffer.
-   */
-  if (env)
-  {
-    DEBUGF (3, "%%COMSPEC: %s.\n", env);
-#if !defined(__WATCOMC__)
-    env = strlwr (basename(env));
-    if (!strcmp(env,"4nt.exe") || !strcmp(env,"tcc.exe"))
-       setdos = "setdos /x-3 &";
-#endif
-  }
-  else
-    comspec = "set COMSPEC=cmd.exe &";
-
-  len = strlen(setdos) + strlen(comspec) + strlen(cmd) + 1;
-
-  /*
-   * Use MALLOC() here because of gcc warning on 'alloca()' used previously:
-   *  'warning: stack protector not protecting local variables: variable length buffer [-Wstack-protector]'
-   */
-  cmd2 = MALLOC (len);
-
-#ifdef __CYGWIN__
-  strcpy (cmd2, slashify(cmd, '/'));
-  if (!system(NULL))
-  {
-    WARN ("/bin/sh not found.\n");
-    goto quit;
-  }
-#else
-  strcpy (cmd2, setdos);
-  strcat (cmd2, comspec);
-  strcat (cmd2, cmd);
-#endif
+  if (!cmd2)
+     goto quit;
 
   DEBUGF (3, "Trying to run '%s'\n", cmd2);
 
@@ -2167,7 +2189,10 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
     print_name = rdata->MountPointReparseBuffer.PathBuffer + ofs;
   }
   else
-    return reparse_err (1, "Not a Mount-Point nor a Symbolic-Link.");
+  {
+    DEBUGF (2, "ReparseTag: 0x%08lX??\n", rdata->ReparseTag);
+    return reparse_err (1, "Not a Mount-Point nor a Symbolic-Link; ReparseTag: 0x%08lX??\n", rdata->ReparseTag);
+  }
 
   DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
   DEBUGF (2, "PrintName:        '%.*S'\n", (int)(plen/2), print_name);
@@ -2292,15 +2317,15 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   {
     static char buf[40];
   #if defined(__MINGW64_VERSION_MAJOR)
-     snprintf (buf, sizeof(buf), "MinGW-w64 %d.%d (%s), ",
+     snprintf (buf, sizeof(buf), "MinGW-w64 %d.%d (%s)",
                __MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, __MINGW64_VERSION_STATE);
 
   /* mingw.org MinGW. MingW-RT-4+ defines '__MINGW_MAJOR_VERSION'
    */
   #elif defined(__MINGW_MAJOR_VERSION)
-    snprintf (buf, sizeof(buf), "MinGW %d.%d, ", __MINGW_MAJOR_VERSION, __MINGW_MINOR_VERSION);
+    snprintf (buf, sizeof(buf), "MinGW %d.%d", __MINGW_MAJOR_VERSION, __MINGW_MINOR_VERSION);
   #else
-    snprintf (buf, sizeof(buf), "MinGW %d.%d, ", __MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
+    snprintf (buf, sizeof(buf), "MinGW %d.%d", __MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
   #endif
     return (buf);
   }
@@ -2309,7 +2334,7 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   const char *compiler_version (void)
   {
     static char buf[40];
-    snprintf (buf, sizeof(buf), "CygWin %d.%d.%d, ", CYGWIN_VERSION_DLL_MAJOR/1000,
+    snprintf (buf, sizeof(buf), "CygWin %d.%d.%d", CYGWIN_VERSION_DLL_MAJOR/1000,
               CYGWIN_VERSION_DLL_MAJOR % 1000, CYGWIN_VERSION_DLL_MINOR);
     return (buf);
   }
