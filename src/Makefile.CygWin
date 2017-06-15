@@ -70,6 +70,10 @@ win_glob.exe: win_glob.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o
 
+win_ver.exe: win_ver.c misc.c color.c searchpath.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
+	rm -f win_ver.o
+
 win_trust.exe: win_trust.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
 	rm -f win_trust.o
