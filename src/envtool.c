@@ -112,12 +112,12 @@ char   sys_dir        [_MAX_PATH];
 char   sys_native_dir [_MAX_PATH];  /* Not for WIN64 */
 char   sys_wow64_dir  [_MAX_PATH];  /* Not for WIN64 */
 
-static UINT64 total_size = 0;
-static int    num_version_ok = 0;
-static int    num_verified = 0;
-static int    num_evry_dups = 0;
-static BOOL   have_sys_native_dir = FALSE;
-static BOOL   have_sys_wow64_dir  = FALSE;
+static UINT64   total_size = 0;
+static int      num_version_ok = 0;
+static int      num_verified = 0;
+static unsigned num_evry_dups = 0;
+static BOOL     have_sys_native_dir = FALSE;
+static BOOL     have_sys_wow64_dir  = FALSE;
 
 static char *who_am_I = (char*) "envtool";
 
@@ -149,7 +149,7 @@ static void  searchpath_all_cc (void);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 static int   get_pkg_config_info (const char **exe, struct ver_info *ver);
-static int   get_cmake_info (const char **exe, struct ver_info *ver);
+static int   get_cmake_info (char **exe, struct ver_info *ver);
 
 /*
  * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
@@ -279,9 +279,10 @@ static void show_ext_versions (void)
                                          "  Cmake ~5not~0 found.\n",
                                          "  pkg-config ~5not~0 found.\n"
                                        };
-  char found [3][100];
-  int  _len, len [3] = { 0,0,0 };
-  const char     *py_exe = NULL, *cmake_exe = NULL, *pkg_config_exe = NULL;
+  char           found [3][100];
+  int            _len, len [3] = { 0,0,0 };
+  const char     *py_exe = NULL, *pkg_config_exe = NULL;
+  char           *cmake_exe = NULL;
   struct ver_info py_ver, cmake_ver, pkg_config_ver;
 
   memset (&py_ver, '\0', sizeof(py_ver));
@@ -387,6 +388,12 @@ static int show_help (void)
   #define PFX_GCC  "~4<prefix>~0-~6gcc~0"
   #define PFX_GPP  "~4<prefix>~0-~6g++~0"
 
+  #if defined(__CYGWIN__)
+    #define NO_ANSI "    ~6--no-ansi~0:      don't print colours using ANSI sequences.\n"
+  #else
+    #define NO_ANSI ""
+  #endif
+
   const char **py = py_get_variants();
 
   C_printf ("Environment check & search tool.\n\n"
@@ -410,6 +417,7 @@ static int show_help (void)
             "    ~6--no-app~0:       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
             "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
             "    ~6--no-colour~0:    don't print using colours.\n"
+            NO_ANSI
          /* "    ~6--no-remote~0:    don't search for remote files in ~6--evry~0 searches (~2to-do~0).\n" */
             "    ~6--pe~0:           print checksum and version-info for PE-files.\n"
             "    ~6--32~0:           tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
@@ -472,7 +480,6 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
   struct directory_array *d = dir_array + i;
   int    j, exp_ok = (dir && *dir != '%');
   BOOL   exists, is_dir;
-  DWORD  attr;
 
 #if defined(__CYGWIN__)
   struct stat st;
@@ -485,7 +492,8 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
   /* Watcom's stat() doesn't handle 'native' directories.
    * But we can use this code for all targets since it seems faster.
    */
-  attr = GetFileAttributes (dir);
+  DWORD attr = GetFileAttributes (dir);
+
   exists = (attr != INVALID_FILE_ATTRIBUTES);
   is_dir = exists && (attr & FILE_ATTRIBUTE_DIRECTORY);
 #endif
@@ -1169,7 +1177,7 @@ static void final_report (int found)
               "  to be loaded than from the command-line. Revise the above registry-keys.\n\n~0");
 
   if (num_evry_dups)
-     snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)", num_evry_dups);
+     snprintf (duplicates, sizeof(duplicates), " (%u duplicated)", num_evry_dups);
 
   C_printf ("%s match%s found for \"%s\"%s.",
             dword_str((DWORD)found), (found == 0 || found > 1) ? "es" : "", opt.file_spec, duplicates);
@@ -2158,7 +2166,7 @@ static int find_cmake_version_cb (char *buf, int index)
   return (0);
 }
 
-static int get_cmake_info (const char **exe, struct ver_info *ver)
+static int get_cmake_info (char **exe, struct ver_info *ver)
 {
   cmake_major = cmake_minor = cmake_micro = -1;
   *exe = searchpath ("cmake.exe", "PATH");
@@ -2710,7 +2718,6 @@ static int do_check_gcc_library_paths (void)
   return (found);
 }
 
-
 /*
  * getopt_long() processing.
  */
@@ -2744,6 +2751,7 @@ static const struct option long_options[] = {
            { "32",          no_argument,       NULL, 0 },
            { "64",          no_argument,       NULL, 0 },    /* 27 */
            { "no-prefix",   no_argument,       NULL, 0 },
+           { "no-ansi",     no_argument,       NULL, 0 },    /* 29 */
            { NULL,          no_argument,       NULL, 0 }
          };
 
@@ -2776,7 +2784,8 @@ static int *values_tab[] = {
             &opt.do_pkg,          /* 25 */
             &opt.only_32bit,
             &opt.only_64bit,      /* 27 */
-            &opt.gcc_no_prefixed
+            &opt.gcc_no_prefixed,
+            &opt.no_ansi          /* 29 */
           };
 
 /*
@@ -2970,6 +2979,14 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
 
   if (!opt.PE_check && opt.do_lib && (opt.only_32bit || opt.only_64bit))
      opt.PE_check = TRUE;
+
+#if defined(__CYGWIN__)
+  if (opt.no_ansi)
+  {
+    C_no_ansi = 1;
+    C_puts (" \b ");
+  }
+#endif
 
   if (opt.no_colours)
   {

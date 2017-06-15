@@ -287,6 +287,7 @@ struct prog_options {
        int   no_usr_env;
        int   no_app_path;
        int   no_colours;
+       int   no_ansi;
        int   use_regex;
        int   dir_mode;
        int   man_mode;
