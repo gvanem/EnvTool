@@ -423,7 +423,7 @@ static char *get_prog_name_ascii (const struct python_info *py)
     char cyg_name [_MAX_PATH];
 
     if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, prog, cyg_name, sizeof(cyg_name)) == 0)
-       p =  cyg_name;
+       p = cyg_name;
   }
 #else
   if (py->is_cygwin)
@@ -1322,10 +1322,6 @@ static void enum_pythons_on_path (void)
   char *path = getenv_expand ("PATH");
   char *dir, dir_sep[2] = ";";
 
-#ifdef __CYGWIN__
-  dir_sep[0] = ':';
-#endif
-
   for (dir = strtok(path, dir_sep); dir; dir = strtok(NULL,dir_sep))
   {
     if (!match_python_exe(dir))
@@ -1422,7 +1418,7 @@ static int get_python_version (const char *exe_name)
 
 /*
  * Called from 'show_version()':
- *   Print informatioon for all found Pythons.
+ *   Print information for all found Pythons.
  *   Print the 'sys_path[]' if 'envtool -VVV' was issued.
  */
 void py_searchpaths (void)
