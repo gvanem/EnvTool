@@ -18,6 +18,10 @@ extern int C_use_colours;
  */
 extern int C_use_ansi_colours;
 
+/* Unless this is set. Then CygWin also uses WinCon API to set colours.
+ */
+extern int C_no_ansi;
+
 /* Set this to 1 to use 'fwrite()' in 'C_flush()'.
  */
 extern int C_use_fwrite;

@@ -68,6 +68,10 @@ int C_use_colours = 0;
  */
 int C_use_ansi_colours = 0;
 
+/* Unless this is set. Then CygWin also uses WinCon API to set colours.
+ */
+int C_no_ansi = 1;
+
 /* The program using color.c must set this to 1 if fwrite() shall
  * be used in 'C_flush()'. This can be needed to synchronize the output
  * with other calls (libraries?) that writes to stdout using fwrite().
@@ -182,7 +186,8 @@ static void C_init (void)
       init_colour_map();
 
 #if defined(__CYGWIN__)
-      C_use_ansi_colours = 1;
+      if (C_no_ansi == 0)
+        C_use_ansi_colours = 1;
 #endif
 
       if (C_use_ansi_colours)
