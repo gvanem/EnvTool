@@ -11,6 +11,9 @@
  * \todo:
  *   Add support for "user:password@hostname:port" syntax in 'do_check_evry_ept()'.
  */
+
+/* Suppress warning for 'inet_addr()' and 'gethostbyname()'
+ */
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #include <stdio.h>
