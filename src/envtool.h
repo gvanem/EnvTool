@@ -133,6 +133,7 @@
 #endif
 
 #if defined(__POCC__)
+  #include <wctype.h>
   #include <wchar.h>
 
   #define _MAX_PATH       MAX_PATH   /* 260 */
@@ -270,8 +271,9 @@ extern "C" {
 
 #define HKEY_PYTHON_EGG                (HKEY) 0x7FFF
 #define HKEY_EVERYTHING                (HKEY) 0x7FFE
-#define HKEY_MAN_FILE                  (HKEY) 0x7FFD
-#define HKEY_INC_LIB_FILE              (HKEY) 0x7FFC
+#define HKEY_EVERYTHING_ETP            (HKEY) 0x7FFD
+#define HKEY_MAN_FILE                  (HKEY) 0x7FFC
+#define HKEY_INC_LIB_FILE              (HKEY) 0x7FFB
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
@@ -310,6 +312,7 @@ struct prog_options {
        int   do_cmake;
        int   do_pkg;
        int   conv_cygdrive;
+       char *evry_host;
        char *file_spec;
        char *file_spec_re;
      };
