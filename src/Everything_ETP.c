@@ -601,14 +601,23 @@ static BOOL state_connect (struct state_CTX *ctx)
 /*
  * The initialiser for our simple state-machine.
  */
-static void SM_init (struct state_CTX *ctx, ETP_state init_state)
+static BOOL SM_init (struct state_CTX *ctx, ETP_state init_state)
 {
+  WSADATA wsadata;
+
   memset (ctx, 0, sizeof(*ctx));
   ctx->state        = init_state;
   ctx->trace_buf[0] = '?';
   ctx->trace_buf[1] = '\0';
   ctx->trace_ptr    = ctx->trace_buf;
   ctx->trace_left   = sizeof(ctx->trace_buf);
+
+  if (WSAStartup(MAKEWORD(1,1), &wsadata))
+  {
+    WARN ("Failed to start Winsock, err: %d.\n", WSAGetLastError());
+    return (FALSE);
+  }
+  return (TRUE);
 }
 
 /*
@@ -616,6 +625,8 @@ static void SM_init (struct state_CTX *ctx, ETP_state init_state)
  */
 static void SM_exit (struct state_CTX *ctx)
 {
+  WSACleanup();
+  ARGSUSED (ctx);
 }
 
 /*
@@ -643,15 +654,10 @@ static int ftp_state_machine (const char *host, unsigned port,
                               const char *spec)
 {
   struct state_CTX ctx;
-  WSADATA wsadata;
 
-  if (WSAStartup(MAKEWORD(1,1), &wsadata))
-  {
-    WARN ("Failed to start Winsock, err: %d.\n", WSAGetLastError());
-    return (0);
-  }
+  if (!SM_init(&ctx, state_resolve))
+     return (0);
 
-  SM_init (&ctx, state_resolve);
   ctx.host        = host;
   ctx.port        = port;
   ctx.user        = user;
@@ -659,8 +665,6 @@ static int ftp_state_machine (const char *host, unsigned port,
   ctx.search_spec = spec;
   SM_run (&ctx);
   SM_exit (&ctx);
-
-  WSACleanup();
   return (ctx.results_got);
 }
 
