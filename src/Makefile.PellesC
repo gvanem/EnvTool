@@ -15,9 +15,12 @@ LD = $(POCC_ROOT)/bin/polink
 RC = $(POCC_ROOT)/bin/porc
 CC = $(POCC_ROOT)/bin/pocc
 
-CFLAGS = -X -W1 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
-         -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN -Go -Zi -Zl -Ze \
-         -I$(POCC_ROOT)/include -I$(POCC_ROOT)/include/win -std:C11
+CFLAGS = -X -W1 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl          \
+         -D_WIN32_WINNT=0x501 -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN \
+         -std:C11 -Go -Zi -Zl -Ze                                     \
+         -I$(POCC_ROOT)/include -I$(POCC_ROOT)/include/win
+
+# CFLAGS += -DSTRSAFE_NO_DEPRECATE
 
 #
 # Avoid warning in <win/malloc.h>
@@ -57,6 +60,7 @@ ifeq ($(USE_64BIT),1)
                Win64/imagehlp.lib           \
                Win64/crypt32.lib            \
                Win64/psapi.lib              \
+               Win64/ws2_32.lib             \
                Win64/wintrust.lib           \
                Win64/version.lib)
 else
@@ -74,12 +78,14 @@ else
                Win/imagehlp.lib             \
                Win/crypt32.lib              \
                Win/psapi.lib                \
+               Win/ws2_32.lib               \
                Win/wintrust.lib             \
                Win/version.lib)
 endif
 
-SOURCES = envtool.c color.c misc.c searchpath.c smartlist.c show_ver.c dirlist.c \
-          Everything.c envtool_py.c getopt_long.c win_ver.c win_trust.c
+SOURCES = envtool.c envtool_py.c Everything.c Everything_ETP.c color.c \
+          dirlist.c getopt_long.c misc.c searchpath.c smartlist.c \
+          show_ver.c win_ver.c win_trust.c
 
 OBJECTS = $(SOURCES:.c=.obj)
 
@@ -88,19 +94,19 @@ all: cflags_PellesC.h ldflags_PellesC.h envtool.exe
 	@echo '../envtool.exe successfully built.'
 
 envtool.exe: $(OBJECTS) envtool.res
-	$(call link_exe, $@, $^)
+	$(call link_EXE, $@, $^)
 
 win_trust.exe: win_trust.c getopt_long.obj misc.obj color.obj
 	$(CC) -c $(CFLAGS) -DWIN_TRUST_TEST $^
-	$(call link_exe, $@, win_trust.obj getopt_long.obj misc.obj color.obj)
+	$(call link_EXE, $@, win_trust.obj getopt_long.obj misc.obj color.obj)
 
 win_glob.exe: win_glob.c misc.obj color.obj
 	$(CC) -c $(CFLAGS) -DWIN_GLOB_TEST $^
-	$(call link_exe, $@, win_glob.obj misc.obj color.obj)
+	$(call link_EXE, $@, win_glob.obj misc.obj color.obj)
 
 win_ver.exe: win_ver.c misc.obj color.obj
 	$(CC) -c $(CFLAGS) -DWIN_VER_TEST win_ver.c
-	$(call link_exe, $@, win_ver.obj misc.obj color.obj)
+	$(call link_EXE, $@, win_ver.obj misc.obj color.obj)
 
 envtool.res: envtool.rc
 	$(RC) $(RCFLAGS) -Foenvtool.res envtool.rc
@@ -132,10 +138,24 @@ ldflags_PellesC.h: Makefile.PellesC
 # arg1: $(1) = the .exe-file
 # arg2: $(2) = the .obj-files
 #
-define link_exe
+define link_EXE
   $(LD) $(LDFLAGS) -out:$(strip $(1)) $(2) $(EX_LIBS) > link.tmp
   cat link.tmp >> $(1:.exe=.map)
   rm -f $(1:.exe=.obj)
   @echo
 endef
+
+envtool.res:        envtool.h
+envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h envtool.h envtool_py.h
+envtool_py.obj:     envtool_py.c envtool.h envtool_py.h
+Everything.obj:     Everything.c Everything.h Everything_IPC.h
+Everything_ETP.obj: Everything_ETP.c envtool.h color.h
+getopt_long.obj:    getopt_long.c getopt_long.h
+color.obj:          color.c color.h
+misc.obj:           misc.c envtool.h color.h
+searchpath.obj:     searchpath.c envtool.h
+show_ver.obj:       show_ver.c envtool.h
+smartlist.obj:      smartlist.c envtool.h
+win_glob.obj:       win_glob.c envtool.h win_glob.h
+
 

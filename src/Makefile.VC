@@ -49,15 +49,16 @@ CFLAGS  = $(CFLAGS) -wd4267
 RCFLAGS = $(RCFLAGS) -DWIN64
 !endif
 
-OBJECTS = envtool.obj envtool_py.obj color.obj dirlist.obj Everything.obj getopt_long.obj \
-          misc.obj searchpath.obj show_ver.obj smartlist.obj win_trust.obj win_ver.obj
+OBJECTS = envtool.obj envtool_py.obj color.obj dirlist.obj Everything.obj Everything_ETP.obj \
+          getopt_long.obj misc.obj searchpath.obj show_ver.obj smartlist.obj win_trust.obj   \
+          win_ver.obj
 
 all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
 	copy /y envtool.exe ..
 	@echo '"envtool.exe win_glob.exe win_ver.exe dirlist.exe" successfully built.'
 
 envtool.exe: $(OBJECTS) envtool.res
-	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) > link.tmp
+	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) wsock_trace.lib > link.tmp
 	type link.tmp >> envtool.map
 	-del /q link.tmp
 
@@ -110,15 +111,16 @@ msclean: clean
 	-del /q envtool.sdf
 	-rd /q Debug Release
 
-envtool.res:     envtool.h
-envtool.obj:     envtool.c getopt_long.h Everything.h Everything_IPC.h envtool.h envtool_py.h
-envtool_py.obj:  envtool_py.c envtool.h envtool_py.h
-Everything.obj:  Everything.c Everything.h Everything_IPC.h
-getopt_long.obj: getopt_long.c getopt_long.h
-color.obj:       color.c color.h
-misc.obj:        misc.c envtool.h color.h
-searchpath.obj:  searchpath.c envtool.h
-show_ver.obj:    show_ver.c envtool.h
-smartlist.obj:   smartlist.c envtool.h
-win_glob.obj:    win_glob.c envtool.h win_glob.h
+envtool.res:        envtool.h
+envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h envtool.h envtool_py.h
+envtool_py.obj:     envtool_py.c envtool.h envtool_py.h
+Everything.obj:     Everything.c Everything.h Everything_IPC.h
+Everything_ETP.obj: Everything_ETP.c envtool.h color.h
+getopt_long.obj:    getopt_long.c getopt_long.h
+color.obj:          color.c color.h
+misc.obj:           misc.c envtool.h color.h
+searchpath.obj:     searchpath.c envtool.h
+show_ver.obj:       show_ver.c envtool.h
+smartlist.obj:      smartlist.c envtool.h
+win_glob.obj:       win_glob.c envtool.h win_glob.h
 

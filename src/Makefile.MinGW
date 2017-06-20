@@ -56,10 +56,11 @@ ifneq ($(FORTIFY_SOURCE),0)
   EX_LIBS  = -lssp
 endif
 
-EX_LIBS += -lpsapi -limagehlp -lversion -lwintrust -lcrypt32
+EX_LIBS += -lpsapi -limagehlp -lversion -lwintrust -lcrypt32 -lws2_32
 
 SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
-          Everything.c envtool_py.c getopt_long.c smartlist.c win_trust.c win_ver.c
+          Everything.c Everything_ETP.c envtool_py.c getopt_long.c   \
+          smartlist.c win_trust.c win_ver.c
 
 OBJECTS = $(SOURCES:.c=.o)
 
