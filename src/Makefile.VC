@@ -19,7 +19,7 @@ LDFLAGS = -nologo -incremental:no -debug -map
 LDFLAGS = $(LDFLAGS) -subsystem:console,5.02
 RCFLAGS = -nologo -D_MSC_VER -r
 MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII
-EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib psapi.lib version.lib shell32.lib user32.lib
+EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib psapi.lib version.lib shell32.lib ws2_32.lib user32.lib
 
 !if "$(DEBUG)" == "1"
 D       = d
@@ -58,7 +58,7 @@ all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.e
 	@echo '"envtool.exe win_glob.exe win_ver.exe dirlist.exe" successfully built.'
 
 envtool.exe: $(OBJECTS) envtool.res
-	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) wsock_trace.lib > link.tmp
+	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) > link.tmp
 	type link.tmp >> envtool.map
 	-del /q link.tmp
 
