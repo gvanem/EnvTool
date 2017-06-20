@@ -847,7 +847,7 @@ wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
 
   if (wcslen(p) > 2 && p[1] == ':' && IS_SLASH(p[2]))
   {
-    _swprintf (buf, L"/cygdrive/%c/%s", towlower(p[0]), p+3);
+    _snwprintf (buf, DIM(buf), L"/cygdrive/%c/%s", towlower(p[0]), p+3);
     wcsncpy (result, buf, _MAX_PATH);
   }
   else
@@ -2358,11 +2358,9 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 #include <io.h>
 #include <wchar.h>
 
-#if !defined(__POCC__)
-#include <winternl.h>
-#endif
-
-#if defined(__WATCOMC__) || defined(__POCC__)
+#if !defined(__POCC__) && !defined(__WATCOMC__)
+  #include <winternl.h>
+#else
   typedef struct {
           USHORT  Length;
           USHORT  MaximumLength;
