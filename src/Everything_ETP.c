@@ -79,7 +79,7 @@ static BOOL state_closing      (struct state_CTX *ctx);
 static BOOL state_resolve      (struct state_CTX *ctx);
 static BOOL state_connect      (struct state_CTX *ctx);
 
-static time_t FILETIME_to_time_t (UINT64 ft);
+static time_t FILETIME_to_time_t (const FILETIME *ft);
 
 struct netrc_info {
        BOOL        is_default;
@@ -365,9 +365,9 @@ static BOOL report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
  */
 static BOOL state_PATH (struct state_CTX *ctx)
 {
-  char   file [_MAX_PATH];
-  char   folder [_MAX_PATH];
-  UINT64 ft;
+  char     file [_MAX_PATH];
+  char     folder [_MAX_PATH];
+  FILETIME ft;
 
   recv_line (ctx);
 
@@ -383,9 +383,9 @@ static BOOL state_PATH (struct state_CTX *ctx)
     return (TRUE);
   }
 
-  if (sscanf(ctx->rx_ptr, "DATE_MODIFIED %I64u", &ft) == 1)
+  if (sscanf(ctx->rx_ptr, "DATE_MODIFIED %I64u", (UINT64*)&ft) == 1)
   {
-    ctx->mtime = FILETIME_to_time_t (ft);
+    ctx->mtime = FILETIME_to_time_t (&ft);
     ETP_tracef (ctx, "mtime: %.24s", ctime(&ctx->mtime));
     return (TRUE);
   }
@@ -711,17 +711,24 @@ static const char *ETP_state_name (ETP_state f)
   return list_lookup_name ((unsigned)f, functions, DIM(functions));
 }
 
-/*
- * Number of seconds between the beginning of the Windows epoch
- * (Jan. 1, 1601) and the Unix epoch (Jan. 1, 1970).
- */
-#define DELTA_EPOCH_IN_SEC 11644473600
-
-static time_t FILETIME_to_time_t (UINT64 ft)
+static time_t FILETIME_to_time_t (const FILETIME *_ft)
 {
-  ft /= 10000000;            /* from 100 nano-sec periods to sec */
-  ft -= DELTA_EPOCH_IN_SEC;  /* from Windows epoch to Unix epoch */
-  return (ft);
+  SYSTEMTIME st, lt;
+  struct tm  tm;
+
+  if (!FileTimeToSystemTime(_ft,&st) ||
+      !SystemTimeToTzSpecificLocalTime(NULL,&st,&lt))
+     return (0);
+
+  memset (&tm, '\0', sizeof(tm));
+  tm.tm_year  = lt.wYear - 1900;
+  tm.tm_mon   = lt.wMonth - 1;
+  tm.tm_mday  = lt.wDay;
+  tm.tm_hour  = lt.wHour;
+  tm.tm_min   = lt.wMinute;
+  tm.tm_sec   = lt.wSecond;
+  tm.tm_isdst = -1;
+  return mktime (&tm);
 }
 
 /*
