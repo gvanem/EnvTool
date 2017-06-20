@@ -40,6 +40,7 @@
 
 #include "Everything.h"
 #include "Everything_IPC.h"
+#include "Everything_ETP.h"
 #include "dirlist.h"
 
 #include "color.h"
@@ -418,7 +419,6 @@ static int show_help (void)
             "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
             "    ~6--no-colour~0:    don't print using colours.\n"
             NO_ANSI
-         /* "    ~6--no-remote~0:    don't search for remote files in ~6--evry~0 searches (~2to-do~0).\n" */
             "    ~6--pe~0:           print checksum and version-info for PE-files.\n"
             "    ~6--32~0:           tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
             "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
@@ -426,7 +426,8 @@ static int show_help (void)
             "                    report only 64-bit PE-files with ~6--pe~0 option.\n"
             "    ~6-c~0:             don't add current directory to search-lists.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
-            "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n",
+            "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n"
+            "    ~6-H~0, ~6--host~0:     hostname/IPv4-address for remote FTP ~6--evry~0 searches.\n",
             who_am_I);
 
   C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in ~6--evry~0 searches.\n"
@@ -1008,9 +1009,9 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 {
   const char *note   = NULL;
   const char *filler = "      ";
-  char        size [30] = "?";
+  char        size [40] = "?";
   int         raw;
-  BOOL        have_it  = TRUE;
+  BOOL        have_it = TRUE;
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -1057,6 +1058,9 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
       note = " (6)  ";
     }
   }
+  else if (key == HKEY_EVERYTHING_ETP)
+  {
+  }
   else
   {
     found_in_default_env = 1;
@@ -1070,14 +1074,20 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   */
   if (opt.show_size && opt.dir_mode)
   {
-    fsize = get_directory_size (file);
+    if (key != HKEY_EVERYTHING_ETP)
+       fsize = get_directory_size (file);
     total_size += fsize;
     snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
   }
-  else if (opt.show_size && fsize != (__int64)-1)
+  else if (opt.show_size)
   {
-    snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
-    total_size += fsize;
+    if (key == HKEY_EVERYTHING_ETP && fsize == (__int64)-1)
+       strcpy (size, " -    ?   ");
+    else if (fsize != (__int64)-1)
+    {
+      snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
+      total_size += fsize;
+    }
   }
   else
     size[0] = '\0';
@@ -1099,7 +1109,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 
   report_header = NULL;
 
-  if (opt.PE_check && key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE)
+  if (opt.PE_check && key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE && key != HKEY_EVERYTHING_ETP)
      return print_PE_file (file, note, filler, size, mtime);
 
   C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
@@ -1862,8 +1872,9 @@ static int do_check_evry (void)
   char *dir   = NULL;
   char *base  = NULL;
   int   found = 0;
-  HWND  wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
+  HWND  wnd;
 
+  wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   num_evry_dups = 0;
 
   if (evry_bitness == bit_unknown)
@@ -2752,7 +2763,8 @@ static const struct option long_options[] = {
            { "64",          no_argument,       NULL, 0 },    /* 27 */
            { "no-prefix",   no_argument,       NULL, 0 },
            { "no-ansi",     no_argument,       NULL, 0 },    /* 29 */
-           { NULL,          no_argument,       NULL, 0 }
+           { "host",        required_argument, NULL, 0 },
+           { NULL,          no_argument,       NULL, 0 }     /* 31 */
          };
 
 static int *values_tab[] = {
@@ -2785,7 +2797,8 @@ static int *values_tab[] = {
             &opt.only_32bit,
             &opt.only_64bit,      /* 27 */
             &opt.gcc_no_prefixed,
-            &opt.no_ansi          /* 29 */
+            &opt.no_ansi,         /* 29 */
+            (int*)&opt.evry_host
           };
 
 /*
@@ -2831,14 +2844,17 @@ static void set_python_variant (const char *arg)
   py_which = (enum python_variants) v;
 }
 
-static void set_short_option (int c)
+static void set_short_option (int o, const char *arg)
 {
-  DEBUGF (2, "got short option '%c' (%d).\n", c, c);
+  DEBUGF (2, "got short option '%c' (%d).\n", o, o);
 
-  switch (c)
+  switch (o)
   {
     case 'h':
          opt.help = 1;
+         break;
+    case 'H':
+         opt.evry_host = STRDUP (arg);
          break;
     case 'V':
          opt.do_version++;
@@ -2882,7 +2898,7 @@ static void set_short_option (int c)
   }
 }
 
-static void set_long_option (int o)
+static void set_long_option (int o, const char *arg)
 {
   int *val_ptr;
 
@@ -2892,20 +2908,28 @@ static void set_long_option (int o)
   ASSERT (o >= 0);
   ASSERT (o < DIM(values_tab));
 
-  DEBUGF (2, "got long option \"--%s\". Setting value %d -> 1. o: %d.\n",
-          long_options[o].name, *values_tab[o], o);
-
-  if (optarg)
+  if (arg)
   {
+    DEBUGF (2, "got long option \"--%s\" with argument \"%s\".\n",
+            long_options[o].name, arg);
+
     if (!strcmp("python",long_options[o].name))
-       set_python_variant (optarg);
+      set_python_variant (arg);
 
     else if (!strcmp("debug",long_options[o].name))
-      opt.debug = atoi (optarg);
-  }
+      opt.debug = atoi (arg);
 
-  val_ptr = values_tab [o];
-  *val_ptr = 1;
+    else if (!strcmp("host",long_options[o].name))
+      opt.evry_host = STRDUP (arg);
+  }
+  else
+  {
+    DEBUGF (2, "got long option \"--%s\". Setting value %d -> 1. o: %d.\n",
+            long_options[o].name, *values_tab[o], o);
+
+    val_ptr = values_tab [o];
+    *val_ptr = 1;
+  }
 }
 
 static void parse_cmdline (int argc, char *const *argv, char **fspec)
@@ -2961,12 +2985,12 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   while (1)
   {
     int opt_index = 0;
-    int c = getopt_long (argc, argv, "chvVdDrstTuq", long_options, &opt_index);
+    int c = getopt_long (argc, argv, "chH:vVdDrstTuq", long_options, &opt_index);
 
     if (c == 0)
-       set_long_option (opt_index);
+       set_long_option (opt_index, optarg);
     else if (c > 0)
-       set_short_option (c);
+       set_short_option (c, optarg);
     else if (c == -1)
        break;
   }
@@ -3061,6 +3085,7 @@ static void cleanup (void)
   if (opt.file_spec_re && opt.file_spec_re != opt.file_spec)
      FREE (opt.file_spec_re);
   FREE (opt.file_spec);
+  FREE (opt.evry_host);
 
   for (i = 0; i < new_argc && i < DIM(new_argv)-1; i++)
       FREE (new_argv[i]);
@@ -3271,8 +3296,16 @@ int main (int argc, char **argv)
 
   if (opt.do_evry)
   {
-    report_header = "Matches from EveryThing:\n";
-    found += do_check_evry();
+    if (opt.evry_host)
+    {
+      report_header = "Matches from EveryThing remote:\n";
+      found += do_check_evry_ept();
+    }
+    else
+    {
+      report_header = "Matches from EveryThing:\n";
+      found += do_check_evry();
+    }
   }
 
   final_report (found);
