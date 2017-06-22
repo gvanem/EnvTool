@@ -48,7 +48,7 @@ struct state_CTX {
        struct sockaddr_in sa;
        SOCKET             sock;
        const char        *host;
-       unsigned           port;
+       WORD               port;
        const char        *user;
        const char        *password;
        char               rx_buf [500];
@@ -649,7 +649,7 @@ static void SM_run (struct state_CTX *ctx)
   }
 }
 
-static int ftp_state_machine (const char *host, unsigned port,
+static int ftp_state_machine (const char *host, WORD port,
                               const char *user, const char *password,
                               const char *spec)
 {
@@ -743,7 +743,7 @@ static time_t FILETIME_to_time_t (const FILETIME *_ft)
 int do_check_evry_ept (void)
 {
   const struct netrc_info *ni;
-  unsigned     port = 21;
+  WORD         port = 21;
   int          rc;
   char        *colon, host_addr [200];
   const char  *user  = NULL;
@@ -751,8 +751,11 @@ int do_check_evry_ept (void)
 
   _strlcpy (host_addr, opt.evry_host, sizeof(host_addr));
   colon = strchr (host_addr, ':');
-  if (colon && (port = atoi(colon+1)) != 0)
-     *colon = '\0';
+  if (colon)
+  {
+    port = atoi (colon+1);
+    *colon = '\0';
+  }
 
   netrc_init();
   ni = netrc_lookup (host_addr);
