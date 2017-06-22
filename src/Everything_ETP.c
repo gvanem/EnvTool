@@ -229,7 +229,7 @@ static const struct netrc_info *_netrc_lookup (const char *host)
 
     if (opt.do_tests)
          C_printf ("  %s", buf);
-    else DEBUGF (3,buf);
+    else DEBUGF (3, buf);
 
     if (ni->host && host && !stricmp(host, ni->host))
        return (ni);
@@ -480,6 +480,7 @@ static BOOL state_200 (struct state_CTX *ctx)
  */
 static BOOL state_closing (struct state_CTX *ctx)
 {
+  ETP_tracef (ctx, "closesocket()");
   closesocket (ctx->sock);
   ctx->sock = INVALID_SOCKET;
 
@@ -618,6 +619,7 @@ static BOOL state_connect (struct state_CTX *ctx)
   if (connect(ctx->sock, (const struct sockaddr*)&ctx->sa, sizeof(ctx->sa)) < 0)
   {
     WARN (" Failed to connect.\n");
+    ETP_tracef (ctx, "Failed to connect.");
     ctx->state = state_closing;
   }
   else
