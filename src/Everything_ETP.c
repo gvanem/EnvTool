@@ -715,12 +715,12 @@ static const char *ETP_state_name (ETP_state f)
   return list_lookup_name ((unsigned)f, functions, DIM(functions));
 }
 
-static time_t FILETIME_to_time_t (const FILETIME *_ft)
+static time_t FILETIME_to_time_t (const FILETIME *ft)
 {
   SYSTEMTIME st, lt;
   struct tm  tm;
 
-  if (!FileTimeToSystemTime(_ft,&st) ||
+  if (!FileTimeToSystemTime(ft,&st) ||
       !SystemTimeToTzSpecificLocalTime(NULL,&st,&lt))
      return (0);
 
