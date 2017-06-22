@@ -132,7 +132,7 @@ static BOOL netrc_parse_line (const char *line)
  * Get the path to the ".netrc" file, parse it and append entries to the
  * 'netrc' smartlist.
  */
-static void netrc_init (void)
+void netrc_init (void)
 {
   char    home [_MAX_PATH];
   char    file [_MAX_PATH];
@@ -184,7 +184,7 @@ static void netrc_init (void)
 /*
  * Free the memory allocated in the 'netrc' smartlist.
  */
-static void netrc_exit (void)
+void netrc_exit (void)
 {
   int i, max;
 
@@ -207,7 +207,7 @@ static void netrc_exit (void)
 /*
  * Lookup the user/password for a 'host' in the 'netrc' smartlist.
  */
-static const struct netrc_info *netrc_lookup (const char *host)
+static const struct netrc_info *_netrc_lookup (const char *host)
 {
   const struct netrc_info *def_ni = NULL;
   int i, max;
@@ -219,18 +219,42 @@ static const struct netrc_info *netrc_lookup (const char *host)
   for (i = 0; i < max; i++)
   {
     const struct netrc_info *ni = smartlist_get (netrc, i);
+    char  buf [300];
 
     if (ni->is_default)
        def_ni = ni;
-    DEBUGF (3, "host: '%s', user: '%s', passw: '%s', is_default: %d.\n",
-            ni->host, ni->user, ni->passw, ni->is_default);
 
-    if (ni->host && !stricmp(host, ni->host))
+    snprintf (buf, sizeof(buf), "host: '%s', user: '%s', passw: '%s', is_default: %d.\n",
+              ni->host, ni->user, ni->passw, ni->is_default);
+
+    if (opt.do_tests)
+         C_printf ("  %s", buf);
+    else DEBUGF (3,buf);
+
+    if (ni->host && host && !stricmp(host, ni->host))
        return (ni);
   }
   if (def_ni)
      return (def_ni);
   return (NULL);
+}
+
+/*
+ * Use this externally.
+ * 'netrc_lookup (NULL, NULL, NULL)' can be used for test/debug.
+ */
+int netrc_lookup (const char *host, const char **user, const char **passw)
+{
+  const struct netrc_info *ni = _netrc_lookup (host);
+
+  if (ni)
+  {
+    if (user)
+       *user  = ni->user;
+    if (passw)
+       *passw = ni->passw;
+  }
+  return (ni != NULL);
 }
 
 /*
@@ -471,12 +495,19 @@ static BOOL state_closing (struct state_CTX *ctx)
  */
 static BOOL state_send_query (struct state_CTX *ctx)
 {
-  send_cmd (ctx, "EVERYTHING SEARCH %s", ctx->search_spec);
+  /* Always 'REGEX 1', but translate from a shell-pattern if
+   * 'opt.use_regex == 0'.
+   */
+  send_cmd (ctx, "EVERYTHING REGEX 1");
+
+  if (opt.use_regex)
+       send_cmd (ctx, "EVERYTHING SEARCH %s", ctx->search_spec);
+  else send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(ctx->search_spec));
+
   send_cmd (ctx, "EVERYTHING PATH_COLUMN 1");
   send_cmd (ctx, "EVERYTHING SIZE_COLUMN 1");
   send_cmd (ctx, "EVERYTHING DATE_MODIFIED_COLUMN 1");
-  if (opt.use_regex)
-     send_cmd (ctx, "EVERYTHING REGEX 1");
+
   if (send_cmd(ctx, "EVERYTHING QUERY") < 0)
        ctx->state = state_closing;
   else ctx->state = state_200;
@@ -668,6 +699,10 @@ static int ftp_state_machine (const char *host, WORD port,
   return (ctx.results_got);
 }
 
+/*
+ * Save a piece of trace-information into the context.
+ * Retrieve it when 'fmt == NULL'.
+ */
 static const char *ETP_tracef (struct state_CTX *ctx, const char *fmt, ...)
 {
   va_list args;
@@ -698,6 +733,9 @@ static const char *ETP_tracef (struct state_CTX *ctx, const char *fmt, ...)
   return (ctx->trace_buf);
 }
 
+/*
+ * Return the name of a state-function. Handy for tracing.
+ */
 static const char *ETP_state_name (ETP_state f)
 {
   #define ADD_VALUE(f)  { (unsigned)&f, #f }
@@ -715,6 +753,10 @@ static const char *ETP_state_name (ETP_state f)
   return list_lookup_name ((unsigned)f, functions, DIM(functions));
 }
 
+/*
+ * Return a 'time_t' for a file in the 'DATE_MODIFIED' response.
+ * The 'ft' is in UTC zone.
+ */
 static time_t FILETIME_to_time_t (const FILETIME *ft)
 {
   SYSTEMTIME st, lt;
@@ -742,12 +784,11 @@ static time_t FILETIME_to_time_t (const FILETIME *ft)
  */
 int do_check_evry_ept (void)
 {
-  const struct netrc_info *ni;
-  WORD         port = 21;
-  int          rc;
-  char        *colon, host_addr [200];
-  const char  *user  = NULL;
-  const char  *passw = NULL;
+  WORD        port = 21;
+  int         rc;
+  char       *colon, host_addr [200];
+  const char *user  = NULL;
+  const char *passw = NULL;
 
   _strlcpy (host_addr, opt.evry_host, sizeof(host_addr));
   colon = strchr (host_addr, ':');
@@ -758,12 +799,7 @@ int do_check_evry_ept (void)
   }
 
   netrc_init();
-  ni = netrc_lookup (host_addr);
-  if (ni)
-  {
-    user  = ni->user;
-    passw = ni->passw;
-  }
+  netrc_lookup (host_addr, &user, &passw);
   rc = ftp_state_machine (host_addr, port, user, passw, opt.file_spec);
   netrc_exit();
   return (rc);
