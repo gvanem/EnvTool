@@ -3848,11 +3848,18 @@ static void test_ReparsePoints (void)
  */
 static void test_netrc (void)
 {
+  int rc;
+
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   netrc_init();
-  netrc_lookup (NULL, NULL, NULL);
+  rc = netrc_lookup (NULL, NULL, NULL);
   netrc_exit();
+
+  C_printf ("  Parsing \"%%HOME%\\.netrc\" ");
+  if (rc == 0)
+       C_puts ("~5failed.~0\n");
+  else C_puts ("~3okay.~0\n");
 }
 
 /*
