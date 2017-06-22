@@ -427,7 +427,8 @@ static int show_help (void)
             "    ~6-c~0:             don't add current directory to search-lists.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
             "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n"
-            "    ~6-H~0, ~6--host~0:     hostname/IPv4-address for remote FTP ~6--evry~0 searches.\n",
+            "    ~6-H~0, ~6--host~0:     hostname/IPv4-address for remote FTP ~6--evry~0 searches.\n"
+            "                    alternative syntax is ~6--evry:<host>~0.\n",
             who_am_I);
 
   C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in ~6--evry~0 searches.\n"
@@ -2753,7 +2754,7 @@ static const struct option long_options[] = {
            { "pe",          no_argument,       NULL, 0 },    /* 17 */
            { "no-colour",   no_argument,       NULL, 0 },
            { "no-color",    no_argument,       NULL, 0 },    /* 19 */
-           { "evry",        no_argument,       NULL, 0 },
+           { "evry",        optional_argument, NULL, 0 },
            { "regex",       no_argument,       NULL, 0 },    /* 21 */
            { "size",        no_argument,       NULL, 0 },
            { "man",         no_argument,       NULL, 0 },    /* 23 */
@@ -2844,6 +2845,20 @@ static void set_python_variant (const char *arg)
   py_which = (enum python_variants) v;
 }
 
+static void set_evry_options (const char *arg)
+{
+  if (arg)
+  {
+    if (opt.evry_host)
+    {
+      WARN ("Overriding specifed '--host:%s' with '%s'.\n", opt.evry_host, arg);
+      FREE (opt.evry_host);
+    }
+    opt.evry_host = STRDUP (arg);
+  }
+  opt.do_evry = 1;
+}
+
 static void set_short_option (int o, const char *arg)
 {
   DEBUGF (2, "got short option '%c' (%d).\n", o, o);
@@ -2908,11 +2923,14 @@ static void set_long_option (int o, const char *arg)
   ASSERT (o >= 0);
   ASSERT (o < DIM(values_tab));
 
+  DEBUGF (2, "got long option \"--%s\" with argument \"%s\".\n",
+          long_options[o].name, arg);
+
+  if (!strcmp("evry",long_options[o].name))
+     set_evry_options (arg);
+
   if (arg)
   {
-    DEBUGF (2, "got long option \"--%s\" with argument \"%s\".\n",
-            long_options[o].name, arg);
-
     if (!strcmp("python",long_options[o].name))
       set_python_variant (arg);
 
@@ -3826,6 +3844,18 @@ static void test_ReparsePoints (void)
 }
 
 /*
+ * Test the parsing of %HOME%/.netrc
+ */
+static void test_netrc (void)
+{
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+
+  netrc_init();
+  netrc_lookup (NULL, NULL, NULL);
+  netrc_exit();
+}
+
+/*
  * Test PE-file WinTrust crypto signature verification.
  */
 static void test_PE_wintrust (void)
@@ -3992,6 +4022,7 @@ static int do_tests (void)
   test_disk_ready();
   test_SHGetFolderPath();
   test_ReparsePoints();
+  test_netrc();
   test_libssp();
 
   if (!stricmp(get_user_name(),"APPVYR-WIN\\appveyor"))
