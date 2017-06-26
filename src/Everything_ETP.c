@@ -752,7 +752,7 @@ static const char *ETP_tracef (struct state_CTX *ctx, const char *fmt, ...)
  */
 static const char *ETP_state_name (ETP_state f)
 {
-  #define ADD_VALUE(f)  { (unsigned)&f, #f }
+  #define ADD_VALUE(f)  { (unsigned)(size_t)&f, #f }
   static const struct search_list functions[] = {
                                   ADD_VALUE (state_resolve),
                                   ADD_VALUE (state_connect),
@@ -764,7 +764,7 @@ static const char *ETP_state_name (ETP_state f)
                                   ADD_VALUE (state_RESULT_COUNT),
                                   ADD_VALUE (state_PATH)
                                 };
-  return list_lookup_name ((unsigned)f, functions, DIM(functions));
+  return list_lookup_name ((unsigned)(size_t)f, functions, DIM(functions));
 }
 
 /*
