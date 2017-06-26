@@ -395,8 +395,6 @@ static BOOL report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
  */
 static BOOL state_PATH (struct state_CTX *ctx)
 {
-  char     file [_MAX_PATH];
-  char     folder [_MAX_PATH];
   FILETIME ft;
 
   recv_line (ctx);
@@ -423,14 +421,16 @@ static BOOL state_PATH (struct state_CTX *ctx)
 
   if (!strncmp(ctx->rx_ptr, "FILE ", 5))
   {
-    _strlcpy (file, ctx->rx_ptr+5, sizeof(file));
+    const char *file = ctx->rx_ptr+5;
+
     ETP_tracef (ctx, "file: %s", file);
     return report_file_ept (ctx, file, FALSE);
   }
 
   if (!strncmp(ctx->rx_ptr, "FOLDER ", 7))
   {
-    _strlcpy (folder, ctx->rx_ptr+7, sizeof(folder));
+    const char *folder = ctx->rx_ptr+7;
+
     ETP_tracef (ctx, "folder: %s", folder);
     return report_file_ept (ctx, folder, TRUE);
   }
