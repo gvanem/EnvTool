@@ -59,6 +59,7 @@ struct state_CTX {
        size_t             trace_left;
        unsigned           results_expected;
        unsigned           results_got;
+       unsigned           results_ignore;
 
        /* These are set in state_PATH()
         */
@@ -372,10 +373,15 @@ static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
  */
 static BOOL report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_dir)
 {
-  char fullname [_MAX_PATH];
+  if (opt.dir_mode && !is_dir)
+     ctx->results_ignore++;
+  else
+  {
+    char fullname [_MAX_PATH];
 
-  snprintf (fullname, sizeof(fullname), "%s\\%s", ctx->path, name);
-  report_file (fullname, ctx->mtime, ctx->fsize, is_dir, FALSE, HKEY_EVERYTHING_ETP);
+    snprintf (fullname, sizeof(fullname), "%s\\%s", ctx->path, name);
+    report_file (fullname, ctx->mtime, ctx->fsize, is_dir, FALSE, HKEY_EVERYTHING_ETP);
+  }
   ctx->mtime = 0;
   ctx->fsize = 0;
   ctx->results_got++;
@@ -395,8 +401,9 @@ static BOOL state_PATH (struct state_CTX *ctx)
 
   recv_line (ctx);
 
-  if (sscanf(ctx->rx_ptr, "PATH %256s", ctx->path) == 1)
+  if (!strncmp(ctx->rx_ptr, "PATH ", 5))
   {
+    _strlcpy (ctx->path, ctx->rx_ptr+5, sizeof(ctx->path));
     ETP_tracef (ctx, "path: %s", ctx->path);
     return (TRUE);
   }
@@ -414,14 +421,16 @@ static BOOL state_PATH (struct state_CTX *ctx)
     return (TRUE);
   }
 
-  if (sscanf(ctx->rx_ptr, "FILE %256s", file) == 1)
+  if (!strncmp(ctx->rx_ptr, "FILE ", 5))
   {
+    _strlcpy (file, ctx->rx_ptr+5, sizeof(file));
     ETP_tracef (ctx, "file: %s", file);
     return report_file_ept (ctx, file, FALSE);
   }
 
-  if (sscanf(ctx->rx_ptr, "FOLDER %256s", folder) == 1)
+  if (!strncmp(ctx->rx_ptr, "FOLDER ", 7))
   {
+    _strlcpy (folder, ctx->rx_ptr+7, sizeof(folder));
     ETP_tracef (ctx, "folder: %s", folder);
     return report_file_ept (ctx, folder, TRUE);
   }
@@ -484,7 +493,7 @@ static BOOL state_closing (struct state_CTX *ctx)
   closesocket (ctx->sock);
   ctx->sock = INVALID_SOCKET;
 
-  if (ctx->results_expected > 0 && ctx->results_got != ctx->results_expected)
+  if (ctx->results_expected > 0 && ctx->results_got < ctx->results_expected)
      WARN ("Expected %u results, but received only %u.\n", ctx->results_expected, ctx->results_got);
   return (FALSE);   /* quit the state machine */
 }
@@ -701,7 +710,7 @@ static int ftp_state_machine (const char *host, WORD port,
   ctx.password = password;
   SM_run (&ctx);
   SM_exit (&ctx);
-  return (ctx.results_got);
+  return (ctx.results_got - ctx.results_ignore);
 }
 
 /*
