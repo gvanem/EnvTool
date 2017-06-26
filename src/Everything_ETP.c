@@ -752,19 +752,18 @@ static const char *ETP_tracef (struct state_CTX *ctx, const char *fmt, ...)
  */
 static const char *ETP_state_name (ETP_state f)
 {
-  #define ADD_VALUE(f)  { (unsigned)(size_t)&f, #f }
-  static const struct search_list functions[] = {
-                                  ADD_VALUE (state_resolve),
-                                  ADD_VALUE (state_connect),
-                                  ADD_VALUE (state_send_login),
-                                  ADD_VALUE (state_send_pass),
-                                  ADD_VALUE (state_200),
-                                  ADD_VALUE (state_closing),
-                                  ADD_VALUE (state_send_query),
-                                  ADD_VALUE (state_RESULT_COUNT),
-                                  ADD_VALUE (state_PATH)
-                                };
-  return list_lookup_name ((unsigned)(size_t)f, functions, DIM(functions));
+  #define IF_VALUE(_f) if (f == _f) return (#_f)
+
+  IF_VALUE (state_resolve);
+  IF_VALUE (state_connect);
+  IF_VALUE (state_send_login);
+  IF_VALUE (state_send_pass);
+  IF_VALUE (state_200);
+  IF_VALUE (state_closing);
+  IF_VALUE (state_send_query);
+  IF_VALUE (state_RESULT_COUNT);
+  IF_VALUE (state_PATH);
+  return ("?");
 }
 
 /*
