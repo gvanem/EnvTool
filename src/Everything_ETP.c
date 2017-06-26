@@ -54,7 +54,6 @@ struct state_CTX {
        char               rx_buf [500];
        char              *rx_ptr;
        char               tx_buf [500];
-       const char        *search_spec;
        char               trace_buf [1000];
        char              *trace_ptr;
        size_t             trace_left;
@@ -346,7 +345,8 @@ static char *recv_line (struct state_CTX *ctx)
 }
 
 /*
- * Send a command to the server side.
+ * Send a single-line command to the server side.
+ * No "\r\n"; it will be added here.
  */
 static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
 {
@@ -502,8 +502,8 @@ static BOOL state_send_query (struct state_CTX *ctx)
   send_cmd (ctx, "EVERYTHING REGEX 1");
 
   if (opt.use_regex)
-       send_cmd (ctx, "EVERYTHING SEARCH %s", ctx->search_spec);
-  else send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(ctx->search_spec));
+       send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
+  else send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(opt.file_spec));
 
   send_cmd (ctx, "EVERYTHING PATH_COLUMN 1");
   send_cmd (ctx, "EVERYTHING SIZE_COLUMN 1");
@@ -549,6 +549,11 @@ static BOOL state_send_login (struct state_CTX *ctx)
   return (TRUE);
 }
 
+/*
+ * We're prepared to send a password. But if server replies with
+ * "230 Logged on", we know it ignores passwords (dangerous!).
+ * So proceed to 'state_send_query' state.
+ */
 static BOOL state_send_pass (struct state_CTX *ctx)
 {
   recv_line (ctx);
@@ -556,8 +561,8 @@ static BOOL state_send_pass (struct state_CTX *ctx)
   if (!strcmp(ctx->rx_ptr,"230 Logged on."))
        ctx->state = state_send_query;  /* ETP server ignores passwords */
   else if (send_cmd(ctx, "PASS %s", ctx->password) < 0)
-       ctx->state = state_closing;
-  else ctx->state = state_send_query;
+       ctx->state = state_closing;     /* Transmit failed; close */
+  else ctx->state = state_send_query;  /* "PASS" sent okay, proceed to 'state_send_query' */
   return (TRUE);
 }
 
@@ -683,19 +688,17 @@ static void SM_run (struct state_CTX *ctx)
 }
 
 static int ftp_state_machine (const char *host, WORD port,
-                              const char *user, const char *password,
-                              const char *spec)
+                              const char *user, const char *password)
 {
   struct state_CTX ctx;
 
   if (!SM_init(&ctx, state_resolve))
      return (0);
 
-  ctx.host        = host;
-  ctx.port        = port;
-  ctx.user        = user;
-  ctx.password    = password;
-  ctx.search_spec = spec;
+  ctx.host     = host;
+  ctx.port     = port;
+  ctx.user     = user;
+  ctx.password = password;
   SM_run (&ctx);
   SM_exit (&ctx);
   return (ctx.results_got);
@@ -781,8 +784,8 @@ static time_t FILETIME_to_time_t (const FILETIME *ft)
 
 /*
  * Called from envtool.c:
- *   if 'opt.evry_host != NULL, this function gets called instead of
- *   'do_check_evry()' which only searches for local results.
+ *   if 'opt.evry_host != NULL', this function gets called instead of
+ *   'do_check_evry()' (which only searches for local results).
  */
 int do_check_evry_ept (void)
 {
@@ -802,7 +805,7 @@ int do_check_evry_ept (void)
 
   netrc_init();
   netrc_lookup (host_addr, &user, &passw);
-  rc = ftp_state_machine (host_addr, port, user, passw, opt.file_spec);
+  rc = ftp_state_machine (host_addr, port, user, passw);
   netrc_exit();
   return (rc);
 }
