@@ -709,6 +709,18 @@ static void sort_reg_array (int num)
      DEBUGF (3, "%2d: FQDN: %s%c%s.\n", i, reg_array[i].path, slash, reg_array[i].real_fname);
 }
 
+static void free_reg_array (void)
+{
+  struct registry_array *arr;
+
+  for (arr = reg_array; arr->fname; arr++)
+  {
+    FREE (arr->fname);
+    FREE (arr->real_fname);
+    FREE (arr->path);
+  }
+}
+
 /*
  * Parses an environment string and returns all components as an array of
  * 'struct directory_array' pointing into the global 'dir_array[]'.
@@ -1132,12 +1144,15 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   }
   else if (key == HKEY_MAN_FILE)
   {
-    if (check_if_gzip(file))
-    {
-      const char *link = get_gzip_link (file);
+    const char *link = get_man_link (file);
 
-      if (link)
-         C_printf (" (%s)", link);
+    if (link)
+    {
+      C_printf (" (%s)", link);
+    }
+    else if (check_if_gzip(file) && (link = get_gzip_link(file)) != NULL)
+    {
+      C_printf (" (%s)", link);
     }
   }
 
@@ -1568,13 +1583,7 @@ static int report_registry (const char *reg_key, int num)
       }
     }
   }
-
-  for (arr = reg_array; arr->fname; arr++)
-  {
-    FREE (arr->fname);
-    FREE (arr->real_fname);
-    FREE (arr->path);
-  }
+  free_reg_array();
   return (found);
 }
 

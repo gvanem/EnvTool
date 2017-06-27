@@ -248,6 +248,41 @@ const char *get_gzip_link (const char *file)
 }
 
 /*
+ * Open a raw MAN-file and check if first line contains a
+ * ".so real-file-name". This is typical for CygWin man-pages.
+ * Return result as "<dir_name>/real-file-name". Which is just an
+ * assumption; the "real-file-name" can be anywhere on %MANPATH%.
+ */
+const char *get_man_link (const char *file)
+{
+  char  buf [_MAX_PATH];
+  FILE *f = fopen (file, "r");
+
+  if (!f)
+     return (NULL);
+
+  memset (buf, '\0', sizeof(buf));
+  if (fread(&buf,1,sizeof(buf),f) > 0 && !strncmp(buf,".so ",4))
+  {
+    static char fqfn_name [_MAX_PATH];
+    char       *dir_name = dirname (file);
+    const char *base = basename (strip_nl(buf+4));
+
+    fclose (f);
+    DEBUG_NL (1);
+    DEBUGF (1, "get_man_link: \"%s\", dir_name: \"%s\".\n", base, dir_name);
+    snprintf (fqfn_name, sizeof(fqfn_name), "%s%c%s", dir_name, DIR_SEP, base);
+    FREE (dir_name);
+    if (opt.show_unix_paths)
+       return slashify (fqfn_name, '/');
+    return (fqfn_name);
+  }
+
+  fclose (f);
+  return (NULL);
+}
+
+/*
  * Open a fname, read the optional header in PE-header.
  *  - For verifying it's signature.
  *  - Showing the version information (if any) in it's resources.

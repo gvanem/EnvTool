@@ -438,6 +438,7 @@ extern void        get_PE_version_info_free (void);
 extern int         check_if_zip (const char *fname);
 extern int         check_if_gzip (const char *fname);
 extern const char *get_gzip_link (const char *file);
+extern const char *get_man_link (const char *file);
 extern int         check_if_PE (const char *fname, enum Bitness *bits);
 extern int         verify_PE_checksum (const char *fname);
 extern BOOL        is_wow64_active (void);
