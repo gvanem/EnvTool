@@ -82,10 +82,10 @@ static BOOL state_connect      (struct state_CTX *ctx);
 static time_t FILETIME_to_time_t (const FILETIME *ft);
 
 struct netrc_info {
-       BOOL        is_default;
-       const char *host;
-       const char *user;
-       const char *passw;
+       BOOL  is_default;
+       char *host;
+       char *user;
+       char *passw;
      };
 
 static smartlist_t *netrc;

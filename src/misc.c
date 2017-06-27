@@ -68,14 +68,14 @@ struct mem_head {
 static struct mem_head *mem_list = NULL;
 
 #if !defined(_CRTDBG_MAP_ALLOC)
-  static DWORD  mem_max         = 0;  /* Max bytes allocated at one time */
-  static DWORD  mem_allocated   = 0;  /* Total bytes allocated */
-  static DWORD  mem_deallocated = 0;  /* Bytes deallocated */
-  static size_t mem_reallocs    = 0;  /* # of realloc() */
+  static size_t mem_reallocs = 0;  /* # of realloc() */
 #endif
 
-static size_t mem_allocs = 0;      /* # of allocations */
-static size_t mem_frees  = 0;      /* # of mem-frees */
+static DWORD  mem_max         = 0;  /* Max bytes allocated at one time */
+static DWORD  mem_allocated   = 0;  /* Total bytes allocated */
+static DWORD  mem_deallocated = 0;  /* Bytes deallocated */
+static size_t mem_allocs      = 0;  /* # of allocations */
+static size_t mem_frees       = 0;  /* # of mem-frees */
 
 static void add_to_mem_list (struct mem_head *m, const char *file, unsigned line)
 {
