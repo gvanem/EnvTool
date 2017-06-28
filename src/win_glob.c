@@ -74,7 +74,7 @@ static int     show_full_path;
  * For fnmatch() used in the walker_func callback.
  */
 static const char *global_spec, *orig_spec, *dot_spec;
-static int         fn_flags = FNM_FLAG_NOCASE | FNM_FLAG_NOESCAPE | FNM_FLAG_PATHNAME;
+static int         fn_flags;
 static int         glob_flags;
 
 typedef int (*walker_func) (const char *path, const struct ffblk *ff);
@@ -564,8 +564,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
         (strcmp(ff.ff_name, ".") && strcmp(ff.ff_name, "..")))
     {
       if (fnmatch(my_pattern, ff.ff_name,
-                  FNM_FLAG_NOESCAPE | FNM_FLAG_PATHNAME |
-                  FNM_FLAG_NOCASE) == FNM_MATCH)
+                  fnmatch_case(FNM_FLAG_NOESCAPE | FNM_FLAG_PATHNAME)) == FNM_MATCH)
       {
         strcpy (bp, ff.ff_name);
         if (*pslash)
@@ -707,9 +706,9 @@ char  *program_name = "win_glob";
 
 void usage (void)
 {
-  printf ("Usage: win_glob [-dfu] <file_spec>\n"
+  printf ("Usage: win_glob [-dCfgrux] <file_spec>\n"
           "       -d:  debug-level.\n"
-          "       -c:  case-sensitive file-matching.\n"
+          "       -C:  case-sensitive file-matching.\n"
           "       -f:  use _fix_path() to show full paths.\n"
           "       -g:  use glob().\n"
           "       -r:  be recursive\n"
@@ -960,14 +959,14 @@ int main (int argc, char **argv)
   show_full_path = 0;
   global_slash = '\\';
 
-  while ((ch = getopt(argc, argv, "dcfgruxh?")) != EOF)
+  while ((ch = getopt(argc, argv, "dCfgruxh?")) != EOF)
      switch (ch)
      {
        case 'd':
             opt.debug++;
             break;
-       case 'c':
-            fn_flags &= ~FNM_FLAG_NOCASE;
+       case 'C':
+            opt.case_sensitive = 1;
             break;
        case 'f':
             show_full_path = 1;
@@ -993,6 +992,7 @@ int main (int argc, char **argv)
 
   argc -= optind;
   argv += optind;
+  fn_flags = fnmatch_case (FNM_FLAG_NOESCAPE | FNM_FLAG_PATHNAME);
 
   if (argc-- < 1 || *argv == NULL)
      usage();

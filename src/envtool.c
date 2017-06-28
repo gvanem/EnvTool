@@ -425,6 +425,7 @@ static int show_help (void)
             "    ~6--64~0:           tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
             "                    report only 64-bit PE-files with ~6--pe~0 option.\n"
             "    ~6-c~0:             don't add current directory to search-lists.\n"
+            "    ~6-C~0:             be case-sensitive.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
             "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n"
             "    ~6-H~0, ~6--host~0:     hostname/IPv4-address for remote FTP ~6--evry~0 searches.\n"
@@ -471,6 +472,39 @@ static int show_help (void)
 }
 
 /*
+ * Comparisions of file-names:
+ * Use 'strnicmp()' or 'strncmp()' depending on 'opt.case_sensitive'.
+ */
+static int strequal_n (const char *s1, const char *s2, size_t len)
+{
+  if (opt.case_sensitive)
+  {
+    int rc = strncmp (s1, s2, len);
+
+    if (rc && opt.debug >= 4 && !strnicmp(s1, s2, len))
+       DEBUGF (4, "string matches except in case: '%s' vs '%s'\n", s1, s2);
+    return (rc);
+  }
+  return strnicmp (s1, s2, len);
+}
+
+/*
+ * Ditto for 'strcmp()' and 'stricmp()'.
+ */
+static int strequal (const char *s1, const char *s2)
+{
+  if (opt.case_sensitive)
+  {
+    int rc = strcmp (s1, s2);
+
+    if (rc && opt.debug >= 4 && !stricmp(s1, s2))
+       DEBUGF (4, "string matches except in case: '%s' vs '%s'\n", s1, s2);
+    return (rc);
+  }
+  return stricmp (s1, s2);
+}
+
+/*
  * Add the 'dir' to 'dir_array[]' at index 'i'.
  * 'is_cwd' == 1 if 'dir == cwd'.
  *
@@ -510,7 +544,7 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
 
   /* Can we have >1 native dirs?
    */
-  d->is_native = (stricmp(dir,sys_native_dir) == 0);
+  d->is_native = (strequal(dir,sys_native_dir) == 0);
 
 #if (IS_WIN64)
   if (d->is_native && !d->exist)  /* No access to this directory from WIN64; ignore */
@@ -540,7 +574,7 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
      return;
 
   for (j = 0; j < i; j++)
-      if (!stricmp(dir,dir_array[j].dir))
+      if (!strequal(dir,dir_array[j].dir))
          d->num_dup++;
 }
 
@@ -564,7 +598,7 @@ static int equal_dir_array (const struct directory_array *a,
 {
   if (!a->dir || !b->dir)
      return (0);
-  return (stricmp(a->dir,b->dir) == 0);
+  return (strequal(a->dir,b->dir) == 0);
 }
 
 /*
@@ -691,7 +725,7 @@ static int reg_array_compare (const struct registry_array *a,
   snprintf (fqdn_a, sizeof(fqdn_a), "%s%c%s", slashify(a->path, slash), slash, a->real_fname);
   snprintf (fqdn_b, sizeof(fqdn_b), "%s%c%s", slashify(b->path, slash), slash, b->real_fname);
 
-  return stricmp (fqdn_a, fqdn_b);
+  return strequal (fqdn_a, fqdn_b);
 }
 
 static void sort_reg_array (int num)
@@ -818,7 +852,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
                tok, env_name);
       tok = current_dir;
     }
-    else if (opt.conv_cygdrive && strlen(tok) >= 12 && !strnicmp(tok,"/cygdrive/",10))
+    else if (opt.conv_cygdrive && strlen(tok) >= 12 && !strequal_n(tok,"/cygdrive/",10))
     {
       char buf [_MAX_PATH];
 
@@ -827,7 +861,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
       tok = buf;
     }
 
-    add_to_dir_array (tok, i, !stricmp(tok,current_dir), __LINE__);
+    add_to_dir_array (tok, i, !strequal(tok,current_dir), __LINE__);
 
     tok = strtok (NULL, sep);
   }
@@ -1059,7 +1093,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
      * don't set 'found_everything_db_dirty=1' when we don't 'have_sys_native_dir'.
      */
     if (mtime == 0 &&
-        (!have_sys_native_dir || !strnicmp(file,sys_native_dir,strlen(sys_native_dir))))
+        (!have_sys_native_dir || !strequal_n(file,sys_native_dir,strlen(sys_native_dir))))
        have_it = FALSE;
 #endif
     if (is_dir)
@@ -1575,7 +1609,7 @@ static int report_registry (const char *reg_key, int num)
     }
     else
     {
-      match = fnmatch (opt.file_spec, arr->fname, FNM_FLAG_NOCASE);
+      match = fnmatch (opt.file_spec, arr->fname, fnmatch_case(0));
       if (match == FNM_MATCH)
       {
         if (report_file(fqdn, arr->mtime, arr->fsize, FALSE, FALSE, arr->key))
@@ -1684,7 +1718,7 @@ int process_dir (const char *path, int num_dup, BOOL exist,
     is_junction = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0);
 
     file  = slashify (fqfn, DIR_SEP);
-    match = fnmatch (opt.file_spec, base, FNM_FLAG_NOCASE | FNM_FLAG_NOESCAPE);
+    match = fnmatch (opt.file_spec, base, fnmatch_case(0) | FNM_FLAG_NOESCAPE);
 
 #if 0
     if (match == FNM_NOMATCH && strchr(opt.file_spec,'~'))
@@ -1703,7 +1737,7 @@ int process_dir (const char *path, int num_dup, BOOL exist,
        *      this as a match.
        */
       if (!is_dir && !opt.dir_mode && !opt.man_mode &&
-          !strnicmp(base,opt.file_spec,strlen(base)))
+          !strequal_n(base,opt.file_spec,strlen(base)))
          match = FNM_MATCH;
     }
 
@@ -1781,7 +1815,7 @@ static void check_sys_dirs (void)
 static const char *get_sysnative_file (const char *file, time_t *mtime_p, UINT64 *fsize_p)
 {
 #if (IS_WIN64 == 0)
-  if (!strnicmp(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
+  if (!strequal_n(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
   {
     static char shadow [_MAX_PATH];
     struct stat st;
@@ -1912,7 +1946,7 @@ static int do_check_evry (void)
   DEBUGF (1, "Everything_SetSearch (\"%s\").\n", query);
 
   Everything_SetSearchA (query);
-  Everything_SetMatchCase (0);       /* Ignore case of matches */
+  Everything_SetMatchCase (opt.case_sensitive);
   Everything_QueryA (TRUE);
 
   FREE (dir);
@@ -2063,7 +2097,7 @@ static int do_check_manpath (void)
       continue;
     }
 #if 0
-    if (!stricmp(arr->dir,current_dir))
+    if (!strequal(arr->dir,current_dir))
     {
       DEBUGF (2, "Checking in current_dir '%s'\n", current_dir);
 
@@ -2895,6 +2929,9 @@ static void set_short_option (int o, const char *arg)
     case 'c':
          opt.add_cwd = 0;
          break;
+    case 'C':
+         opt.case_sensitive = 1;
+         break;
     case 'r':
          opt.use_regex = 1;
          break;
@@ -3012,7 +3049,7 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   while (1)
   {
     int opt_index = 0;
-    int c = getopt_long (argc, argv, "chH:vVdDrstTuq", long_options, &opt_index);
+    int c = getopt_long (argc, argv, "cChH:vVdDrstTuq", long_options, &opt_index);
 
     if (c == 0)
        set_long_option (opt_index, optarg);
@@ -3472,7 +3509,7 @@ void test_posix_to_win_cygwin (void)
 
     raw = C_setraw (1);  /* In case result contains a "~". */
 
-    file = slashify (_fix_drive(result), opt.show_unix_paths ? '/' : '\\');
+    file = slashify (result, opt.show_unix_paths ? '/' : '\\');
     C_printf ("    %-20s -> %s\n", cyg_paths[i], file);
     C_setraw (raw);
   }
@@ -3560,7 +3597,7 @@ struct test_table2 {
        int         flags;
      };
 
-static struct test_table2 tab2[] = {
+static const struct test_table2 tab2[] = {
          /* 0 */  { FNM_MATCH,   "bar*",         "barney.txt",     0 },
          /* 1 */  { FNM_MATCH,   "Bar*",         "barney.txt",     0 },
          /* 2 */  { FNM_MATCH,   "foo/Bar*",     "foo/barney.txt", 0 },
@@ -3575,27 +3612,29 @@ static struct test_table2 tab2[] = {
 
 /*
  * Tests for fnmatch().
+ * 'test_table::expect' does not work with 'opt.case_sensitive'.
+ * I.e. 'envtool --test -C'.
  */
 static void test_fnmatch (void)
 {
-  struct test_table2 *t;
+  const struct test_table2 *t;
   size_t len1, len2;
-  int    rc, i = 0;
+  int    rc, flags, i = 0;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   for (t = tab2; i < DIM(tab2); t++, i++)
   {
-    t->flags |= FNM_FLAG_NOCASE;
-    rc   = fnmatch (t->pattern, t->fname, t->flags);
-    len1 = strlen (t->pattern);
-    len2 = strlen (t->fname);
+    flags = fnmatch_case (t->flags);
+    rc    = fnmatch (t->pattern, t->fname, flags);
+    len1  = strlen (t->pattern);
+    len2  = strlen (t->fname);
 
     C_puts (rc == t->expect ? "~2  OK  ~0" : "~5  FAIL~0");
 
     C_printf (" fnmatch (\"%s\", %*s \"%s\", %*s 0x%02X): %s\n",
               t->pattern, (int)(15-len1), "", t->fname, (int)(15-len2), "",
-              t->flags, fnmatch_res(rc));
+              flags, fnmatch_res(rc));
   }
   C_putc ('\n');
 }
@@ -3791,18 +3830,18 @@ static void test_SHGetFolderPath (void)
 
   for (i = 0; i < DIM(sh_folders); i++)
   {
-    char                      buf [_MAX_PATH];
+    char                      buf [_MAX_PATH], *p = buf;
     const struct search_list *folder   = sh_folders + i;
     const char               *flag_str = opt.verbose ? "SHGFP_TYPE_CURRENT" : "SHGFP_TYPE_DEFAULT";
     DWORD                     flag     = opt.verbose ?  SHGFP_TYPE_CURRENT  :  SHGFP_TYPE_DEFAULT;
     HRESULT                   rc       = SHGetFolderPath (NULL, folder->value, NULL, flag, buf);
 
     if (rc == S_OK)
-         _fix_drive (buf);
+         p = slashify (buf, opt.show_unix_paths ? '/' : '\\');
     else snprintf (buf, sizeof(buf), "~5Failed: %s", win_strerror(rc));
 
     C_printf ("  ~3SHGetFolderPath~0 (~6%s~0, ~6%s~0):\n    ~2%s~0\n",
-              folder->name, flag_str, buf);
+              folder->name, flag_str, p);
   }
   C_putc ('\n');
 }
@@ -3847,7 +3886,7 @@ static void test_ReparsePoints (void)
 
     if (!rc)
          C_printf (" ~5%s~0%s\n", last_reparse_err, st_result);
-    else C_printf (" \"%s\"%s\n", _fix_drive(result), st_result);
+    else C_printf (" \"%s\"%s\n", slashify(result, opt.show_unix_paths ? '/' : '\\'), st_result);
   }
   C_putc ('\n');
 }

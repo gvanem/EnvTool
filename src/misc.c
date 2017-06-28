@@ -658,6 +658,13 @@ static const char *range_match (const char *pattern, char test, int nocase)
   return (ok == negate ? NULL : pattern);
 }
 
+int fnmatch_case (int flags)
+{
+  if (opt.case_sensitive == 0)
+     return (flags | FNM_FLAG_NOCASE);
+  return (flags);
+}
+
 int fnmatch (const char *pattern, const char *string, int flags)
 {
   char c, test;
@@ -713,7 +720,7 @@ int fnmatch (const char *pattern, const char *string, int flags)
            test = *string++;
            if (!test || (IS_SLASH(test) && (flags & FNM_FLAG_PATHNAME)))
               return (FNM_NOMATCH);
-           pattern = range_match (pattern, test, flags & FNM_FLAG_NOCASE);
+           pattern = range_match (pattern, test, fnmatch_case(flags));
            if (!pattern)
               return (FNM_NOMATCH);
            break;
@@ -1245,7 +1252,7 @@ char *slashify (const char *path, char use)
     ASSERT (s < buf + sizeof(buf));
   }
   *s = '\0';
-  return (buf);
+  return _fix_drive (buf);
 }
 
 /*

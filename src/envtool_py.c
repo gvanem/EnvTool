@@ -938,7 +938,12 @@ static int get_zip_output (char *str, int index)
           "  base = os.path.basename (f.filename)\n"                                  \
           "  if debug >= 3:\n"                                                        \
           "    trace ('egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"         \
-          "  if fnmatch.fnmatch(base, '%s'):\n"     /* opt.file_spec */               \
+          "  if (%d):\n"                            /* opt.case_sensitive */          \
+          "    match = fnmatch.fnmatchcase\n"                                         \
+          "  else:\n"                                                                 \
+          "    match = fnmatch.fnmatch\n"                                             \
+          "\n"                                                                        \
+          "  if match(base, '%s'):\n"               /* opt.file_spec */               \
           "    date = \"%%4d%%02d%%02d\"  %% (f.date_time[0:3])\n"                    \
           "    time = \"%%02d%%02d%%02d\" %% (f.date_time[3:6])\n"                    \
           "    str = \"%%d %%s.%%s %%s\"  %% (f.file_size, date, time, f.filename)\n" \
@@ -961,7 +966,8 @@ static int process_zip (struct python_info *py, const char *zfile)
 
   if (py->is_embeddable)
   {
-    len = snprintf (cmd, sizeof(cmd), PY_ZIP_LIST, opt.file_spec, zfile, opt.debug);
+    len = snprintf (cmd, sizeof(cmd), PY_ZIP_LIST,
+                    opt.case_sensitive, opt.file_spec, zfile, opt.debug);
     str = call_python_func (py, cmd);
     DEBUGF (2, "cmd-len: %d, Python output: \"%s\"\n", len, str);
   }

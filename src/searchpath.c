@@ -45,9 +45,8 @@ typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_nam
  *        searchpath ("SWAPFILE.SYS", "c:\\") would simply return
  *        "C:\SWAPFILE.SYS".
  */
-char *searchpath (const char *file, const char *env_var)
+static char *searchpath_internal (const char *file, const char *env_var, char *found)
 {
-  static char found[_MAX_PATH];
   char   *p, *path, *test_dir;
   size_t  alloc;
   int     save_debug = opt.debug;
@@ -116,8 +115,6 @@ char *searchpath (const char *file, const char *env_var)
     {
       char lname [FILENAME_MAX];
 
-      if (*s == '\\' && opt.show_unix_paths)
-         *s = '/';
       if (s == name_start)
          continue;
 
@@ -159,8 +156,8 @@ char *searchpath (const char *file, const char *env_var)
     }
     else
     {
-      /* Relative file name: add "./".  */
-      strcpy (found, opt.show_unix_paths ? "./" : ".\\");
+      /* Relative file name: add ".\\".  */
+      strcpy (found, ".\\");
       strcat (found, file);
     }
     FREE (p);
@@ -187,7 +184,7 @@ char *searchpath (const char *file, const char *env_var)
     else
     {
       strncpy (found, test_dir, dp - test_dir);
-      found [dp-test_dir] = opt.show_unix_paths ? '/' : '\\';
+      found [dp-test_dir] = '\\';
       strcpy (found + (dp - test_dir) + 1, file);
     }
 
@@ -216,6 +213,15 @@ char *searchpath (const char *file, const char *env_var)
    */
   last_pos = -1;
   errno = ENOENT;
+  return (NULL);
+}
+
+char *searchpath (const char *file, const char *env_var)
+{
+  char found [_MAX_PATH], *s = searchpath_internal (file, env_var, found);
+
+  if (s)
+     return slashify (s, opt.show_unix_paths ? '/' : '\\');
   return (NULL);
 }
 

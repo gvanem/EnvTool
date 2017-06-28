@@ -734,7 +734,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
            namelist[i]->d_link = _fix_drive (result);
       }
 
-      if (fnmatch(opts->pattern,basename(de->d_name),FNM_FLAG_NOCASE|FNM_FLAG_PATHNAME) == FNM_MATCH)
+      if (fnmatch(opts->pattern,basename(de->d_name),fnmatch_case(FNM_FLAG_PATHNAME)) == FNM_MATCH)
          print_de (de, i);
 
       if (opts->recursive && (is_dir || is_junction))

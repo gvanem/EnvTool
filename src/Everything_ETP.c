@@ -509,6 +509,7 @@ static BOOL state_send_query (struct state_CTX *ctx)
    * 'opt.use_regex == 0'.
    */
   send_cmd (ctx, "EVERYTHING REGEX 1");
+  send_cmd (ctx, "EVERYTHING CASE %d", opt.case_sensitive);
 
   if (opt.use_regex)
        send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);

@@ -312,6 +312,7 @@ struct prog_options {
        int   do_cmake;
        int   do_pkg;
        int   conv_cygdrive;
+       int   case_sensitive;
        char *evry_host;
        char *file_spec;
        char *file_spec_re;
@@ -506,8 +507,9 @@ int popen_runf (popen_callback callback, const char *fmt, ...);
 #define FNM_FLAG_PATHNAME  0x02
 #define FNM_FLAG_NOCASE    0x04
 
-extern int   fnmatch     (const char *pattern, const char *string, int flags);
-extern char *fnmatch_res (int rc);
+extern int   fnmatch      (const char *pattern, const char *string, int flags);
+extern int   fnmatch_case (int flags);
+extern char *fnmatch_res  (int rc);
 
 /* Handy macros:
  */
