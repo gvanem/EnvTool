@@ -804,7 +804,7 @@ char *dirname (const char *fname)
   if (!fname)
      return (NULL);
 
-  if (*fname && fname[1] == ':')
+  if (fname[0] && fname[1] == ':')
   {
     slash = fname + 1;
     p += 2;
