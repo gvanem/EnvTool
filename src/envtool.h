@@ -294,7 +294,6 @@ struct prog_options {
        int   dir_mode;
        int   man_mode;
        int   PE_check;
-       int   do_tests;
        int   help;
        int   show_size;
        int   only_32bit;
@@ -302,6 +301,7 @@ struct prog_options {
        int   gcc_no_prefixed;
        int   no_gcc;
        int   no_gpp;
+       int   do_tests;
        int   do_evry;
        int   do_version;
        int   do_path;
