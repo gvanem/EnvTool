@@ -551,7 +551,7 @@ static BOOL state_send_login (struct state_CTX *ctx)
   else
   {
     rc = send_cmd (ctx, "USER");
-    ctx->state = state_send_query;
+    ctx->state = state_await_login;
   }
 
   /* Ignore the "220 Welcome to Everything..." message.
@@ -573,7 +573,7 @@ static BOOL state_await_login (struct state_CTX *ctx)
 {
   recv_line (ctx);
 
-  /* 230: Server accepted our password.
+  /* 230: Server accepted our login.
    */
   if (!strncmp(ctx->rx_ptr,"230",3))
      ctx->state = state_send_query;
@@ -581,8 +581,11 @@ static BOOL state_await_login (struct state_CTX *ctx)
   {
     /* Any 5xx message is fatal here; close.
      */
-    WARN ("Wrong password for USER %s.\n", ctx->user);
-    ETP_tracef (ctx, "Wrong password for USER %s.\n", ctx->user);
+    char buf[100];
+
+    snprintf (buf, sizeof(buf), "Failed to login; USER %s.\n", ctx->user);
+    WARN (buf);
+    ETP_tracef (ctx, buf);
     ctx->state = state_closing;
   }
   return (TRUE);
