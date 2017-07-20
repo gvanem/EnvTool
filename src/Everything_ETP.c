@@ -51,6 +51,7 @@ struct state_CTX {
        WORD               port;
        const char        *user;
        const char        *password;
+       DWORD              timeout;
        char               rx_buf [500];
        char              *rx_ptr;
        char               tx_buf [500];
@@ -72,6 +73,7 @@ static const char *ETP_tracef (struct state_CTX *ctx, const char *fmt, ...);
 static const char *ETP_state_name (ETP_state f);
 
 static BOOL state_send_pass    (struct state_CTX *ctx);
+static BOOL state_await_login  (struct state_CTX *ctx);
 static BOOL state_200          (struct state_CTX *ctx);
 static BOOL state_RESULT_COUNT (struct state_CTX *ctx);
 static BOOL state_PATH         (struct state_CTX *ctx);
@@ -132,7 +134,7 @@ static BOOL netrc_parse_line (const char *line)
  * Get the path to the ".netrc" file, parse it and append entries to the
  * 'netrc' smartlist.
  */
-void netrc_init (void)
+int netrc_init (void)
 {
   char    home [_MAX_PATH];
   char    file [_MAX_PATH];
@@ -149,18 +151,18 @@ void netrc_init (void)
   else
   {
     WARN ("Failed to find the APPDATA-folder. Authenticated logins will not work.\n");
-    return;
+    return (0);
   }
 
   if (!FILE_EXISTS(file))
   {
     WARN ("\"%s\" does not exist. Authenticated logins will not work.\n", file);
-    return;
+    return (0);
   }
   if (!f)
   {
     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", file);
-    return;
+    return (0);
   }
 
   netrc = smartlist_new();
@@ -179,6 +181,7 @@ void netrc_init (void)
        netrc_parse_line (buf);
   }
   fclose (f);
+  return (1);
 }
 
 /*
@@ -210,7 +213,7 @@ void netrc_exit (void)
 static const struct netrc_info *_netrc_lookup (const char *host)
 {
   const struct netrc_info *def_ni = NULL;
-  int i, max;
+  int   i, max;
 
   if (!netrc)
      return (NULL);
@@ -490,7 +493,8 @@ static BOOL state_200 (struct state_CTX *ctx)
 static BOOL state_closing (struct state_CTX *ctx)
 {
   ETP_tracef (ctx, "closesocket()");
-  closesocket (ctx->sock);
+  if (ctx->sock != INVALID_SOCKET)
+     closesocket (ctx->sock);
   ctx->sock = INVALID_SOCKET;
 
   if (ctx->results_expected > 0 && ctx->results_got < ctx->results_expected)
@@ -560,6 +564,31 @@ static BOOL state_send_login (struct state_CTX *ctx)
 }
 
 /*
+ * We sent the USER/PASS commands.
+ * Await the "230 Logged on" message and enter 'state_send_query'.
+ * If server replies with a "530" message ("Login or password incorrect"),
+ * enter 'state_closing'.
+ */
+static BOOL state_await_login (struct state_CTX *ctx)
+{
+  recv_line (ctx);
+
+  /* 230: Server accepted our password.
+   */
+  if (!strncmp(ctx->rx_ptr,"230",3))
+     ctx->state = state_send_query;
+  else
+  {
+    /* Any 5xx message is fatal here; close.
+     */
+    WARN ("Wrong password for USER %s.\n", ctx->user);
+    ETP_tracef (ctx, "Wrong password for USER %s.\n", ctx->user);
+    ctx->state = state_closing;
+  }
+  return (TRUE);
+}
+
+/*
  * We're prepared to send a password. But if server replies with
  * "230 Logged on", we know it ignores passwords (dangerous!).
  * So proceed to 'state_send_query' state.
@@ -569,10 +598,10 @@ static BOOL state_send_pass (struct state_CTX *ctx)
   recv_line (ctx);
 
   if (!strcmp(ctx->rx_ptr,"230 Logged on."))
-       ctx->state = state_send_query;  /* ETP server ignores passwords */
+       ctx->state = state_send_query;   /* ETP server ignores passwords */
   else if (send_cmd(ctx, "PASS %s", ctx->password) < 0)
-       ctx->state = state_closing;     /* Transmit failed; close */
-  else ctx->state = state_send_query;  /* "PASS" sent okay, proceed to 'state_send_query' */
+       ctx->state = state_closing;      /* Transmit failed; close */
+  else ctx->state = state_await_login;  /* "PASS" sent okay, await loging confirmation */
   return (TRUE);
 }
 
@@ -619,12 +648,19 @@ static BOOL state_resolve (struct state_CTX *ctx)
  */
 static BOOL state_connect (struct state_CTX *ctx)
 {
-  DWORD timeout = RECV_TIMEOUT;
-
   ctx->sock = socket (AF_INET, SOCK_STREAM, 0);
+  if (ctx->sock == INVALID_SOCKET)
+  {
+    WARN ("Failed to create socket.\n");
+    ETP_tracef (ctx, "Failed to create socket.");
+    ctx->state = state_closing;
+    return (TRUE);
+  }
+
   ctx->sa.sin_family = AF_INET;
   ctx->sa.sin_port   = htons (ctx->port);
-  setsockopt (ctx->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+  setsockopt (ctx->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
+  setsockopt (ctx->sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
 
   if (!opt.quiet)
      C_printf ("Connecting to %s (port %u)...", inet_ntoa(ctx->sa.sin_addr), ctx->port);
@@ -659,6 +695,8 @@ static BOOL SM_init (struct state_CTX *ctx, ETP_state init_state)
   ctx->trace_buf[1] = '\0';
   ctx->trace_ptr    = ctx->trace_buf;
   ctx->trace_left   = sizeof(ctx->trace_buf);
+  ctx->sock         = INVALID_SOCKET;
+  ctx->timeout      = RECV_TIMEOUT;
 
   if (WSAStartup(MAKEWORD(1,1), &wsadata))
   {
@@ -759,6 +797,7 @@ static const char *ETP_state_name (ETP_state f)
   IF_VALUE (state_connect);
   IF_VALUE (state_send_login);
   IF_VALUE (state_send_pass);
+  IF_VALUE (state_await_login);
   IF_VALUE (state_200);
   IF_VALUE (state_closing);
   IF_VALUE (state_send_query);
@@ -791,31 +830,58 @@ static time_t FILETIME_to_time_t (const FILETIME *ft)
   return mktime (&tm);
 }
 
+static char username [30];
+static char password [30];
+static char host_addr [200];
+static int  port = 21;
+
+static int parse_host_spec (const char *host_spec, const char *pattern)
+{
+  int n;
+
+  username[0] = '\0';
+  password[0] = '\0';
+  host_addr[0] = '\0';
+  n = sscanf (host_spec, pattern, username, password, host_addr, &port);
+  DEBUGF (2, "pattern: '%s'\n"
+             "                       n: %d, username: '%s', password: '%s', host_addr: '%s', port: %d\n",
+          pattern, n, username, password, host_addr, port);
+  return (n);
+}
+
 /*
  * Called from envtool.c:
  *   if 'opt.evry_host != NULL', this function gets called instead of
  *   'do_check_evry()' (which only searches for local results).
+ *
+ * Check if 'opt.evry_host' matches one of these formats:
+ *   "user:passwd@host_or_IP-address<:port>".    Both user-name and password.
+ *   "user@host_or_IP-address<:port>".           Only user-name.
  */
 int do_check_evry_ept (void)
 {
-  WORD        port = 21;
-  int         rc;
-  char       *colon, host_addr [200];
-  const char *user  = NULL;
-  const char *passw = NULL;
+  int  rc;
+  BOOL use_netrc = TRUE;
 
-  _strlcpy (host_addr, opt.evry_host, sizeof(host_addr));
-  colon = strchr (host_addr, ':');
-  if (colon)
+  /* Check for "user:passwd@host_or_IP-address<:port>" first, then
+   * check for "user@host_or_IP-address<:port>".
+   */
+  if ((parse_host_spec(opt.evry_host, "%30[^:@]:%30[^:@]@%80[^@:]:%d") >= 3) ||
+      (parse_host_spec(opt.evry_host, "%30[^:@]@%80[^:@]:%d") >= 2))
+     use_netrc = FALSE;
+
+  if (use_netrc)
   {
-    port = atoi (colon+1);
-    *colon = '\0';
-  }
+    const char *user  = NULL;
+    const char *passw = NULL;
 
-  netrc_init();
-  netrc_lookup (host_addr, &user, &passw);
-  rc = ftp_state_machine (host_addr, port, user, passw);
-  netrc_exit();
+    netrc_init();
+    netrc_lookup (opt.evry_host, &user, &passw);
+    rc = ftp_state_machine (opt.evry_host, port, user, passw);
+    netrc_exit();
+  }
+  else
+    rc = ftp_state_machine (host_addr, port, username, password);
   return (rc);
 }
 
