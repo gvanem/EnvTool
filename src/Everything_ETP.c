@@ -620,6 +620,12 @@ static BOOL state_resolve (struct state_CTX *ctx)
 {
   struct hostent *he;
 
+  if (!ctx->host[0])
+  {
+    WARN ("Empty hostname!\n");
+    return (FALSE);   /* quit the state machine */
+  }
+
   memset (&ctx->sa, 0, sizeof(ctx->sa));
   ctx->sa.sin_addr.s_addr = inet_addr (ctx->host);
 
@@ -663,7 +669,6 @@ static BOOL state_connect (struct state_CTX *ctx)
   ctx->sa.sin_family = AF_INET;
   ctx->sa.sin_port   = htons (ctx->port);
   setsockopt (ctx->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
-  setsockopt (ctx->sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
 
   if (!opt.quiet)
      C_printf ("Connecting to %s (port %u)...", inet_ntoa(ctx->sa.sin_addr), ctx->port);
@@ -750,6 +755,12 @@ static int ftp_state_machine (const char *host, WORD port,
   ctx.port     = port;
   ctx.user     = user;
   ctx.password = password;
+
+  DEBUGF (2, "ctx.host:     '%s'\n", ctx.host);
+  DEBUGF (2, "ctx.user:     '%s'\n", ctx.user);
+  DEBUGF (2, "ctx.password: '%s'\n", ctx.password);
+  DEBUGF (2, "ctx.port:      %u\n",  ctx.port);
+
   SM_run (&ctx);
   SM_exit (&ctx);
   return (ctx.results_got - ctx.results_ignore);
@@ -838,16 +849,22 @@ static char password [30];
 static char host_addr [200];
 static int  port = 21;
 
-static int parse_host_spec (const char *host_spec, const char *pattern)
+static int parse_host_spec (const char *pattern, ...)
 {
-  int n;
+  int     n;
+  va_list args;
+
+  va_start (args, pattern);
 
   username[0] = '\0';
   password[0] = '\0';
   host_addr[0] = '\0';
-  n = sscanf (host_spec, pattern, username, password, host_addr, &port);
+
+  n = vsscanf (opt.evry_host, pattern, args);
+  va_end (args);
   DEBUGF (2, "pattern: '%s'\n"
-             "                       n: %d, username: '%s', password: '%s', host_addr: '%s', port: %d\n",
+             "                       n: %d,"
+             " username: '%s', password: '%s', host_addr: '%s', port: %d\n",
           pattern, n, username, password, host_addr, port);
   return (n);
 }
@@ -863,15 +880,31 @@ static int parse_host_spec (const char *host_spec, const char *pattern)
  */
 int do_check_evry_ept (void)
 {
-  int  rc;
+  int  rc, n;
   BOOL use_netrc = TRUE;
 
-  /* Check for "user:passwd@host_or_IP-address<:port>" first, then
-   * check for "user@host_or_IP-address<:port>".
-   */
-  if ((parse_host_spec(opt.evry_host, "%30[^:@]:%30[^:@]@%80[^@:]:%d") >= 3) ||
-      (parse_host_spec(opt.evry_host, "%30[^:@]@%80[^:@]:%d") >= 2))
-     use_netrc = FALSE;
+ /* Check simple case of "host_or_IP-address<:port>" first.
+  */
+  n = parse_host_spec ("%80[^:]:%d", host_addr, &port);
+  if ((n == 1 || n == 2) && !strchr(opt.evry_host,'@'))
+     use_netrc = TRUE;
+  else
+  {
+    /* Check for "user:passwd@host_or_IP-address<:port>".
+     */
+    n = parse_host_spec ("%30[^:@]:%30[^:@]@%80[^:]:%d", username, password, host_addr, &port);
+    if (n == 3 || n == 4)
+       use_netrc = FALSE;
+
+    /* Check for "user@host_or_IP-address<:port>".
+     */
+    else
+    {
+      n = parse_host_spec ("%30[^:@]@%80[^:@]:%d", username, host_addr, &port);
+      if (n == 2 || n == 3)
+         use_netrc = FALSE;
+    }
+  }
 
   if (use_netrc)
   {
@@ -879,8 +912,8 @@ int do_check_evry_ept (void)
     const char *passw = NULL;
 
     netrc_init();
-    netrc_lookup (opt.evry_host, &user, &passw);
-    rc = ftp_state_machine (opt.evry_host, port, user, passw);
+    netrc_lookup (host_addr, &user, &passw);
+    rc = ftp_state_machine (host_addr, port, user, passw);
     netrc_exit();
   }
   else
