@@ -849,6 +849,26 @@ static char password [30];
 static char host_addr [200];
 static int  port = 21;
 
+/*
+ * MSVC v1800 or older seems to be lacking 'vsscanf()'.
+ * Create our own using the CRT function '_tinput_s_l()'.
+ */
+#if defined(_MSC_VER) && (_MSC_VER <= 1800)
+  extern int __cdecl _tinput_s_l (FILE       *stream,
+                                  const char *format,
+                                  void       *locale,
+                                  va_list     arglist);
+
+  static int _vsscanf2 (const char *buf, const char *pattern, va_list args)
+  {
+    FILE *fil = stdin;
+
+    setvbuf (fil, (char*)buf, _IOLBF, sizeof(host_addr));
+    return _tinput_s_l (fil, pattern, NULL, args);
+  }
+  #define vsscanf(buf, pattern, args) _vsscanf2 (buf, pattern, args)
+#endif
+
 static int parse_host_spec (const char *pattern, ...)
 {
   int     n;
