@@ -7,9 +7,6 @@
  * This file is part of envtool
  *
  * By Gisle Vanem <gvanem@yahoo.no> August 2017.
- *
- * \todo:
- *   Add support for "user:password@hostname:port" syntax in 'do_check_evry_ept()'.
  */
 
 /* Suppress warning for 'inet_addr()' and 'gethostbyname()'
@@ -45,12 +42,14 @@ typedef BOOL (*ETP_state) (struct state_CTX *ctx);
  */
 struct state_CTX {
        ETP_state          state;
+       WSADATA            wsadata;
        struct sockaddr_in sa;
        SOCKET             sock;
-       const char        *host;
-       WORD               port;
-       const char        *user;
-       const char        *password;
+       int                port;
+       char              *raw_url;
+       char               hostname [200];
+       char               username [30];
+       char               password [30];
        DWORD              timeout;
        char               rx_buf [500];
        char              *rx_ptr;
@@ -69,11 +68,18 @@ struct state_CTX {
        char               path [_MAX_PATH];
      };
 
+static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...);
 static const char *ETP_tracef (struct state_CTX *ctx, const char *fmt, ...);
 static const char *ETP_state_name (ETP_state f);
 
+static BOOL state_init         (struct state_CTX *ctx);
+static BOOL state_exit         (struct state_CTX *ctx);
+static BOOL state_parse_url    (struct state_CTX *ctx);
+static BOOL state_netrc_lookup (struct state_CTX *ctx);
+static BOOL state_send_login   (struct state_CTX *ctx);
 static BOOL state_send_pass    (struct state_CTX *ctx);
 static BOOL state_await_login  (struct state_CTX *ctx);
+static BOOL state_send_query   (struct state_CTX *ctx);
 static BOOL state_200          (struct state_CTX *ctx);
 static BOOL state_RESULT_COUNT (struct state_CTX *ctx);
 static BOOL state_PATH         (struct state_CTX *ctx);
@@ -350,7 +356,7 @@ static char *recv_line (struct state_CTX *ctx)
 
 /*
  * Send a single-line command to the server side.
- * No "\r\n"; it will be added here.
+ * Do not use a "\r\n" termination; it will be added here.
  */
 static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
 {
@@ -359,7 +365,7 @@ static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
 
   va_start (args, fmt);
 
-  len = vsnprintf (ctx->tx_buf, sizeof(ctx->tx_buf), fmt, args);
+  len = vsnprintf (ctx->tx_buf, sizeof(ctx->tx_buf)-3, fmt, args);
   ctx->tx_buf[len] = '\r';
   ctx->tx_buf[len+1] = '\n';
 
@@ -480,15 +486,14 @@ static BOOL state_200 (struct state_CTX *ctx)
      ctx->state = state_RESULT_COUNT;
   else if (*ctx->rx_ptr != '2')
   {
-    WARN ("Unexpected response: \"%s\"\n", ctx->rx_buf);
+    WARN ("This is not an ETP server; response was: \"%s\"\n", ctx->rx_buf);
     ctx->state = state_closing;
   }
   return (TRUE);
 }
 
 /*
- * Close the socket.
- * The next cycle of the state-machine should force an immediately quit.
+ * Close the socket and goto 'state_exit'.
  */
 static BOOL state_closing (struct state_CTX *ctx)
 {
@@ -499,7 +504,9 @@ static BOOL state_closing (struct state_CTX *ctx)
 
   if (ctx->results_expected > 0 && ctx->results_got < ctx->results_expected)
      WARN ("Expected %u results, but received only %u.\n", ctx->results_expected, ctx->results_got);
-  return (FALSE);   /* quit the state machine */
+
+  ctx->state = state_exit;
+  return (TRUE);
 }
 
 /*
@@ -537,15 +544,15 @@ static BOOL state_send_query (struct state_CTX *ctx)
  * If the .ini-file contains:
  *   etp_server_username=foo
  *   etp_server_password=bar
- * 'ctx->user' and 'ctx->password' must match 'foo/bar'.
+ * 'ctx->username' and 'ctx->password' must match 'foo/bar'.
  */
 static BOOL state_send_login (struct state_CTX *ctx)
 {
   int rc;
 
-  if (ctx->user && ctx->password)
+  if (ctx->username[0] && ctx->password[0])
   {
-    rc = send_cmd (ctx, "USER %s", ctx->user);
+    rc = send_cmd (ctx, "USER %s", ctx->username);
     ctx->state = state_send_pass;
   }
   else
@@ -583,7 +590,7 @@ static BOOL state_await_login (struct state_CTX *ctx)
      */
     char buf[100];
 
-    snprintf (buf, sizeof(buf), "Failed to login; USER %s.\n", ctx->user);
+    snprintf (buf, sizeof(buf), "Failed to login; USER %s.\n", ctx->username);
     WARN (buf);
     ETP_tracef (ctx, buf);
     ctx->state = state_closing;
@@ -609,7 +616,7 @@ static BOOL state_send_pass (struct state_CTX *ctx)
 }
 
 /*
- * Check if 'ctx->host' is simply an IPv4-address.
+ * Check if 'ctx->hostname' is simply an IPv4-address.
  * If TRUE
  *   enter 'state_connect'.
  * else
@@ -620,34 +627,45 @@ static BOOL state_resolve (struct state_CTX *ctx)
 {
   struct hostent *he;
 
-  if (!ctx->host[0])
+  ETP_tracef (ctx, "ctx->hostname: '%s'\n", ctx->hostname);
+  ETP_tracef (ctx, "ctx->username: '%s'\n", ctx->username);
+  ETP_tracef (ctx, "ctx->password: '%s'\n", ctx->password);
+  ETP_tracef (ctx, "ctx->port:      %u\n",  ctx->port);
+
+  /* An 'inet_addr ("")' will on Winsock return our own IP-address!
+   * Avoid that.
+   */
+  if (!ctx->hostname[0])
   {
     WARN ("Empty hostname!\n");
-    return (FALSE);   /* quit the state machine */
+    goto fail;
   }
 
-  memset (&ctx->sa, 0, sizeof(ctx->sa));
-  ctx->sa.sin_addr.s_addr = inet_addr (ctx->host);
-
-  /* If 'ctx->host' is not simply an IPv4-address, it
+  /* If 'ctx->hostname' is not simply an IPv4-address, it
    * must be resolved to an IPv4-address first.
    */
+  ctx->sa.sin_addr.s_addr = inet_addr (ctx->hostname);
   if (ctx->sa.sin_addr.s_addr == INADDR_NONE)
   {
     if (!opt.quiet)
-        C_printf ("Resolving %s...", ctx->host);
+        C_printf ("Resolving %s...", ctx->hostname);
     C_flush();
-    he = gethostbyname (ctx->host);
+    he = gethostbyname (ctx->hostname);
 
     if (!he)
     {
       WARN (" Unknown host.\n");
-      return (FALSE);   /* quit the state machine */
+      goto fail;
     }
-    C_putc ('\r');
     ctx->sa.sin_addr.s_addr = *(u_long*) he->h_addr_list[0];
+    C_putc ('\r');
   }
+
   ctx->state = state_connect;
+  return (TRUE);
+
+fail:
+  ctx->state = state_exit;
   return (TRUE);
 }
 
@@ -691,36 +709,94 @@ static BOOL state_connect (struct state_CTX *ctx)
 }
 
 /*
- * The initialiser for our simple state-machine.
+ * Lookup the USER/PASSWORD for 'ctx->hostname' in the .netrc file.
+ * Enter 'state_resolve' even if those are not found.
  */
-static BOOL SM_init (struct state_CTX *ctx, ETP_state init_state)
+static BOOL state_netrc_lookup (struct state_CTX *ctx)
 {
-  WSADATA wsadata;
+  const char *user  = NULL;
+  const char *passw = NULL;
 
-  memset (ctx, 0, sizeof(*ctx));
-  ctx->state        = init_state;
-  ctx->trace_buf[0] = '?';
-  ctx->trace_buf[1] = '\0';
-  ctx->trace_ptr    = ctx->trace_buf;
-  ctx->trace_left   = sizeof(ctx->trace_buf);
-  ctx->sock         = INVALID_SOCKET;
-  ctx->timeout      = RECV_TIMEOUT;
+  ETP_tracef (ctx, "Gettting USER/PASS in '%%APPDATA%%\\.netrc' for '%s'\n", ctx->hostname);
 
-  if (WSAStartup(MAKEWORD(1,1), &wsadata))
-  {
-    WARN ("Failed to start Winsock, err: %d.\n", WSAGetLastError());
-    return (FALSE);
-  }
+  if (netrc_init() && !netrc_lookup(ctx->hostname, &user, &passw))
+     WARN ("No user/password found for host \"%s\".\n", ctx->hostname);
+
+  if (user)
+     _strlcpy (ctx->username, user, sizeof(ctx->username));
+
+  if (passw)
+     _strlcpy (ctx->password, passw, sizeof(ctx->password));
+
+  netrc_exit();
+  ctx->state = state_resolve;
   return (TRUE);
 }
 
 /*
- * The finitialiser for our simple state-machine.
+ * Check if 'ctx->raw_url' matches one of these formats:
+ *   "user:passwd@host_or_IP-address<:port>".    Both user-name and password.
+ *   "user@host_or_IP-address<:port>".           Only user-name.
+ *   "host_or_IP-address<:port>".                Only host/IP-address (+ port).
  */
-static void SM_exit (struct state_CTX *ctx)
+static BOOL state_parse_url (struct state_CTX *ctx)
 {
-  WSACleanup();
-  ARGSUSED (ctx);
+  BOOL use_netrc = TRUE;
+  int  n;
+
+  ETP_tracef (ctx, "Cracking the host-spec: '%s'.\n", ctx->raw_url);
+
+  /* Check simple case of "host_or_IP-address<:port>" first.
+   */
+  n = parse_host_spec (ctx, "%200[^:]:%d", ctx->hostname, &ctx->port);
+
+  if ((n == 1 || n == 2) && !strchr(ctx->raw_url,'@'))
+     use_netrc = TRUE;
+  else
+  {
+    /* Check for "user:passwd@host_or_IP-address<:port>".
+     */
+    n = parse_host_spec (ctx, "%30[^:@]:%30[^:@]@%200[^:]:%d", ctx->username, ctx->password, ctx->hostname, &ctx->port);
+    if (n == 3 || n == 4)
+       use_netrc = FALSE;
+
+    /* Check for "user@host_or_IP-address<:port>".
+     */
+    else
+    {
+      n = parse_host_spec (ctx, "%30[^:@]@%200[^:@]:%d", ctx->username, ctx->hostname, &ctx->port);
+      if (n == 2 || n == 3)
+         use_netrc = FALSE;
+    }
+  }
+
+  if (use_netrc)
+       ctx->state = state_netrc_lookup;
+  else ctx->state = state_resolve;
+  return (TRUE);
+}
+
+static BOOL state_init (struct state_CTX *ctx)
+{
+  ETP_tracef (ctx, "WSAStartup().\n");
+
+  if (WSAStartup(MAKEWORD(1,1), &ctx->wsadata))
+  {
+    WARN ("Failed to start Winsock, err: %d.\n", WSAGetLastError());
+    ctx->state = state_exit;
+  }
+  else
+    ctx->state = state_parse_url;
+  return (TRUE);
+}
+
+static BOOL state_exit (struct state_CTX *ctx)
+{
+  FREE (ctx->raw_url);
+  ETP_tracef (ctx, "WSACleanup()");
+  if (ctx->wsadata.iMaxSockets > 0)
+     WSACleanup();
+  return (FALSE);
 }
 
 /*
@@ -739,30 +815,28 @@ static void SM_run (struct state_CTX *ctx)
                  ETP_state_name(ctx->state),
                  ETP_tracef(ctx, NULL));
     if (!rc)
-      break;
+       break;
   }
 }
 
-static int ftp_state_machine (const char *host, WORD port,
-                              const char *user, const char *password)
+/*
+ * The starting point for our simple state-machine.
+ */
+static int ftp_state_machine (const char *raw_url)
 {
   struct state_CTX ctx;
 
-  if (!SM_init(&ctx, state_resolve))
-     return (0);
-
-  ctx.host     = host;
-  ctx.port     = port;
-  ctx.user     = user;
-  ctx.password = password;
-
-  DEBUGF (2, "ctx.host:     '%s'\n", ctx.host);
-  DEBUGF (2, "ctx.user:     '%s'\n", ctx.user);
-  DEBUGF (2, "ctx.password: '%s'\n", ctx.password);
-  DEBUGF (2, "ctx.port:      %u\n",  ctx.port);
-
+  memset (&ctx, 0, sizeof(ctx));
+  ctx.state        = state_init;
+  ctx.trace_buf[0] = '?';
+  ctx.trace_buf[1] = '\0';
+  ctx.trace_ptr    = ctx.trace_buf;
+  ctx.trace_left   = sizeof(ctx.trace_buf);
+  ctx.sock         = INVALID_SOCKET;
+  ctx.timeout      = RECV_TIMEOUT;
+  ctx.raw_url      = STRDUP (raw_url);
+  ctx.port         = 21;
   SM_run (&ctx);
-  SM_exit (&ctx);
   return (ctx.results_got - ctx.results_ignore);
 }
 
@@ -807,16 +881,20 @@ static const char *ETP_state_name (ETP_state f)
 {
   #define IF_VALUE(_f) if (f == _f) return (#_f)
 
+  IF_VALUE (state_init);
+  IF_VALUE (state_parse_url);
+  IF_VALUE (state_netrc_lookup);
   IF_VALUE (state_resolve);
   IF_VALUE (state_connect);
   IF_VALUE (state_send_login);
   IF_VALUE (state_send_pass);
   IF_VALUE (state_await_login);
   IF_VALUE (state_200);
-  IF_VALUE (state_closing);
   IF_VALUE (state_send_query);
   IF_VALUE (state_RESULT_COUNT);
   IF_VALUE (state_PATH);
+  IF_VALUE (state_closing);
+  IF_VALUE (state_exit);
   return ("?");
 }
 
@@ -844,100 +922,55 @@ static time_t FILETIME_to_time_t (const FILETIME *ft)
   return mktime (&tm);
 }
 
-static char username [30];
-static char password [30];
-static char host_addr [200];
-static int  port = 21;
+/*
+ * Called from envtool.c:
+ *   if 'opt.evry_host != NULL', this function gets called instead of
+ *   'do_check_evry()' (which only searches for local results).
+ */
+int do_check_evry_ept (void)
+{
+  return ftp_state_machine (opt.evry_host);
+}
 
 /*
- * MSVC v1800 or older seems to be lacking 'vsscanf()'.
- * Create our own using the CRT function '_input_s_l()'.
+ * _MSC_VER <= 1700 (Visual Studio 2012 or older) is lacking 'vsscanf()'.
+ * Create our own using 'sscanf()'. Scraped from:
+ *   https://stackoverflow.com/questions/2457331/replacement-for-vsscanf-on-msvc
+ *
+ * If using the Windows-Kit ('_VCRUNTIME_H' is defined) it should have a
+ * working 'vsscanf()'. I'm not sure if using MSC_VER <= 1700 with the
+ * Windows-Kit is possible. But if using Clang-cl, test this function with
+ * it.
  */
-#if defined(_MSC_VER) && (_MSC_VER <= 1800)
-  extern int __cdecl _input_s_l (FILE       *stream,
-                                 const char *format,
-                                 void       *locale,
-                                 va_list     arglist);
-
-  static int _vsscanf2 (const char *buf, const char *pattern, va_list args)
+#if (defined(_MSC_VER) && (_MSC_VER <= 1800) && !defined(_VCRUNTIME_H)) || defined(__clang__)
+  static int _vsscanf2 (const char *buf, const char *fmt, va_list args)
   {
-    FILE *fil = stdin;
+    void *a[5];  /* 5 args is enough here */
+    int   i;
 
-    setvbuf (fil, (char*)buf, _IOLBF, sizeof(host_addr));
-    return _input_s_l (fil, pattern, NULL, args);
+    for (i = 0; i < DIM(a); i++)
+       a[i] = va_arg (args, void*);
+    return sscanf (buf, fmt, a[0], a[1], a[2], a[3], a[4]);
   }
   #define vsscanf(buf, pattern, args) _vsscanf2 (buf, pattern, args)
 #endif
 
-static int parse_host_spec (const char *pattern, ...)
+static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...)
 {
   int     n;
   va_list args;
 
   va_start (args, pattern);
 
-  username[0] = '\0';
-  password[0] = '\0';
-  host_addr[0] = '\0';
+  ctx->username[0] = ctx->password[0] = ctx->hostname[0] = '\0';
 
-  n = vsscanf (opt.evry_host, pattern, args);
+  n = vsscanf (ctx->raw_url, pattern, args);
   va_end (args);
-  DEBUGF (2, "pattern: '%s'\n"
-             "                       n: %d,"
-             " username: '%s', password: '%s', host_addr: '%s', port: %d\n",
-          pattern, n, username, password, host_addr, port);
+
+  ETP_tracef (ctx,
+              "pattern: '%s'\n"
+              "      n: %d, username: '%s', password: '%s', hostname: '%s', port: %d\n",
+              pattern, n, ctx->username, ctx->password, ctx->hostname, ctx->port);
   return (n);
-}
-
-/*
- * Called from envtool.c:
- *   if 'opt.evry_host != NULL', this function gets called instead of
- *   'do_check_evry()' (which only searches for local results).
- *
- * Check if 'opt.evry_host' matches one of these formats:
- *   "user:passwd@host_or_IP-address<:port>".    Both user-name and password.
- *   "user@host_or_IP-address<:port>".           Only user-name.
- */
-int do_check_evry_ept (void)
-{
-  int  rc, n;
-  BOOL use_netrc = TRUE;
-
- /* Check simple case of "host_or_IP-address<:port>" first.
-  */
-  n = parse_host_spec ("%80[^:]:%d", host_addr, &port);
-  if ((n == 1 || n == 2) && !strchr(opt.evry_host,'@'))
-     use_netrc = TRUE;
-  else
-  {
-    /* Check for "user:passwd@host_or_IP-address<:port>".
-     */
-    n = parse_host_spec ("%30[^:@]:%30[^:@]@%80[^:]:%d", username, password, host_addr, &port);
-    if (n == 3 || n == 4)
-       use_netrc = FALSE;
-
-    /* Check for "user@host_or_IP-address<:port>".
-     */
-    else
-    {
-      n = parse_host_spec ("%30[^:@]@%80[^:@]:%d", username, host_addr, &port);
-      if (n == 2 || n == 3)
-         use_netrc = FALSE;
-    }
-  }
-
-  if (use_netrc)
-  {
-    const char *user  = NULL;
-    const char *passw = NULL;
-
-    netrc_init();
-    netrc_lookup (host_addr, &user, &passw);
-    rc = ftp_state_machine (host_addr, port, user, passw);
-    netrc_exit();
-  }
-  else
-    rc = ftp_state_machine (host_addr, port, username, password);
-  return (rc);
 }
 
