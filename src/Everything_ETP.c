@@ -68,8 +68,9 @@ struct state_CTX {
        char               path [_MAX_PATH];
      };
 
-static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...);
-static const char *ETP_tracef (struct state_CTX *ctx, const char *fmt, ...);
+static int    parse_host_spec     (struct state_CTX *ctx, const char *pattern, ...);
+static time_t FILETIME_to_time_t  (const FILETIME *ft);
+static const char *ETP_tracef     (struct state_CTX *ctx, const char *fmt, ...);
 static const char *ETP_state_name (ETP_state f);
 
 static BOOL state_init         (struct state_CTX *ctx);
@@ -86,8 +87,6 @@ static BOOL state_PATH         (struct state_CTX *ctx);
 static BOOL state_closing      (struct state_CTX *ctx);
 static BOOL state_resolve      (struct state_CTX *ctx);
 static BOOL state_connect      (struct state_CTX *ctx);
-
-static time_t FILETIME_to_time_t (const FILETIME *ft);
 
 struct netrc_info {
        BOOL  is_default;
@@ -180,9 +179,7 @@ int netrc_init (void)
     if (!fgets(buf,sizeof(buf)-1,f))   /* EOF */
        break;
 
-    for (p = buf; *p && isspace(*p); )
-        p++;
-
+    p = str_ltrim (buf);
     if (*p != '#' && *p != ';')
        netrc_parse_line (buf);
   }
@@ -820,27 +817,6 @@ static void SM_run (struct state_CTX *ctx)
 }
 
 /*
- * The starting point for our simple state-machine.
- */
-static int ftp_state_machine (const char *raw_url)
-{
-  struct state_CTX ctx;
-
-  memset (&ctx, 0, sizeof(ctx));
-  ctx.state        = state_init;
-  ctx.trace_buf[0] = '?';
-  ctx.trace_buf[1] = '\0';
-  ctx.trace_ptr    = ctx.trace_buf;
-  ctx.trace_left   = sizeof(ctx.trace_buf);
-  ctx.sock         = INVALID_SOCKET;
-  ctx.timeout      = RECV_TIMEOUT;
-  ctx.raw_url      = STRDUP (raw_url);
-  ctx.port         = 21;
-  SM_run (&ctx);
-  return (ctx.results_got - ctx.results_ignore);
-}
-
-/*
  * Save a piece of trace-information into the context.
  * Retrieve it when 'fmt == NULL'.
  */
@@ -929,7 +905,20 @@ static time_t FILETIME_to_time_t (const FILETIME *ft)
  */
 int do_check_evry_ept (void)
 {
-  return ftp_state_machine (opt.evry_host);
+  struct state_CTX ctx;
+
+  memset (&ctx, 0, sizeof(ctx));
+  ctx.state        = state_init;
+  ctx.trace_buf[0] = '?';
+  ctx.trace_buf[1] = '\0';
+  ctx.trace_ptr    = ctx.trace_buf;
+  ctx.trace_left   = sizeof(ctx.trace_buf);
+  ctx.sock         = INVALID_SOCKET;
+  ctx.timeout      = RECV_TIMEOUT;
+  ctx.raw_url      = STRDUP (opt.evry_host);
+  ctx.port         = 21;
+  SM_run (&ctx);
+  return (ctx.results_got - ctx.results_ignore);
 }
 
 /*
@@ -952,7 +941,7 @@ int do_check_evry_ept (void)
        a[i] = va_arg (args, void*);
     return sscanf (buf, fmt, a[0], a[1], a[2], a[3], a[4]);
   }
-  #define vsscanf(buf, pattern, args) _vsscanf2 (buf, pattern, args)
+  #define vsscanf(buf, fmt, args) _vsscanf2 (buf, fmt, args)
 #endif
 
 static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...)
