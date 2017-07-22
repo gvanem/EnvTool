@@ -4,35 +4,16 @@ EnvTool v1.0:
 A tool to search along various environment variables for files (or a wildcard). The following option-modes handles
 these environment variables:
 
-<table border=0 cellspacing=0>
-  <tr>
-    <td><tt>--path</tt>:</td> <td><tt>%PATH%</tt>.</td>
-  </tr>
-  <tr>
-    <td><tt>--inc</tt>:</td> <td><tt>%INCLUDE%</tt>, <tt>%C_INCLUDE_PATH%</tt> and <tt>%CPLUS_INCLUDE_PATH%</tt>.</td>
-  </tr>
-  <tr>
-    <td><tt>--lib</tt>:</td> <td><tt>%LIB%</tt> and <tt>%LIBRARY_PATH%.</tt></td>
-  </tr>
-  <tr>
-    <td><tt>--cmake</tt>:</td> <td><tt>%CMAKE_MODULE_PATH%</tt>.</td>
-  </tr>
-  <tr>
-    <td><tt>--man</tt>:</td> <td><tt>%MANPATH%</tt>.</td>
-  </tr>
-  <tr>
-    <td><tt>--pkg</tt>:</td> <td><tt>%PKG_CONFIG_PATH%</tt>.</td>
-  </tr>
-  <tr>
-    <td><tt>--python</tt>:</td> <td><tt>%PYTHONPATH%</tt> and <tt>sys.path[]</tt>.</td>
-  </tr>
-  <tr>
-    <td><tt>--evry</tt>:</td> <td><a href="http://www.voidtools.com/support/everything/">EveryThing</a> file database.</td>
-  </tr>
-  <tr>
-    <td><tt>--evry=host</tt>:</td> <td>Remote search in a EveryThing database on </tt>host</tt>.</td>
-  </tr>
-</table>
+| `--path`      |  `%PATH%`     |
+| ------------- | ------------- |
+| `--inc`       | `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%` |
+| `--lib`       | `%LIB%` and `%LIBRARY_PATH%`    |
+| `--cmake`     | `%CMAKE_MODULE_PATH%`           | 
+| `--man`       | `%MANPATH%`                     |
+| `--pkg`       | `%PKG_CONFIG_PATH%`             |
+| `--python`    | `%PYTHONPATH%` and `sys.path[]` |
+| `--evry`      | [EveryThing](http://www.voidtools.com/support/everything) file database.|
+| `--evry=host` | Remote search in a EveryThing database on `host` |
 
 It also checks for missing directories along the above env-variables.
 
