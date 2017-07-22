@@ -3895,7 +3895,7 @@ static void test_ReparsePoints (void)
 }
 
 /*
- * Test the parsing of %HOME%/.netrc
+ * Test the parsing of %APPDATA%/.netrc
  */
 static void test_netrc (void)
 {
@@ -3907,7 +3907,7 @@ static void test_netrc (void)
   rc = netrc_lookup (NULL, NULL, NULL);
   netrc_exit();
 
-  C_printf ("  Parsing \"%%HOME%%\\.netrc\" ");
+  C_printf ("  Parsing \"%%APPDATA%%\\.netrc\" ");
   if (rc == 0)
        C_puts ("~5failed.~0\n");
   else C_puts ("~3okay.~0\n");
