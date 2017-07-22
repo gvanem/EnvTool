@@ -21,10 +21,16 @@ these environment variables:
     <td><tt>--man</tt>:</td> <td><tt>%MANPATH%</tt>.</td>
   </tr>
   <tr>
+    <td><tt>--pkg</tt>:</td> <td><tt>%PKG_CONFIG_PATH%</tt>.</td>
+  </tr>
+  <tr>
     <td><tt>--python</tt>:</td> <td><tt>%PYTHONPATH%</tt> and <tt>sys.path[]</tt>.</td>
   </tr>
   <tr>
     <td><tt>--evry</tt>:</td> <td><a href="http://www.voidtools.com/support/everything/">EveryThing</a> file database.</td>
+  </tr>
+  <tr>
+    <td><tt>--evry=host</tt>:</td> <td>Remote search in a EveryThing database on </tt>host</tt>.</td>
   </tr>
 </table>
 
@@ -230,6 +236,8 @@ risk. Enjoy!
   0.99: Option "--pe" now calls WinTrust functions (in win_trust.c) to check if
         a PE-file is "Verified", "Not trusted" etc.
 
+  1.0:  Added option "--pkg" to search in pkg-config's searcch-path specified by
+        %PKG_CONFIG_PATH%.
 
 ```
 
