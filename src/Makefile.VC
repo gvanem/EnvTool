@@ -113,7 +113,7 @@ msclean: clean
 
 envtool.res:        envtool.h
 envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h Everything_ETP.h \
-                    envtool.h envtool_py.h dirlist.h color.hc cflags_MSVC.h ldflags_MSVC.h
+                    envtool.h envtool_py.h dirlist.h color.h cflags_MSVC.h ldflags_MSVC.h
 envtool_py.obj:     envtool_py.c envtool.h envtool_py.h color.h dirlist.h smartlist.h
 Everything.obj:     Everything.c Everything.h Everything_IPC.h
 Everything_ETP.obj: Everything_ETP.c color.h envtool.h smartlist.h Everything_ETP.h
