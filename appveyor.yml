@@ -5,7 +5,9 @@ build_script:
     - envtool -VV
     - echo Testing test output
     - envtool --test
-    - echo Testing Python test output
-    - envtool --test --python
+    - echo Testing Python2 test output
+    - envtool --test --python=py2
+    - echo Testing Python3 test output
+    - envtool --test --python=py3
   # - echo Testing win_glob
   # - win_glob -fr "c:\Program Files (x86)\CMake"
