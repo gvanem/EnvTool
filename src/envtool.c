@@ -4156,11 +4156,10 @@ static int do_tests (void)
   test_disk_ready();
   test_SHGetFolderPath();
   test_ReparsePoints();
-  test_netrc();
   test_libssp();
-
-  if (!stricmp(get_user_name(),"APPVYR-WIN\\appveyor"))
-     test_AppVeyor();
+  if (stricmp(get_user_name(),"APPVYR-WIN\\appveyor"))
+       test_netrc();
+  else test_AppVeyor();
   return (0);
 }
 
