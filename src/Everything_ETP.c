@@ -17,7 +17,6 @@
 #include <stdlib.h>
 #include <windows.h>
 #include <winsock2.h>
-#include <shlobj.h>
 
 #include "color.h"
 #include "envtool.h"
