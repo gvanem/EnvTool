@@ -198,7 +198,7 @@ smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
 }
 
 /*
- * Dump a smartlist to a file.
+ * Dump a smartlist of text-lines to a file.
  */
 int smartlist_write_file (smartlist_t *sl, const char *file)
 {
@@ -210,8 +210,11 @@ int smartlist_write_file (smartlist_t *sl, const char *file)
 
   max = smartlist_len (sl);
   for (i = 0; i < max; i++)
-     fprintf (f, "%s\n", (const char*)smartlist_get(sl, i));
+  {
+    const char *str = (const char*) smartlist_get(sl, i);
 
+    fwrite (str, strlen(str), 1, f);
+  }
   fclose (f);
   return (1);
 }
