@@ -44,6 +44,7 @@
 #include "dirlist.h"
 
 #include "color.h"
+#include "smartlist.h"
 #include "envtool.h"
 #include "envtool_py.h"
 
@@ -137,6 +138,9 @@ static int   new_argc;             /* 1... to highest allocated cmd-line compone
 static int   path_separator = ';';
 static char  current_dir [_MAX_PATH];
 
+static smartlist_t *ver_cache = NULL;
+static BOOL         use_cache = FALSE;
+
 volatile int halt_flag;
 
 /* Get the bitness (32/64-bit) of the EveryThing program.
@@ -151,6 +155,7 @@ static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 static int   get_pkg_config_info (const char **exe, struct ver_info *ver);
 static int   get_cmake_info (char **exe, struct ver_info *ver);
+static void  free_dir_array (void);
 
 /*
  * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
@@ -322,14 +327,69 @@ static void show_ext_versions (void)
   FREE (cmake_exe);
 }
 
+static void parse_ver_info (smartlist_t *sl, const char *line)
+{
+  smartlist_add (sl, STRDUP(line));
+}
+
+/*
+ * Hook-function for color.c functions.
+ * Used to dump version-information to cache.
+ */
+static void write_hook (const char *buf)
+{
+  size_t len = strlen (buf);
+
+  if (len >= 1)
+  {
+    char *p = alloca (len+3);
+
+    sprintf (p, "%d:%s", opt.do_version, buf);
+    smartlist_add (ver_cache, STRDUP(p));
+  }
+}
+
 /*
  * Show some basic version information:    option '-V'.
  * Show more detailed version information: option '-VV'.
  */
 static int show_version (void)
 {
-  HWND wnd;
-  BOOL wow64 = is_wow64_active();
+  HWND  wnd;
+  BOOL  wow64 = is_wow64_active();
+  BOOL  cache_create = FALSE;
+  char *cache_fname = NULL;
+
+  if (use_cache)
+  {
+    cache_fname = getenv_expand ("%TEMP%\\envtool.cache");
+
+    if (FILE_EXISTS(cache_fname))
+    {
+      int i, max;
+
+      ver_cache = smartlist_read_file (cache_fname, parse_ver_info);
+      max = smartlist_len (ver_cache);
+      for (i = 0; i < max; i++)
+      {
+        const char *line = smartlist_get (ver_cache, i);
+
+        if (isdigit(line[0]) && line[1] == ':')
+        {
+          if (opt.do_version >= line[0] - '0')
+             C_puts (line+2);
+        }
+        else
+          C_puts (line);
+      }
+      goto quit;
+    }
+
+    // opt.do_version = 2;
+    ver_cache = smartlist_new();
+    cache_create = TRUE;
+    C_write_hook = write_hook;
+  }
 
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.\n  Hosted at: ~6%s~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
@@ -371,6 +431,17 @@ static int show_version (void)
     C_printf ("\n  Pythons on ~3PATH~0:");
     py_searchpaths();
   }
+
+quit:
+  if (ver_cache)
+  {
+    if (cache_create)
+       smartlist_write_file (ver_cache, cache_fname);
+    smartlist_free_all (ver_cache);
+  }
+  ver_cache = NULL;
+  C_write_hook = NULL;
+  FREE (cache_fname);
   return (0);
 }
 
@@ -484,7 +555,7 @@ static int strequal_n (const char *s1, const char *s2, size_t len)
   {
     int rc = strncmp (s1, s2, len);
 
-    if (rc && opt.debug >= 4 && !strnicmp(s1, s2, len))
+    if (rc && !strnicmp(s1, s2, len))
        DEBUGF (4, "string matches except in case: '%s' vs '%s'\n", s1, s2);
     return (rc);
   }
@@ -500,7 +571,7 @@ static int strequal (const char *s1, const char *s2)
   {
     int rc = strcmp (s1, s2);
 
-    if (rc && opt.debug >= 4 && !stricmp(s1, s2))
+    if (rc && !stricmp(s1, s2))
        DEBUGF (4, "string matches except in case: '%s' vs '%s'\n", s1, s2);
     return (rc);
   }
@@ -631,6 +702,8 @@ static void unique_dir_array (const char *where, int top)
     if (i == j)
        memcpy (d++, &dir_array[j], sizeof(*d));
   }
+
+//free_dir_array();
   memcpy (&dir_array, _new, (top+1) * sizeof(*_new));
   dump_dir_array (where);
 quit:
@@ -1461,7 +1534,6 @@ static int build_reg_array_app_path (HKEY top_key)
   return (idx);
 }
 
-
 /*
  * Scan registry under:
  *   HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment
@@ -1790,7 +1862,8 @@ static const char *evry_strerror (DWORD err)
 static void check_sys_dir (const char *dir, const char *name, BOOL *have_it)
 {
   DWORD attr = GetFileAttributes (dir);
-  BOOL  is_dir = (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
+  BOOL  is_dir = (attr != INVALID_FILE_ATTRIBUTES) &&
+                 (attr & FILE_ATTRIBUTE_DIRECTORY);
 
   if (is_dir)
        DEBUGF (1, "%s: '%s' okay\n", name, dir);
@@ -1927,7 +2000,7 @@ static int do_check_evry (void)
   if (evry_bitness == bit_unknown)
      get_evry_bitness (wnd);
 
-  /* EveryThing seems to need '\\' only. Must split the 'opt.file_spec'
+  /* EveryThing seems not to support '\\'. Must split the 'opt.file_spec'
    * into a 'dir' and 'base' part.
    */
   if (strpbrk(opt.file_spec, "/\\"))
@@ -2981,7 +3054,10 @@ static void set_long_option (int o, const char *arg)
   if (arg)
   {
     if (!strcmp("python",long_options[o].name))
+    {
+      opt.do_python++;
       set_python_variant (arg);
+    }
 
     else if (!strcmp("debug",long_options[o].name))
       opt.debug = atoi (arg);
@@ -3278,7 +3354,7 @@ int main (int argc, char **argv)
      opt.no_sys_env = opt.no_usr_env = 1;
 
   if (!opt.do_path && !opt.do_include && !opt.do_lib && !opt.do_python &&
-      !opt.do_evry && !opt.do_man && !opt.do_cmake && !opt.do_pkg)
+      !opt.do_evry && !opt.do_cmake   && !opt.do_man && !opt.do_pkg)
      usage ("Use at least one of; \"--evry\", \"--cmake\", \"--inc\", \"--lib\", "
             "\"--man\", \"--path\", \"--pkg\" and/or \"--python\".\n");
 
