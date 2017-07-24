@@ -169,6 +169,53 @@ void smartlist_add (smartlist_t *sl, void *element)
   sl->list [sl->num_used++] = element;
 }
 
+/*
+ * Open a file and return parsed lines as a smartlist.
+ */
+smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
+{
+  smartlist_t *sl;
+  FILE *f = fopen (file, "r");
+
+  if (!f)
+     return (NULL);
+
+  sl = smartlist_new();
+
+  while (sl)
+  {
+    char buf[500], *p;
+
+    if (!fgets(buf,sizeof(buf)-1,f))   /* EOF */
+       break;
+
+    p = str_ltrim (buf);
+    if (*p != '#' && *p != ';')
+       (*parse) (sl, buf);
+  }
+  fclose (f);
+  return (sl);
+}
+
+/*
+ * Dump a smartlist to a file.
+ */
+int smartlist_write_file (smartlist_t *sl, const char *file)
+{
+  FILE *f = fopen (file, "w+t");
+  int   i, max;
+
+  if (!f)
+     return (0);
+
+  max = smartlist_len (sl);
+  for (i = 0; i < max; i++)
+     fprintf (f, "%s\n", (const char*)smartlist_get(sl, i));
+
+  fclose (f);
+  return (1);
+}
+
 #if defined(NOT_USED_YET)
 
 /*

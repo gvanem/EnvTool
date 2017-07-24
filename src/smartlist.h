@@ -29,4 +29,12 @@ int   smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
 void *smartlist_bsearch (const smartlist_t *sl, const void *key,
                          smartlist_compare_func compare);
 
+typedef void (__cdecl *smartlist_parse_func) (smartlist_t *sl,
+                                              const void *line);
+
+smartlist_t *smartlist_read_file (const char *file,
+                                  smartlist_parse_func parse);
+
+int smartlist_write_file (smartlist_t *sl, const char *file);
+
 #endif
