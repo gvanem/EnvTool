@@ -103,9 +103,9 @@ static smartlist_t *netrc;
  * Or
  *   default login <user> password <password>
  *
- * And add to 'netrc' smartlist.
+ * And add to the given smartlist.
  */
-static BOOL netrc_parse_line (const char *line)
+static void parse_netrc (smartlist_t *sl, const char *line)
 {
   struct netrc_info *ni;
   char   host [256];
@@ -120,71 +120,27 @@ static BOOL netrc_parse_line (const char *line)
     ni->host  = STRDUP (host);
     ni->user  = STRDUP (user);
     ni->passw = STRDUP (passw);
-    smartlist_add (netrc, ni);
-    return (TRUE);
+    smartlist_add (sl, ni);
   }
-  if (sscanf(line, fmt2, user, passw) == 2)
+  else if (sscanf(line, fmt2, user, passw) == 2)
   {
     ni = CALLOC (1, sizeof(*ni));
     ni->user       = STRDUP (user);
     ni->passw      = STRDUP (passw);
     ni->is_default = TRUE;
-    smartlist_add (netrc, ni);
-    return (TRUE);
+    smartlist_add (sl, ni);
   }
-  return (FALSE);
 }
 
-/*
- * Get the path to the ".netrc" file, parse it and append entries to the
- * 'netrc' smartlist.
- */
 int netrc_init (void)
 {
-  char    home [_MAX_PATH];
-  char    file [_MAX_PATH];
-  char   *p;
-  FILE   *f = NULL;
-  HRESULT rc = SHGetFolderPath (NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_DEFAULT, home);
+  char *file = getenv_expand ("%APPDATA%\\.netrc");
 
-  if (rc == S_OK)
-  {
-    snprintf (file, sizeof(file), "%s\\.netrc", home);
-    DEBUGF (3, "opening '%s'\n", file);
-    f = fopen (file, "r");
-  }
-  else
-  {
-    WARN ("Failed to find the APPDATA-folder. Authenticated logins will not work.\n");
-    return (0);
-  }
-
-  if (!FILE_EXISTS(file))
-  {
-    WARN ("\"%s\" does not exist. Authenticated logins will not work.\n", file);
-    return (0);
-  }
-  if (!f)
-  {
-    WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", file);
-    return (0);
-  }
-
-  netrc = smartlist_new();
-
-  while (1)
-  {
-    char buf[500];
-
-    if (!fgets(buf,sizeof(buf)-1,f))   /* EOF */
-       break;
-
-    p = str_ltrim (buf);
-    if (*p != '#' && *p != ';')
-       netrc_parse_line (buf);
-  }
-  fclose (f);
-  return (1);
+  netrc = smartlist_read_file (file, parse_netrc);
+  if (!netrc)
+     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", file);
+  FREE (file);
+  return (netrc != NULL);
 }
 
 /*
