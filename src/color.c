@@ -80,6 +80,8 @@ int C_use_fwrite = 0;
 
 unsigned C_redundant_flush = 0;
 
+void (__cdecl *C_write_hook) (const char *buf) = NULL;
+
 static char   c_buf [C_BUF_SIZE];
 static char  *c_head, *c_tail;
 static FILE  *c_out = NULL;
@@ -336,9 +338,10 @@ static void C_set_ansi (WORD col)
  */
 size_t C_flush (void)
 {
-  size_t len = (unsigned int) (c_head - c_buf);
+  size_t len1 = (unsigned int) (c_head - c_buf);
+  size_t len2;
 
-  if (len == 0)
+  if (len1 == 0)
   {
     C_redundant_flush++;
     return (0);
@@ -347,12 +350,18 @@ size_t C_flush (void)
   EnterCriticalSection (&crit);
   assert (c_out);
   if (C_use_fwrite)
-       len = fwrite (c_buf, 1, len, c_out);
-  else len = _write (_fileno(c_out), c_buf, (unsigned int)len);
+       len2 = fwrite (c_buf, 1, len1, c_out);
+  else len2 = _write (_fileno(c_out), c_buf, (unsigned int)len1);
+
+  if (C_write_hook)
+  {
+    c_buf [len1] = '\0';
+    (*C_write_hook) (c_buf);
+  }
 
   c_head = c_buf;   /* restart buffer */
   LeaveCriticalSection (&crit);
-  return (len);
+  return (len2);
 }
 
 int C_printf (const char *fmt, ...)
@@ -424,6 +433,12 @@ int C_putc (int ch)
                i, ch, ch, (int)(c_head - c_buf), c_buf);
 
       C_flush();
+
+      if (C_write_hook)
+      {
+        char buf[3] = { '~', ch, '\0' };
+        (*C_write_hook) (buf);
+      }
 
       if (C_use_ansi_colours)
          C_set_ansi (color);
