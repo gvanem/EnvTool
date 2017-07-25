@@ -3,17 +3,15 @@
   <PropertyGroup>
     <CustomBuildBeforeTargets>ClCompile</CustomBuildBeforeTargets>
   </PropertyGroup>
-
   <ItemDefinitionGroup>
-  <CustomBuildStep>
-    <Command>
-      echo const char *cflags  = "cl -nologo -c -MT -Zi -W3 -WX- -O2 -Oi -Oy- -GL -DWIN32 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE -DWIN32_LEAN_AND_MEAN -D_WIN32_IE=0x500 -D_CRT_NON_CONFORMING_SWPRINTFS -DNDEBUG -Gm- -EHsc -GS -Gy -fp:precise -Zc:wchar_t -Zc:forScope"; > cflags_MSVC.h
-      echo const char *ldflags = "link -nologo -errorreport:none -out:envtool.exe -incremental:no version.lib advapi32.lib imagehlp.lib wintrust.lib psapi.lib crypt32.lib kernel32.lib user32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib ws2_32.lib -manifest:embed -debug -map:envtool.map -subsystem:console -opt:ref -opt:icf -tlbid:1 -dynamicbase -nxcompat -machine:x86 -safeseh Release/envtool.obj envtool_py.obj Release/color.obj Release/Everything.obj Release/Everything_ETP.obj Release/dirlist.obj Release/getopt_long.obj Release/misc.obj Release/searchpath.obj Release/show_ver.obj Release/smartlist.obj Release/win_trust.obj Release/win_ver.obj Release/envtool.res"; > ldflags_MSVC.h
+    <CustomBuildStep>
+      <Command>
+      echo const char *cflags  = "cl -nologo -c -MT -Zi -W3 -WX- -O2 -Oi -Oy- -GL -DWIN32 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE -DWIN32_LEAN_AND_MEAN -D_WIN32_IE=0x500 -D_CRT_NON_CONFORMING_SWPRINTFS -DNDEBUG -Gm- -EHsc -GS -Gy -fp:precise -Zc:wchar_t -Zc:forScope"; &gt; cflags_MSVC.h
+      echo const char *ldflags = "link -nologo -errorreport:none -out:envtool.exe -incremental:no version.lib advapi32.lib imagehlp.lib wintrust.lib psapi.lib crypt32.lib kernel32.lib user32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib ws2_32.lib -manifest:embed -debug -map:envtool.map -subsystem:console -opt:ref -opt:icf -tlbid:1 -dynamicbase -nxcompat -machine:x86 -safeseh Release/envtool.obj envtool_py.obj Release/color.obj Release/Everything.obj Release/Everything_ETP.obj Release/dirlist.obj Release/getopt_long.obj Release/misc.obj Release/searchpath.obj Release/show_ver.obj Release/smartlist.obj Release/win_trust.obj Release/win_ver.obj Release/envtool.res"; &gt; ldflags_MSVC.h
     </Command>
-    <Outputs>None</Outputs>
-  </CustomBuildStep>
+      <Outputs>None</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
-
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -24,7 +22,6 @@
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-
   <PropertyGroup Label="Globals">
     <ProjectGuid>{47A4EE11-5847-41F7-B00C-1627C75FAC12}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
@@ -73,9 +70,10 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <OutputFile>$(TargetName)$(TargetExt)</OutputFile>
+      <OutputFile>envtool.exe</OutputFile>
       <ShowProgress>NotSet</ShowProgress>
-      <Version>0.8</Version>
+      <Version>
+      </Version>
       <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;psapi.lib;crypt32.lib;ws2_32.lib%(AdditionalDependencies)</AdditionalDependencies>
       <SetChecksum>true</SetChecksum>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
@@ -101,9 +99,10 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <OutputFile>$(TargetName)$(TargetExt)</OutputFile>
+      <OutputFile>envtool.exe</OutputFile>
       <ShowProgress>NotSet</ShowProgress>
-      <Version>0.8</Version>
+      <Version>
+      </Version>
       <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;psapi.lib;crypt32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SetChecksum>true</SetChecksum>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
@@ -140,5 +139,4 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
-
 </Project>
