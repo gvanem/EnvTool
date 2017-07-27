@@ -1,17 +1,21 @@
 build_script:
     - cd src
     - msbuild -nologo -p:Configuration=Release envtool.sln
+
     - echo Testing version output
-    - envtool -VV
+    - envtool -VV --no-colour
+
     - echo Testing test output
-    - envtool --test
+    - envtool --test --no-colour
+
     - echo Testing Python2 test output
-    - envtool --test --python=py2
+    - envtool --test --no-colour --python=py2
+
     - echo Testing Python3 test output
-    - envtool --test --python=py3
+    - envtool --test --no-colour --python=py3
 
     - echo Testing ETP-searches (should fail)
-    - envtool --test --evry:ftp.github.com
+    - envtool --test --no-colour --evry:ftp.github.com
 
   # - echo Testing win_glob
   # - win_glob -fr "c:\Program Files (x86)\CMake"
