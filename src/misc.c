@@ -453,6 +453,37 @@ quit:
 }
 
 /*
+ * Dynamic use of "K32GetModuleFileNameExA".
+ * Win-XP does not have this function. Hence load it dynamicallay similar
+ * to above.
+ *
+ * 'filename' is assumed to hold 'MAX_PATH' characters.
+ */
+BOOL get_module_filename_ex (HANDLE proc, char *filename)
+{
+  BOOL rc = FALSE;
+
+  typedef BOOL (WINAPI *func_GetModuleFileNameEx) (HANDLE proc, DWORD flags, char *fname, DWORD size);
+  func_GetModuleFileNameEx p_GetModuleFileNameEx;
+
+  const char *dll = "kernel32.dll";
+  HANDLE hnd = LoadLibrary (dll);
+
+  if (!hnd || hnd == INVALID_HANDLE_VALUE)
+  {
+    DEBUGF (1, "Failed to load %s; %s\n", dll, win_strerror(GetLastError()));
+    return (rc);
+  }
+
+  p_GetModuleFileNameEx = (func_GetModuleFileNameEx) GetProcAddress (hnd, "K32GetModuleFileNameExA");
+  if (p_GetModuleFileNameEx)
+     rc = (*p_GetModuleFileNameEx) (proc, 0, filename, _MAX_PATH);
+
+  FreeLibrary (hnd);
+  return (rc);
+}
+
+/*
  * Helper functions for Registry access.
  */
 REGSAM reg_read_access (void)

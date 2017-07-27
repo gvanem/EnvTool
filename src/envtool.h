@@ -386,6 +386,7 @@ extern void        print_long_line (const char *line, size_t indent);
 extern char       *translate_shell_pattern (const char *pattern);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
+extern BOOL        get_module_filename_ex (HANDLE proc, char *filename);
 
 /* Functions for handling Reparse Points:
  * (Junctions and Symlinks).

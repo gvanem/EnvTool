@@ -263,8 +263,7 @@ static void get_evry_bitness (HWND wnd)
   if (!hnd)
      return;
 
-  if (GetModuleFileNameEx(hnd, 0, fname, sizeof(fname)) &&
-      check_if_PE(fname, &bits))
+  if (get_module_filename_ex(hnd, fname) && check_if_PE(fname, &bits))
      evry_bitness = bits;
 
   CloseHandle (hnd);
@@ -3151,14 +3150,14 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   if (opt.no_ansi)
   {
     C_no_ansi = 1;
-    C_puts (" \b ");
+//  C_puts (" \b ");
   }
 #endif
 
   if (opt.no_colours)
   {
     C_use_colours = C_use_ansi_colours = 0;
-    C_puts (" \b ");
+//  C_puts (" \b ");
   }
 
   if (argc >= 2 && argv[optind])
