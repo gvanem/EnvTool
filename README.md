@@ -1,5 +1,7 @@
 # EnvTool v1.0:
 
+[![Build Status](https://ci.appveyor.com/api/projects/status/github/gvanem/envtool?branch=master&svg=true)](https://ci.appveyor.com/project/gvanem/envtool)
+
 A tool to search along various environment variables for files (or a wildcard). The following modes
 handles these environment variables:
 
