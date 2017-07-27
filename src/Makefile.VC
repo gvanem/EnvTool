@@ -14,9 +14,9 @@ CFLAGS  = -nologo -W3 -Zi -Gy -DWIN32 \
 LDFLAGS = -nologo -incremental:no -debug -map
 
 #
-# Enable the .EXEs to run on Win-XP SP3 (5.2)
+# Enable the .EXEs to run on Win-XP SP3 (5.1)
 #
-LDFLAGS = $(LDFLAGS) -subsystem:console,5.02
+LDFLAGS = $(LDFLAGS) -subsystem:console,5.01
 RCFLAGS = -nologo -D_MSC_VER -r
 MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII
 EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib psapi.lib version.lib shell32.lib ws2_32.lib user32.lib
