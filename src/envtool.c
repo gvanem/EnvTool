@@ -4114,9 +4114,27 @@ static void test_AppVeyor (void)
   C_printf ("system() reported %d.\n", rc);
 }
 
+/*
+ * A simple test for ETP searches
+ */
+static void test_ETP_host (void)
+{
+  FREE (opt.file_spec);
+  opt.file_spec = STRDUP ("*");
+  opt.do_tests = 0;
+  opt.debug = 2;
+  do_check_evry_ept();
+}
+
 static int do_tests (void)
 {
   int save;
+
+  if (opt.do_evry && opt.evry_host)
+  {
+    test_ETP_host ();
+    return (0);
+  }
 
   if (opt.do_python)
   {
