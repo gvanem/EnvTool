@@ -457,6 +457,25 @@ extern const char *os_bits (void);
 
 /* Stuff in win_trust.c:
  */
+/*
+ * Support older SDKs
+ */
+#ifndef TRUST_E_NOSIGNATURE
+#define TRUST_E_NOSIGNATURE          (HRESULT) 0x800B0100
+#endif
+
+#ifndef TRUST_E_PROVIDER_UNKNOWN
+#define TRUST_E_PROVIDER_UNKNOWN     (HRESULT) 0x800B0001
+#endif
+
+#ifndef TRUST_E_SUBJECT_NOT_TRUSTED
+#define TRUST_E_SUBJECT_NOT_TRUSTED  (HRESULT) 0x800B0004
+#endif
+
+#ifndef TRUST_E_SUBJECT_FORM_UNKNOWN
+#define TRUST_E_SUBJECT_FORM_UNKNOWN (HRESULT) 0x800B0003
+#endif
+
 extern char       *wintrust_subject;
 extern DWORD       wintrust_check (const char *pe_file, BOOL details, BOOL revoke_check);
 extern const char *wintrust_check_result (DWORD rc);
