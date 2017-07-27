@@ -630,8 +630,8 @@ static BOOL state_connect (struct state_CTX *ctx)
   ctx->sock = socket (AF_INET, SOCK_STREAM, 0);
   if (ctx->sock == INVALID_SOCKET)
   {
-    WARN ("Failed to create socket.\n");
-    ETP_tracef (ctx, "Failed to create socket.");
+    WARN ("Failed to create socket, err: %d.\n", WSAGetLastError());
+    ETP_tracef (ctx, "Failed to create socket, err: %d.\n", WSAGetLastError());
     ctx->state = state_closing;
     return (TRUE);
   }
@@ -647,8 +647,8 @@ static BOOL state_connect (struct state_CTX *ctx)
 
   if (connect(ctx->sock, (const struct sockaddr*)&ctx->sa, sizeof(ctx->sa)) < 0)
   {
-    WARN (" Failed to connect.\n");
-    ETP_tracef (ctx, "Failed to connect.");
+    WARN (" Failed to connect, err: %d.\n", WSAGetLastError());
+    ETP_tracef (ctx, "Failed to connect, err: %d.\n", WSAGetLastError());
     ctx->state = state_closing;
   }
   else
