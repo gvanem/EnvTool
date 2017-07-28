@@ -168,7 +168,7 @@ static void C_init (void)
             GetFileType(console_hnd) == FILE_TYPE_CHAR);
 
 #if defined(__CYGWIN__)
-     if (!okay) /* Use ANSI-colours even when stdout is redirected */
+     if (!okay) /* Use ANSI-colours even if stdout is redirected */
      {
        console_info.srWindow.Right = 100;
        console_info.srWindow.Left  = 0;
