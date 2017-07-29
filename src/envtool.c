@@ -578,31 +578,6 @@ static int strequal (const char *s1, const char *s2)
 }
 
 /*
- * Return status for disks ready: A: to - Z:.
- */
-static BOOL check_disk_ready (int drive)
-{
-  static BOOL checked ['Z' - 'A'];
-  static int  status  ['Z' - 'A'];
-  int    i;
-
-  drive = toupper (drive);
-  if (drive < 'A' || drive > 'Z') /* What to do? */
-     return (TRUE);
-
-  i = drive - 'A';
-  assert (i >= 0 && i < sizeof(checked));
-
-  if (!checked[i])
-  {
-    status[i] = disk_ready (drive);
-    DEBUGF (2, "drive: %c, status: %d.\n", drive, status[i]);
-  }
-  checked [i] = TRUE;
-  return (status[i] >= 1);
-}
-
-/*
  * Add the 'dir' to 'dir_array[]' at index 'i'.
  * 'is_cwd' == 1 if 'dir == cwd'.
  *
@@ -613,32 +588,18 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
 {
   struct directory_array *d = dir_array + i;
   int    j, exp_ok = (dir && *dir != '%');
-  BOOL   exists, is_dir;
+  BOOL   exists = FALSE;
+  BOOL   is_dir = FALSE;
 
 #if defined(__CYGWIN__)
   struct stat st;
 
-  exists = is_dir = FALSE;
   if (stat(dir,&st) == 0)
     is_dir = exists = S_ISDIR (st.st_mode);
 #else
-  {
-    const char *p = dir;
-    DWORD attr;
-    int   drive = (int)p[0];
-
-    if (strlen(p) > 3 && IS_SLASH(p[2]) && p[1] == ':' && !check_disk_ready(drive))
-       attr = INVALID_FILE_ATTRIBUTES;
-    else
-    {
-     /* Watcom's stat() doesn't handle 'native' directories.
-      * But we can use this code for all targets since it seems faster.
-      */
-      attr = GetFileAttributes (dir);
-    }
-    exists = (attr != INVALID_FILE_ATTRIBUTES);
-    is_dir = exists && (attr & FILE_ATTRIBUTE_DIRECTORY);
-  }
+  exists = FILE_EXISTS (dir);
+  if (exists)
+     is_dir = (GetFileAttributes(dir) & FILE_ATTRIBUTE_DIRECTORY);
 #endif
 
   d->cyg_dir = NULL;
