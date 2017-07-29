@@ -73,6 +73,20 @@ static int _sd_select (const struct dirent2 *de)
 }
 
 /*
+ * Prevent an ugly "disk not ready" dialogue from Windows before
+ * we call 'stat()' or 'FindFirstFile()'.
+ */
+static BOOL safe_to_access (const char *file)
+{
+  if (_has_drive(file) && !chk_disk_ready((int)file[0]))
+  {
+    DEBUGF (2, "Disk %c: not safe to access.\n", (int)file[0]);
+    return (FALSE);
+  }
+  return (TRUE);
+}
+
+/*
  * Split an 'arg' into a 'dir' part and a wildcard 'spec' for use by
  * opendir2() and scandir2().
  * Both 'dir' and 'spec' are assumed to point to a buffer of at least
@@ -91,8 +105,9 @@ static int ATTR_UNUSED() make_dir_spec (const char *arg, char *dir, char *spec)
   const char *p, *end, *_arg;
   char *p2;
   BOOL  unc = (strncmp(arg,"\\\\",2) == 0);
+  BOOL  safe = safe_to_access (arg);
 
-  if (!unc && stat(arg, &st) >= 0 && (st.st_mode & S_IFMT) == S_IFDIR)
+  if (!unc && safe && stat(arg, &st) >= 0 && (st.st_mode & S_IFMT) == S_IFDIR)
   {
     strcpy (dir, arg);
     strcpy (spec, "*");
@@ -302,7 +317,10 @@ static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
 
   if (spec)     /* get first entry */
   {
-    *hnd = FindFirstFile (spec, ff);
+    if (!safe_to_access(spec))
+         *hnd = INVALID_HANDLE_VALUE;
+    else *hnd = FindFirstFile (spec, ff);
+
     if (*hnd != INVALID_HANDLE_VALUE)
        okay = TRUE;
   }
