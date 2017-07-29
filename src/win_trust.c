@@ -183,6 +183,7 @@ int main (int argc, char **argv)
 
 DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check)
 {
+  void              *p;
   DWORD              rc;
   WINTRUST_DATA      data;
   WINTRUST_FILE_INFO file_info;
@@ -193,7 +194,7 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
                        WINTRUST_ACTION_TRUSTPROVIDER_TEST;
 #endif
 
-  if (!FILE_EXISTS(pe_file))
+  if (!pe_file || !FILE_EXISTS(pe_file))
   {
     SetLastError (last_err = ERROR_FILE_NOT_FOUND);
     return (last_err);
@@ -219,7 +220,9 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
 
   data.dwStateAction = WTD_STATEACTION_CLOSE;
   WinVerifyTrust (NULL, &action, &data);
-  FREE (file_info.pcwszFilePath);
+
+  p = (void*) file_info.pcwszFilePath;
+  FREE (p);
 
   if (check_details)
   {
