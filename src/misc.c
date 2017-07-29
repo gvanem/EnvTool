@@ -988,6 +988,16 @@ char *_fix_drive (char *path)
   return (path);
 }
 
+BOOL _has_drive (const char *path)
+{
+  int disk = toupper (path[0]);
+
+  if (disk >= 'A' && disk <= 'Z' && strlen(path) >= 3 &&
+      path[1] == ':' && IS_SLASH(path[2]))
+     return (TRUE);
+  return (FALSE);
+}
+
 /*
  * Returns ptr to 1st character in file's extension.
  * Returns ptr to '\0' if no extension.
@@ -1043,8 +1053,7 @@ void set_error_mode (int on_off)
        SetErrorMode (old_mode);
   else old_mode = SetErrorMode (SEM_FAILCRITICALERRORS);
 
-  DEBUGF (2, "on_off: %d, SetErrorMode (%d): %s\n",
-          on_off, old_mode, win_strerror(GetLastError()));
+  DEBUGF (2, "on_off: %d, SetErrorMode (%d).\n", on_off, old_mode);
 }
 
 /*
@@ -1063,6 +1072,7 @@ int disk_ready (int disk)
   hnd = CreateFile (path, GENERIC_READ | FILE_LIST_DIRECTORY,
                     FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                     OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+
   if (hnd == INVALID_HANDLE_VALUE)
   {
     DWORD err = GetLastError();
@@ -1113,6 +1123,43 @@ quit:
   set_error_mode (1);
   return (rc1 | rc2);
 }
+
+/*
+ * Return a cached status for disks ready: A: to - Z:.
+ */
+BOOL chk_disk_ready (int disk)
+{
+  static BOOL checked ['Z' - 'A'];
+  static int  status  ['Z' - 'A'];
+  int    i;
+
+  disk = toupper (disk);
+  if (disk < 'A' || disk > 'Z') /* What to do? */
+     return (TRUE);
+
+  i = disk - 'A';
+  assert (i >= 0 && i < sizeof(checked));
+
+  if (!checked[i])
+  {
+    status[i] = disk_ready (disk);
+    DEBUGF (2, "drive: %c, status: %d.\n", disk, status[i]);
+  }
+  checked [i] = TRUE;
+  return (status[i] >= 1);
+}
+
+#if !defined(__CYGWIN__)
+/*
+ * This used to be a macro in envtool.h.
+ */
+int _file_exists (const char *file)
+{
+  if (_has_drive(file) && !chk_disk_ready((int)file[0]))
+     return (FALSE);
+  return (GetFileAttributes(file) != INVALID_FILE_ATTRIBUTES);
+}
+#endif
 
 /*
  * Return TRUE if this program is executed as an 'elevated' process.

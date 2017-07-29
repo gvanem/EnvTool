@@ -196,12 +196,9 @@
     return (stat(f,&st) == 0);
   }
 #else
-  static __inline int FILE_EXISTS (const char *f)
-  {
-    return (GetFileAttributes(f) != INVALID_FILE_ATTRIBUTES);
-  }
+  extern int _file_exists (const char *file);
+  #define  FILE_EXISTS(f) _file_exists (f)
 #endif
-
 
 #ifndef _S_ISDIR
   #define _S_ISDIR(mode)     (((mode) & _S_IFMT) == _S_IFDIR)
@@ -369,6 +366,8 @@ extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
 extern void  set_error_mode(int on_off);
 extern int   disk_ready    (int disk);
+extern BOOL  chk_disk_ready(int disk);
+extern BOOL _has_drive     (const char *path);
 
 extern char       *make_cyg_path (const char *path, char *result);
 extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);
