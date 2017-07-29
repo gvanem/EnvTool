@@ -369,7 +369,7 @@ static BOOL state_PATH (struct state_CTX *ctx)
 
   if (sscanf(ctx->rx_ptr, "SIZE %I64u", &ctx->fsize) == 1)
   {
-    ETP_tracef (ctx, "size: %s", get_file_size_str(ctx->fsize));
+    ETP_tracef (ctx, "size: %s (0x%I64X)", get_file_size_str(ctx->fsize), ctx->fsize);
     return (TRUE);
   }
 
