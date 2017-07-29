@@ -1592,6 +1592,9 @@ const char *get_file_size_str (UINT64 size)
   int    i = 0;
   double m;
 
+  if (size == (__int64)-1)
+     return strcpy (buf, "   ?  ");
+
   while (size >= 1024ULL)
   {
     size /= 1024ULL;

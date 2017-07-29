@@ -1193,23 +1193,15 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   */
   if (opt.show_size && opt.dir_mode)
   {
-    if (key == HKEY_EVERYTHING_ETP && fsize == (__int64)-1)
-        strcpy (size, " -    ?   ");
-    else if (fsize != (__int64)-1)
-    {
-      snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
-      total_size += fsize;
-    }
+    snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
+    if (fsize < (__int64)-1)
+       total_size += fsize;
   }
   else if (opt.show_size)
   {
-    if (key == HKEY_EVERYTHING_ETP && fsize == (__int64)-1)
-       strcpy (size, " -    ?   ");
-    else if (fsize != (__int64)-1)
-    {
-      snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
-      total_size += fsize;
-    }
+    snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
+    if (fsize < (__int64)-1)
+       total_size += fsize;
   }
   else
     size[0] = '\0';
