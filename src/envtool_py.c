@@ -1607,6 +1607,7 @@ void py_init (void)
   if (ex_hnd == NULL)
   {
     ex_hnd = LoadLibrary ("exc-abort.dll");
+    GetLastError();
     DEBUGF (2, "LoadLibrary (\"exc-abort.dll\"): hnd: %p\n", ex_hnd);
   }
 
