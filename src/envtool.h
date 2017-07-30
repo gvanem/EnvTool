@@ -184,22 +184,6 @@
   #define DIR_SEP            '/'
 #endif
 
-#if defined(__CYGWIN__)
-  #include <sys/stat.h>
-  /*
-   * Cannot use 'GetFileAttributes()' in case file is on Posix form.
-   * E.g. "/cygdrive/c/foo"
-   */
-  static inline int FILE_EXISTS (const char *f)
-  {
-    struct stat st;
-    return (stat(f,&st) == 0);
-  }
-#else
-  extern int _file_exists (const char *file);
-  #define  FILE_EXISTS(f) _file_exists (f)
-#endif
-
 #ifndef _S_ISDIR
   #define _S_ISDIR(mode)     (((mode) & _S_IFMT) == _S_IFDIR)
 #endif
@@ -208,6 +192,7 @@
   #define _S_ISREG(mode)     (((mode) & _S_IFMT) == _S_IFREG)
 #endif
 
+#define FILE_EXISTS(f)       _file_exists (f)
 #define IS_SLASH(c)          ((c) == '\\' || (c) == '/')
 
 #ifdef __GNUC__
@@ -346,6 +331,7 @@ extern int  process_dir (const char *path, int num_dup, BOOL exist,
  */
 #define MAX_ENV_VAR  32767
 
+extern void  init_misc     (void);
 extern char *_strlcpy      (char *dst, const char *src, size_t len);
 extern char *_strsep       (char **s, const char *delim);
 extern char *_stracat      (char *s1, const char *s2);
@@ -365,6 +351,8 @@ extern int   _is_DOS83     (const char *fname);
 extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
 extern void  set_error_mode(int on_off);
+extern int  _file_exists   (const char *file);
+extern UINT  get_disk_type (int disk);
 extern int   disk_ready    (int disk);
 extern BOOL  chk_disk_ready(int disk);
 extern BOOL _has_drive     (const char *path);

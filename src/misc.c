@@ -132,6 +132,59 @@ static struct mem_head *mem_list_get_head (void *ptr)
 #endif  /* !__CYGWIN__ */
 
 /*
+ * We need to use "K32GetModuleFileNameExA", "IsWow64Process" and
+ * "SetThreadErrorMode" dynamically (since these are not available on Win-XP).
+ * Try to load them from "kernel32.dll" only once.
+ */
+typedef BOOL (WINAPI *func_GetModuleFileNameEx) (HANDLE proc, DWORD flags, char *fname, DWORD size);
+typedef BOOL (WINAPI *func_SetThreadErrorMode) (DWORD new_mode, DWORD *old_mode);
+typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
+
+/*
+ * Window Vista's+ 'SearchPath()' (in Kernel32.dll) uses this function while
+ * searching for .EXEs.
+ * \todo: Could be used in 'searchpath_internal()'?
+ *
+ * Ref:
+ *   https://msdn.microsoft.com/en-us/library/ms684269
+ */
+typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_name);
+
+static func_GetModuleFileNameEx             p_GetModuleFileNameEx;
+static func_SetThreadErrorMode              p_SetThreadErrorMode;
+static func_IsWow64Process                  p_IsWow64Process;
+static func_NeedCurrentDirectoryForExePathA p_NeedCurrentDirectoryForExePathA;
+
+void init_misc (void)
+{
+  static BOOL   done = FALSE;
+  static HANDLE hnd;
+
+  if (done)
+     return;
+
+  hnd = LoadLibrary ("kernel32.dll");
+  if (!hnd || hnd == INVALID_HANDLE_VALUE)
+  {
+    DEBUGF (1, "Failed to load kernel32.dll; %s\n", win_strerror(GetLastError()));
+    return;
+  }
+
+  p_GetModuleFileNameEx = (func_GetModuleFileNameEx)
+                            GetProcAddress (hnd, "K32GetModuleFileNameExA");
+
+  p_SetThreadErrorMode = (func_SetThreadErrorMode)
+                           GetProcAddress (hnd, "SetThreadErrorMode");
+
+  p_IsWow64Process = (func_IsWow64Process)
+                       GetProcAddress (hnd, "IsWow64Process");
+
+  p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)
+                                       GetProcAddress (hnd, "NeedCurrentDirectoryForExePathA");
+  done = TRUE;
+}
+
+/*
  * Open a fname and check if there's a "PK" signature in header.
  */
 int check_if_zip (const char *fname)
@@ -375,7 +428,7 @@ int verify_PE_checksum (const char *fname)
   const IMAGE_OPTIONAL_HEADER64 *oh;
   DWORD file_sum, header_sum, calc_chk_sum, rc;
 
-  assert (nt);
+  ASSERT (nt);
 
   if (last_bitness == bit_32)
     file_sum = nt->OptionalHeader.CheckSum;
@@ -405,49 +458,17 @@ int verify_PE_checksum (const char *fname)
  */
 BOOL is_wow64_active (void)
 {
-  static BOOL rc    = FALSE;
-  static BOOL init  = FALSE;
-  static BOOL wow64 = FALSE;
+  BOOL rc    = FALSE;
+  BOOL wow64 = FALSE;
 
-  if (init)
-     goto quit;
+  init_misc();
 
 #if (IS_WIN64 == 0)
-  {
-    typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
-    func_IsWow64Process p_IsWow64Process;
+  if (p_IsWow64Process &&
+     (*p_IsWow64Process) (GetCurrentProcess(), &wow64))
+    rc = wow64;
+#endif
 
-    const char *dll = "kernel32.dll";
-    HANDLE hnd = LoadLibrary (dll);
-
-    if (!hnd || hnd == INVALID_HANDLE_VALUE)
-    {
-      DEBUGF (1, "Failed to load %s; %s\n",
-              dll, win_strerror(GetLastError()));
-      init = TRUE;
-      return (rc);
-    }
-
-    p_IsWow64Process = (func_IsWow64Process) GetProcAddress (hnd, "IsWow64Process");
-    if (!p_IsWow64Process)
-    {
-      DEBUGF (1, "Failed to find \"p_IsWow64Process()\" in %s; %s\n",
-              dll, win_strerror(GetLastError()));
-      FreeLibrary (hnd);
-      init = TRUE;
-      return (rc);
-    }
-
-    if (p_IsWow64Process)
-       if ((*p_IsWow64Process) (GetCurrentProcess(), &wow64))
-          rc = wow64;
-    FreeLibrary (hnd);
-  }
-#endif  /* IS_WIN64 */
-
-  init = TRUE;
-
-quit:
   DEBUGF (2, "IsWow64Process(): rc: %d, wow64: %d.\n", rc, wow64);
   return (rc);
 }
@@ -461,26 +482,11 @@ quit:
  */
 BOOL get_module_filename_ex (HANDLE proc, char *filename)
 {
-  BOOL rc = FALSE;
+  init_misc();
 
-  typedef BOOL (WINAPI *func_GetModuleFileNameEx) (HANDLE proc, DWORD flags, char *fname, DWORD size);
-  func_GetModuleFileNameEx p_GetModuleFileNameEx;
-
-  const char *dll = "kernel32.dll";
-  HANDLE hnd = LoadLibrary (dll);
-
-  if (!hnd || hnd == INVALID_HANDLE_VALUE)
-  {
-    DEBUGF (1, "Failed to load %s; %s\n", dll, win_strerror(GetLastError()));
-    return (rc);
-  }
-
-  p_GetModuleFileNameEx = (func_GetModuleFileNameEx) GetProcAddress (hnd, "K32GetModuleFileNameExA");
   if (p_GetModuleFileNameEx)
-     rc = (*p_GetModuleFileNameEx) (proc, 0, filename, _MAX_PATH);
-
-  FreeLibrary (hnd);
-  return (rc);
+     return (*p_GetModuleFileNameEx) (proc, 0, filename, _MAX_PATH);
+  return (FALSE);
 }
 
 /*
@@ -570,7 +576,7 @@ char *strip_nl (char *s)
  */
 char *str_ltrim (char *s)
 {
-  assert (s != NULL);
+  ASSERT (s != NULL);
 
   while (s[0] && s[1] && isspace((int)s[0]))
        s++;
@@ -584,7 +590,7 @@ char *str_rtrim (char *s)
 {
   size_t n;
 
-  assert (s != NULL);
+  ASSERT (s != NULL);
   n = strlen (s);
   while (n)
   {
@@ -990,7 +996,7 @@ char *_fix_drive (char *path)
 
 BOOL _has_drive (const char *path)
 {
-  int disk = toupper (path[0]);
+  int disk = TOUPPER (path[0]);
 
   if (disk >= 'A' && disk <= 'Z' && strlen(path) >= 3 &&
       path[1] == ':' && IS_SLASH(path[2]))
@@ -1006,7 +1012,7 @@ const char *get_file_ext (const char *file)
 {
   const char *end, *dot, *s;
 
-  assert (file);
+  ASSERT (file);
   while ((s = strpbrk(file, ":/\\")) != NULL)  /* step over drive/path part */
      file = s + 1;
 
@@ -1045,15 +1051,102 @@ char *create_temp_file (void)
  * SetErrorMode()       is per process.
  * SetThreadErrorMode() is per thread on Win-7+.
  */
-void set_error_mode (int on_off)
+void set_error_mode (int restore)
 {
-  static UINT old_mode = 0;
+  init_misc();
 
-  if (on_off)
-       SetErrorMode (old_mode);
-  else old_mode = SetErrorMode (SEM_FAILCRITICALERRORS);
+  if (p_SetThreadErrorMode)
+  {
+    static DWORD old_mode = 0;
+    DWORD  mode = restore ? old_mode : SEM_FAILCRITICALERRORS;
+    BOOL   rc;
 
-  DEBUGF (2, "on_off: %d, SetErrorMode (%d).\n", on_off, old_mode);
+    if (restore)
+         rc = (*p_SetThreadErrorMode) (mode, NULL);
+    else rc = (*p_SetThreadErrorMode) (mode, &old_mode);
+    DEBUGF (2, "restore: %d, SetThreadErrorMode (0x%04lX), rc: %d.\n", restore, mode, rc);
+  }
+  else
+  {
+    static UINT old_mode = 0;
+    UINT   mode = restore ? old_mode : SEM_FAILCRITICALERRORS;
+
+    if (restore)
+         SetErrorMode (mode);
+    else old_mode = SetErrorMode (mode);
+    DEBUGF (2, "restore: %d, SetErrorMode (0x%04X).\n", restore, mode);
+  }
+}
+
+/*
+ * Get 'total_clusters' on 'disk'.
+ * Only works on local disks; 'disk-type == DRIVE_FIXED'.
+ */
+BOOL get_disk_clusters (int disk, DWORD *total)
+{
+  DWORD  sect_per_cluster = 0, bytes_per_sector = 0;
+  DWORD  free_clusters = 0, total_clusters = 0;
+  BOOL   rc = FALSE;
+  char  *err    = "<none>";
+  char   root[] = "?:\\";
+
+  root[0] = disk;
+  if (!GetDiskFreeSpace(root, &sect_per_cluster, &bytes_per_sector, &free_clusters, &total_clusters))
+       err = win_strerror (GetLastError());
+  else rc = TRUE;
+
+  DEBUGF (1, "GetDiskFreeSpace(): sect_per_cluster: %lu, bytes_per_sector: %lu, total_clusters: %lu, error: %s\n",
+          sect_per_cluster, bytes_per_sector, total_clusters, err);
+  if (rc && total)
+    *total = total_clusters;
+  return (rc);
+}
+
+/*
+ * Return the type of 'disk'.
+ */
+UINT get_disk_type (int disk)
+{
+  static const struct search_list disk_types[] = {
+                                  ADD_VALUE (DRIVE_UNKNOWN),
+                                  ADD_VALUE (DRIVE_NO_ROOT_DIR),
+                                  ADD_VALUE (DRIVE_REMOVABLE),
+                                  ADD_VALUE (DRIVE_FIXED),
+                                  ADD_VALUE (DRIVE_REMOTE),
+                                  ADD_VALUE (DRIVE_CDROM),
+                                  ADD_VALUE (DRIVE_RAMDISK)
+                                };
+  char root[] = "?:\\";
+  UINT type;
+
+  root[0] = disk;
+  type = GetDriveType (root);
+
+  DEBUGF (1, "GetDriveType (\"%s\"): type: %s (%d).\n",
+          root, list_lookup_name(type, disk_types, DIM(disk_types)), type);
+  return (type);
+}
+
+/*
+ * Get the volume mount point where the specified disk is mounted.
+ */
+BOOL get_volume_path (int disk, char **mount)
+{
+  char  *err    = "<none>";
+  char   root[] = "?:\\";
+  BOOL   rc = FALSE;
+  static char res [2*_MAX_PATH];
+
+  root[0] = disk;
+  if (!GetVolumePathName (root, res, sizeof(res)))
+       err = win_strerror (GetLastError());
+  else rc = TRUE;
+
+  if (rc && mount)
+     *mount = res;
+  DEBUGF (2, "GetVolumePathName (\"%s\"): error: %s, res: \"%s\"\n",
+          root, err, rc ? res : "N/A");
+  return (rc);
 }
 
 /*
@@ -1065,7 +1158,7 @@ int disk_ready (int disk)
   char   path [8];
   HANDLE hnd;
 
-  snprintf (path, sizeof(path), "\\\\.\\%c:", toupper(disk));
+  snprintf (path, sizeof(path), "\\\\.\\%c:", TOUPPER(disk));
   set_error_mode (0);
 
   DEBUGF (2, "Calling CreateFile (\"%s\").\n", path);
@@ -1125,40 +1218,63 @@ quit:
 }
 
 /*
- * Return a cached status for disks ready: A: to - Z:.
+ * Return a cached status for disks ready: A: to Z:.
  */
 BOOL chk_disk_ready (int disk)
 {
-  static BOOL checked ['Z' - 'A'];
-  static int  status  ['Z' - 'A'];
+  static BOOL checked ['Z' - 'A' + 1];
+  static int  status  ['Z' - 'A' + 1];
   int    i;
 
-  disk = toupper (disk);
+  disk = TOUPPER (disk);
   if (disk < 'A' || disk > 'Z') /* What to do? */
      return (TRUE);
 
   i = disk - 'A';
-  assert (i >= 0 && i < sizeof(checked));
+  ASSERT (i >= 0 && i < sizeof(checked));
 
   if (!checked[i])
   {
     status[i] = disk_ready (disk);
-    DEBUGF (2, "drive: %c, status: %d.\n", disk, status[i]);
+
+    /* A success from 'CreateFile()' in the above is not enough indication
+     * if the 'disk-type != DRIVE_FIXED'.
+     */
+    if (status[i] == 1)
+    {
+      set_error_mode (0);
+
+      if (get_disk_type(disk) == DRIVE_FIXED)
+        status[i] = get_disk_clusters (disk, NULL);
+
+      set_error_mode (1);
+    }
+    DEBUGF (3, "drive: %c, status: %d.\n", disk, status[i]);
   }
   checked [i] = TRUE;
   return (status[i] >= 1);
 }
 
-#if !defined(__CYGWIN__)
 /*
  * This used to be a macro in envtool.h.
  */
-int _file_exists (const char *file)
-{
-  if (_has_drive(file) && !chk_disk_ready((int)file[0]))
-     return (FALSE);
-  return (GetFileAttributes(file) != INVALID_FILE_ATTRIBUTES);
-}
+#if defined(__CYGWIN__)
+  /*
+   * Cannot use 'GetFileAttributes()' in case file is on Posix form.
+   * E.g. "/cygdrive/c/foo"
+   */
+  int _file_exists (const char *file)
+  {
+    struct stat st;
+    return (stat(file,&st) == 0);
+  }
+#else
+  int _file_exists (const char *file)
+  {
+    if (_has_drive(file) && !chk_disk_ready((int)file[0]))
+       return (FALSE);
+    return (GetFileAttributes(file) != INVALID_FILE_ATTRIBUTES);
+  }
 #endif
 
 /*
@@ -1231,9 +1347,9 @@ char *_strlcpy (char *dst, const char *src, size_t len)
 {
   size_t slen;
 
-  assert (src != NULL);
-  assert (dst != NULL);
-  assert (len > 0);
+  ASSERT (src != NULL);
+  ASSERT (dst != NULL);
+  ASSERT (len > 0);
 
   slen = strlen (src);
   if (slen < len)
@@ -2249,6 +2365,13 @@ BOOL wchar_to_mbchar (size_t len, const wchar_t *buf, char *result)
   return (TRUE);
 }
 
+/*
+ * The 'DeviceIoControl()' returns sensible information for a
+ * remote 'dir'. But the returned drive-letter is wrong!
+ *
+ * So it's maybe not a good idea to call this function before checking
+ * if 'get_disk_type(dir[0]) == DRIVE_FIXED)' first.
+ */
 BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 {
   struct REPARSE_DATA_BUFFER *rdata;
