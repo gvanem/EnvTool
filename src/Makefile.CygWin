@@ -12,16 +12,15 @@ CFLAGS  = -Wall -static-libgcc -Wno-strict-aliasing -DEVERYTHINGUSERAPI= \
           -DEVERYTHINGAPI=__cdecl -D__USE_W32_SOCKETS
 LDFLAGS = -Wl,--print-map,--sort-common,--cref -L/usr/lib/w32api
 RCFLAGS = -O COFF
-GCC_VER ?= 4.9.2
 
 ifeq ($(USE_64BIT),1)
   CFLAGS  += -m64
-  LDFLAGS += -m64 -L/usr/lib/gcc/x86_64-w64-mingw32/$(GCC_VER)
-  RCFLAGS += --preprocessor-arg=-m64 --target=pe-x86-64
+  LDFLAGS += -m64
+  RCFLAGS += --target=pe-x86-64 # --preprocessor-arg=-m64
 else
   CFLAGS  += -m32
-  LDFLAGS += -m32 -L/usr/lib/gcc/i686-w64-mingw32/$(GCC_VER)
-  RCFLAGS += --preprocessor-arg=-m32 --target=pe-i386
+  LDFLAGS += -m32
+  RCFLAGS += --target=pe-i386 # --preprocessor-arg=-m32
 endif
 
 ifeq ($(USE_DEBUG),1)
@@ -52,39 +51,48 @@ SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
           Everything.c Everything_ETP.c envtool_py.c smartlist.c     \
           win_trust.c win_ver.c
 
-OBJECTS = $(SOURCES:.c=.o)
+OBJECTS  = $(SOURCES:.c=.o)
+PROGRAMS = envtool.exe win_glob.exe win_ver.exe win_trust.exe dirlist.exe
 
-all: cflags_CygWin.h ldflags_CygWin.h envtool.exe
+all: cflags_CygWin.h ldflags_CygWin.h $(PROGRAMS)
 	cp --update envtool.exe ..
 	@echo '../envtool.exe successfully built.'
 
 envtool.exe: $(OBJECTS) envtool.res
 	$(CC) $(LDFLAGS) -o $@ $^ $(EX_LIBS) > envtool.map
+	@echo
 
 envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc
+	@echo
 
 dirlist.exe: dirlist.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
 	rm -f dirlist.o
+	@echo
 
 win_glob.exe: win_glob.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o
+	@echo
 
 win_ver.exe: win_ver.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
 	rm -f win_ver.o
+	@echo
 
 win_trust.exe: win_trust.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
 	rm -f win_trust.o
+	@echo
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) $<
+	@echo
 
 %.i: %.c
 	$(CC) -c -E $(CFLAGS) $< > $@
+	@echo
 
 cflags_CygWin.h: Makefile.CygWin
 	echo 'const char *cflags = "$(CC) $(CFLAGS)";' > $@
@@ -98,7 +106,7 @@ clean:
 	rm -f $(OBJECTS) envtool.res envtool.exe envtool.map cflags_Cygwin.h ldflags_Cygwin.h
 
 vclean: clean
-	rm -f win_glob.exe win_glob.map win_trust.exe win_trust.map
+	rm -f $(PROGRAMS) $(PROGRAMS:.exe=.map)
 
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
