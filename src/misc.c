@@ -234,8 +234,8 @@ int check_if_gzip (const char *fname)
 
   if (!is_gzip && !is_tgz)
   {
-    DEBUG_NL (1);
-    DEBUGF (1, "\"%s\" does have wrong extension: '%s'.\n", fname, ext);
+    DEBUG_NL (2);
+    DEBUGF (2, "\"%s\" does have wrong extension: '%s'.\n", fname, ext);
     return (0);
   }
 
@@ -247,8 +247,8 @@ int check_if_gzip (const char *fname)
        rc = 1;
     fclose (f);
   }
-  DEBUG_NL (1);
-  DEBUGF (1, "\"%s\" is %sa GZIP-file.\n", fname, rc == 2 ? "": "not ");
+  DEBUG_NL (2);
+  DEBUGF (2, "\"%s\" is %sa GZIP-file.\n", fname, rc == 1 ? "": "not ");
   return (rc);
 }
 
@@ -272,6 +272,7 @@ const char *get_gzip_link (const char *file)
 {
   static char gzip [_MAX_PATH];
   static BOOL done = FALSE;
+  const char *f = file;
 
   if (!done)
   {
@@ -285,7 +286,16 @@ const char *get_gzip_link (const char *file)
      return (NULL);
 
   gzip_link_name[0] = '\0';
-  if (popen_runf(gzip_cb, "\"%s\" -cd %s 2> %s", gzip, file, DEV_NULL) > 0)
+
+#if defined(__CYGWIN__)
+  {
+    char cyg_name [_MAX_PATH];
+    if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, f, cyg_name, sizeof(cyg_name)) == 0)
+       f = cyg_name;
+  }
+#endif
+
+  if (popen_runf(gzip_cb, "\"%s\" -cd %s 2> %s", gzip, f, DEV_NULL) > 0)
   {
     static char fqfn_name [_MAX_PATH];
     char       *dir_name = dirname (file);
