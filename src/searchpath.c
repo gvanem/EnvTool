@@ -49,6 +49,12 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
     errno = EINVAL;
     return (NULL);
   }
+  if (!strncmp(file,"\\\\.\\",4))
+  {
+    DEBUGF (1, "Not handling UNC-names: '%s'\n", file);
+    errno = EINVAL;
+    return (NULL);
+  }
 
   if (!env_var || !*env_var)
   {
