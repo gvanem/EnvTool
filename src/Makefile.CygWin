@@ -8,7 +8,8 @@ USE_64BIT      ?= 0
 
 CC = gcc
 
-CFLAGS  = -Wall -static-libgcc -Wno-strict-aliasing -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl # -D_WIN32
+CFLAGS  = -Wall -static-libgcc -Wno-strict-aliasing -DEVERYTHINGUSERAPI= \
+          -DEVERYTHINGAPI=__cdecl -D__USE_W32_SOCKETS
 LDFLAGS = -Wl,--print-map,--sort-common,--cref -L/usr/lib/w32api
 RCFLAGS = -O COFF
 GCC_VER ?= 4.9.2

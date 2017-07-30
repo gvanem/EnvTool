@@ -15,8 +15,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
 #include <winsock2.h>
+#include <windows.h>
 
 #include "color.h"
 #include "envtool.h"
@@ -367,13 +367,13 @@ static BOOL state_PATH (struct state_CTX *ctx)
     return (TRUE);
   }
 
-  if (sscanf(ctx->rx_ptr, "SIZE %I64u", &ctx->fsize) == 1)
+  if (sscanf(ctx->rx_ptr, "SIZE %" U64_FMT, &ctx->fsize) == 1)
   {
     ETP_tracef (ctx, "size: %s", str_trim((char*)get_file_size_str(ctx->fsize)));
     return (TRUE);
   }
 
-  if (sscanf(ctx->rx_ptr, "DATE_MODIFIED %I64u", (UINT64*)&ft) == 1)
+  if (sscanf(ctx->rx_ptr, "DATE_MODIFIED %" U64_FMT, (UINT64*)&ft) == 1)
   {
     ctx->mtime = FILETIME_to_time_t (&ft);
     ETP_tracef (ctx, "mtime: %.24s", ctime(&ctx->mtime));
