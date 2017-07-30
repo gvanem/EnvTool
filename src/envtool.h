@@ -178,10 +178,10 @@
   #define __FILE()           __FILE__
 #endif
 
-#if defined(WIN32) || defined(_WIN32)
-  #define DIR_SEP            '\\'
-#else /* I.e. CygWin */
+#if defined(__CYGWIN__)
   #define DIR_SEP            '/'
+#else
+  #define DIR_SEP            '\\'
 #endif
 
 #ifndef _S_ISDIR
