@@ -25,16 +25,6 @@ int searchpath_pos (void)
 }
 
 /*
- * Window Vista's+ 'SearchPath()' (in Kernel32.dll) uses this function while
- * searching for .EXEs.
- * \todo: Can we do the same?
- *
- * Ref:
- *   https://msdn.microsoft.com/en-us/library/ms684269
- */
-typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_name);
-
-/*
  * Search '%env_var' for the first 'file' (not a 'file_spec').
  * If successful, store the full pathname in static buffer and return a
  * pointer to it. If not sucessful, return NULL.
@@ -50,17 +40,6 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
   char   *p, *path, *test_dir;
   size_t  alloc;
   int     save_debug = opt.debug;
-  static  func_NeedCurrentDirectoryForExePathA p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)-1;
-
-  if (p_NeedCurrentDirectoryForExePathA == (func_NeedCurrentDirectoryForExePathA)-1)
-  {
-    HANDLE hnd = GetModuleHandle ("kernel32.dll");
-
-    if (hnd && hnd != INVALID_HANDLE_VALUE)
-       p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)
-          GetProcAddress (hnd, "NeedCurrentDirectoryForExePathA");
-    DEBUGF (2, "p_NeedCurrentDirectoryForExePathA(): 0x%p\n", p_NeedCurrentDirectoryForExePathA);
-  }
 
   last_pos = -1;
 
@@ -77,6 +56,8 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
     errno = EINVAL;
     return (NULL);
   }
+
+  init_misc();
 
   found[0] = '\0';
   opt.debug = 0;
