@@ -25,7 +25,7 @@ BEGIN
       VALUE "FileVersion",      VER_STRING
       VALUE "InternalName",     "envtool.exe (" BUILDER ", " WIN_VERSTR ")"
       VALUE "OriginalFilename", "envtool.exe (" BUILDER ", " WIN_VERSTR ")"
-      VALUE "ProductName",      "Environment variable and Python 'sys.path[]' search tool."
+      VALUE "ProductName",      "Environment variables and Python 'sys.path[]' search tool."
       VALUE "ProductVersion",   VER_STRING "\0"
       VALUE "LegalCopyright",   "This is a freeware program by " AUTHOR_STR ", 2012-2017."
     END
