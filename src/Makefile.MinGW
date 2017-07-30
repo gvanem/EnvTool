@@ -62,9 +62,10 @@ SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
           Everything.c Everything_ETP.c envtool_py.c getopt_long.c   \
           smartlist.c win_trust.c win_ver.c
 
-OBJECTS = $(SOURCES:.c=.o)
+OBJECTS  = $(SOURCES:.c=.o)
+PROGRAMS = envtool.exe win_glob.exe win_ver.exe win_trust.exe dirlist.exe
 
-all: cflags_MinGW.h ldflags_MinGW.h envtool.exe
+all: cflags_MinGW.h ldflags_MinGW.h $(PROGRAMS)
 	cp --update envtool.exe ..
 	@echo '../envtool.exe successfully built.'
 
@@ -103,7 +104,7 @@ clean:
 	@echo
 
 vclean: clean
-	rm -f win_glob.exe win_glob.map win_trust.exe win_trust.map
+	rm -f $(PROGRAMS) $(PROGRAMS:.exe=.map)
 
 cflags_MinGW.h: Makefile.MinGW
 	echo 'const char *cflags = "$(CC) $(CFLAGS)";' > $@
