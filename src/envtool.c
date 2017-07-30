@@ -373,7 +373,7 @@ static int show_version (void)
       {
         const char *line = smartlist_get (ver_cache, i);
 
-        if (isdigit(line[0]) && line[1] == ':')
+        if (isdigit((int)line[0]) && line[1] == ':')
         {
           if (opt.do_version >= line[0] - '0')
              C_puts (line+2);
@@ -1089,7 +1089,7 @@ static int print_PE_file (const char *file, const char *note, const char *filler
   return (1);
 }
 
-static UINT64 get_directory_size (const char *dir)
+UINT64 get_directory_size (const char *dir)
 {
   struct dirent2 **namelist = NULL;
   int    i, n = scandir2 (dir, &namelist, NULL, NULL);
@@ -1730,7 +1730,11 @@ int process_dir (const char *path, int num_dup, BOOL exist,
 
   if (num_dup > 0)
   {
+#if 0     /* \todo */
+    WARN ("%s: directory \"%s\" is duplicated at position %d. Skipping.\n", prefix, path, dup_pos);
+#else
     WARN ("%s: directory \"%s\" is duplicated. Skipping.\n", prefix, path);
+#endif
     return (0);
   }
 
@@ -3475,7 +3479,7 @@ void test_split_env (const char *env)
     C_printf ("  arr[%2d]: %-65s", i, dir);
 
     if (arr->cyg_dir)
-       C_printf (" %s", arr->cyg_dir);
+       C_printf ("\n%*s%s", 11, "", arr->cyg_dir);
 
     if (arr->num_dup > 0)
        C_puts ("  ~3**duplicated**~0");
@@ -3932,10 +3936,6 @@ static void test_ReparsePoints (void)
                     "c:\\Program Files",
                     "c:\\Program Files (x86)",
                   };
-#if defined(__CYGWIN__)
-  struct stat st;
-#endif
-
   int i;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
@@ -3948,8 +3948,12 @@ static void test_ReparsePoints (void)
     BOOL  rc = get_reparse_point (p, result, TRUE);
 
 #if defined(__CYGWIN__)
-    if (lstat(p, &st) == 0)
-      sprintf (st_result, ", link: %s.", S_ISLNK(st.st_mode) ? "Yes" : "No");
+    {
+      struct stat st;
+
+      if (lstat(p, &st) == 0)
+         sprintf (st_result, ", link: %s.", S_ISLNK(st.st_mode) ? "Yes" : "No");
+    }
 #endif
 
     C_printf ("  %d: \"%s\" %*s->", i, p, (int)(26-strlen(p)), "");
