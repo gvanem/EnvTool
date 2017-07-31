@@ -225,8 +225,7 @@
 #if defined(__x86_64__) || defined(_M_X64)   /* 64-bit targets */
   #if defined(_MSC_VER) || defined(__MINGW32__)
     #define ADDR_FMT      "016I64X"
-  #elif defined(__CYGWIN__)                  /* CygWin64  */  || \
-        defined(TRAVIS_BUILD)                /* Travis-CI build */
+  #elif defined(__CYGWIN__)                  /* CygWin64 */
     #define ADDR_FMT     "016llX"
   #else
     #error "Unsupported compiler"
@@ -438,6 +437,10 @@ extern const char *reg_top_key_name (HKEY key);
 extern const char *reg_access_name (REGSAM acc);
 extern DWORD       reg_swap_long (DWORD val);
 
+extern void crtdbug_init (void);
+extern void crtdbug_exit (void);
+
+
 /* Stuff in win_ver.c:
  */
 extern const char *os_name (void);
@@ -482,7 +485,7 @@ extern wchar_t *wcsdup_at  (const wchar_t *str, const char *file, unsigned line)
 extern void     free_at    (void *ptr, const char *file, unsigned line);
 extern void     mem_report (void);
 
-#if defined(_CRTDBG_MAP_ALLOC) || defined(__CYGWIN__)
+#if defined(_CRTDBG_MAP_ALLOC)
   #define MALLOC        malloc
   #define CALLOC        calloc
   #define REALLOC       realloc
