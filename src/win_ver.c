@@ -217,7 +217,7 @@ static const char *get_os_version (void)
      return ("Win-3.1");
   }
   else if (p_os->dwPlatformId == VER_PLATFORM_WIN32_CE)
-     return ("Win-CE");  /* just a tets */
+     return ("Win-CE");  /* just a test */
 
   else if (p_os->dwPlatformId == VER_PLATFORM_WIN32s)
      return ("Win-32s");
