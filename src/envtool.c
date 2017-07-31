@@ -34,6 +34,7 @@
 
 #if defined(__CYGWIN__)
   #include <getopt.h>
+  #include <shellapi.h>
 #else
   #include "getopt_long.h"
 #endif
@@ -1097,12 +1098,13 @@ UINT64 get_directory_size (const char *dir)
 
   for (i = 0; i < n; i++)
   {
-    int is_dir      = (namelist[i]->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-    int is_junction = (namelist[i]->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+    int   is_dir      = (namelist[i]->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+    int   is_junction = (namelist[i]->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+    const char *link;
 
     if (is_junction)
     {
-      const char *link = namelist[i]->d_link ? namelist[i]->d_link : "?";
+      link = namelist[i]->d_link ? namelist[i]->d_link : "?";
       DEBUGF (1, "Not recursing into junction \"%s\"\n", link);
     }
     else if (is_dir)
@@ -1129,6 +1131,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   char        size [40] = "?";
   int         raw;
   BOOL        have_it = TRUE;
+  BOOL        show_dir_size = TRUE;
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -1177,6 +1180,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   }
   else if (key == HKEY_EVERYTHING_ETP)
   {
+    show_dir_size = FALSE;
   }
   else
   {
@@ -1191,11 +1195,12 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   * The ETP-server (key == HKEY_EVERYTHING_ETP) can not reliably report size
   * of directories.
   */
-  if (opt.show_size && opt.dir_mode)
+  if (opt.show_size && opt.dir_mode && show_dir_size)
   {
+    if (is_dir)
+       fsize = get_directory_size (file);
     snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
-    if (fsize < (__int64)-1)
-       total_size += fsize;
+    total_size += fsize;
   }
   else if (opt.show_size)
   {
@@ -3157,37 +3162,11 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   }
 
   if (argc >= 2 && argv[optind])
+  {
     *fspec = STRDUP (argv[optind]);
+    DEBUGF (1, "*fspec: \"%s\"\n", *fspec);
+  }
 }
-
-#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
-static _CrtMemState last_state;
-
-static void crtdbug_init (void)
-{
-  _HFILE file  = _CRTDBG_FILE_STDERR;
-  int    mode  = _CRTDBG_MODE_FILE;
-  int    flags = _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF | _CRTDBG_DELAY_FREE_MEM_DF;
-
-  _CrtSetReportFile (_CRT_ASSERT, file);
-  _CrtSetReportMode (_CRT_ASSERT, mode);
-  _CrtSetReportFile (_CRT_ERROR, file);
-  _CrtSetReportMode (_CRT_ERROR, mode);
-  _CrtSetReportFile (_CRT_WARN, file);
-  _CrtSetReportMode (_CRT_WARN, mode);
-  _CrtSetDbgFlag (flags | _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG));
-  _CrtMemCheckpoint (&last_state);
-}
-
-static void crtdbg_exit (void)
-{
-  _CrtCheckMemory();
-  if (opt.debug)
-       _CrtMemDumpStatistics (&last_state);
-  else _CrtMemDumpAllObjectsSince (&last_state);
-  _CrtDumpMemoryLeaks();
-}
-#endif
 
 static void cleanup (void)
 {
@@ -3235,10 +3214,7 @@ static void cleanup (void)
      C_puts ("~5Quitting.\n~0");
 
   C_reset();
-
-#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
-  crtdbg_exit();
-#endif
+  crtdbug_exit();
 }
 
 /*
@@ -3278,10 +3254,7 @@ static void halt (int sig)
 static void init_all (void)
 {
   atexit (cleanup);
-
-#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
   crtdbug_init();
-#endif
 
   tzset();
   memset (&opt, 0, sizeof(opt));
@@ -3318,6 +3291,29 @@ int main (int argc, char **argv)
   char *end, *dot;
 
   init_all();
+
+#if defined(__CYGWIN__)
+  {
+    /*
+     * Cygwin gives an 'argv[]' that messed up regular expressions.
+     * E.g. on the cmdline, a "^c.*\\temp$", becomes a "^c.*\temp$".
+     * So get 'argv[argc-1]' back from kernel32.dll.
+     */
+    int       wargc;
+    wchar_t **wargv = CommandLineToArgvW (GetCommandLineW(), &wargc);
+    wchar_t  *last_argv;
+    static char new_last [_MAX_PATH];
+
+    if (wargv)
+    {
+      last_argv = wargv [wargc-1];
+      if (WideCharToMultiByte(CP_ACP, 0, last_argv, wcslen(last_argv),
+                              new_last, sizeof(new_last), "?", NULL) > 0)
+         argv [wargc-1] = new_last;
+      LocalFree (wargv);
+    }
+  }
+#endif
 
   parse_cmdline (argc, argv, &opt.file_spec);
 
