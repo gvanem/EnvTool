@@ -31,13 +31,14 @@
 typedef int (*QsortCmpFunc) (const void *, const void *);
 typedef int (*ScandirCmpFunc) (const void **, const void **);
 
+static BOOL follow_junctions = TRUE;
+
 /*
  * Local functions
  */
 static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff);
 static void  free_contents (DIR2 *dp);
 static void  set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, ScandirCmpFunc *sd_cmp_func);
-static void _slashify (char *path);
 
 static BOOL setdirent2 (struct dirent2 *de, const char *dir, const char *file)
 {
@@ -72,6 +73,20 @@ static int _sd_select (const struct dirent2 *de)
   return (rc);
 }
 
+static int sort_reverse = 0;
+static int sort_exact = 0;
+
+static int reverse_sort (int rc)
+{
+  if (rc == 0)
+     return (0);
+  if (sort_reverse)
+       rc = rc < 0 ?  1 : -1;
+  else rc = rc < 0 ? -1 : 1;
+  return (rc);
+}
+
+
 /*
  * Prevent an ugly "disk not ready" dialogue from Windows before
  * we call 'stat()' or 'FindFirstFile()'.
@@ -92,7 +107,7 @@ static BOOL safe_to_access (const char *file)
  * Both 'dir' and 'spec' are assumed to point to a buffer of at least
  * _MAX_PATH characters.
  *
- * If 'arg' start with a "\\UNC_name", do not use stat() as that could
+ * If 'arg' start with a "\\UNC_name", do not use 'stat()' as that could
  * hang the program for a long time if 'UNC_name' resolves to an IP of
  * a host that is down.
  *
@@ -107,6 +122,8 @@ static int ATTR_UNUSED() make_dir_spec (const char *arg, char *dir, char *spec)
   BOOL  unc = (strncmp(arg,"\\\\",2) == 0);
   BOOL  safe = safe_to_access (arg);
 
+  /* Check if 'arg' is simply a directory.
+   */
   if (!unc && safe && stat(arg, &st) >= 0 && (st.st_mode & S_IFMT) == S_IFDIR)
   {
     strcpy (dir, arg);
@@ -154,6 +171,8 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   char            path [_MAX_PATH];
   char           *file;
 
+  sort_exact = sort_reverse = 0;
+
   _strlcpy (path, dir_name, sizeof(path));
 
   dirp = CALLOC (1, sizeof(*dirp));
@@ -169,7 +188,9 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   DEBUGF (3, "CALLOC (%u) -> %p\n", (unsigned)max_size, dirp->dd_contents);
 
  /*
-  * Maybe use "*" as pattern if 'opts->recursive == 1'? And filter later on.
+  * If we're called from 'scandir2()', we have no pattern; we macth all files.
+  * If we're called from 'opendir2x()', maybe use "*" as pattern if 'opts->recursive == 1'?
+  * And filter later on.
   */
   snprintf (path, sizeof(path), "%s\\%s", dir_name, opts ? opts->pattern : "*");
 
@@ -185,8 +206,6 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   do
   {
     de = dirp->dd_contents + dirp->dd_num;
-    if (opts && opts->unixy_paths)
-       _slashify (file);
 
     if (!setdirent2(de, dir_name, file))
     {
@@ -348,18 +367,6 @@ static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
   return (rc);
 }
 
-static int sort_reverse = 0;
-
-static int reverse_sort (int rc)
-{
-  if (rc == 0)
-     return (0);
-  if (sort_reverse)
-       rc = rc < 0 ?  1 : -1;
-  else rc = rc < 0 ? -1 : 1;
-  return (rc);
-}
-
 /*
  * Implementation of scandir2() which uses the above opendir2()
  * and readdir2() implementations.
@@ -388,7 +395,7 @@ int scandir2 (const char       *dirname,
   size_t max_cnt  = 100;
   size_t max_size = max_cnt * sizeof(struct dirent2);
 
-  dirptr = opendir2 (dirname);   /* This will match anything and not call qsort() */
+  dirptr = opendir2 (dirname);    /* This will match anything and not call qsort() */
   if (!dirptr)
   {
     DEBUGF (1, "opendir2 (\"%s\"): failed\n", dirname);
@@ -435,9 +442,9 @@ int scandir2 (const char       *dirname,
     memcpy (namelist[num], de, sizeof(struct dirent2));
     p = (char*) namelist[num] + sizeof(struct dirent2);
     strncpy (p, de->d_name, _MAX_PATH);
-    namelist [num++]->d_name = p;
+    namelist [num]->d_name = p;
 
-    if (num == max_cnt)
+    if (++num == max_cnt)
     {
       max_size *= 5;
       max_cnt  *= 5;
@@ -474,7 +481,12 @@ static int compare_alphasort (const struct dirent2 *a, const struct dirent2 *b)
 {
   const char *base_a = basename (a->d_name);
   const char *base_b = basename (b->d_name);
-  int         rc     = reverse_sort (stricmp(base_a, base_b));
+  int         rc;
+
+  if (sort_exact)
+       rc = strcmp (base_a, base_b);
+  else rc = stricmp (base_a, base_b);
+  rc = reverse_sort (rc);
 
   DEBUGF (3, "base_a: %s, base_b: %s, rc: %d\n", base_a, base_b, rc);
   return (rc);
@@ -538,9 +550,10 @@ int sd_compare_dirs_first (const void **a, const void **b)
  */
 static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, ScandirCmpFunc *sd_cmp_func)
 {
-  enum od2x_sorting s = (sort & ~OD2X_SORT_REVERSE);
+  enum od2x_sorting s = (sort & ~(OD2X_SORT_REVERSE | OD2X_SORT_EXACT));
 
   sort_reverse = (sort & OD2X_SORT_REVERSE) ? 1 : 0;
+  sort_exact   = (sort & OD2X_SORT_EXACT)   ? 1 : 0;
 
   switch (s)
   {
@@ -578,21 +591,6 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
   }
 }
 
-/*
- * Replace all '\\' with a '/'.
- */
-static void _slashify (char *path)
-{
-  char *p, *end = strchr (path, '\0');
-
-  for (p = path; p < end; p++)
-  {
-    if (IS_SLASH(*p))
-      *p = '/';
-  }
-}
-
-
 #if defined(DIRLIST_TEST)
 
 #if defined(__MINGW32__)
@@ -624,11 +622,13 @@ static UINT   cluster_size = 4*1024;
 
 void usage (void)
 {
-  printf ("Usage: dirlist [-drSs<type>] <dir\\spec*>\n"
+  printf ("Usage: dirlist [-cdurSs<type>] <dir\\spec*>\n"
+          "       -c:      case-sensitive.\n"
           "       -d:      debug-level.\n"
+          "       -u:      show files on Unix form.\n"
           "       -r:      be recursive.\n"
-          "       -S:      use scandir(). Otherwise use readdir2().\n"
-          "       -s type: sort the listing on \"name\", \"files\", \"dirs\". Optionally with \",reverse\".\n");
+          "       -S:      use scandir2(). Otherwise use readdir2().\n"
+          "       -s type: sort the listing on \"names\", \"files\", \"dirs\". Optionally with \",reverse\".\n");
   exit (-1);
 }
 
@@ -666,23 +666,73 @@ static UINT64 get_alloc_size (const char *file, UINT64 size)
   return (num_sect * bytes_per_sector);
 }
 
-static void print_de (const struct dirent2 *de, int idx)
+/*
+ * Cygwin:    Convert 'path' from Windows to Posix form.
+ * Otherwise: Replace all '\\' with a '/'.
+ */
+static const char *make_unixy_path (const char *path)
+{
+  static char name [_MAX_PATH];
+
+#if defined(__CYGWIN__)
+  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, path, name, sizeof(name)) == 0)
+     return (name);
+  return (path);
+
+#else
+  char *p, *end;
+
+  _strlcpy (name, path, sizeof(name));
+  end = strchr (name, '\0');
+  for (p = name; p < end; p++)
+  {
+    if (IS_SLASH(*p))
+       *p = '/';
+  }
+  *p = '\0';
+  return (name);
+#endif
+}
+
+static void print_de (const struct dirent2 *de, int idx, const struct od2x_options *opts)
 {
   int is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
   int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+  int slash = '\\';
+  const char *f;
 
   C_printf ("~1%3d ~0(%lu): ", idx, recursion_level);
   C_printf ("~4%-7s~6", is_junction ? "<LINK>" : is_dir ? "<DIR>" : "");
 
   C_setraw (1);
-  C_puts (de->d_name);
+
+  if (opts && opts->unixy_paths)
+  {
+    C_puts (make_unixy_path(de->d_name));
+    slash = '/';
+  }
+  else
+    C_puts (de->d_name);
+
+  if (is_dir || is_junction)
+     C_putc (slash);
+
   C_setraw (0);
 
   if (is_junction)
   {
     C_puts ("\n             -> ~3");
     C_setraw (1);
-    C_puts (de->d_link ? de->d_link : "??");
+
+    if (de->d_link)
+    {
+      f = de->d_link;
+      if (opts && opts->unixy_paths)
+         f = make_unixy_path (f);
+      C_printf ("%s%c", f, slash);
+    }
+    else
+      C_puts ("??");
     C_setraw (0);
   }
   C_puts ("~0\n");
@@ -711,7 +761,7 @@ static void print_de (const struct dirent2 *de, int idx)
 
 static void final_report (void)
 {
-  C_printf ("  Num files:        %lu (%lu files and dirs)\n", num_files, num_files+num_directories);
+  C_printf ("  Num files:        %lu\n", num_files);
   C_printf ("  Num directories:  %lu\n", num_directories);
   C_printf ("  Num junctions:    %lu (errors: %lu)\n", num_junctions, num_junctions_err);
   C_printf ("  total-size:       %s bytes", qword_str(total_size));
@@ -733,7 +783,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
   DEBUGF (1, "scandir2 (\"%s\"), pattern: '%s': n: %d, sort_reverse: %d.\n", dir, opts->pattern, n, sort_reverse);
 
   if (n < 0)
-     DEBUGF (0, "(recursion_level: %lu). Error in scandir (\"%s\"): %s\n",
+     DEBUGF (0, "(recursion_level: %lu). Error in scandir2 (\"%s\"): %s\n",
              recursion_level, dir, strerror(errno));
   else
   {
@@ -743,7 +793,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
       int    is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
       int    is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
 
-      if (is_junction && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
+      if (is_junction && follow_junctions &&get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
       {
         char result [_MAX_PATH] = "??";
         BOOL rc = get_reparse_point (de->d_name, result, TRUE);
@@ -753,7 +803,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
       }
 
       if (fnmatch(opts->pattern,basename(de->d_name),fnmatch_case(FNM_FLAG_PATHNAME)) == FNM_MATCH)
-         print_de (de, i);
+         print_de (de, i, opts);
 
       if (opts->recursive && (is_dir || is_junction))
       {
@@ -763,7 +813,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
       }
     }
 
-    DEBUGF (1, "(recursion_level: %lu). freeing %d items and *namelist.\n",
+    DEBUGF (2, "(recursion_level: %lu). freeing %d items and *namelist.\n",
             recursion_level, n);
 
     while (n--)
@@ -792,7 +842,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
     int is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
     int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
 
-    if (is_junction && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
+    if (is_junction && follow_junctions && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
     {
       char result [_MAX_PATH] = "??";
       BOOL rc = get_reparse_point (de->d_name, result, TRUE);
@@ -801,7 +851,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
          de->d_link = STRDUP (_fix_drive(result));
     }
 
-    print_de (de, i++);
+    print_de (de, i++, opts);
 
     if (opts->recursive && (is_dir || is_junction))
     {
@@ -815,7 +865,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
   rewinddir2 (dp);
   printf ("After rewinddir2(dp):\n");
   while ((de = readdir2(dp)) != NULL)
-     print_de (de, telldir2(dp));
+     print_de (de, telldir2(dp), opts);
 #endif
 
   closedir2 (dp);
@@ -824,14 +874,16 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
 static enum od2x_sorting get_sorting (const char *s_type)
 {
   enum od2x_sorting sort = OD2X_UNSORTED;
+  const char *s_supported = "\"names\", \"files\", \"dirs\"";
 
-  if (!strnicmp(s_type,"name",4))
+  if (!strnicmp(s_type,"names",5))
        sort = OD2X_ON_NAME;
   else if (!strnicmp(s_type,"files",5))
        sort = OD2X_FILES_FIRST;
   else if (!strnicmp(s_type,"dirs",4))
        sort = OD2X_DIRECTORIES_FIRST;
-  else FATAL ("Illegal sorting type '%s'\n", s_type);
+  else FATAL ("Illegal sorting type '%s'.\n"
+              "These are supported: %s. Optionally with \",reverse\".\n", s_type, s_supported);
 
   if (strstr(s_type,",reverse"))
      sort |= OD2X_SORT_REVERSE;
@@ -847,13 +899,23 @@ int main (int argc, char **argv)
   char spec_buf [_MAX_PATH];
   struct od2x_options opts;
 
+  crtdbug_init();
   memset (&opts, '\0', sizeof(opts));
 
-  while ((ch = getopt(argc, argv, "drs:Sh?")) != EOF)
+  while ((ch = getopt(argc, argv, "cdjurs:Sh?")) != EOF)
      switch (ch)
      {
+       case 'c':
+            opts.sort |= OD2X_SORT_EXACT;
+            break;
        case 'd':
             opt.debug++;
+            break;
+       case 'j':
+            follow_junctions = FALSE;
+            break;
+       case 'u':
+            opts.unixy_paths++;
             break;
        case 'r':
             opts.recursive = 1;
@@ -862,7 +924,7 @@ int main (int argc, char **argv)
             do_scandir = 1;
             break;
        case 's':
-            opts.sort = get_sorting (optarg);
+            opts.sort |= get_sorting (optarg);
             break;
        case '?':
        case 'h':
@@ -877,6 +939,9 @@ int main (int argc, char **argv)
   if (argc-- < 1 || *argv == NULL)
      usage();
 
+  if (opts.sort == OD2X_SORT_EXACT)
+     WARN ("Option '-c' with no sort option '-s xx' is meaningless.\n");
+
   make_dir_spec (*argv, dir_buf, spec_buf);
   opts.pattern = spec_buf;
 
@@ -885,6 +950,7 @@ int main (int argc, char **argv)
   else do_dirent2 (dir_buf, &opts);
 
   final_report();
+  crtdbug_exit();
   mem_report();
   return (0);
 }

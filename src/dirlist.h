@@ -13,6 +13,7 @@ enum od2x_sorting {
      OD2X_ON_NAME,
      OD2X_FILES_FIRST,
      OD2X_DIRECTORIES_FIRST,
+     OD2X_SORT_EXACT   = 0x400,
      OD2X_SORT_REVERSE = 0x800
    };
 
