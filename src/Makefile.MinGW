@@ -31,13 +31,6 @@ else
   LDFLAGS += -s
 endif
 
-#
-# The .travis.yml should have a 'TRAVIS_BUILD=1' on the make invokation line.
-#
-ifeq ($(TRAVIS_BUILD),1)
-  CFLAGS += -DTRAVIS_BUILD
-endif
-
 ifneq ($(FORTIFY_SOURCE),0)
   ifneq ($(USE_DEBUG),1)
     $(error $$(FORTIFY_SOURCE) needs 'USE_DEBUG=1')
