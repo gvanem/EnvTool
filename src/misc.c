@@ -45,17 +45,15 @@
 #endif
 
 #ifndef KEY_WOW64_32KEY
-#define KEY_WOW64_32KEY         0x0200
+#define KEY_WOW64_32KEY          0x0200
 #endif
 
 #ifndef KEY_WOW64_64KEY
-#define KEY_WOW64_64KEY         0x0100
+#define KEY_WOW64_64KEY          0x0100
 #endif
 
 #define TOUPPER(c)    toupper ((int)(c))
 #define TOLOWER(c)    tolower ((int)(c))
-
-#if !defined(__CYGWIN__)
 
 struct mem_head {
        unsigned long    marker;
@@ -129,7 +127,6 @@ static struct mem_head *mem_list_get_head (void *ptr)
   return (NULL);
 }
 #endif
-#endif  /* !__CYGWIN__ */
 
 /*
  * We need to use "K32GetModuleFileNameExA", "IsWow64Process" and
@@ -1532,8 +1529,7 @@ char *win_strerror (unsigned long err)
   return (buf);
 }
 
-
-#if !defined(_CRTDBG_MAP_ALLOC) && !defined(__CYGWIN__)
+#if !defined(_CRTDBG_MAP_ALLOC)
 
 /*
  * A strdup() that fails if no memory. It's pretty hopeless to continue
@@ -1675,11 +1671,11 @@ void free_at (void *ptr, const char *file, unsigned line)
   mem_frees++;
   free (head);
 }
-#endif  /* !_CRTDBG_MAP_ALLOC && !__CYGWIN__ */
+#endif  /* !_CRTDBG_MAP_ALLOC */
 
 void mem_report (void)
 {
-#if !defined(_CRTDBG_MAP_ALLOC) && !defined(__CYGWIN__)
+#if !defined(_CRTDBG_MAP_ALLOC)
   const struct mem_head *m;
   unsigned     num;
 
@@ -1703,6 +1699,44 @@ void mem_report (void)
   C_flush();
 #endif
 }
+
+#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
+static _CrtMemState last_state;
+
+void crtdbug_init (void)
+{
+  _HFILE file  = _CRTDBG_FILE_STDERR;
+  int    mode  = _CRTDBG_MODE_FILE;
+  int    flags = _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF | _CRTDBG_DELAY_FREE_MEM_DF;
+
+  _CrtSetReportFile (_CRT_ASSERT, file);
+  _CrtSetReportMode (_CRT_ASSERT, mode);
+  _CrtSetReportFile (_CRT_ERROR, file);
+  _CrtSetReportMode (_CRT_ERROR, mode);
+  _CrtSetReportFile (_CRT_WARN, file);
+  _CrtSetReportMode (_CRT_WARN, mode);
+  _CrtSetDbgFlag (flags | _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG));
+  _CrtMemCheckpoint (&last_state);
+}
+
+void crtdbug_exit (void)
+{
+  _CrtCheckMemory();
+  if (opt.debug)
+       _CrtMemDumpStatistics (&last_state);
+  else _CrtMemDumpAllObjectsSince (&last_state);
+  _CrtDumpMemoryLeaks();
+}
+
+#else
+void crtdbug_init (void)
+{
+}
+void crtdbug_exit (void)
+{
+}
+#endif
+
 
 #if defined(__POCC__) && !defined(__MT__) && defined(_M_AMD64)
   /*
