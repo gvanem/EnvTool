@@ -3202,18 +3202,7 @@ static void cleanup (void)
      FREE (opt.file_spec_re);
   FREE (opt.file_spec);
 
-  if (opt.evry_host)
-  {
-    int   max = smartlist_len (opt.evry_host);
-    char *host;
-
-    for (i = 0; i < max; i++)
-    {
-      host = smartlist_get (opt.evry_host, i);
-      FREE (host);
-    }
-    smartlist_free (opt.evry_host);
-  }
+  smartlist_free_all (opt.evry_host);
 
   for (i = 0; i < new_argc && i < DIM(new_argv)-1; i++)
       FREE (new_argv[i]);
