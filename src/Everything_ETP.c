@@ -636,7 +636,7 @@ static BOOL state_connect (struct state_CTX *ctx)
 
   ctx->sa.sin_family = AF_INET;
   ctx->sa.sin_port   = htons (ctx->port);
-  setsockopt (ctx->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
+//setsockopt (ctx->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
 
   if (!opt.quiet)
      C_printf ("Connecting to %s (port %u)...", inet_ntoa(ctx->sa.sin_addr), ctx->port);
@@ -760,10 +760,16 @@ static void SM_run (struct state_CTX *ctx)
     BOOL      rc = (*ctx->state) (ctx);
 
     if (opt.debug >= 2)
-       C_printf ("~2%s~0 -> ~2%s\n~6%s~0\n",
-                 ETP_state_name(old_state),
-                 ETP_state_name(ctx->state),
-                 ETP_tracef(ctx, NULL));
+    {
+      C_printf ("~2%s~0 -> ~2%s\n~6", ETP_state_name(old_state), ETP_state_name(ctx->state));
+
+     /* Set raw mode in case 'ctx->trace_buf' contains a "~".
+      */
+     C_setraw (1);
+     C_puts (ETP_tracef(ctx, NULL));
+     C_setraw (0);
+     C_puts ("~0\n");
+    }
     if (!rc)
        break;
   }
