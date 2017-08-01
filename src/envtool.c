@@ -4133,9 +4133,8 @@ static void test_ETP_host (void)
 
   FREE (opt.file_spec);
   opt.file_spec = STRDUP ("*");
-  opt.do_tests = 0;
-  opt.debug = 2;
 
+  max = smartlist_len (opt.evry_host);
   for (i = 0; i < max; i++)
   {
     const char *host = smartlist_get (opt.evry_host, i);
