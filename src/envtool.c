@@ -3985,15 +3985,12 @@ static void test_ReparsePoints (void)
  */
 static void test_netrc (void)
 {
-  int rc, save;
+  int rc;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   netrc_init();
-  save = opt.debug;
-  opt.debug = 3;
   rc = netrc_lookup (NULL, NULL, NULL);
-  opt.debug = save;
   netrc_exit();
 
   C_printf ("  Parsing \"%%APPDATA%%\\.netrc\" ");

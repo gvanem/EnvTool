@@ -188,7 +188,14 @@ static const struct netrc_info *_netrc_lookup (const char *host)
     snprintf (buf, sizeof(buf), "host: '%s', user: '%s', passw: '%s', is_default: %d.\n",
               ni->host, ni->user, ni->passw, ni->is_default);
 
-    DEBUGF (3, buf);
+    if (opt.do_tests)
+    {
+      C_setraw (1);
+      C_printf ("  %s", buf);
+      C_setraw (0);
+    }
+    else
+      DEBUGF (3, buf);
 
     if (ni->host && host && !stricmp(host, ni->host))
        return (ni);
