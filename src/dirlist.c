@@ -694,47 +694,58 @@ static const char *make_unixy_path (const char *path)
 #endif
 }
 
+static int print_it (const char *what, const char *prefix, const struct od2x_options *opts)
+{
+  const char *f;
+  int         slash;
+
+  if (opts && opts->unixy_paths)
+  {
+    f = make_unixy_path (what);
+    slash = '/';
+  }
+  else
+  {
+    f = what;
+    slash = '\\';
+  }
+
+  if (prefix)
+     C_puts (prefix);
+
+  C_setraw (1);
+  C_puts (f);
+  C_setraw (0);
+  return (slash);
+}
+
 static void print_de (const struct dirent2 *de, int idx, const struct od2x_options *opts)
 {
   int is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
   int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
-  int slash = '\\';
-  const char *f;
+  int slash;
 
   C_printf ("~1%3d ~0(%lu): ", idx, recursion_level);
   C_printf ("~4%-7s~6", is_junction ? "<LINK>" : is_dir ? "<DIR>" : "");
 
-  C_setraw (1);
-
-  if (opts && opts->unixy_paths)
-  {
-    C_puts (make_unixy_path(de->d_name));
-    slash = '/';
-  }
-  else
-    C_puts (de->d_name);
-
-  if (is_dir || is_junction)
-     C_putc (slash);
-
-  C_setraw (0);
-
+  /* Junctions need special handling.
+   */
   if (is_junction)
   {
-    C_puts ("\n             -> ~3");
-    C_setraw (1);
+    static char prefix[] = " \n             -> ~3";
 
+    prefix[0] = print_it (de->d_name, NULL, opts);
+    slash = print_it (de->d_link ? de->d_link : "??", prefix, opts);
     if (de->d_link)
-    {
-      f = de->d_link;
-      if (opts && opts->unixy_paths)
-         f = make_unixy_path (f);
-      C_printf ("%s%c", f, slash);
-    }
-    else
-      C_puts ("??");
-    C_setraw (0);
+       C_putc (slash);
   }
+  else
+  {
+    slash = print_it (de->d_name, NULL, opts);
+    if (is_dir)
+       C_putc (slash);
+  }
+
   C_puts ("~0\n");
 
   if (!is_dir && !is_junction)
