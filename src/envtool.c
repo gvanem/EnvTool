@@ -500,7 +500,7 @@ static int show_help (void)
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
             "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n"
             "    ~6-H~0, ~6--host~0:     hostname/IPv4-address for remote FTP ~6--evry~0 searches.\n"
-            "                    alternative syntax is ~6--evry:<host>~0.\n",
+            "                    can be used multiple times. Alternative syntax is ~6--evry:<host>~0.\n",
             who_am_I);
 
   C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in ~6--evry~0 searches.\n"
@@ -533,8 +533,8 @@ static int show_help (void)
             "\n"
             "  ~2[3]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
             "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
-            "      For a remote FTP search (~6--evry=[host-name|IP-address]~0), a user/password\n"
-            "      should be specfied in your ~6%%APPDATA%%/.netrc~0 file or you can use the\n"
+            "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
+            "      should be specified in your ~6%%APPDATA%%/.netrc~0 file or you can use the\n"
             "      \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
             "\n"
             "Notes:\n"
@@ -2974,7 +2974,6 @@ static void set_evry_options (const char *arg)
        opt.evry_host = smartlist_new();
     smartlist_add (opt.evry_host, STRDUP(arg));
   }
-  opt.do_evry = 1;
 }
 
 static void set_short_option (int o, const char *arg)
@@ -3036,7 +3035,7 @@ static void set_short_option (int o, const char *arg)
 
 static void set_long_option (int o, const char *arg)
 {
-  int *val_ptr;
+  int new_value, *val_ptr;
 
   ASSERT (values_tab[o]);
   ASSERT (long_options[o].name);
@@ -3048,7 +3047,10 @@ static void set_long_option (int o, const char *arg)
           long_options[o].name, arg);
 
   if (!strcmp("evry",long_options[o].name))
-     set_evry_options (arg);
+  {
+    set_evry_options (arg);
+    opt.do_evry = 1;
+  }
 
   if (arg)
   {
@@ -3066,11 +3068,13 @@ static void set_long_option (int o, const char *arg)
   }
   else
   {
-    DEBUGF (2, "got long option \"--%s\". Setting value %d -> 1. o: %d.\n",
-            long_options[o].name, *values_tab[o], o);
-
     val_ptr = values_tab [o];
-    *val_ptr = 1;
+    new_value = *val_ptr + 1;
+
+    DEBUGF (2, "got long option \"--%s\". Setting value %d -> %d. o: %d.\n",
+            long_options[o].name, *val_ptr, new_value, o);
+
+    *val_ptr = new_value;
   }
 }
 
