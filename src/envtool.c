@@ -1106,14 +1106,16 @@ UINT64 get_directory_size (const char *dir)
     {
       link = namelist[i]->d_link ? namelist[i]->d_link : "?";
       DEBUGF (1, "Not recursing into junction \"%s\"\n", link);
+      size += get_file_alloc_size (dir, (UINT64)-1);
     }
     else if (is_dir)
     {
       DEBUGF (1, "Recursing into \"%s\"\n", namelist[i]->d_name);
+      size += get_file_alloc_size (namelist[i]->d_name, (UINT64)-1);
       size += get_directory_size (namelist[i]->d_name);
     }
     else
-      size += namelist[i]->d_fsize;
+      size += get_file_alloc_size (namelist[i]->d_name, namelist[i]->d_fsize);
   }
 
   while (n--)
@@ -2968,12 +2970,9 @@ static void set_evry_options (const char *arg)
 {
   if (arg)
   {
-    if (opt.evry_host)
-    {
-      WARN ("Overriding specifed '--host:%s' with '%s'.\n", opt.evry_host, arg);
-      FREE (opt.evry_host);
-    }
-    opt.evry_host = STRDUP (arg);
+    if (!opt.evry_host)
+       opt.evry_host = smartlist_new();
+    smartlist_add (opt.evry_host, STRDUP(arg));
   }
   opt.do_evry = 1;
 }
@@ -2988,7 +2987,7 @@ static void set_short_option (int o, const char *arg)
          opt.help = 1;
          break;
     case 'H':
-         opt.evry_host = STRDUP (arg);
+         set_evry_options (arg);
          break;
     case 'V':
          opt.do_version++;
@@ -3063,7 +3062,7 @@ static void set_long_option (int o, const char *arg)
       opt.debug = atoi (arg);
 
     else if (!strcmp("host",long_options[o].name))
-      opt.evry_host = STRDUP (arg);
+      set_evry_options (arg);
   }
   else
   {
@@ -3202,7 +3201,19 @@ static void cleanup (void)
   if (opt.file_spec_re && opt.file_spec_re != opt.file_spec)
      FREE (opt.file_spec_re);
   FREE (opt.file_spec);
-  FREE (opt.evry_host);
+
+  if (opt.evry_host)
+  {
+    int   max = smartlist_len (opt.evry_host);
+    char *host;
+
+    for (i = 0; i < max; i++)
+    {
+      host = smartlist_get (opt.evry_host, i);
+      FREE (host);
+    }
+    smartlist_free (opt.evry_host);
+  }
 
   for (i = 0; i < new_argc && i < DIM(new_argv)-1; i++)
       FREE (new_argv[i]);
@@ -3430,12 +3441,20 @@ int main (int argc, char **argv)
 
   if (opt.do_evry)
   {
+    int i, max = 0;
+
     if (opt.evry_host)
+       max = smartlist_len (opt.evry_host);
+    for (i = 0; i < max; i++)
     {
-      report_header = "Matches from EveryThing remote:\n";
-      found += do_check_evry_ept();
+      const char *host = smartlist_get (opt.evry_host, i);
+      char  buf [200];
+
+      snprintf (buf, sizeof(buf), "Matches from %s:\n", host);
+      report_header = buf;
+      found += do_check_evry_ept (host);
     }
-    else
+    if (max  == 0)
     {
       report_header = "Matches from EveryThing:\n";
       found += do_check_evry();
@@ -4110,11 +4129,21 @@ static void test_AppVeyor (void)
  */
 static void test_ETP_host (void)
 {
+  int i, max;
+
   FREE (opt.file_spec);
   opt.file_spec = STRDUP ("*");
   opt.do_tests = 0;
   opt.debug = 2;
-  do_check_evry_ept();
+
+  for (i = 0; i < max; i++)
+  {
+    const char *host = smartlist_get (opt.evry_host, i);
+    char  buf [200];
+
+    snprintf (buf, sizeof(buf), "Testing EveryThing ETP host %s:\n", host);
+    do_check_evry_ept (host);
+  }
 }
 
 static int do_tests (void)

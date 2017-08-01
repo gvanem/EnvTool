@@ -855,10 +855,14 @@ static time_t FILETIME_to_time_t (const FILETIME *ft)
 
 /*
  * Called from envtool.c:
- *   if 'opt.evry_host != NULL', this function gets called instead of
- *   'do_check_evry()' (which only searches for local results).
+ *   if the 'opt.evry_host' smartlist is not empty, this function gets called
+ *   for each ETP-host in the smartlist.
+ *
+ * \todo:
+ *   The 'netrc_init()' + 'netrc_exit()' is currently done for each host.
+ *   Should do something better.
  */
-int do_check_evry_ept (void)
+int do_check_evry_ept (const char *host)
 {
   struct state_CTX ctx;
 
@@ -870,7 +874,7 @@ int do_check_evry_ept (void)
   ctx.trace_left   = sizeof(ctx.trace_buf);
   ctx.sock         = INVALID_SOCKET;
   ctx.timeout      = RECV_TIMEOUT;
-  ctx.raw_url      = STRDUP (opt.evry_host);
+  ctx.raw_url      = STRDUP (host);
   ctx.port         = 21;
   SM_run (&ctx);
   return (ctx.results_got - ctx.results_ignore);

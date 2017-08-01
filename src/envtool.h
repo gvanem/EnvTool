@@ -294,7 +294,7 @@ struct prog_options {
        int   do_pkg;
        int   conv_cygdrive;
        int   case_sensitive;
-       char *evry_host;
+       void *evry_host;     /* A smartlist_t */
        char *file_spec;
        char *file_spec_re;
      };
@@ -351,10 +351,13 @@ extern char *slashify      (const char *path, char use);
 extern char *win_strerror  (unsigned long err);
 extern void  set_error_mode(int on_off);
 extern int  _file_exists   (const char *file);
-extern UINT  get_disk_type (int disk);
-extern int   disk_ready    (int disk);
-extern BOOL  chk_disk_ready(int disk);
-extern BOOL _has_drive     (const char *path);
+
+extern UINT   get_disk_type         (int disk);
+extern BOOL   get_disk_cluster_size (int disk, DWORD *size);
+extern UINT64 get_file_alloc_size   (const char *file, UINT64 size);
+extern int    disk_ready            (int disk);
+extern BOOL   chk_disk_ready        (int disk);
+extern BOOL  _has_drive             (const char *path);
 
 extern char       *make_cyg_path (const char *path, char *result);
 extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);
