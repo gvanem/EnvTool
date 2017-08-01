@@ -901,6 +901,11 @@ static struct directory_array *split_env_var (const char *env_name, const char *
       if (!is_cwd && IS_SLASH(tok[0]))
          WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
 #endif
+
+      /* Warn on 'x:'
+       */
+      if (strlen(tok) <= 3 && isalpha(tok[0]) && tok[1] == ':' && !IS_SLASH(tok[2]))
+         WARN ("%s: Component \"%s\" should be \"%s%c\".\n", env_name, tok, tok, DIR_SEP);
     }
 
     p = strchr (tok, '%');
