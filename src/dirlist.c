@@ -31,7 +31,7 @@
 typedef int (*QsortCmpFunc) (const void *, const void *);
 typedef int (*ScandirCmpFunc) (const void **, const void **);
 
-static BOOL follow_junctions = TRUE;
+static ATTR_UNUSED() BOOL follow_junctions = TRUE;
 
 /*
  * Local functions
