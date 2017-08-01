@@ -341,14 +341,13 @@ size_t C_flush (void)
   size_t len1 = (unsigned int) (c_head - c_buf);
   size_t len2;
 
-  if (len1 == 0)
+  if (!c_out || len1 == 0)
   {
     C_redundant_flush++;
     return (0);
   }
 
   EnterCriticalSection (&crit);
-  assert (c_out);
   if (C_use_fwrite)
        len2 = fwrite (c_buf, 1, len1, c_out);
   else len2 = _write (_fileno(c_out), c_buf, (unsigned int)len1);
