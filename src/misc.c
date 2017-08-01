@@ -1086,27 +1086,88 @@ void set_error_mode (int restore)
 }
 
 /*
- * Get 'total_clusters' on 'disk'.
+ * Get a cached 'cluster_size' for 'disk' A: to Z:.
  * Only works on local disks; 'disk-type == DRIVE_FIXED'.
  */
-BOOL get_disk_clusters (int disk, DWORD *total)
+BOOL get_disk_cluster_size (int disk, DWORD *size)
 {
-  DWORD  sect_per_cluster = 0, bytes_per_sector = 0;
-  DWORD  free_clusters = 0, total_clusters = 0;
-  BOOL   rc = FALSE;
+  static DWORD cluster_size  ['Z' - 'A' + 1];
+  static BOOL  is_local_disk ['Z' - 'A' + 1];
+  static char  root[] = "?:\\";
+
+  DWORD  sect_per_cluster, bytes_per_sector, free_clusters, total_clusters;
+  BOOL   rc;
   char  *err    = "<none>";
-  char   root[] = "?:\\";
+  int    i;
+
+  disk = TOUPPER (disk);
+  if (disk < 'A' || disk > 'Z') /* What to do? */
+     return (FALSE);
+
+  i = disk - 'A';
+  ASSERT (i >= 0 && i < sizeof(is_local_disk));
+  ASSERT (i >= 0 && i < sizeof(cluster_size));
+
+  if (cluster_size[i] && is_local_disk[i])
+  {
+    if (size)
+       *size = cluster_size[i];
+    return (TRUE);
+  }
 
   root[0] = disk;
+  sect_per_cluster = bytes_per_sector = free_clusters = total_clusters = 0;
+
   if (!GetDiskFreeSpace(root, &sect_per_cluster, &bytes_per_sector, &free_clusters, &total_clusters))
-       err = win_strerror (GetLastError());
-  else rc = TRUE;
+  {
+    is_local_disk[i] = FALSE;
+    err = win_strerror (GetLastError());
+    rc  = FALSE;
+  }
+  else
+  {
+    is_local_disk[i] = TRUE;
+    cluster_size[i]  = sect_per_cluster * bytes_per_sector;
+    rc = TRUE;
+  }
 
   DEBUGF (1, "GetDiskFreeSpace(): sect_per_cluster: %lu, bytes_per_sector: %lu, total_clusters: %lu, error: %s\n",
           sect_per_cluster, bytes_per_sector, total_clusters, err);
-  if (rc && total)
-    *total = total_clusters;
+
+  if (rc && size)
+    *size = cluster_size[i];
   return (rc);
+}
+
+/*
+ * Get the allocation size of a file.
+ * This uses cached information from the above 'get_disk_cluster_size()'.
+ * Currently only works on local disks; 'disk-type == DRIVE_FIXED'.
+ * Otherwise it simply returns the 'size'.
+ * 'size == (UINT64)-1' means it's a directory.
+ */
+UINT64 get_file_alloc_size (const char *file, UINT64 size)
+{
+  DWORD  cluster_size;
+  UINT64 num_clusters;
+
+  if (!_has_drive(file) || !get_disk_cluster_size(*file, &cluster_size))
+  {
+    if (size == (UINT64)-1)
+       return (0);
+    return (size);
+  }
+
+  /* I assume a directory allocates 1 cluster_size.
+   * Not sure it's correct.
+   */
+  if (size == (UINT64)-1)
+     return (cluster_size);
+
+  num_clusters = size / cluster_size;
+  if (size % cluster_size)
+     num_clusters++;
+  return (num_clusters * cluster_size);
 }
 
 /*
@@ -1252,7 +1313,7 @@ BOOL chk_disk_ready (int disk)
       set_error_mode (0);
 
       if (get_disk_type(disk) == DRIVE_FIXED)
-        status[i] = get_disk_clusters (disk, NULL);
+         status[i] = get_disk_cluster_size (disk, NULL);
 
       set_error_mode (1);
     }

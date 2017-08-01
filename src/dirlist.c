@@ -618,7 +618,6 @@ static DWORD  num_junctions_err = 0;
 static DWORD  num_files = 0;
 static UINT64 total_size = 0;
 static UINT64 total_size_alloc = 0;
-static UINT   cluster_size = 4*1024;
 
 void usage (void)
 {
@@ -630,40 +629,6 @@ void usage (void)
           "       -S:      use scandir2(). Otherwise use readdir2().\n"
           "       -s type: sort the listing on \"names\", \"files\", \"dirs\". Optionally with \",reverse\".\n");
   exit (-1);
-}
-
-static UINT64 get_alloc_size (const char *file, UINT64 size)
-{
-  static BOOL init = FALSE;
-  static DWORD sect_per_cluster, bytes_per_sector, free_clusters, total_clusters;
-  UINT64 num_sect;
-
-  if (!init)
-  {
-    char *err    = "<none>";
-    char  root[] = "?:\\";
-
-    root[0] = file[0];
-    if (!GetDiskFreeSpace(root, &sect_per_cluster, &bytes_per_sector, &free_clusters, &total_clusters))
-    {
-      err = win_strerror (GetLastError());
-      bytes_per_sector = 512;
-    }
-    cluster_size = sect_per_cluster * bytes_per_sector;
-    DEBUGF (1, "GetDiskFreeSpace(): sect_per_cluster: %lu, bytes_per_sector: %lu, cluster_size: %u, error: %s\n",
-            sect_per_cluster, bytes_per_sector, cluster_size, err);
-    init = TRUE;
-  }
-
-  /* Is this correct for a directory?
-   */
-  if (size == 0)
-     return (bytes_per_sector);
-
-  num_sect = size / bytes_per_sector;
-  if (size % bytes_per_sector)
-     num_sect++;
-  return (num_sect * bytes_per_sector);
 }
 
 /*
@@ -752,14 +717,14 @@ static void print_de (const struct dirent2 *de, int idx, const struct od2x_optio
   {
     num_files++;
     total_size += de->d_fsize;
-    total_size_alloc += get_alloc_size (de->d_name, de->d_fsize);
+    total_size_alloc += get_file_alloc_size (de->d_name, de->d_fsize);
   }
   else
   {
     if (is_dir)
     {
       num_directories++;
-      total_size_alloc += get_alloc_size (de->d_name, 0);
+      total_size_alloc += get_file_alloc_size (de->d_name, (UINT64)-1);
     }
     if (is_junction)
     {
