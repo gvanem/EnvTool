@@ -3985,12 +3985,15 @@ static void test_ReparsePoints (void)
  */
 static void test_netrc (void)
 {
-  int rc;
+  int rc, save;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   netrc_init();
+  save = opt.debug;
+  opt.debug = 3;
   rc = netrc_lookup (NULL, NULL, NULL);
+  opt.debug = save;
   netrc_exit();
 
   C_printf ("  Parsing \"%%APPDATA%%\\.netrc\" ");
@@ -4131,16 +4134,15 @@ static void test_ETP_host (void)
 {
   int i, max;
 
-  FREE (opt.file_spec);
-  opt.file_spec = STRDUP ("*");
+  if (!opt.file_spec)
+     opt.file_spec = STRDUP ("*");
 
   max = smartlist_len (opt.evry_host);
   for (i = 0; i < max; i++)
   {
     const char *host = smartlist_get (opt.evry_host, i);
-    char  buf [200];
 
-    snprintf (buf, sizeof(buf), "Testing EveryThing ETP host %s:\n", host);
+    C_printf ("~3%s():~0 host %s:\n", __FUNCTION__, host);
     do_check_evry_ept (host);
   }
 }
