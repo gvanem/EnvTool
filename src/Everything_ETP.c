@@ -27,6 +27,8 @@
 #define RECV_TIMEOUT 2000   /* 2 sec */
 #endif
 
+DWORD ETP_total_rcv;
+
 /* Forward definition.
  */
 struct state_CTX;
@@ -49,10 +51,13 @@ struct state_CTX {
        char               hostname [200];
        char               username [30];
        char               password [30];
+       BOOL               use_netrc;
        DWORD              timeout;
        char               rx_buf [500];
        char              *rx_ptr;
        char               tx_buf [500];
+       size_t             rx_len;
+       int                rx_err;
        char               trace_buf [1000];
        char              *trace_ptr;
        size_t             trace_left;
@@ -284,22 +289,27 @@ int netrc_lookup (const char *host, const char **user, const char **passw)
 
 /*
  * Receive a response.
- * Call recv() for 1 character at a time!
- * This is to keep it simple; avoid the need for a non-blocking socket and select().
- * But the recv() will hang if used against a non "line oriented" protocol.
- * But only for max 2 seconds since 'setsockopt()' with SO_RCVTIMEO was set to 2 sec.
+ * Call 'recv()' for 1 character at a time!
+ * This is to keep it simple; avoid the need for a non-blocking socket and 'select()'.
+ * But the 'recv()' will hang if used against a non "line oriented" protocol.
+ * But only for max 2 seconds since 'setsockopt()' with 'SO_RCVTIMEO' was set to 2 sec.
  */
 static char *recv_line (struct state_CTX *ctx)
 {
   int len = 0;
 
   ctx->rx_ptr = ctx->rx_buf;
+  ctx->rx_len = 0;
 
   while (ctx->rx_ptr < ctx->rx_buf + sizeof(ctx->rx_buf)-1)
   {
     if (recv(ctx->sock, ctx->rx_ptr, 1, 0) != 1)
-       break;
-    len++;
+    {
+      ctx->rx_err = WSAGetLastError();
+      break;
+    }
+    ETP_total_rcv++;
+    ctx->rx_len++;
     if (*ctx->rx_ptr == '\n')   /* Assumes '\r' already was received */
        break;
     ctx->rx_ptr++;
@@ -307,7 +317,7 @@ static char *recv_line (struct state_CTX *ctx)
   *ctx->rx_ptr = '\0';
   strip_nl (ctx->rx_buf);
   ctx->rx_ptr = str_ltrim (ctx->rx_buf);
-  ETP_tracef (ctx, "Rx: \"%s\", len: %d\n", ctx->rx_ptr, len);
+  ETP_tracef (ctx, "Rx: \"%s\", len: %d\n", ctx->rx_ptr, ctx->rx_len);
   return (ctx->rx_ptr);
 }
 
@@ -401,8 +411,13 @@ static BOOL state_PATH (struct state_CTX *ctx)
     return report_file_ept (ctx, folder, TRUE);
   }
 
+#if 0
+  if (ctx->rx_buf[0] == '\0')
+     return (TRUE);
+#endif
+
   if (strncmp(ctx->rx_ptr,"200 End",7))
-     WARN ("Unexpected response: \"%s\"\n", ctx->rx_buf);
+     WARN ("Unexpected response: \"%s\", err: %d\n", ctx->rx_buf, ctx->rx_err);
 
   ctx->state = state_closing;
   return (TRUE);
@@ -495,13 +510,14 @@ static BOOL state_send_query (struct state_CTX *ctx)
 
 /*
  * Send the USER name and optionally the 'ctx->password'.
- * "USER" can be empty if the Everything.ini has a setting like:
+ * "USER" can be empty if the remote Everything.ini has a
+ * setting like:
  *   etp_server_username=
  *
  * If the .ini-file contains:
  *   etp_server_username=foo
  *   etp_server_password=bar
- * 'ctx->username' and 'ctx->password' must match 'foo/bar'.
+ * 'ctx->username' and 'ctx->password' MUST match 'foo/bar'.
  */
 static BOOL state_send_login (struct state_CTX *ctx)
 {
@@ -537,13 +553,13 @@ static BOOL state_await_login (struct state_CTX *ctx)
 {
   recv_line (ctx);
 
-  /* 230: Server accepted our login.
+  /* "230": Server accepted our login.
    */
   if (!strncmp(ctx->rx_ptr,"230",3))
      ctx->state = state_send_query;
   else
   {
-    /* Any 5xx message is fatal here; close.
+    /* Any "5xx" message is fatal here; enter 'state_closing'.
      */
     char buf[100];
 
@@ -575,9 +591,9 @@ static BOOL state_send_pass (struct state_CTX *ctx)
 /*
  * Check if 'ctx->hostname' is simply an IPv4-address.
  * If TRUE
- *   enter 'state_connect'.
+ *   Enter 'state_connect'.
  * else
- *   call 'gethostbyname()' to get the IPv4-address.
+ *   Call 'gethostbyname()' to get the IPv4-address.
  *   Then enter 'state_connect'.
  */
 static BOOL state_resolve (struct state_CTX *ctx)
@@ -627,11 +643,13 @@ fail:
 }
 
 /*
- * When the IPv4-address is known, create the socket and perform the connect().
+ * When the IPv4-address is known, create the socket and perform the 'connect()'.
  * If successful, enter 'state_send_login'.
  */
 static BOOL state_connect (struct state_CTX *ctx)
 {
+  ETP_tracef (ctx, "In state_connect(). use_netrc: %d\n", ctx->use_netrc);
+
   ctx->sock = socket (AF_INET, SOCK_STREAM, 0);
   if (ctx->sock == INVALID_SOCKET)
   {
@@ -643,7 +661,7 @@ static BOOL state_connect (struct state_CTX *ctx)
 
   ctx->sa.sin_family = AF_INET;
   ctx->sa.sin_port   = htons (ctx->port);
-//setsockopt (ctx->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
+  setsockopt (ctx->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
 
   if (!opt.quiet)
      C_printf ("Connecting to %s (port %u)...", inet_ntoa(ctx->sa.sin_addr), ctx->port);
@@ -660,21 +678,21 @@ static BOOL state_connect (struct state_CTX *ctx)
   {
     if (!opt.quiet)
        C_putc ('\n');
-    ctx->state = state_send_login;
+     if (ctx->use_netrc)
+         ctx->state = state_netrc_lookup;
+    else ctx->state = state_send_login;
   }
   return (TRUE);
 }
 
 /*
  * Lookup the USER/PASSWORD for 'ctx->hostname' in the .netrc file.
- * Enter 'state_resolve' even if those are not found.
+ * Enter 'state_send_login' even if those are not found.
  */
 static BOOL state_netrc_lookup (struct state_CTX *ctx)
 {
   const char *user  = NULL;
   const char *passw = NULL;
-
-  ETP_tracef (ctx, "Gettting USER/PASS in '%%APPDATA%%\\.netrc' for '%s'\n", ctx->hostname);
 
   if (netrc_init() && !netrc_lookup(ctx->hostname, &user, &passw))
      WARN ("No user/password found for host \"%s\".\n", ctx->hostname);
@@ -685,37 +703,43 @@ static BOOL state_netrc_lookup (struct state_CTX *ctx)
   if (passw)
      _strlcpy (ctx->password, passw, sizeof(ctx->password));
 
+  ETP_tracef (ctx, "Got USER: %s and PASS: %s in '%%APPDATA%%\\.netrc' for '%s'\n",
+              user ? user : "<None>", passw ? passw : "<none>", ctx->hostname);
+
   netrc_exit();
-  ctx->state = state_resolve;
+  ctx->state = state_send_login;
   return (TRUE);
 }
 
 /*
  * Check if 'ctx->raw_url' matches one of these formats:
- *   "user:passwd@host_or_IP-address<:port>".    Both user-name and password.
- *   "user@host_or_IP-address<:port>".           Only user-name.
+ *   "user:passwd@host_or_IP-address<:port>".    Both user-name and password (+ port).
+ *   "user@host_or_IP-address<:port>".           Only user-name (+ port).
  *   "host_or_IP-address<:port>".                Only host/IP-address (+ port).
  */
 static BOOL state_parse_url (struct state_CTX *ctx)
 {
-  BOOL use_netrc = TRUE;
-  int  n;
+  int n;
 
   ETP_tracef (ctx, "Cracking the host-spec: '%s'.\n", ctx->raw_url);
+
+  /* Asume we must use .netrc.
+   */
+  ctx->use_netrc = TRUE;
 
   /* Check simple case of "host_or_IP-address<:port>" first.
    */
   n = parse_host_spec (ctx, "%200[^:]:%d", ctx->hostname, &ctx->port);
 
   if ((n == 1 || n == 2) && !strchr(ctx->raw_url,'@'))
-     use_netrc = TRUE;
+     ctx->use_netrc = TRUE;
   else
   {
     /* Check for "user:passwd@host_or_IP-address<:port>".
      */
     n = parse_host_spec (ctx, "%30[^:@]:%30[^:@]@%200[^:]:%d", ctx->username, ctx->password, ctx->hostname, &ctx->port);
     if (n == 3 || n == 4)
-       use_netrc = FALSE;
+       ctx->use_netrc = FALSE;
 
     /* Check for "user@host_or_IP-address<:port>".
      */
@@ -723,13 +747,11 @@ static BOOL state_parse_url (struct state_CTX *ctx)
     {
       n = parse_host_spec (ctx, "%30[^:@]@%200[^:@]:%d", ctx->username, ctx->hostname, &ctx->port);
       if (n == 2 || n == 3)
-         use_netrc = FALSE;
+         ctx->use_netrc = FALSE;
     }
   }
 
-  if (use_netrc)
-       ctx->state = state_netrc_lookup;
-  else ctx->state = state_resolve;
+  ctx->state = state_resolve;
   return (TRUE);
 }
 
@@ -757,7 +779,7 @@ static BOOL state_exit (struct state_CTX *ctx)
 }
 
 /*
- * Run the state-machine until a state-func returns FALSE.
+ * Run the state-machine until a state-function returns FALSE.
  */
 static void SM_run (struct state_CTX *ctx)
 {
