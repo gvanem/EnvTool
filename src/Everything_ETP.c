@@ -296,8 +296,6 @@ int netrc_lookup (const char *host, const char **user, const char **passw)
  */
 static char *recv_line (struct state_CTX *ctx)
 {
-  int len = 0;
-
   ctx->rx_ptr = ctx->rx_buf;
   ctx->rx_len = 0;
 
