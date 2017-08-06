@@ -33,8 +33,6 @@
 #ifndef _GETOPT_LONG_H_
 #define _GETOPT_LONG_H_
 
-#if !defined(__CYGWIN__)
-
 /*
  * GNU-like getopt_long()/getopt_long_only() with 4.4BSD optreset extension.
  * getopt() is declared here too for GNU programs.
@@ -68,5 +66,4 @@ int getopt (int nargc, char * const *nargv, const char *options);
 extern char *optarg;          /* getopt(3) external variables */
 extern int   optind, opterr, optopt;
 
-#endif  /* __CYGWIN__ */
 #endif  /* !_GETOPT_LONG_H_ */
