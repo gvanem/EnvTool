@@ -5,22 +5,28 @@
 FORTIFY_SOURCE ?= 0
 USE_DEBUG      ?= 0
 USE_64BIT      ?= 0
+USE_WS2_32     ?= 0
 
 CC = gcc
 
 CFLAGS  = -Wall -static-libgcc -Wno-strict-aliasing -DEVERYTHINGUSERAPI= \
-          -DEVERYTHINGAPI=__cdecl -D__USE_W32_SOCKETS
-LDFLAGS = -Wl,--print-map,--sort-common,--cref -L/usr/lib/w32api
+          -DEVERYTHINGAPI=__cdecl -D__GETOPT_H__
+LDFLAGS = -Wl,--print-map,--sort-common,--cref
 RCFLAGS = -O COFF
+
+ifeq ($(USE_WS2_32),1)
+  CFLAGS += -D__USE_W32_SOCKETS
+  LDFLAGS += -L/usr/lib/w32api
+endif
 
 ifeq ($(USE_64BIT),1)
   CFLAGS  += -m64
   LDFLAGS += -m64
-  RCFLAGS += --target=pe-x86-64 # --preprocessor-arg=-m64
+  RCFLAGS += --target=pe-x86-64
 else
   CFLAGS  += -m32
   LDFLAGS += -m32
-  RCFLAGS += --target=pe-i386 # --preprocessor-arg=-m32
+  RCFLAGS += --target=pe-i386
 endif
 
 ifeq ($(USE_DEBUG),1)
@@ -45,10 +51,14 @@ ifeq ($(FORTIFY_SOURCE),1)
   EX_LIBS  = -lssp
 endif
 
-EX_LIBS += -limagehlp -lversion -lwintrust -lcrypt32 -lpsapi -lws2_32 -lkernel32
+EX_LIBS += -limagehlp -lversion -lwintrust -lcrypt32 -lpsapi -lkernel32
 
-SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
-          Everything.c Everything_ETP.c envtool_py.c smartlist.c     \
+ifeq ($(USE_WS2_32),1)
+  EX_LIBS += -lws2_32
+endif
+
+SOURCES = dirlist.c envtool.c envtool_py.c Everything.c Everything_ETP.c \
+          color.c getopt_long.c misc.c searchpath.c show_ver.c smartlist.c \
           win_trust.c win_ver.c
 
 OBJECTS  = $(SOURCES:.c=.o)
@@ -111,7 +121,7 @@ vclean: clean
 REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
 depend: cflags_CygWin.h ldflags_CygWin.h
-	$(CC) -M $(CFLAGS) $(SOURCES) win_glob.c dirlist.c | $(REPLACE) > .depend.Cygwin
+	$(CC) -M $(CFLAGS) $(SOURCES) win_glob.c | $(REPLACE) > .depend.Cygwin
 	echo ''                       >> .depend.Cygwin
 	echo 'envtool.res: envtool.h' >> .depend.Cygwin
 
