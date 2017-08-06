@@ -32,13 +32,7 @@
 
 #define INSIDE_ENVOOL_C
 
-#if defined(__CYGWIN__)
-  #include <getopt.h>
-  #include <shellapi.h>
-#else
-  #include "getopt_long.h"
-#endif
-
+#include "getopt_long.h"
 #include "Everything.h"
 #include "Everything_IPC.h"
 #include "Everything_ETP.h"
@@ -507,6 +501,7 @@ static int show_help (void)
             "    ~6-s~0, ~6--size~0:     show size of file(s) found. With ~6--dir~0 option, recursively show\n"
             "                    the size of all files under directories matching ~6<file-spec>~0.\n"
             "    ~6-q~0, ~6--quiet~0:    disable warnings.\n"
+            "    ~6--buffered-io~0:  use buffered I/O for ETP-server reads.\n"
             "    ~6-t~0:             do some internal tests.\n"
             "    ~6-T~0:             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
             "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
@@ -904,7 +899,7 @@ static struct directory_array *split_env_var (const char *env_name, const char *
 
       /* Warn on 'x:'
        */
-      if (strlen(tok) <= 3 && isalpha(tok[0]) && tok[1] == ':' && !IS_SLASH(tok[2]))
+      if (strlen(tok) <= 3 && isalpha((int)tok[0]) && tok[1] == ':' && !IS_SLASH(tok[2]))
          WARN ("%s: Component \"%s\" should be \"%s%c\".\n", env_name, tok, tok, DIR_SEP);
     }
 
@@ -1327,6 +1322,9 @@ static void final_report (int found)
 
   if (opt.PE_check)
      C_printf (" %d have PE-version info. %d are verified.", num_version_ok, num_verified);
+
+  if (opt.evry_host && opt.debug >= 1 && ETP_total_rcv)
+     C_printf ("\n%lu bytes received from ETP-host(s).", ETP_total_rcv);
 
   C_putc ('\n');
 }
@@ -2075,6 +2073,7 @@ static int do_check_evry (void)
   {
     char file [_MAX_PATH];
     char prev [_MAX_PATH];
+    BOOL equal = FALSE;
 
     if (halt_flag > 0)
        break;
@@ -2091,12 +2090,13 @@ static int do_check_evry (void)
     if (i > 0 && !opt.dir_mode && !strcmp(prev, file))
     {
       num_evry_dups++;
+      equal = TRUE;
       DEBUGF (2, "dup (i:%2lu): file: %s\n"
                  "\t\t\t     prev: %s\n", i, file, prev);
-      _strlcpy (prev, file, sizeof(prev));
-      continue;
     }
     _strlcpy (prev, file, sizeof(prev));
+    if (equal)
+       continue;
 
     if (report_evry_file(file))
        found++;
@@ -2891,7 +2891,8 @@ static const struct option long_options[] = {
            { "no-prefix",   no_argument,       NULL, 0 },
            { "no-ansi",     no_argument,       NULL, 0 },    /* 29 */
            { "host",        required_argument, NULL, 0 },
-           { NULL,          no_argument,       NULL, 0 }     /* 31 */
+           { "buffered-io", no_argument,       NULL, 0 },    /* 31 */
+           { NULL,          no_argument,       NULL, 0 }
          };
 
 static int *values_tab[] = {
@@ -2925,7 +2926,8 @@ static int *values_tab[] = {
             &opt.only_64bit,      /* 27 */
             &opt.gcc_no_prefixed,
             &opt.no_ansi,         /* 29 */
-            (int*)&opt.evry_host
+            (int*)&opt.evry_host,
+            &opt.use_buffered_io
           };
 
 /*
@@ -3157,17 +3159,11 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
 
 #if defined(__CYGWIN__)
   if (opt.no_ansi)
-  {
-    C_no_ansi = 1;
-//  C_puts (" \b ");
-  }
+     C_no_ansi = 1;
 #endif
 
   if (opt.no_colours)
-  {
-    C_use_colours = C_use_ansi_colours = 0;
-//  C_puts (" \b ");
-  }
+     C_use_colours = C_use_ansi_colours = 0;
 
   if (argc >= 2 && argv[optind])
   {
@@ -3303,8 +3299,7 @@ int main (int argc, char **argv)
 
 #if defined(__CYGWIN__)
   {
-    /*
-     * Cygwin gives an 'argv[]' that messed up regular expressions.
+    /* Cygwin gives an 'argv[]' that messed up regular expressions.
      * E.g. on the cmdline, a "^c.*\\temp$", becomes a "^c.*\temp$".
      * So get 'argv[argc-1]' back from kernel32.dll.
      */

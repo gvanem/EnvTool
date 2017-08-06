@@ -272,6 +272,7 @@ struct prog_options {
        int   no_colours;
        int   no_ansi;
        int   use_regex;
+       int   use_buffered_io;
        int   dir_mode;
        int   man_mode;
        int   PE_check;
@@ -300,6 +301,8 @@ struct prog_options {
      };
 
 extern struct prog_options opt;
+
+extern volatile int halt_flag;
 
 extern char   sys_dir        [_MAX_PATH];
 extern char   sys_native_dir [_MAX_PATH];
