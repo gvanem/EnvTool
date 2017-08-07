@@ -273,6 +273,7 @@ struct prog_options {
        int   no_ansi;
        int   use_regex;
        int   use_buffered_io;
+       int   use_nonblock_io;
        int   dir_mode;
        int   man_mode;
        int   PE_check;

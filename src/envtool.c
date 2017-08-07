@@ -501,7 +501,6 @@ static int show_help (void)
             "    ~6-s~0, ~6--size~0:     show size of file(s) found. With ~6--dir~0 option, recursively show\n"
             "                    the size of all files under directories matching ~6<file-spec>~0.\n"
             "    ~6-q~0, ~6--quiet~0:    disable warnings.\n"
-            "    ~6--buffered-io~0:  use buffered I/O for ETP-server reads.\n"
             "    ~6-t~0:             do some internal tests.\n"
             "    ~6-T~0:             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
             "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
@@ -1324,7 +1323,7 @@ static void final_report (int found)
      C_printf (" %d have PE-version info. %d are verified.", num_version_ok, num_verified);
 
   if (opt.evry_host && opt.debug >= 1 && ETP_total_rcv)
-     C_printf ("\n%lu bytes received from ETP-host(s).", ETP_total_rcv);
+     C_printf ("\n%s bytes received from ETP-host(s).", dword_str(ETP_total_rcv));
 
   C_putc ('\n');
 }
@@ -2892,7 +2891,8 @@ static const struct option long_options[] = {
            { "no-ansi",     no_argument,       NULL, 0 },    /* 29 */
            { "host",        required_argument, NULL, 0 },
            { "buffered-io", no_argument,       NULL, 0 },    /* 31 */
-           { NULL,          no_argument,       NULL, 0 }
+           { "nonblock-io", no_argument,       NULL, 0 },
+           { NULL,          no_argument,       NULL, 0 }     /* 33 */
          };
 
 static int *values_tab[] = {
@@ -2927,7 +2927,8 @@ static int *values_tab[] = {
             &opt.gcc_no_prefixed,
             &opt.no_ansi,         /* 29 */
             (int*)&opt.evry_host,
-            &opt.use_buffered_io
+            &opt.use_buffered_io, /* 31 */
+            &opt.use_nonblock_io
           };
 
 /*
