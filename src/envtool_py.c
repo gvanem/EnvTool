@@ -1211,7 +1211,7 @@ int py_search (void)
 
     if (pp->is_zip)
          found += process_zip (g_py, pp->dir);
-    else found += process_dir (pp->dir, 0, pp->exist, pp->is_dir,
+    else found += process_dir (pp->dir, 0, pp->exist, TRUE, pp->is_dir,
                                TRUE, "sys.path[]", NULL, FALSE);
   }
   return (found);

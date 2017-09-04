@@ -311,7 +311,7 @@ extern char   sys_native_dir [_MAX_PATH];
 extern int  report_file (const char *file, time_t mtime, UINT64 fsize,
                          BOOL is_dir, BOOL is_junction, HKEY key);
 
-extern int  process_dir (const char *path, int num_dup, BOOL exist,
+extern int  process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
                          BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key, BOOL recursive);
 
 /*

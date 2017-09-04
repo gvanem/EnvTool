@@ -87,6 +87,7 @@ struct directory_array {
        int      is_cwd;      /* and is it equal to current_dir[] */
        int      exp_ok;      /* ExpandEnvironmentStrings() returned with no '%'? */
        int      num_dup;     /* is duplicated elsewhere in %VAR%? */
+       BOOL     check_empty; /* check if it contains at least 1 file? */
        unsigned line;        /* Debug: at what line was add_to_dir_array() called */
      };
 
@@ -1609,7 +1610,7 @@ static int do_check_env2 (HKEY key, const char *env, const char *value)
   int    found = 0;
 
   for (arr = arr0 = split_env_var(env,value); arr->dir; arr++)
-      found += process_dir (arr->dir, arr->num_dup, arr->exist,
+      found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
                             arr->is_dir, arr->exp_ok, env, key,
                             FALSE);
   free_dir_array();
@@ -1720,10 +1721,40 @@ static int do_check_registry (void)
 }
 
 /*
+ * Check if directory is empty (no files or directories except "." and "..").
+ *
+ * Note: It is quite normal that e.g. "%INCLUDE" contain a directory with
+ *       no .h-files but at least 1 subdirectory with several .h-files.
+ */
+static BOOL dir_is_empty (const char *env_var, const char *dir)
+{
+  HANDLE          handle;
+  WIN32_FIND_DATA ff_data;
+  char            fqfn  [_MAX_PATH];  /* Fully qualified file-name */
+  int             num_entries = 0;
+
+  snprintf (fqfn, sizeof(fqfn), "%s%c*", dir, DIR_SEP);
+  handle = FindFirstFile (fqfn, &ff_data);
+  if (handle == INVALID_HANDLE_VALUE)
+     return (TRUE);
+
+  do
+  {
+    if (strcmp(ff_data.cFileName,".") && strcmp(ff_data.cFileName,".."))
+       num_entries++;
+  }
+  while (num_entries == 0 && FindNextFile(handle, &ff_data));
+
+  DEBUGF (2, "%s(): num_entries: %d.\n", __FUNCTION__, num_entries);
+  FindClose (handle);
+  return (num_entries == 0);
+}
+
+/*
  * Process directory specified by 'path' and report any matches
  * to the global 'opt.file_spec'.
  */
-int process_dir (const char *path, int num_dup, BOOL exist,
+int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
                  BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key,
                  BOOL recursive)
 {
@@ -1767,6 +1798,9 @@ int process_dir (const char *path, int num_dup, BOOL exist,
     DEBUGF (1, "\n");
     return (0);
   }
+
+  if (check_empty && is_dir && dir_is_empty(prefix,path))
+     WARN ("%s: directory \"%s\" is empty.\n", prefix, path);
 
   if (!fspec)
      fspec = fix_filespec (&subdir);
@@ -2111,6 +2145,7 @@ static int do_check_env (const char *env_name, BOOL recursive)
   struct directory_array *arr;
   int    found = 0;
   char  *orig_e;
+  BOOL   check_empty = FALSE;
 
   orig_e = getenv_expand (env_name);
   arr0   = orig_e ? split_env_var (env_name, orig_e) : NULL;
@@ -2120,10 +2155,22 @@ static int do_check_env (const char *env_name, BOOL recursive)
     return (0);
   }
 
+  if (!strcmp(env_name,"PATH") ||
+      !strcmp(env_name,"LIB") ||
+      !strcmp(env_name,"LIBRARY_PATH") ||
+      !strcmp(env_name,"INCLUDE") ||
+      !strcmp(env_name,"C_INCLUDE_PATH") ||
+      !strcmp(env_name,"CPLUS_INCLUDE_PATH"))
+    check_empty = TRUE;
+
   for (arr = arr0; arr->dir; arr++)
-      found += process_dir (arr->dir, arr->num_dup, arr->exist,
-                            arr->is_dir, arr->exp_ok, env_name, NULL,
-                            recursive);
+  {
+    if (check_empty && arr->exist)
+       arr->check_empty = check_empty;
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
+                          arr->is_dir, arr->exp_ok, env_name, NULL,
+                          recursive);
+  }
   free_dir_array();
   FREE (orig_e);
   return (found);
@@ -2183,7 +2230,7 @@ static int do_check_manpath (void)
     {
       DEBUGF (2, "Checking in current_dir '%s'\n", current_dir);
 
-      if (process_dir(".\\", 0, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE))
+      if (process_dir(".\\", 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE))
       {
         found++;
         continue;
@@ -2194,7 +2241,7 @@ static int do_check_manpath (void)
     {
       snprintf (subdir, sizeof(subdir), "%s\\%s", arr->dir, sub_dirs[i]);
       if (FILE_EXISTS(subdir))
-         found += process_dir (subdir, 0, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
+         found += process_dir (subdir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
     }
   }
   opt.man_mode = save;
@@ -2258,7 +2305,7 @@ static int do_check_pkg (void)
   for (arr = arr0; arr->dir; arr++)
   {
     DEBUGF (2, "Checking in dir '%s'\n", arr->dir);
-    num = process_dir (arr->dir, 0, arr->exist, arr->is_dir, arr->exp_ok, env_name, NULL, FALSE);
+    num = process_dir (arr->dir, 0, arr->exist, TRUE, arr->is_dir, arr->exp_ok, env_name, NULL, FALSE);
 
     if (arr->num_dup == 0 && prev_num > 0 && num > 0)
        do_warn = TRUE;
@@ -2353,7 +2400,7 @@ static int do_check_cmake (void)
               cmake_major, cmake_minor, cmake_micro, dir);
 
       report_header = "Matches among built-in Cmake modules:\n";
-      found = process_dir (dir, 0, TRUE, 1, TRUE, env_name, NULL, FALSE);
+      found = process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, NULL, FALSE);
     }
     else
       WARN ("Calling '%s' failed.\n", cmake_bin);
@@ -2598,7 +2645,7 @@ static int process_gcc_dirs (const char *gcc)
   for (arr = dir_array; arr->dir; arr++)
   {
     DEBUGF (2, "dir: %s\n", arr->dir);
-    found += process_dir (arr->dir, arr->num_dup, arr->exist,
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
                           arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE,
                           FALSE);
   }
