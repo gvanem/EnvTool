@@ -964,7 +964,7 @@ char *_fix_path (const char *path, char *result)
   }
 
   if (!result)
-     result = CALLOC (_MAX_PATH, 1);
+     result = CALLOC (_MAX_PATH+1, 1);
 
  /* GetFullPathName() doesn't seems to handle
   * '/' in 'path'. Convert to '\\'.
