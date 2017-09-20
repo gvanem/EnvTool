@@ -43,6 +43,10 @@
 #include "envtool.h"
 #include "envtool_py.h"
 
+#if defined(USE_PCRE)
+  #include <pcre.h>
+#endif
+
 #ifdef __MINGW32__
   /*
    * Tell MinGW's CRT to turn off command line globbing by default.
@@ -334,13 +338,23 @@ static void parse_ver_info (smartlist_t *sl, const char *line)
 static void write_hook (const char *buf)
 {
   size_t len = strlen (buf);
+  char  *p;
+  static BOOL saw_newline = FALSE;
 
   if (len >= 1)
   {
-    char *p = alloca (len+3);
+    /* Put 'opt.cache_ver_level' only on lines after [\r\n] was seen
+     */
+    if (saw_newline)
+    {
+      p = alloca (len+3);
+      sprintf (p, "%d:%s", opt.cache_ver_level, buf);
+    }
+    else
+      p = (char*) buf;
 
-    sprintf (p, "%d:%s", opt.do_version, buf);
     smartlist_add (ver_cache, STRDUP(p));
+    saw_newline = (buf[len-1] == '\r' || buf[len-1] == '\n');
   }
 }
 
@@ -368,10 +382,11 @@ static int show_version (void)
       for (i = 0; i < max; i++)
       {
         const char *line = smartlist_get (ver_cache, i);
+        int   vlevel = (int)line[0];
 
-        if (isdigit((int)line[0]) && line[1] == ':')
+        if (isdigit(vlevel) && line[1] == ':')
         {
-          if (opt.do_version >= line[0] - '0')
+          if (opt.do_version >= vlevel - '0')
              C_puts (line+2);
         }
         else
@@ -380,12 +395,13 @@ static int show_version (void)
       goto quit;
     }
 
-    // opt.do_version = 2;
+    // opt.do_version = 3;
     ver_cache = smartlist_new();
     cache_create = TRUE;
     C_write_hook = write_hook;
   }
 
+  opt.cache_ver_level = 1;
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.\n  Hosted at: ~6%s~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
             wow64 ? ", ~1WOW64" : "", AUTHOR_STR, GITHUB_STR);
@@ -402,6 +418,10 @@ static int show_version (void)
   else
     C_printf ("  Everything search engine not found.\n");
 
+#if defined(USE_PCRE)
+  C_printf ("  PCRE version: %s.\n", pcre_version());
+#endif
+
   C_printf ("  Checking Python programs...");
   C_flush();
   py_init();
@@ -411,6 +431,8 @@ static int show_version (void)
 
   if (opt.do_version >= 2)
   {
+    opt.cache_ver_level = 2;
+
     C_printf ("  OS-version: %s (%s bits).\n", os_name(), os_bits());
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
 
@@ -498,7 +520,7 @@ static int show_help (void)
             "                    can be used multiple times. Alternative syntax is ~6--evry:<host>~0.\n",
             who_am_I);
 
-  C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in ~6--evry~0 searches.\n"
+  C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
             "    ~6-s~0, ~6--size~0:     show size of file(s) found. With ~6--dir~0 option, recursively show\n"
             "                    the size of all files under directories matching ~6<file-spec>~0.\n"
             "    ~6-q~0, ~6--quiet~0:    disable warnings.\n"
@@ -1049,7 +1071,7 @@ static void print_PE_info (const char *file, BOOL chksum_ok,
       if (colon)
          indent += (colon - line + 1);
       C_puts (filler);
-      C_puts_long_line (indent, line);
+      C_puts_long_line (line, indent);
     }
     C_setraw (raw);
     get_PE_version_info_free();
@@ -2819,6 +2841,10 @@ static size_t num_gpp (void)
 static void searchpath_all_cc (void)
 {
   BOOL print_lib_path = (opt.do_version >= 3);
+  int  save = opt.cache_ver_level;
+
+  if (opt.do_version >= 3)
+     opt.cache_ver_level = 3;
 
   build_gnu_prefixes();
 
@@ -2834,6 +2860,7 @@ static void searchpath_all_cc (void)
 
   if (print_lib_path)
      C_puts ("    ~3(1)~0: internal GCC library paths.\n");
+  opt.cache_ver_level = save;
 }
 
 static int do_check_gcc_includes (void)
@@ -3340,8 +3367,7 @@ static void init_all (void)
 
 int main (int argc, char **argv)
 {
-  int   found = 0;
-  char *end, *dot;
+  int need_pcre, found = 0;
 
   init_all();
 
@@ -3378,6 +3404,18 @@ int main (int argc, char **argv)
   signal (SIGINT, halt);
   signal (SIGILL, halt);
 
+  /* These modes (all except '--evry') need an external PCRE library.
+   * EveryThing has regexp as a built-in.
+   */
+  need_pcre = opt.use_regex &&
+              (opt.do_path || opt.do_include || opt.do_lib || opt.do_cmake || opt.do_python || opt.do_pkg);
+
+#if !defined(USE_PCRE)
+  if (need_pcre)
+     WARN ("Regular expression is not supported for this mode. "
+           "Ignoring the \"-r/--regex\" option.\n");
+#endif
+
   if (opt.help)
      return show_help();
 
@@ -3412,14 +3450,17 @@ int main (int argc, char **argv)
     FREE (fspec);
   }
 
-  end = strrchr (opt.file_spec, '\0');
-  dot = strrchr (opt.file_spec, '.');
+  if (!opt.use_regex)
+  {
+    char *end = strrchr (opt.file_spec, '\0');
+    char *dot = strrchr (opt.file_spec, '.');
 
-  if (opt.do_pkg && !dot && end > opt.file_spec && end[-1] != '*')
-    opt.file_spec = _stracat (opt.file_spec, ".pc*");
+    if (opt.do_pkg && !dot && end > opt.file_spec && end[-1] != '*')
+       opt.file_spec = _stracat (opt.file_spec, ".pc*");
 
-  else if (!opt.use_regex && !dot && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
-     opt.file_spec = _stracat (opt.file_spec, ".*");
+    else if (!dot && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
+        opt.file_spec = _stracat (opt.file_spec, ".*");
+  }
 
   opt.file_spec_re = opt.file_spec;
 
@@ -4273,9 +4314,9 @@ static void print_build_cflags (void)
 #if defined(CFLAGS)
   #include CFLAGS
   C_puts ("\n    ");
-  print_long_line (cflags, 4);
+  C_puts_long_line (cflags, 4);
 #else
-  print_long_line (" Unknown", 4);
+  C_puts ("\n     Unknown\n");
 #endif
 }
 
@@ -4284,9 +4325,9 @@ static void print_build_ldflags (void)
 #if defined(LDFLAGS)
   #include LDFLAGS
   C_puts ("\n    ");
-  print_long_line (ldflags, 4);
+  C_puts_long_line (ldflags, 4);
 #else
-  print_long_line (" Unknown", 4);
+  C_puts ("\n     Unknown\n");
 #endif
 }
 

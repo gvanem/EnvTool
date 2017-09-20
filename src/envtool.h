@@ -296,6 +296,7 @@ struct prog_options {
        int   do_pkg;
        int   conv_cygdrive;
        int   case_sensitive;
+       int   cache_ver_level;
        void *evry_host;     /* A smartlist_t */
        char *file_spec;
        char *file_spec_re;
