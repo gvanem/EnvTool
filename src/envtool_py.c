@@ -1469,9 +1469,13 @@ void py_searchpaths (void)
 
     if (pi->exe_name && opt.do_version >= 3)
     {
+      int save = opt.cache_ver_level;
+
+      opt.cache_ver_level = 3;
       g_py = pi;
       get_sys_path (g_py);
       print_sys_path (g_py, 23);
+      opt.cache_ver_level = save;
     }
   }
 
