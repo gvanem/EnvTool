@@ -501,22 +501,31 @@ int C_putsn (const char *str, size_t len)
   return (rc);
 }
 
-void C_puts_long_line (size_t indent, const char *start)
+void C_puts_long_line (const char *start, size_t indent)
 {
-  size_t      max_len = c_screen_width - indent;
+  size_t      left = c_screen_width - indent;
   const char *c = start;
 
   while (*c)
   {
-    C_putc (*c++);
-
-    /* Break a long line at a space.
-     */
-    if ((size_t)(c - start) > max_len && (*c == ' ' || *c == '\t'))
+    if (*c == ' ')
     {
-      C_printf ("\n%*c", (int)indent, ' ');
-      start = c;
+      /* Break a long line at a space.
+       */
+      const char *p = strchr (c+1, ' ');
+
+      if (!p)
+          p = strchr (c+1, '\0');
+      if ( left < 2 || (left <= p - c) )
+      {
+        C_printf ("\n%*c", (int)indent, ' ');
+        left = c_screen_width - indent;
+        start = ++c;
+        continue;
+      }
     }
+    C_putc (*c++);
+    left--;
   }
   C_putc ('\n');
 }
