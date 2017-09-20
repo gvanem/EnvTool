@@ -4184,9 +4184,8 @@ static void test_libssp (void)
 
 /*
  * This should run when user-name is "APPVYR-WIN\appveyor".
- * Figure out why it fails to find 'cmake.exe' even though the
- * %PATH% contain "c:\Program Files (x86)\CMake\bin", it fails to
- * run and report it's version.
+ * Check if it finds 'cmake.exe' on it's %PATH% which should contain
+ * "c:\Program Files (x86)\CMake\bin".
  */
 static void test_AppVeyor (void)
 {
