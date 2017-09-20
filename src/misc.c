@@ -1885,6 +1885,7 @@ const char *get_time_str (time_t t)
   return (res);
 }
 
+#if defined(NOT_NEEDED)
 /*
  * Function that prints the line argument while limiting it
  * to at most 'MAX_CHARS_PER_LINE'. An appropriate number
@@ -1925,22 +1926,23 @@ void format_and_print_line (const char *line, int indent)
  */
 void print_long_line (const char *line, size_t indent)
 {
-  size_t      room, left = MAX_CHARS_PER_LINE - indent;
+  size_t      left = MAX_CHARS_PER_LINE - indent;
   const char *c = line;
 
   while (*c)
   {
-    /* Break a long line only at 'break char'.
-     * Check if room for a flag-component ("foo|") before we must break the line.
+    /* Break a long line only at a space.
+     * Check if room for a long string before we must break the line.
      */
     if (*c == ' ')
     {
-      room = (size_t) (line - strchr(c+1,' '));
-      if (c[1] && room < left)
+      int room = (int) (strchr(c+1,' ') - line);
+
+      if (c[1] && room < (int)left)
       {
-        C_printf ("%c\n%*c", *c++, (int)indent, ' ');
+        C_printf ("'\n%*c'", (int)indent, ' ');
         left = MAX_CHARS_PER_LINE - indent;
-        line = c;
+        line = c++;
         continue;
       }
     }
@@ -1949,7 +1951,7 @@ void print_long_line (const char *line, size_t indent)
   }
   C_putc ('\n');
 }
-
+#endif
 
 /*
  * Search 'list' for 'value' and return it's name.
