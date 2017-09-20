@@ -181,10 +181,6 @@ static void C_init (void)
     if (okay)
     {
       c_screen_width = console_info.srWindow.Right - console_info.srWindow.Left + 1;
-      env = getenv ("COLUMNS");
-      if (env && atoi(env) > 0)
-         c_screen_width = atoi (env);
-
       init_colour_map();
 
 #if defined(__CYGWIN__)
@@ -197,6 +193,10 @@ static void C_init (void)
     }
     else
       C_use_colours = 0;
+
+    env = getenv ("COLUMNS");
+    if (env && atoi(env) > 0)
+       c_screen_width = atoi (env);
 
     c_out  = stdout;
     c_head = c_buf;
