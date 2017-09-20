@@ -211,9 +211,7 @@ int smartlist_write_file (smartlist_t *sl, const char *file)
   max = smartlist_len (sl);
   for (i = 0; i < max; i++)
   {
-    const char *str = (const char*) smartlist_get(sl, i);
-
-    fwrite (str, strlen(str), 1, f);
+    fputs ((const char*)smartlist_get(sl, i), f);
   }
   fclose (f);
   return (1);
