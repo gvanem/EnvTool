@@ -127,6 +127,7 @@
     <ClCompile Include="misc.c" />
     <ClCompile Include="win_trust.c" />
     <ClCompile Include="win_ver.c" />
+    <ClCompile Include="regex.c" />
     <ClCompile Include="searchpath.c" />
     <ClCompile Include="smartlist.c" />
     <ClCompile Include="show_ver.c" />
