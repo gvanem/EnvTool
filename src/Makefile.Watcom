@@ -19,6 +19,7 @@ OBJECTS = envtool.obj        &
           dirlist.obj        &
           getopt_long.obj    &
           misc.obj           &
+          regex.obj          &
           searchpath.obj     &
           show_ver.obj       &
           smartlist.obj      &
@@ -45,6 +46,10 @@ win_trust.exe: win_trust.c misc.obj color.obj getopt_long.obj searchpath.obj
 	$(LINK) name $*.exe file { win_trust.obj misc.obj color.obj getopt_long.obj searchpath.obj } &
 	        library { $(EX_LIBS) }
 	rm win_trust.obj
+
+.ERASE
+regex.obj: regex/regex.c
+	$(CC) $(CFLAGS) $[@
 
 .ERASE
 .c.obj:
