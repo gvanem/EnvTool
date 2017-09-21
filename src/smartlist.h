@@ -7,8 +7,8 @@
   typedef struct smartlist_internal smartlist_t; /* Opaque struct */
 #endif
 
-typedef int  (__cdecl *smartlist_compare_func) (const void *key, const void **member);
-typedef void (__cdecl *smartlist_parse_func) (smartlist_t *sl, const char *line);
+typedef int  (*smartlist_compare_func) (const void *key, const void **member);
+typedef void (*smartlist_parse_func) (smartlist_t *sl, const char *line);
 
 
 int          smartlist_len (const smartlist_t *sl);
