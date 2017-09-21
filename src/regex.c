@@ -93,6 +93,10 @@ static void init_syntax_once (void)
 
 #define SYNTAX(c)   re_syntax_table[c]
 
+#if defined(_MSC_VER) && (_MSC_VER < 1700)
+  #define isblank(c) ((c) == ' ' || (c) == '\t')
+#endif
+
 #define ISASCII(c)  isascii(c)
 #define ISBLANK(c)  (ISASCII (c) && isblank (c))
 #define ISGRAPH(c)  (ISASCII (c) && isgraph (c))
