@@ -40,12 +40,9 @@
 
 #include "color.h"
 #include "smartlist.h"
+#include "regex.h"
 #include "envtool.h"
 #include "envtool_py.h"
-
-#if defined(USE_PCRE)
-  #include <pcre.h>
-#endif
 
 #ifdef __MINGW32__
   /*
@@ -140,6 +137,10 @@ static char  current_dir [_MAX_PATH];
 
 static smartlist_t *ver_cache = NULL;
 static BOOL         use_cache = FALSE;
+
+static regex_t re_hnd;         /* regex handle/state */
+static int     re_err;         /* last regex error-code */
+static char    re_errbuf[300]; /* regex error-buffer */
 
 volatile int halt_flag;
 
@@ -417,10 +418,6 @@ static int show_version (void)
   }
   else
     C_printf ("  Everything search engine not found.\n");
-
-#if defined(USE_PCRE)
-  C_printf ("  PCRE version: %s.\n", pcre_version());
-#endif
 
   C_printf ("  Checking Python programs...");
   C_flush();
@@ -3279,7 +3276,10 @@ static void cleanup (void)
   FREE (gpp);
 
   if (opt.file_spec_re && opt.file_spec_re != opt.file_spec)
-     FREE (opt.file_spec_re);
+  {
+    FREE (opt.file_spec_re);
+    regfree (&re_hnd);
+  }
   FREE (opt.file_spec);
 
   smartlist_free_all (opt.evry_host);
@@ -3365,9 +3365,27 @@ static void init_all (void)
   }
 }
 
+/*
+ * Try to match 'str' against the global regular expression in
+ * 'opt.file_spec_re'.
+ */
+static BOOL match_regex (const char *str)
+{
+  re_err = regexec (&re_hnd, str, 0, NULL, 0);
+  if (re_err == REG_NOMATCH)
+     return (FALSE);
+
+  if (re_err == 0)
+     return (TRUE);
+
+  regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
+  DEBUGF (1, "Error while matching \"%s\": %d\n", str, re_err);
+  return (FALSE);
+}
+
 int main (int argc, char **argv)
 {
-  int need_pcre, found = 0;
+  int need_regex, found = 0;
 
   init_all();
 
@@ -3407,12 +3425,12 @@ int main (int argc, char **argv)
   /* These modes (all except '--evry') need an external PCRE library.
    * EveryThing has regexp as a built-in.
    */
-  need_pcre = opt.use_regex &&
-              (opt.do_path || opt.do_include || opt.do_lib || opt.do_cmake || opt.do_python || opt.do_pkg);
+  need_regex = opt.use_regex &&
+               (opt.do_path || opt.do_include || opt.do_lib || opt.do_cmake || opt.do_python || opt.do_pkg);
 
-#if !defined(USE_PCRE)
-  if (need_pcre)
-     WARN ("Regular expression is not supported for this mode. "
+#if 1
+  if (need_regex)
+     WARN ("Regular expression is not yet supported for this mode. "
            "Ignoring the \"-r/--regex\" option.\n");
 #endif
 
@@ -3442,19 +3460,21 @@ int main (int argc, char **argv)
   if (!opt.file_spec)
      usage ("You must give a ~1filespec~0 to search for.\n");
 
-  if (strchr(opt.file_spec,'~') > opt.file_spec)
-  {
-    char *fspec = opt.file_spec;
-
-    opt.file_spec = _fix_path (fspec, NULL);
-    FREE (fspec);
-  }
+  opt.file_spec_re = opt.file_spec;
 
   if (!opt.use_regex)
   {
-    char *end = strrchr (opt.file_spec, '\0');
-    char *dot = strrchr (opt.file_spec, '.');
+    char *end, *dot, *fspec;
 
+    if (strchr(opt.file_spec,'~') > opt.file_spec)
+    {
+      fspec = opt.file_spec;
+      opt.file_spec = _fix_path (fspec, NULL);
+      FREE (fspec);
+    }
+
+    end = strrchr (opt.file_spec, '\0');
+    dot = strrchr (opt.file_spec, '.');
     if (opt.do_pkg && !dot && end > opt.file_spec && end[-1] != '*')
        opt.file_spec = _stracat (opt.file_spec, ".pc*");
 
@@ -3462,9 +3482,17 @@ int main (int argc, char **argv)
         opt.file_spec = _stracat (opt.file_spec, ".*");
   }
 
-  opt.file_spec_re = opt.file_spec;
-
   DEBUGF (1, "file_spec: '%s', file_spec_re: '%s'.\n", opt.file_spec, opt.file_spec_re);
+
+  if (need_regex)
+  {
+    re_err = regcomp (&re_hnd, opt.file_spec_re, REG_EXTENDED | REG_ICASE | REG_NEWLINE);
+    if (re_err)
+    {
+      regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
+      WARN ("Invalid regular expression \"%s\": %s\n", opt.file_spec_re, re_errbuf);
+    }
+  }
 
   if (!opt.no_sys_env)
      found += scan_system_env();
@@ -4225,6 +4253,60 @@ static void test_ETP_host (void)
   }
 }
 
+static void test_regex (void)
+{
+  static const char *patterns[] = {
+                    "^foo.*",
+                    "^Hello.*$",
+                    "[[:digit:]].*$",
+                  };
+  int i, flags = (REG_EXTENDED /* | REG_NEWLINE */ );
+
+  if (!opt.case_sensitive)
+     flags |= REG_ICASE;
+
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+
+  for (i = 0; i < DIM(patterns); i++)
+  {
+    regex_t re_hnd2;
+    int     re_err2;
+    BOOL    rc;
+
+    C_printf ("  Pattern '%s'%*s against '%s': regcomp() ",
+              patterns[i], 20-strlen(patterns[i]), "", opt.file_spec_re);
+
+    re_err2 = regcomp (&re_hnd2, patterns[i], flags);
+    if (re_err2)
+    {
+      regerror (re_err2, &re_hnd2, re_errbuf, sizeof(re_errbuf));
+      C_printf ("~5FAIL~0: %s\n", re_errbuf);
+      continue;
+    }
+    C_puts ("~2OKAY.~0");
+
+    re_err2 = regexec (&re_hnd2, opt.file_spec_re, 0, NULL, 0);
+    if (re_err2 == REG_NOMATCH)
+    {
+      rc = FALSE;
+      strcpy (re_errbuf, "~2No match");
+    }
+    else if (re_err2 == 0)
+    {
+      rc = TRUE;
+      strcpy (re_errbuf, "~2Match");
+    }
+    else
+    {
+      strcpy (re_errbuf, "~5");
+      regerror (re_err2, &re_hnd2, re_errbuf+2, sizeof(re_errbuf)-2);
+    }
+    regfree (&re_hnd2);
+    C_printf (" regexec() %s~0\n", re_errbuf);
+  }
+  C_putc ('\n');
+}
+
 static int do_tests (void)
 {
   int save;
@@ -4239,6 +4321,13 @@ static int do_tests (void)
   {
     if (!halt_flag)
        py_test();
+    return (0);
+  }
+
+  if (opt.use_regex && opt.file_spec)
+  {
+    opt.file_spec_re = opt.file_spec;
+    test_regex();
     return (0);
   }
 
