@@ -37,8 +37,6 @@
   #include <crtdbg.h>
 #endif
 
-// #define DEBUG
-
 #include "regex.h"
 
 /* The following two types have to be signed and unsigned integer type
@@ -48,10 +46,6 @@
  */
 typedef long int          s_reg_t;
 typedef unsigned long int active_reg_t;
-
-#define bcmp(s1, s2, n)  memcmp ((s1), (s2), (n))
-#define bcopy(s, d, n)   memcpy ((d), (s), (n))
-#define bzero(s, n)      memset ((s), 0, (n))
 
 /* Define the syntax stuff for \<, \>, etc.
  *
@@ -76,7 +70,7 @@ static void init_syntax_once (void)
   if (done)
     return;
 
-  bzero (re_syntax_table, sizeof re_syntax_table);
+  memset (re_syntax_table, '\0', sizeof(re_syntax_table));
 
   for (c = 'a'; c <= 'z'; c++)
     re_syntax_table[c] = Sword;
@@ -98,18 +92,18 @@ static void init_syntax_once (void)
 #endif
 
 #define ISASCII(c)  isascii(c)
-#define ISBLANK(c)  (ISASCII (c) && isblank (c))
-#define ISGRAPH(c)  (ISASCII (c) && isgraph (c))
-#define ISPRINT(c)  (ISASCII (c) && isprint (c))
-#define ISDIGIT(c)  (ISASCII (c) && isdigit (c))
-#define ISALNUM(c)  (ISASCII (c) && isalnum (c))
-#define ISALPHA(c)  (ISASCII (c) && isalpha (c))
-#define ISCNTRL(c)  (ISASCII (c) && iscntrl (c))
-#define ISLOWER(c)  (ISASCII (c) && islower (c))
-#define ISPUNCT(c)  (ISASCII (c) && ispunct (c))
-#define ISSPACE(c)  (ISASCII (c) && isspace (c))
-#define ISUPPER(c)  (ISASCII (c) && isupper (c))
-#define ISXDIGIT(c) (ISASCII (c) && isxdigit (c))
+#define ISBLANK(c)  (ISASCII(c) && isblank(c))
+#define ISGRAPH(c)  (ISASCII(c) && isgraph(c))
+#define ISPRINT(c)  (ISASCII(c) && isprint(c))
+#define ISDIGIT(c)  (ISASCII(c) && isdigit(c))
+#define ISALNUM(c)  (ISASCII(c) && isalnum(c))
+#define ISALPHA(c)  (ISASCII(c) && isalpha(c))
+#define ISCNTRL(c)  (ISASCII(c) && iscntrl(c))
+#define ISLOWER(c)  (ISASCII(c) && islower(c))
+#define ISPUNCT(c)  (ISASCII(c) && ispunct(c))
+#define ISSPACE(c)  (ISASCII(c) && isspace(c))
+#define ISUPPER(c)  (ISASCII(c) && isupper(c))
+#define ISXDIGIT(c) (ISASCII(c) && isxdigit(c))
 
 /* We remove any previous definition of `SIGN_EXTEND_CHAR',
  * since ours (we hope) works properly with all combinations of
@@ -138,7 +132,7 @@ static void init_syntax_once (void)
   /* Assumes a `char *destination' variable. */
   #define REGEX_REALLOCATE(source, osize, nsize)                   \
                            (destination = (char *) alloca (nsize), \
-                            bcopy (source, destination, osize),    \
+                            memcpy (destination, source, osize),   \
                             destination)
 
   #define REGEX_FREE(arg) ((void)0) /* Do nothing!  But inhibit gcc warning. */
@@ -1818,7 +1812,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
 
              /* Clear the whole map.
               */
-             bzero (b, (1 << BYTEWIDTH) / BYTEWIDTH);
+             memset (b, 0, (1 << BYTEWIDTH) / BYTEWIDTH);
 
              /* charset_not matches newline according to a syntax bit.
               */
@@ -2742,7 +2736,7 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
   assert (fastmap != NULL && p != NULL);
 
   INIT_FAIL_STACK();
-  bzero (fastmap, 1 << BYTEWIDTH); /* Assume nothing's valid. */
+  memset (fastmap, 0, 1 << BYTEWIDTH); /* Assume nothing's valid. */
   bufp->fastmap_accurate = 1;      /* It will be when we're done. */
   bufp->can_be_null = 0;
 
@@ -4011,7 +4005,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
                /* Compare that many; failure if mismatch, else move
                 * past them.
                 */
-               if (translate ? bcmp_translate (d, d2, mcnt, translate) : bcmp (d, d2, mcnt))
+               if (translate ? bcmp_translate(d, d2, mcnt, translate) : memcmp(d, d2, mcnt))
                   goto fail;
                d += mcnt, d2 += mcnt;
 
