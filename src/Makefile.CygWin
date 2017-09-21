@@ -1,8 +1,6 @@
 #
 # EnvTool CygWin (32/64-bit) makefile.
 #
-VPATH = regex
-
 FORTIFY_SOURCE ?= 0
 USE_DEBUG      ?= 0
 USE_64BIT      ?= 0
@@ -59,8 +57,8 @@ ifeq ($(USE_WS2_32),1)
 endif
 
 SOURCES = dirlist.c envtool.c envtool_py.c Everything.c Everything_ETP.c \
-          color.c getopt_long.c misc.c searchpath.c show_ver.c smartlist.c \
-          win_trust.c win_ver.c regex/regex.c
+          color.c getopt_long.c misc.c regex.c searchpath.c show_ver.c \
+          smartlist.c win_trust.c win_ver.c
 
 OBJECTS  = $(notdir $(SOURCES:.c=.o))
 PROGRAMS = envtool.exe win_glob.exe win_ver.exe win_trust.exe dirlist.exe

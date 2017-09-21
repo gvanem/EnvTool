@@ -48,10 +48,6 @@ win_trust.exe: win_trust.c misc.obj color.obj getopt_long.obj searchpath.obj
 	rm win_trust.obj
 
 .ERASE
-regex.obj: regex/regex.c
-	$(CC) $(CFLAGS) $[@
-
-.ERASE
 .c.obj:
 	$(CC) $(CFLAGS) $[@
 

@@ -1,8 +1,6 @@
 #
 # GNU makefile for EnvTool (MinGW/MinGW-w64/TDM-gcc).
 #
-VPATH = regex
-
 FORTIFY_SOURCE ?= 1
 USE_DEBUG      ?= 1
 USE_64BIT      ?= 0
@@ -54,7 +52,7 @@ EX_LIBS += -lpsapi -limagehlp -lversion -lwintrust -lcrypt32 -lws2_32
 
 SOURCES = envtool.c color.c searchpath.c misc.c show_ver.c dirlist.c \
           Everything.c Everything_ETP.c envtool_py.c getopt_long.c   \
-          smartlist.c win_trust.c win_ver.c regex/regex.c
+          smartlist.c win_trust.c win_ver.c
 
 OBJECTS  = $(notdir $(SOURCES:.c=.o))
 PROGRAMS = envtool.exe win_glob.exe win_ver.exe win_trust.exe dirlist.exe

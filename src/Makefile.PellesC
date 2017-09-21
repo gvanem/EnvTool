@@ -1,8 +1,6 @@
 #
 # GNU makefile for EnvTool (PellesC 32/64-bit).
 #
-VPATH = regex
-
 USE_DEBUG     ?= 1
 USE_64BIT     ?= 0
 USE_POCRT_DLL ?= 0
@@ -86,7 +84,7 @@ endif
 
 SOURCES = envtool.c envtool_py.c Everything.c Everything_ETP.c color.c \
           dirlist.c getopt_long.c misc.c searchpath.c smartlist.c \
-          show_ver.c win_ver.c win_trust.c regex/regex.c
+          regex.c show_ver.c win_ver.c win_trust.c
 
 OBJECTS = $(notdir $(SOURCES:.c=.obj))
 

@@ -85,9 +85,6 @@ win_trust.exe: win_trust.c getopt_long.c misc.c color.c searchpath.c
 	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q win_trust.obj
 
-regex.obj: regex/regex.c
-	$(CC) $(CFLAGS) -c regex/regex.c
-
 .c.obj:
 	$(CC) $(CFLAGS) -c $*.c
 
