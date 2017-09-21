@@ -43,7 +43,7 @@ extern int C_printf (_Printf_format_string_ const char *fmt, ...)
   #endif
    ;
 
-extern void (__cdecl *C_write_hook) (const char *buf);
+extern void (*C_write_hook) (const char *buf);
 
 extern int    C_vprintf  (const char *fmt, va_list args);
 extern int    C_puts     (const char *str);

@@ -80,7 +80,7 @@ int C_use_fwrite = 0;
 
 unsigned C_redundant_flush = 0;
 
-void (__cdecl *C_write_hook) (const char *buf) = NULL;
+void (*C_write_hook) (const char *buf) = NULL;
 
 static char   c_buf [C_BUF_SIZE];
 static char  *c_head, *c_tail;
@@ -435,7 +435,9 @@ int C_putc (int ch)
 
       if (C_write_hook)
       {
-        char buf[3] = { '~', ch, '\0' };
+        char buf[3] = { '~', '\0', '\0' };
+
+        buf[1] = ch;
         (*C_write_hook) (buf);
       }
 
