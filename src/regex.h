@@ -18,7 +18,8 @@
    You should have received a copy of the GNU Library General Public
    License along with the GNU C Library; see the file COPYING.LIB.  If not,
    write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   Boston, MA 02111-1307, USA.
+ */
 
 #ifndef __REGEXP_LIBRARY_H__
 #define __REGEXP_LIBRARY_H__
@@ -27,18 +28,14 @@
 extern "C" {
 #endif
 
-/* The following bits are used to determine the regexp syntax we
- * recognize.  The set/not-set meanings are chosen so that Emacs syntax
- * remains the value 0.  The bits are given in alphabetical order, and
- * the definitions shifted by one from the previous bit; thus, when we
- * add or remove a bit, only one other definition need change.
+/* The following bits are used to determine the regexp syntax we recognize.
  */
 typedef unsigned long int reg_syntax_t;
 
 /* If this bit is not set, then \ inside a bracket expression is literal.
  * If set, then such a \ quotes the following character.
  */
-#define RE_BACKSLASH_ESCAPE_IN_LISTS ((unsigned long int) 1)
+#define RE_BACKSLASH_ESCAPE_IN_LISTS ((unsigned long int)1)
 
 /* If this bit is not set, then + and ? are operators, and \+ and \? are
  * literals. If set, then \+ and \? are operators and + and ? are literals.
@@ -168,8 +165,8 @@ typedef unsigned long int reg_syntax_t;
  */
 #define RE_DEBUG (RE_NO_GNU_OPS << 1)
 
-/* This global variable defines the particular regexp syntax to use (for
- * some interfaces).  When a regexp is compiled, the syntax used is
+/* This global variable (=0) defines the particular regexp syntax to use
+ * (for some interfaces).  When a regexp is compiled, the syntax used is
  * stored in the pattern buffer, so changing this does not affect
  * already-compiled regexps.
  */
@@ -262,176 +259,183 @@ extern reg_syntax_t re_syntax_options;
                                            RE_UNMATCHED_RIGHT_PAREN_ORD)
 /* [[[end syntaxes]]] */
 
-/* Maximum number of duplicates an interval can allow.  Some systems
- * (erroneously) define this in other header files, but we want our
- * value, so remove any previous define.
+/* Maximum number of duplicates an interval can allow.
  */
-#ifdef RE_DUP_MAX
-#undef RE_DUP_MAX
-#endif
-
-/* If sizeof(int) == 2, then ((1 << 15) - 1) overflows.  */
 #define RE_DUP_MAX (0x7fff)
 
-
-/* POSIX `cflags' bits (i.e., information for `regcomp').  */
+/* POSIX `cflags' bits (i.e., information for `regcomp'). */
 
 /* If this bit is set, then use extended regular expression syntax.
-   If not set, then use basic regular expression syntax.  */
+ * If not set, then use basic regular expression syntax.
+ */
 #define REG_EXTENDED 1
 
 /* If this bit is set, then ignore case when matching.
-   If not set, then case is significant.  */
+ * If not set, then case is significant.
+ */
 #define REG_ICASE (REG_EXTENDED << 1)
 
 /* If this bit is set, then anchors do not match at newline
-     characters in the string.
-   If not set, then anchors do match at newlines.  */
+ * characters in the string.
+ *
+ * If not set, then anchors do match at newlines.
+ */
 #define REG_NEWLINE (REG_ICASE << 1)
 
 /* If this bit is set, then report only success or fail in regexec.
-   If not set, then returns differ between not matching and errors.  */
+ * If not set, then returns differ between not matching and errors.
+ */
 #define REG_NOSUB (REG_NEWLINE << 1)
 
-
-/* POSIX `eflags' bits (i.e., information for regexec).  */
+/* POSIX `eflags' bits (i.e., information for regexec). */
 
 /* If this bit is set, then the beginning-of-line operator doesn't match
-     the beginning of the string (presumably because it's not the
-     beginning of a line).
-   If not set, then the beginning-of-line operator does match the
-     beginning of the string.  */
+ *  the beginning of the string (presumably because it's not the
+ *  beginning of a line).
+ *
+ * If not set, then the beginning-of-line operator does match the
+ * beginning of the string.
+ */
 #define REG_NOTBOL 1
 
-/* Like REG_NOTBOL, except for the end-of-line.  */
+/* Like REG_NOTBOL, except for the end-of-line.
+ */
 #define REG_NOTEOL (1 << 1)
 
-
 /* If any error codes are removed, changed, or added, update the
-   `re_error_msg' table in regex.c.  */
-typedef enum
-{
-  REG_NOERROR = 0,  /* Success.  */
-  REG_NOMATCH,      /* Didn't find a match (for regexec).  */
+ * `re_error_msg' table in regex.c.
+ */
+typedef enum {
+  REG_NOERROR = 0,  /* Success. */
+  REG_NOMATCH,      /* Didn't find a match (for regexec). */
 
-  /* POSIX regcomp return error codes.  (In the order listed in the
-     standard.)  */
-  REG_BADPAT,       /* Invalid pattern.  */
-  REG_ECOLLATE,     /* Not implemented.  */
-  REG_ECTYPE,       /* Invalid character class name.  */
-  REG_EESCAPE,      /* Trailing backslash.  */
-  REG_ESUBREG,      /* Invalid back reference.  */
-  REG_EBRACK,       /* Unmatched left bracket.  */
-  REG_EPAREN,       /* Parenthesis imbalance.  */
-  REG_EBRACE,       /* Unmatched \{.  */
-  REG_BADBR,        /* Invalid contents of \{\}.  */
-  REG_ERANGE,       /* Invalid range end.  */
-  REG_ESPACE,       /* Ran out of memory.  */
-  REG_BADRPT,       /* No preceding re for repetition op.  */
+  /* POSIX regcomp return error codes.  (In the order listed in the standard.)
+   */
+  REG_BADPAT,       /* Invalid pattern. */
+  REG_ECOLLATE,     /* Not implemented. */
+  REG_ECTYPE,       /* Invalid character class name. */
+  REG_EESCAPE,      /* Trailing backslash. */
+  REG_ESUBREG,      /* Invalid back reference. */
+  REG_EBRACK,       /* Unmatched left bracket. */
+  REG_EPAREN,       /* Parenthesis imbalance. */
+  REG_EBRACE,       /* Unmatched \{. */
+  REG_BADBR,        /* Invalid contents of \{\}. */
+  REG_ERANGE,       /* Invalid range end. */
+  REG_ESPACE,       /* Ran out of memory. */
+  REG_BADRPT,       /* No preceding re for repetition op. */
 
-  /* Error codes we've added.  */
-  REG_EEND,     /* Premature end.  */
-  REG_ESIZE,        /* Compiled pattern bigger than 2^16 bytes.  */
-  REG_ERPAREN       /* Unmatched ) or \); not returned from regcomp.  */
+  /* Error codes we've added. */
+  REG_EEND,         /* Premature end. */
+  REG_ESIZE,        /* Compiled pattern bigger than 2^16 bytes. */
+  REG_ERPAREN       /* Unmatched ) or \); not returned from regcomp. */
 } reg_errcode_t;
-
-/* This data structure represents a compiled pattern.  Before calling
-   the pattern compiler, the fields `buffer', `allocated', `fastmap',
-   `translate', and `no_sub' can be set.  After the pattern has been
-   compiled, the `re_nsub' field is available.  All other fields are
-   private to the regex routines.  */
 
+/* This data structure represents a compiled pattern.  Before calling
+ * the pattern compiler, the fields `buffer', `allocated', `fastmap',
+ * `translate', and `no_sub' can be set.  After the pattern has been
+ * compiled, the `re_nsub' field is available.  All other fields are
+ * private to the regex routines.
+ */
 #ifndef RE_TRANSLATE_TYPE
 #define RE_TRANSLATE_TYPE char *
 #endif
 
-struct re_pattern_buffer
-{
+struct re_pattern_buffer {
 /* [[[begin pattern_buffer]]] */
     /* Space that holds the compiled pattern.  It is declared as
-          `unsigned char *' because its elements are
-           sometimes used as array indexes.  */
+     * `unsigned char *' because its elements are
+     * sometimes used as array indexes.
+     */
   unsigned char *buffer;
 
-    /* Number of bytes to which `buffer' points.  */
+    /* Number of bytes to which `buffer' points.
+     */
   unsigned long int allocated;
 
-    /* Number of bytes actually used in `buffer'.  */
+    /* Number of bytes actually used in `buffer'.
+     */
   unsigned long int used;
 
-        /* Syntax setting with which the pattern was compiled.  */
+    /* Syntax setting with which the pattern was compiled.
+     */
   reg_syntax_t syntax;
 
-        /* Pointer to a fastmap, if any, otherwise zero.  re_search uses
-           the fastmap, if there is one, to skip over impossible
-           starting points for matches.  */
+    /* Pointer to a fastmap, if any, otherwise zero.  re_search uses
+     * the fastmap, if there is one, to skip over impossible
+     * starting points for matches.
+     */
   char *fastmap;
 
-        /* Either a translate table to apply to all characters before
-           comparing them, or zero for no translation.  The translation
-           is applied to a pattern when it is compiled and to a string
-           when it is matched.  */
+    /* Either a translate table to apply to all characters before
+     * comparing them, or zero for no translation.  The translation
+     * is applied to a pattern when it is compiled and to a string
+     * when it is matched.
+     */
   RE_TRANSLATE_TYPE translate;
 
-    /* Number of subexpressions found by the compiler.  */
+    /* Number of subexpressions found by the compiler.
+     */
   size_t re_nsub;
 
-        /* Zero if this pattern cannot match the empty string, one else.
-           Well, in truth it's used only in `re_search_2', to see
-           whether or not we should use the fastmap, so we don't set
-           this absolutely perfectly; see `re_compile_fastmap' (the
-           `duplicate' case).  */
+    /* Zero if this pattern cannot match the empty string, one else.
+     * Well, in truth it's used only in `re_search_2', to see
+     * whether or not we should use the fastmap, so we don't set
+     * this absolutely perfectly; see `re_compile_fastmap' (the
+     * `duplicate' case).
+     */
   unsigned can_be_null : 1;
 
-        /* If REGS_UNALLOCATED, allocate space in the `regs' structure
-             for `max (RE_NREGS, re_nsub + 1)' groups.
-           If REGS_REALLOCATE, reallocate space if necessary.
-           If REGS_FIXED, use what's there.  */
+    /* If REGS_UNALLOCATED, allocate space in the `regs' structure
+     *   for `max (RE_NREGS, re_nsub + 1)' groups.
+     * If REGS_REALLOCATE, reallocate space if necessary.
+     * If REGS_FIXED, use what's there.
+     */
 #define REGS_UNALLOCATED 0
-#define REGS_REALLOCATE 1
-#define REGS_FIXED 2
+#define REGS_REALLOCATE  1
+#define REGS_FIXED       2
   unsigned regs_allocated : 2;
 
-        /* Set to zero when `regex_compile' compiles a pattern; set to one
-           by `re_compile_fastmap' if it updates the fastmap.  */
+    /* Set to zero when `regex_compile' compiles a pattern; set to one
+     * by `re_compile_fastmap' if it updates the fastmap.
+     */
   unsigned fastmap_accurate : 1;
 
-        /* If set, `re_match_2' does not return information about
-           subexpressions.  */
+    /* If set, `re_match_2' does not return information about subexpressions.
+     */
   unsigned no_sub : 1;
 
-        /* If set, a beginning-of-line anchor doesn't match at the
-           beginning of the string.  */
+    /* If set, a beginning-of-line anchor doesn't match at the beginning of the string.
+     */
   unsigned not_bol : 1;
 
-        /* Similarly for an end-of-line anchor.  */
+    /* Similarly for an end-of-line anchor. */
   unsigned not_eol : 1;
 
-        /* If true, an anchor at a newline matches.  */
+    /* If true, an anchor at a newline matches. */
   unsigned newline_anchor : 1;
 
 /* [[[end pattern_buffer]]] */
 };
 
 typedef struct re_pattern_buffer regex_t;
-
-/* Type for byte offsets within the string.  POSIX mandates this.  */
+
+/* Type for byte offsets within the string.  POSIX mandates this.
+ */
 typedef int regoff_t;
 
-
 /* This is the structure we store register match data in.  See
-   regex.texinfo for a full description of what registers match.  */
-struct re_registers
-{
-  unsigned num_regs;
-  regoff_t *start;
-  regoff_t *end;
-};
-
+ * regex.texinfo for a full description of what registers match.
+ */
+struct re_registers {
+       unsigned  num_regs;
+       regoff_t *start;
+       regoff_t *end;
+     };
 
 /* If `regs_allocated' is REGS_UNALLOCATED in the pattern buffer,
-   `re_match_2' returns information about at least this many registers
-   the first time a `regs' structure is passed.  */
+ * `re_match_2' returns information about at least this many registers
+ * the first time a `regs' structure is passed.
+ */
 #ifndef RE_NREGS
 #define RE_NREGS 30
 #endif
@@ -445,7 +449,6 @@ typedef struct {
         regoff_t rm_eo;  /* Byte offset from string's start to substring's end. */
       } regmatch_t;
 
-
 /* To avoid duplicating every routine declaration -- once with a
  * prototype (if we are ANSI), and once without (if we aren't) -- we
  * use the following macro to declare argument types.  This
@@ -454,7 +457,7 @@ typedef struct {
  *
  * Sets the current default syntax to SYNTAX, and return the old syntax.
  * You can also simply assign to the `re_syntax_options' variable.
-  */
+ */
 extern reg_syntax_t re_set_syntax (reg_syntax_t syntax);
 
 /* Compile the regular expression PATTERN, with length LENGTH
@@ -469,7 +472,6 @@ extern const char *re_compile_pattern (const char *pattern, size_t length,
  * internal error.
  */
 extern int re_compile_fastmap (struct re_pattern_buffer *buffer);
-
 
 /* Search in the string STRING (with length LENGTH) for the pattern
  * compiled into BUFFER.  Start searching at position START, for RANGE
