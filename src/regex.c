@@ -42,6 +42,13 @@
   #define free    FREE
 #endif
 
+#ifdef _MSC_VER
+  /*
+   * warning C4018: '<=': signed/unsigned mismatch
+   */
+  #pragma warning (disable:4018)
+#endif
+
 // #define REGEX_MALLOC 1
 
 /* The following two types have to be signed and unsigned integer type
