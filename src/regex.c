@@ -42,13 +42,6 @@
   #define free    FREE
 #endif
 
-#ifdef _MSC_VER
-  /*
-   * warning C4018: '<=': signed/unsigned mismatch
-   */
-  #pragma warning (disable:4018)
-#endif
-
 // #define REGEX_MALLOC 1
 
 /* The following two types have to be signed and unsigned integer type
@@ -548,39 +541,39 @@ typedef struct {
  *
  * Does `return FAILURE_CODE' if runs out of memory.
  */
-#define PUSH_FAILURE_POINT(pattern_place, string_place, failure_code)     \
-  do {                                                                    \
-    char *destination;                                                    \
-    /* Must be int, so when we don't save any registers, the arithmetic   \
-     * of 0 + -1 isn't done as unsigned.                                  \
-     * Can't be int, since there is not a shred of a guarantee that int   \
-     * is wide enough to hold a value of something to which pointer can   \
-     * be assigned                                                        \
-     */                                                                   \
-    s_reg_t this_reg;                                                     \
-                                                                          \
-    /* Ensure we have enough space allocated for what we will push. */    \
-    while (REMAINING_AVAIL_SLOTS < NUM_FAILURE_ITEMS)                     \
-    {                                                                     \
-      if (!DOUBLE_FAIL_STACK (fail_stack))                                \
-         return (failure_code);                                           \
-    }                                                                     \
-    /* Push the info, starting with the registers. */                     \
-                                                                          \
-    if (1)                                                                \
-      for (this_reg = lowest_active_reg; this_reg <= highest_active_reg;  \
-           this_reg++)                                                    \
-    {                                                                     \
-      PUSH_FAILURE_POINTER (regstart[this_reg]);                          \
-                                                                          \
-      PUSH_FAILURE_POINTER (regend[this_reg]);                            \
-      PUSH_FAILURE_ELT (reg_info[this_reg].word);                         \
-    }                                                                     \
-    PUSH_FAILURE_INT (lowest_active_reg);                                 \
-    PUSH_FAILURE_INT (highest_active_reg);                                \
-    PUSH_FAILURE_POINTER (pattern_place);                                 \
-    PUSH_FAILURE_POINTER (string_place);                                  \
-    (void) destination;                                                   \
+#define PUSH_FAILURE_POINT(pattern_place, string_place, failure_code)             \
+  do {                                                                            \
+    char *destination;                                                            \
+    /* Must be int, so when we don't save any registers, the arithmetic           \
+     * of 0 + -1 isn't done as unsigned.                                          \
+     * Can't be int, since there is not a shred of a guarantee that int           \
+     * is wide enough to hold a value of something to which pointer can           \
+     * be assigned                                                                \
+     */                                                                           \
+    s_reg_t this_reg;                                                             \
+                                                                                  \
+    /* Ensure we have enough space allocated for what we will push. */            \
+    while (REMAINING_AVAIL_SLOTS < NUM_FAILURE_ITEMS)                             \
+    {                                                                             \
+      if (!DOUBLE_FAIL_STACK (fail_stack))                                        \
+         return (failure_code);                                                   \
+    }                                                                             \
+    /* Push the info, starting with the registers. */                             \
+                                                                                  \
+    if (1)                                                                        \
+      for (this_reg = lowest_active_reg; this_reg <= (s_reg_t)highest_active_reg; \
+           this_reg++)                                                            \
+    {                                                                             \
+      PUSH_FAILURE_POINTER (regstart[this_reg]);                                  \
+                                                                                  \
+      PUSH_FAILURE_POINTER (regend[this_reg]);                                    \
+      PUSH_FAILURE_ELT (reg_info[this_reg].word);                                 \
+    }                                                                             \
+    PUSH_FAILURE_INT (lowest_active_reg);                                         \
+    PUSH_FAILURE_INT (highest_active_reg);                                        \
+    PUSH_FAILURE_POINTER (pattern_place);                                         \
+    PUSH_FAILURE_POINTER (string_place);                                          \
+    (void) destination;                                                           \
   } while (0)
 
 /* This is the number of items that are pushed and popped on the stack
@@ -620,46 +613,46 @@ typedef struct {
  * Also assumes the variables `fail_stack' and (if debugging), `bufp',
  * `pend', `string1', `size1', `string2', and `size2'.
  */
-#define POP_FAILURE_POINT(str, pat, low_reg, high_reg, regstart, regend, reg_info) \
-{                                                                                  \
-  s_reg_t this_reg;                                                                \
-  const unsigned char *string_temp;                                                \
-                                                                                   \
-  assert (!FAIL_STACK_EMPTY());                                                    \
-                                                                                   \
-  /* Remove failure points and point to how many regs pushed. */                   \
-  assert (fail_stack.avail >= NUM_NONREG_ITEMS);                                   \
-                                                                                   \
-  /* If the saved string location is NULL, it came from an                         \
-   * on_failure_keep_string_jump opcode, and we want to throw away the             \
-   * saved NULL, thus retaining our current position in the string.                \
-   */                                                                              \
-  string_temp = POP_FAILURE_POINTER();                                             \
-  if (string_temp)                                                                 \
-     str = (const char*) string_temp;                                              \
-  pat = (unsigned char*) POP_FAILURE_POINTER();                                    \
-                                                                                   \
-  /* Restore register info. */                                                     \
-  high_reg = (active_reg_t) POP_FAILURE_INT();                                     \
-  low_reg = (active_reg_t) POP_FAILURE_INT();                                      \
-  if (1)                                                                           \
-    for (this_reg = high_reg; this_reg >= low_reg; this_reg--)                     \
-    {                                                                              \
-      reg_info[this_reg].word = POP_FAILURE_ELT();                                 \
-      regend[this_reg]   = (const char *) POP_FAILURE_POINTER();                   \
-      regstart[this_reg] = (const char *) POP_FAILURE_POINTER();                   \
-    }                                                                              \
-  else                                                                             \
-    {                                                                              \
-      for (this_reg = highest_active_reg; this_reg > high_reg; this_reg--)         \
-      {                                                                            \
-        reg_info[this_reg].word.integer = 0;                                       \
-        regend[this_reg] = 0;                                                      \
-        regstart[this_reg] = 0;                                                    \
-      }                                                                            \
-      highest_active_reg = high_reg;                                               \
-    }                                                                              \
-  set_regs_matched_done = 0;                                                       \
+#define POP_FAILURE_POINT(str, pat, low_reg, high_reg, regstart, regend, reg_info)  \
+{                                                                                   \
+  s_reg_t this_reg;                                                                 \
+  const unsigned char *string_temp;                                                 \
+                                                                                    \
+  assert (!FAIL_STACK_EMPTY());                                                     \
+                                                                                    \
+  /* Remove failure points and point to how many regs pushed. */                    \
+  assert (fail_stack.avail >= NUM_NONREG_ITEMS);                                    \
+                                                                                    \
+  /* If the saved string location is NULL, it came from an                          \
+   * on_failure_keep_string_jump opcode, and we want to throw away the              \
+   * saved NULL, thus retaining our current position in the string.                 \
+   */                                                                               \
+  string_temp = POP_FAILURE_POINTER();                                              \
+  if (string_temp)                                                                  \
+     str = (const char*) string_temp;                                               \
+  pat = (unsigned char*) POP_FAILURE_POINTER();                                     \
+                                                                                    \
+  /* Restore register info. */                                                      \
+  high_reg = (active_reg_t) POP_FAILURE_INT();                                      \
+  low_reg  = (active_reg_t) POP_FAILURE_INT();                                      \
+  if (1)                                                                            \
+    for (this_reg = high_reg; this_reg >= (s_reg_t)low_reg; this_reg--)             \
+    {                                                                               \
+      reg_info[this_reg].word = POP_FAILURE_ELT();                                  \
+      regend[this_reg]   = (const char*) POP_FAILURE_POINTER();                     \
+      regstart[this_reg] = (const char*) POP_FAILURE_POINTER();                     \
+    }                                                                               \
+  else                                                                              \
+    {                                                                               \
+      for (this_reg = highest_active_reg; this_reg > (s_reg_t)high_reg; this_reg--) \
+      {                                                                             \
+        reg_info[this_reg].word.integer = 0;                                        \
+        regend[this_reg]   = 0;                                                     \
+        regstart[this_reg] = 0;                                                     \
+      }                                                                             \
+      highest_active_reg = high_reg;                                                \
+    }                                                                               \
+  set_regs_matched_done = 0;                                                        \
 }
 
 /* Structure for per-register (a.k.a. per-group) information.
@@ -2802,7 +2795,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
   size_t num_regs = bufp->re_nsub + 1;
 
   /* The currently active registers. */
-  active_reg_t lowest_active_reg = NO_LOWEST_ACTIVE_REG;
+  active_reg_t lowest_active_reg  = NO_LOWEST_ACTIVE_REG;
   active_reg_t highest_active_reg = NO_HIGHEST_ACTIVE_REG;
 
   /* Information on the contents of registers. These are pointers into
@@ -3572,9 +3565,9 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
               * but we will have saved all the registers relevant to
               * this repetition op, as described above.
               */
-             highest_active_reg = *(p1 + 1) + *(p1 + 2);
+             highest_active_reg = *(p1+1) + *(p1+2);
              if (lowest_active_reg == NO_LOWEST_ACTIVE_REG)
-                lowest_active_reg = *(p1 + 1);
+                lowest_active_reg = *(p1+1);
            }
            PUSH_FAILURE_POINT (p + mcnt, d, -2);
            break;

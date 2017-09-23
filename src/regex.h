@@ -176,7 +176,6 @@ extern reg_syntax_t re_syntax_options;
  * (The [[[ comments delimit what gets put into the Texinfo file, so
  * don't delete them!)
  */
-/* [[[begin syntaxes]]] */
 #define RE_SYNTAX_EMACS 0
 
 #define RE_SYNTAX_AWK (RE_BACKSLASH_ESCAPE_IN_LISTS | \
@@ -192,12 +191,14 @@ extern reg_syntax_t re_syntax_options;
 
 #define RE_SYNTAX_GNU_AWK ((RE_SYNTAX_POSIX_EXTENDED     | \
                             RE_BACKSLASH_ESCAPE_IN_LISTS | \
-                            RE_DEBUG)                      \
-                           & ~(RE_DOT_NOT_NULL | RE_INTERVALS | RE_CONTEXT_INDEP_OPS))
+                            RE_DEBUG) &                    \
+                          ~(RE_DOT_NOT_NULL |              \
+                            RE_INTERVALS    |              \
+                            RE_CONTEXT_INDEP_OPS))
 
-#define RE_SYNTAX_POSIX_AWK (RE_SYNTAX_POSIX_EXTENDED    | \
-                             RE_BACKSLASH_ESCAPE_IN_LISTS| \
-                             RE_INTERVALS                | \
+#define RE_SYNTAX_POSIX_AWK (RE_SYNTAX_POSIX_EXTENDED     | \
+                             RE_BACKSLASH_ESCAPE_IN_LISTS | \
+                             RE_INTERVALS                 | \
                              RE_NO_GNU_OPS)
 
 #define RE_SYNTAX_GREP  (RE_BK_PLUS_QM            | \
@@ -257,7 +258,6 @@ extern reg_syntax_t re_syntax_options;
                                            RE_NO_BK_REFS            | \
                                            RE_NO_BK_VBAR            | \
                                            RE_UNMATCHED_RIGHT_PAREN_ORD)
-/* [[[end syntaxes]]] */
 
 /* Maximum number of duplicates an interval can allow.
  */
@@ -341,8 +341,8 @@ typedef enum {
 #endif
 
 struct re_pattern_buffer {
-/* [[[begin pattern_buffer]]] */
-    /* Space that holds the compiled pattern.  It is declared as
+    /*
+     * Space that holds the compiled pattern.  It is declared as
      * `unsigned char *' because its elements are
      * sometimes used as array indexes.
      */
@@ -413,8 +413,6 @@ struct re_pattern_buffer {
 
     /* If true, an anchor at a newline matches. */
   unsigned newline_anchor : 1;
-
-/* [[[end pattern_buffer]]] */
 };
 
 typedef struct re_pattern_buffer regex_t;
