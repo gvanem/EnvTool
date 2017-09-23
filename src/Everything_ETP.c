@@ -420,7 +420,7 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
   {
     char fullname [_MAX_PATH];
 
-    snprintf (fullname, sizeof(fullname), "%s\\%s", ctx->path, name);
+    snprintf (fullname, sizeof(fullname), "%s%c%s", ctx->path, DIR_SEP, name);
     report_file (fullname, ctx->mtime, ctx->fsize, is_dir, FALSE, HKEY_EVERYTHING_ETP);
   }
   ctx->mtime = 0;
