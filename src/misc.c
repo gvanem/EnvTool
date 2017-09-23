@@ -2611,18 +2611,17 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   {
     static char buf[20];
     char  *end;
+    DWORD  patch = 0;
 
     buf[0] = '\0';
 
   #if defined(_MSC_FULL_VER)
-    #if (_MSC_FULL_VER > 190000000)
-      buf[0] = '.';
-      _ultoa (_MSC_FULL_VER-190000000, buf+1, 10);
-    #elif (_MSC_FULL_VER > 180000000)
-      buf[0] = '.';
-      _ultoa (_MSC_FULL_VER-180000000, buf+1, 10);
-    #endif
+    buf[0] = '.';
+    patch = _MSC_FULL_VER % 100000;
   #endif
+
+    if (patch)
+       _ultoa (patch, buf+1, 10);
 
   #if defined(_MSC_BUILD)
     end = strrchr (buf, '\0');
