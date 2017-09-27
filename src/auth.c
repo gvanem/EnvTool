@@ -32,6 +32,22 @@ struct auth_info {
 static smartlist_t *netrc, *authinfo;
 
 /*
+ * Common to both 'netrc_init()' and 'authinfo_init()'.
+ */
+static smartlist_t *common_init (const char *fname, smartlist_parse_func parser)
+{
+  smartlist_t *sl;
+  char *file = getenv_expand (fname);
+
+  sl = file ? smartlist_read_file (file, parser) : NULL;
+  if (!sl)
+     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", fname);
+  FREE (file);
+  return (sl);
+}
+
+
+/*
  * Parse a line from '~/.netrc'. Match lines like:
  *   machine <host> login <user> password <password>
  * Or
@@ -68,13 +84,7 @@ static void netrc_parse (smartlist_t *sl, const char *line)
 
 int netrc_init (void)
 {
-  const char *fname = "%APPDATA%\\.netrc";
-  char       *file = getenv_expand (fname);
-
-  netrc = file ? smartlist_read_file (file, netrc_parse) : NULL;
-  if (!netrc)
-     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", fname);
-  FREE (file);
+  netrc = common_init ("%APPDATA%\\.netrc", netrc_parse);
   return (netrc != NULL);
 }
 
@@ -198,13 +208,7 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
 
 int authinfo_init (void)
 {
-  const char *fname = "%APPDATA%\\.authinfo";
-  char       *file = getenv_expand (fname);
-
-  authinfo = file ? smartlist_read_file (file, authinfo_parse) : NULL;
-  if (!authinfo)
-     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", fname);
-  FREE (file);
+  authinfo = common_init ("%APPDATA%\\.authinfo", authinfo_parse);
   return (authinfo != NULL);
 }
 
