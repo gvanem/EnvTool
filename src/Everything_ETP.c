@@ -90,6 +90,7 @@ struct state_CTX {
        char               username [30];
        char               password [30];
        BOOL               use_netrc;
+       BOOL               use_authinfo;
        DWORD              timeout;
        int                retries;
        int                ws_err;
@@ -120,6 +121,7 @@ static BOOL state_init                 (struct state_CTX *ctx);
 static BOOL state_exit                 (struct state_CTX *ctx);
 static BOOL state_parse_url            (struct state_CTX *ctx);
 static BOOL state_netrc_lookup         (struct state_CTX *ctx);
+static BOOL state_authinfo_lookup      (struct state_CTX *ctx);
 static BOOL state_send_login           (struct state_CTX *ctx);
 static BOOL state_send_pass            (struct state_CTX *ctx);
 static BOOL state_await_login          (struct state_CTX *ctx);
@@ -139,17 +141,25 @@ struct netrc_info {
        char *passw;
      };
 
-static smartlist_t *netrc;
+struct auth_info {
+       BOOL  is_default;
+       char *host;
+       char *user;
+       char *passw;
+       int   port;
+     };
+
+static smartlist_t *netrc, *authinfo;
 
 /*
- * Parse a line from .netrc. Match lines like:
+ * Parse a line from '~/.netrc'. Match lines like:
  *   machine <host> login <user> password <password>
  * Or
  *   default login <user> password <password>
  *
  * And add to the given smartlist.
  */
-static void parse_netrc (smartlist_t *sl, const char *line)
+static void netrc_parse (smartlist_t *sl, const char *line)
 {
   struct netrc_info *ni;
   char   host [256];
@@ -180,7 +190,7 @@ int netrc_init (void)
 {
   char *file = getenv_expand ("%APPDATA%\\.netrc");
 
-  netrc = smartlist_read_file (file, parse_netrc);
+  netrc = smartlist_read_file (file, netrc_parse);
   if (!netrc)
      WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", file);
   FREE (file);
@@ -266,6 +276,136 @@ int netrc_lookup (const char *host, const char **user, const char **passw)
        *passw = ni->passw;
   }
   return (ni != NULL);
+}
+
+/*
+ * Parse a line from '~/.authinfo'. Match lines like:
+ *   machine <host> port <num> login <user> password <password>
+ *
+ * And add to the given smartlist.
+ */
+static void authinfo_parse (smartlist_t *sl, const char *line)
+{
+  struct auth_info *ai;
+  char   host [256];
+  char   user [50];
+  char   passw[50];
+  int    port;
+  const char *fmt1 = "machine %256s port %d login %50s password %50s";
+  const char *fmt2 = "default port %d login %50s password %50s";
+
+  if (sscanf(line, fmt1, host, &port, user, passw) == 4 && port > 0 && port < USHRT_MAX)
+  {
+    ai = CALLOC (1, sizeof(*ai));
+    ai->host  = STRDUP (host);
+    ai->user  = STRDUP (user);
+    ai->passw = STRDUP (passw);
+    ai->port  = port;
+    smartlist_add (sl, ai);
+  }
+  else if (sscanf(line, fmt2, &port, user, passw) == 3)
+  {
+    ai = CALLOC (1, sizeof(*ai));
+    ai->user       = STRDUP (user);
+    ai->passw      = STRDUP (passw);
+    ai->port       = port;
+    ai->is_default = TRUE;
+    smartlist_add (sl, ai);
+  }
+}
+
+static int authinfo_init (void)
+{
+  char *file = getenv_expand ("%APPDATA%\\.authinfo");
+
+  authinfo = smartlist_read_file (file, authinfo_parse);
+  if (!authinfo)
+     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", file);
+  FREE (file);
+  return (authinfo != NULL);
+}
+
+/*
+ * Free the memory allocated in the 'authinfo' smartlist.
+ */
+void authinfo_exit (void)
+{
+  int i, max;
+
+  if (!authinfo)
+     return;
+
+  max = smartlist_len (authinfo);
+  for (i = 0; i < max; i++)
+  {
+    struct auth_info *ai = smartlist_get (authinfo, i);
+
+    FREE (ai->host);
+    FREE (ai->user);
+    FREE (ai->passw);
+    FREE (ai);
+  }
+  smartlist_free (authinfo);
+}
+
+/*
+ * Lookup the user/password/port for a 'host' in the 'authinfo' smartlist.
+ */
+static const struct auth_info *_authinfo_lookup (const char *host)
+{
+  const struct auth_info *def_ai = NULL;
+  int   i, max;
+
+  if (!authinfo)
+     return (NULL);
+
+  max = smartlist_len (authinfo);
+  for (i = 0; i < max; i++)
+  {
+    const struct auth_info *ai = smartlist_get (authinfo, i);
+    char  buf [300];
+
+    if (ai->is_default)
+       def_ai = ai;
+
+    snprintf (buf, sizeof(buf), "host: '%s', user: '%s', passw: '%s', port: %d\n",
+              ai->host, ai->user, ai->passw, ai->port);
+
+    if (opt.do_tests)
+    {
+      C_setraw (1);
+      C_printf ("  %s", buf);
+      C_setraw (0);
+    }
+    else
+      DEBUGF (3, buf);
+
+    if (ai->host && host && !stricmp(host, ai->host))
+       return (ai);
+  }
+  if (def_ai)
+     return (def_ai);
+  return (NULL);
+}
+
+/*
+ * Use this externally.
+ * 'authinfo_lookup (NULL, NULL, NULL, NULL)' can be used for test/debug.
+ */
+int authinfo_lookup (const char *host, const char **user, const char **passw, int *port)
+{
+  const struct auth_info *ai = _authinfo_lookup (host);
+
+  if (ai)
+  {
+    if (user)
+       *user  = ai->user;
+    if (passw)
+       *passw = ai->passw;
+    if (port)
+       *port = ai->port;
+  }
+  return (ai != NULL);
 }
 
 /*
@@ -803,8 +943,8 @@ static BOOL state_blocking_connect (struct state_CTX *ctx)
 }
 
 /*
- * Lookup the USER/PASSWORD for 'ctx->hostname' in the .netrc file.
- * Enter 'state_send_login' even if those are not found.
+ * Lookup the USER/PASSWORD for 'ctx->hostname' in the '~/.netrc' file.
+ * Enter 'state_send_login' even if USER/PASSWORD are not found.
  */
 static BOOL state_netrc_lookup (struct state_CTX *ctx)
 {
@@ -824,7 +964,37 @@ static BOOL state_netrc_lookup (struct state_CTX *ctx)
               user ? user : "<None>", passw ? passw : "<none>", ctx->hostname);
 
   netrc_exit();
-  ctx->state = state_send_login;
+  ctx->state = state_resolve;
+  return (TRUE);
+}
+
+/*
+ * Lookup the USER/PASSWORD for 'ctx->hostname' in the '~/.authinfo' file.
+ * Enter 'state_send_login' even if USER/PASSWORD are not found.
+ */
+static BOOL state_authinfo_lookup (struct state_CTX *ctx)
+{
+  const char *user  = NULL;
+  const char *passw = NULL;
+  int         port = 0;
+
+  if (authinfo_init() && !authinfo_lookup(ctx->hostname, &user, &passw, &port))
+     WARN ("No user/password/port found for host \"%s\".\n", ctx->hostname);
+
+  if (user)
+     _strlcpy (ctx->username, user, sizeof(ctx->username));
+
+  if (passw)
+     _strlcpy (ctx->password, passw, sizeof(ctx->password));
+
+  if (port)
+     ctx->port = port;
+
+  ETP_tracef (ctx, "Got USER: %s, PASS: %s and PORT: %u in '%%APPDATA%%\\.authinfo' for '%s'\n",
+              user ? user : "<None>", passw ? passw : "<none>", port, ctx->hostname);
+
+  authinfo_exit();
+  ctx->state = state_resolve;
   return (TRUE);
 }
 
@@ -840,34 +1010,39 @@ static BOOL state_parse_url (struct state_CTX *ctx)
 
   ETP_tracef (ctx, "Cracking the host-spec: '%s'.\n", ctx->raw_url);
 
-  /* Asume we must use .netrc.
+  /* Assume we must use '~/.netrc' or '~/.authifo'.
    */
-  ctx->use_netrc = TRUE;
+  ctx->use_netrc = ctx->use_authinfo = TRUE;
 
   /* Check simple case of "host_or_IP-address<:port>" first.
    */
   n = parse_host_spec (ctx, "%200[^:]:%d", ctx->hostname, &ctx->port);
 
   if ((n == 1 || n == 2) && !strchr(ctx->raw_url,'@'))
-     ctx->use_netrc = TRUE;
+     ctx->use_netrc = ctx->use_authinfo = TRUE;
   else
   {
     /* Check for "user:passwd@host_or_IP-address<:port>".
      */
     n = parse_host_spec (ctx, "%30[^:@]:%30[^:@]@%200[^:]:%d", ctx->username, ctx->password, ctx->hostname, &ctx->port);
     if (n == 3 || n == 4)
-       ctx->use_netrc = FALSE;
+       ctx->use_netrc = ctx->use_authinfo = FALSE;
     else
     {
       /* Check for "user@host_or_IP-address<:port>".
        */
       n = parse_host_spec (ctx, "%30[^:@]@%200[^:@]:%d", ctx->username, ctx->hostname, &ctx->port);
       if (n == 2 || n == 3)
-         ctx->use_netrc = FALSE;
+         ctx->use_netrc = ctx->use_authinfo = FALSE;
     }
   }
 
-  ctx->state = state_resolve;
+  if (ctx->use_authinfo)    /* Try parsing a '~/.authinfo' first */
+       ctx->state = state_authinfo_lookup;
+  else if (ctx->use_netrc)
+       ctx->state = state_netrc_lookup;
+  else ctx->state = state_resolve;
+
   return (TRUE);
 }
 
@@ -960,8 +1135,8 @@ static void connect_common_init (struct state_CTX *ctx, const char *which_state)
 {
   int  rx_size;
 
-  ETP_tracef (ctx, "In %s(). use_netrc: %d, opt.use_nonblock_io: %d\n",
-              which_state, ctx->use_netrc, opt.use_nonblock_io);
+  ETP_tracef (ctx, "In %s(). use_netrc: %d, use_authinfo: %d, opt.use_nonblock_io: %d\n",
+              which_state, ctx->use_netrc, ctx->use_authinfo, opt.use_nonblock_io);
 
   if (opt.use_buffered_io)
        rx_size = sizeof(ctx->recv.buffer);
@@ -998,9 +1173,7 @@ static void connect_common_final (struct state_CTX *ctx, int err)
   {
     if (!opt.quiet)
        C_putc ('\n');
-    if (ctx->use_netrc)
-         ctx->state = state_netrc_lookup;
-    else ctx->state = state_send_login;
+    ctx->state = state_send_login;
   }
 }
 
@@ -1065,6 +1238,7 @@ static const char *ETP_state_name (ETP_state f)
   IF_VALUE (state_init);
   IF_VALUE (state_parse_url);
   IF_VALUE (state_netrc_lookup);
+  IF_VALUE (state_authinfo_lookup);
   IF_VALUE (state_resolve);
   IF_VALUE (state_blocking_connect);
   IF_VALUE (state_non_blocking_connect);
