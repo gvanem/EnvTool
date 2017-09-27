@@ -99,6 +99,7 @@ void netrc_exit (void)
     FREE (ni);
   }
   smartlist_free (netrc);
+  netrc = NULL;
 }
 
 /*
@@ -228,6 +229,7 @@ void authinfo_exit (void)
     FREE (ai);
   }
   smartlist_free (authinfo);
+  authinfo = NULL;
 }
 
 /*
