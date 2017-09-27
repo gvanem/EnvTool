@@ -196,7 +196,7 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
   }
 }
 
-static int authinfo_init (void)
+int authinfo_init (void)
 {
   const char *fname = "%APPDATA%\\.authinfo";
   char       *file = getenv_expand (fname);
