@@ -170,6 +170,22 @@ void smartlist_add (smartlist_t *sl, void *element)
 }
 
 /*
+ * Remove the 'idx'-th element of 'sl':
+ *   if 'idx' is not the last element, swap the last element of 'sl'
+ *   into the 'idx'-th space.
+ */
+void smartlist_del (smartlist_t *sl, int idx)
+{
+  ASSERT (sl);
+  ASSERT_VAL (sl);
+  ASSERT (idx >= 0);
+  ASSERT (idx < sl->num_used);
+  --sl->num_used;
+  sl->list [idx] = sl->list [sl->num_used];
+  sl->list [sl->num_used] = NULL;
+}
+
+/*
  * Open a file and return parsed lines as a smartlist.
  */
 smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
@@ -213,6 +229,30 @@ int smartlist_write_file (smartlist_t *sl, const char *file)
      fputs ((const char*)smartlist_get(sl, i), f);
   fclose (f);
   return (1);
+}
+
+/*
+ * Append each element from 'sl2' to the end of 'sl1'.
+ */
+void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
+{
+  size_t new_size;
+
+  ASSERT (sl1);
+  ASSERT_VAL (sl1);
+
+  ASSERT (sl2);
+  ASSERT_VAL (sl2);
+
+  if (sl2->num_used == 0) /* 'sl2' is empty */
+     return;
+
+  new_size = (size_t)sl1->num_used + (size_t)sl2->num_used;
+  ASSERT (new_size >= (size_t)sl1->num_used);    /* check for folding overflow. */
+
+  smartlist_ensure_capacity (sl1, new_size);
+  memcpy (sl1->list + sl1->num_used, sl2->list, sl2->num_used*sizeof(void*));
+  sl1->num_used = (int) new_size;
 }
 
 #if defined(NOT_USED_YET)
