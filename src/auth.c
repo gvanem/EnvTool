@@ -3,7 +3,7 @@
  *   '%APPDATA%/.netrc' and
  *   '%APPDATA%/.authinfo'.
  *
- * Used in remote queries in EveryThing_ETP.c.
+ * Used in remote queries in Everything_ETP.c.
  *
  * This file is part of envtool.
  *
@@ -68,11 +68,12 @@ static void netrc_parse (smartlist_t *sl, const char *line)
 
 int netrc_init (void)
 {
-  char *file = getenv_expand ("%APPDATA%\\.netrc");
+  const char *fname = "%APPDATA%\\.netrc";
+  char       *file = getenv_expand (fname);
 
   netrc = file ? smartlist_read_file (file, netrc_parse) : NULL;
   if (!netrc)
-     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", file);
+     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", fname);
   FREE (file);
   return (netrc != NULL);
 }
@@ -196,11 +197,12 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
 
 static int authinfo_init (void)
 {
-  char *file = getenv_expand ("%APPDATA%\\.authinfo");
+  const char *fname = "%APPDATA%\\.authinfo";
+  char       *file = getenv_expand (fname);
 
   authinfo = file ? smartlist_read_file (file, authinfo_parse) : NULL;
   if (!authinfo)
-     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", file);
+     WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", fname);
   FREE (file);
   return (authinfo != NULL);
 }
