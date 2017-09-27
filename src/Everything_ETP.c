@@ -190,7 +190,7 @@ int netrc_init (void)
 {
   char *file = getenv_expand ("%APPDATA%\\.netrc");
 
-  netrc = smartlist_read_file (file, netrc_parse);
+  netrc = file ? smartlist_read_file (file, netrc_parse) : NULL;
   if (!netrc)
      WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", file);
   FREE (file);
@@ -318,7 +318,7 @@ static int authinfo_init (void)
 {
   char *file = getenv_expand ("%APPDATA%\\.authinfo");
 
-  authinfo = smartlist_read_file (file, authinfo_parse);
+  authinfo = file ? smartlist_read_file (file, authinfo_parse) : NULL;
   if (!authinfo)
      WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", file);
   FREE (file);
