@@ -49,8 +49,8 @@ CFLAGS  = $(CFLAGS) -wd4267
 RCFLAGS = $(RCFLAGS) -DWIN64
 !endif
 
-OBJECTS = envtool.obj envtool_py.obj color.obj dirlist.obj Everything.obj Everything_ETP.obj \
-          getopt_long.obj misc.obj searchpath.obj show_ver.obj smartlist.obj win_trust.obj   \
+OBJECTS = auth.obj envtool.obj envtool_py.obj color.obj dirlist.obj Everything.obj Everything_ETP.obj \
+          getopt_long.obj misc.obj searchpath.obj show_ver.obj smartlist.obj win_trust.obj \
           win_ver.obj regex.obj
 
 all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
@@ -111,12 +111,13 @@ msclean: clean
 	-del /q envtool.sdf
 	-rd /q Debug Release
 
+auth.obj:           auth.c smartlist.h
 envtool.res:        envtool.h
 envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h Everything_ETP.h \
                     envtool.h envtool_py.h dirlist.h color.h cflags_MSVC.h ldflags_MSVC.h
 envtool_py.obj:     envtool_py.c envtool.h envtool_py.h color.h dirlist.h smartlist.h
 Everything.obj:     Everything.c Everything.h Everything_IPC.h
-Everything_ETP.obj: Everything_ETP.c color.h envtool.h smartlist.h Everything_ETP.h
+Everything_ETP.obj: Everything_ETP.c color.h envtool.h smartlist.h auth.h Everything_ETP.h
 getopt_long.obj:    getopt_long.c getopt_long.h
 color.obj:          color.c color.h
 dirlist.obj:        dirlist.c envtool.h color.h dirlist.h getopt_long.h

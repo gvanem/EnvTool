@@ -11,7 +11,8 @@ LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort
 EX_LIBS = advapi32.lib imagehlp.lib version.lib shfolder.lib &
           psapi.lib ws2_32.lib wintrust.lib crypt32.lib user32.lib
 
-OBJECTS = envtool.obj        &
+OBJECTS = auth.obj           &
+          envtool.obj        &
           envtool_py.obj     &
           Everything.obj     &
           Everything_ETP.obj &

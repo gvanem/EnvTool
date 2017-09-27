@@ -82,7 +82,7 @@ else
                Win/version.lib)
 endif
 
-SOURCES = envtool.c envtool_py.c Everything.c Everything_ETP.c color.c \
+SOURCES = auth.c envtool.c envtool_py.c Everything.c Everything_ETP.c color.c \
           dirlist.c getopt_long.c misc.c searchpath.c smartlist.c \
           regex.c show_ver.c win_ver.c win_trust.c
 
