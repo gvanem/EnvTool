@@ -37,6 +37,7 @@
 #include "Everything_IPC.h"
 #include "Everything_ETP.h"
 #include "dirlist.h"
+#include "auth.h"
 
 #include "color.h"
 #include "smartlist.h"
@@ -135,12 +136,14 @@ static int   new_argc;             /* 1... to highest allocated cmd-line compone
 static int   path_separator = ';';
 static char  current_dir [_MAX_PATH];
 
-static smartlist_t *ver_cache = NULL;
-static BOOL         use_cache = FALSE;
+static char *vcache_fname = NULL;
+static BOOL  use_cache = FALSE;
 
-static regex_t re_hnd;         /* regex handle/state */
-static int     re_err;         /* last regex error-code */
-static char    re_errbuf[300]; /* regex error-buffer */
+static regex_t    re_hnd;         /* regex handle/state */
+static regmatch_t re_matches[3];  /* regex sub-expressions */
+static int        re_err;         /* last regex error-code */
+static char       re_errbuf[300]; /* regex error-buffer */
+static int        re_alloc;
 
 volatile int halt_flag;
 
@@ -157,6 +160,7 @@ static void  print_build_ldflags (void);
 static int   get_pkg_config_info (const char **exe, struct ver_info *ver);
 static int   get_cmake_info (char **exe, struct ver_info *ver);
 static void  free_dir_array (void);
+static void  regex_print (const regex_t *re, const regmatch_t *rm, const char *str);
 
 /*
  * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
@@ -327,36 +331,40 @@ static void show_ext_versions (void)
   FREE (cmake_exe);
 }
 
-static void parse_ver_info (smartlist_t *sl, const char *line)
-{
-  smartlist_add (sl, STRDUP(line));
-}
-
 /*
  * Hook-function for color.c functions.
- * Used to dump version-information to cache.
+ * Used to dump version-information to file-cache.
  */
+static BOOL  saw_newline;
+static FILE *fcache;
+
 static void write_hook (const char *buf)
 {
   size_t len = strlen (buf);
-  char  *p;
-  static BOOL saw_newline = FALSE;
 
   if (len >= 1)
   {
     /* Put 'opt.cache_ver_level' only on lines after [\r\n] was seen
      */
     if (saw_newline)
-    {
-      p = alloca (len+3);
-      sprintf (p, "%d:%s", opt.cache_ver_level, buf);
-    }
-    else
-      p = (char*) buf;
-
-    smartlist_add (ver_cache, STRDUP(p));
+         fprintf (fcache, "%d:%s", opt.cache_ver_level, buf);
+    else fputs (buf, fcache);
     saw_newline = (buf[len-1] == '\r' || buf[len-1] == '\n');
   }
+}
+
+static void read_hook (smartlist_t *sl, const char *buf)
+{
+  int vlevel = (int)buf[0];
+
+  if (isdigit(vlevel) && buf[1] == ':')
+  {
+    if (opt.do_version >= vlevel - '0')
+       C_puts (buf+2);
+  }
+  else
+    C_puts (buf);
+  ARGSUSED (sl);
 }
 
 /*
@@ -365,41 +373,32 @@ static void write_hook (const char *buf)
  */
 static int show_version (void)
 {
-  HWND  wnd;
-  BOOL  wow64 = is_wow64_active();
-  BOOL  cache_create = FALSE;
-  char *cache_fname = NULL;
+  HWND         wnd;
+  BOOL         wow64 = is_wow64_active();
+  smartlist_t *vcache = NULL;
 
   if (use_cache)
   {
-    cache_fname = getenv_expand ("%TEMP%\\envtool.cache");
-
-    if (FILE_EXISTS(cache_fname))
+    if (FILE_EXISTS(vcache_fname))
     {
-      int i, max;
-
-      ver_cache = smartlist_read_file (cache_fname, parse_ver_info);
-      max = smartlist_len (ver_cache);
-      for (i = 0; i < max; i++)
-      {
-        const char *line = smartlist_get (ver_cache, i);
-        int   vlevel = (int)line[0];
-
-        if (isdigit(vlevel) && line[1] == ':')
-        {
-          if (opt.do_version >= vlevel - '0')
-             C_puts (line+2);
-        }
-        else
-          C_puts (line);
-      }
+      /* If file-cache exist, read from it and print it.
+       */
+      vcache = smartlist_read_file (vcache_fname, read_hook);
       goto quit;
     }
 
+    /* Otherwise, create the cache's content
+     */
     // opt.do_version = 3;
-    ver_cache = smartlist_new();
-    cache_create = TRUE;
-    C_write_hook = write_hook;
+    fcache = fopen (vcache_fname, "w+t");
+    if (fcache)
+    {
+      /* Initialised to TRUE so that the first line written gets
+       * a 'opt.cache_ver_level' prefix.
+       */
+      saw_newline = TRUE;
+      C_write_hook = write_hook;
+    }
   }
 
   opt.cache_ver_level = 1;
@@ -419,7 +418,7 @@ static int show_version (void)
   else
     C_printf ("  Everything search engine not found.\n");
 
-  C_printf ("  Checking Python programs...");
+  C_puts ("  Checking Python programs...");
   C_flush();
   py_init();
   C_printf ("\r                             \r");
@@ -447,15 +446,12 @@ static int show_version (void)
   }
 
 quit:
-  if (ver_cache)
-  {
-    if (cache_create)
-       smartlist_write_file (ver_cache, cache_fname);
-    smartlist_free_all (ver_cache);
-  }
-  ver_cache = NULL;
+  if (vcache)
+     smartlist_free (vcache);
+  if (fcache)
+     fclose (fcache);
+  fcache = NULL;
   C_write_hook = NULL;
-  FREE (cache_fname);
   return (0);
 }
 
@@ -548,8 +544,8 @@ static int show_help (void)
             "  ~2[3]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
             "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
             "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
-            "      should be specified in your ~6%%APPDATA%%/.netrc~0 file or you can use the\n"
-            "      \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
+            "      should be specified in your ~6%%APPDATA%%/.netrc~0 or ~6%%APPDATA%%/.authinfo~0 files or\n"
+            "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
             "\n"
             "Notes:\n"
             "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
@@ -566,13 +562,7 @@ static int show_help (void)
 static int strequal_n (const char *s1, const char *s2, size_t len)
 {
   if (opt.case_sensitive)
-  {
-    int rc = strncmp (s1, s2, len);
-
-    if (rc && !strnicmp(s1, s2, len))
-       DEBUGF (4, "string matches except in case: '%s' vs '%s'\n", s1, s2);
-    return (rc);
-  }
+     return strncmp (s1, s2, len);
   return strnicmp (s1, s2, len);
 }
 
@@ -582,14 +572,8 @@ static int strequal_n (const char *s1, const char *s2, size_t len)
 static int strequal (const char *s1, const char *s2)
 {
   if (opt.case_sensitive)
-  {
-    int rc = strcmp (s1, s2);
-
-    if (rc && !stricmp(s1, s2))
-       DEBUGF (4, "string matches except in case: '%s' vs '%s'\n", s1, s2);
-    return (rc);
-  }
-  return stricmp (s1, s2);
+     return strcmp (s1, s2);
+ return stricmp (s1, s2);
 }
 
 /*
@@ -610,7 +594,7 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
   struct stat st;
 
   if (stat(dir,&st) == 0)
-    is_dir = exists = S_ISDIR (st.st_mode);
+     is_dir = exists = S_ISDIR (st.st_mode);
 #else
   exists = FILE_EXISTS (dir);
   if (exists)
@@ -692,7 +676,7 @@ static int equal_dir_array (const struct directory_array *a,
  * Allocate a local '_new' and copy into 'dir_array[]' all
  * unique items.
  */
-static void unique_dir_array (const char *where, int top)
+static void make_unique_dir_array (const char *where, int top)
 {
   struct directory_array *_new = CALLOC (top+1, sizeof(*_new));
   struct directory_array *d = _new;
@@ -709,10 +693,16 @@ static void unique_dir_array (const char *where, int top)
         if (equal_dir_array(&dir_array[j], &dir_array[i]))
            break;
     if (i == j)
-       memcpy (d++, &dir_array[j], sizeof(*d));
+    {
+      memcpy (d, &dir_array[j], sizeof(*d));
+      d->dir = STRDUP (dir_array[j].dir);
+      if (dir_array[j].cyg_dir)
+         d->cyg_dir = STRDUP (dir_array[j].cyg_dir);
+      d++;
+    }
   }
 
-//free_dir_array();
+  free_dir_array();
   memcpy (&dir_array, _new, (top+1) * sizeof(*_new));
   dump_dir_array (where);
 quit:
@@ -1273,14 +1263,10 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   {
     const char *link = get_man_link (file);
 
+    if (!link)
+       link = get_gzip_link (file);
     if (link)
-    {
-      C_printf (" (%s)", link);
-    }
-    else if (check_if_gzip(file) && (link = get_gzip_link(file)) != NULL)
-    {
-      C_printf (" (%s)", link);
-    }
+       C_printf (" (%s)", link);
   }
 
   C_putc ('\n');
@@ -1770,6 +1756,27 @@ static BOOL dir_is_empty (const char *env_var, const char *dir)
 }
 
 /*
+ * Try to match 'str' against the global regular expression in
+ * 'opt.file_spec_re'.
+ */
+static BOOL regex_match (const char *str)
+{
+  memset (&re_matches, '\0', sizeof(re_matches));
+  re_err = regexec (&re_hnd, str, DIM(re_matches), re_matches, 0);
+  DEBUGF (2, "regex() pattern '%s' against '%s'. re_err: %d\n", opt.file_spec_re, str, re_err);
+
+  if (re_err == REG_NOMATCH)
+     return (FALSE);
+
+  if (re_err == REG_NOERROR)
+     return (TRUE);
+
+  regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
+  DEBUGF (0, "Error while matching \"%s\": %d\n", str, re_err);
+  return (FALSE);
+}
+
+/*
  * Process directory specified by 'path' and report any matches
  * to the global 'opt.file_spec'.
  */
@@ -1822,7 +1829,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
      WARN ("%s: directory \"%s\" is empty.\n", prefix, path);
 
   if (!fspec)
-     fspec = fix_filespec (&subdir);
+     fspec = opt.use_regex ? "*" : fix_filespec (&subdir);
 
   snprintf (fqfn, sizeof(fqfn), "%s%c%s%s", path, DIR_SEP, subdir ? subdir : "", fspec);
   handle = FindFirstFile (fqfn, &ff_data);
@@ -1838,8 +1845,10 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     char  *base, *file;
     int    match, len;
     BOOL   is_junction;
-
-    if (!strcmp(ff_data.cFileName,".."))
+    BOOL   ignore = opt.use_regex &&
+                    ((ff_data.cFileName[0] == '.' && ff_data.cFileName[1] == '\0') ||
+                    !strcmp(ff_data.cFileName,".."));
+    if (ignore)
        continue;
 
     len  = snprintf (fqfn, sizeof(fqfn), "%s%c", path, DIR_SEP);
@@ -1848,6 +1857,19 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
 
     is_dir      = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
     is_junction = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0);
+
+    if (opt.use_regex)
+    {
+      if (regex_match(fqfn) && stat(fqfn, &st) == 0)
+      {
+        if (report_file(fqfn, st.st_mtime, st.st_size, is_dir, is_junction, key))
+        {
+          found++;
+        // regex_print (&re_hnd, re_matches, fqfn);
+        }
+      }
+      continue;
+    }
 
     file  = slashify (fqfn, DIR_SEP);
     match = fnmatch (opt.file_spec, base, fnmatch_case(0) | FNM_FLAG_NOESCAPE);
@@ -2509,7 +2531,7 @@ static int find_include_path_cb (char *buf, int index)
     }
 
     add_to_dir_array (p, found_index++, !stricmp(current_dir,p), __LINE__);
-    DEBUGF (2, "line: '%s'\n", p);
+    DEBUGF (3, "line: '%s'\n", p);
     return (1);
   }
 
@@ -2555,7 +2577,7 @@ static int find_library_path_cb (char *buf, int index)
       if (end)
          *end = '\0';
     }
-    DEBUGF (2, "tok %d: '%s'\n", i, rc);
+    DEBUGF (3, "tok %d: '%s'\n", i, rc);
 
     add_to_dir_array (rc, found_index++, FALSE, __LINE__);
 
@@ -2595,7 +2617,7 @@ static int setup_gcc_includes (const char *gcc)
   found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
   if (found > 0)
        DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
-  else WARN ("Calling %s returned %d.\n", gcc, found);
+  else WARN ("Calling %s returned %d (line %u).\n", gcc, found, __LINE__);
   return (found);
 }
 
@@ -2627,7 +2649,7 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
   if (found <= 0)
   {
     if (warn)
-       WARN ("Calling %s returned %d.\n", gcc, found);
+       WARN ("Calling %s returned %d (line %u).\n", gcc, found, __LINE__);
     return (found);
   }
 
@@ -2649,14 +2671,14 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
   }
 #endif
 
-  unique_dir_array ("library paths", found_index);
+  make_unique_dir_array ("library paths", found_index);
   return (found);
 }
 
 /*
  * Check include/library-paths found above.
  */
-static int process_gcc_dirs (const char *gcc)
+static int process_gcc_dirs (const char *gcc, int *num_dirs)
 {
   struct directory_array *arr;
   int    found = 0;
@@ -2664,6 +2686,7 @@ static int process_gcc_dirs (const char *gcc)
   for (arr = dir_array; arr->dir; arr++)
   {
     DEBUGF (2, "dir: %s\n", arr->dir);
+    (*num_dirs)++;
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
                           arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE,
                           FALSE);
@@ -2864,6 +2887,7 @@ static int do_check_gcc_includes (void)
 {
   char   report [_MAX_PATH+50];
   int    found = 0;
+  int    num_dirs = 0;
   size_t i;
 
   build_gnu_prefixes();
@@ -2873,10 +2897,10 @@ static int do_check_gcc_includes (void)
       {
         snprintf (report, sizeof(report), "Matches in %s %%C_INCLUDE_PATH%% path:\n", gcc[i]);
         report_header = report;
-        found += process_gcc_dirs (gcc[i]);
+        found += process_gcc_dirs (gcc[i], &num_dirs);
       }
 
-  if (found == 0)  /* Impossible? */
+  if (num_dirs == 0)  /* Impossible? */
      WARN ("No gcc.exe programs returned any include paths.\n");
 
   return (found);
@@ -2886,6 +2910,7 @@ static int do_check_gpp_includes (void)
 {
   char   report [_MAX_PATH+50];
   int    found = 0;
+  int    num_dirs = 0;
   size_t i;
 
   build_gnu_prefixes();
@@ -2895,10 +2920,10 @@ static int do_check_gpp_includes (void)
       {
         snprintf (report, sizeof(report), "Matches in %s %%CPLUS_INCLUDE_PATH%% path:\n", gpp[i]);
         report_header = report;
-        found += process_gcc_dirs (gpp[i]);
+        found += process_gcc_dirs (gpp[i], &num_dirs);
       }
 
-  if (found == 0)  /* Impossible? */
+  if (num_dirs == 0)  /* Impossible? */
      WARN ("No g++.exe programs returned any include paths.\n");
 
   return (found);
@@ -2908,6 +2933,7 @@ static int do_check_gcc_library_paths (void)
 {
   char   report [_MAX_PATH+50];
   int    found = 0;
+  int    num_dirs = 0;
   size_t i;
 
   build_gnu_prefixes();
@@ -2917,10 +2943,10 @@ static int do_check_gcc_library_paths (void)
       {
         snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", gcc[i]);
         report_header = report;
-        found += process_gcc_dirs (gcc[i]);
+        found += process_gcc_dirs (gcc[i], &num_dirs);
       }
 
-  if (found == 0)  /* Impossible? */
+  if (num_dirs == 0)  /* Impossible? */
      WARN ("No gcc.exe programs returned any LIBRARY_PATH paths!?.\n");
 
   return (found);
@@ -3275,12 +3301,12 @@ static void cleanup (void)
   FREE (gcc);
   FREE (gpp);
 
-  if (opt.file_spec_re && opt.file_spec_re != opt.file_spec)
-  {
-    FREE (opt.file_spec_re);
-    regfree (&re_hnd);
-  }
+  FREE (opt.file_spec_re);
   FREE (opt.file_spec);
+  FREE (vcache_fname);
+
+  if (re_alloc)
+    regfree (&re_hnd);
 
   smartlist_free_all (opt.evry_host);
 
@@ -3345,6 +3371,8 @@ static void init_all (void)
   opt.conv_cygdrive = 1;
 #endif
 
+  vcache_fname = getenv_expand ("%TEMP%\\envtool.cache");
+
   current_dir[0] = '.';
   current_dir[1] = DIR_SEP;
   current_dir[2] = '\0';
@@ -3365,27 +3393,9 @@ static void init_all (void)
   }
 }
 
-/*
- * Try to match 'str' against the global regular expression in
- * 'opt.file_spec_re'.
- */
-static BOOL match_regex (const char *str)
-{
-  re_err = regexec (&re_hnd, str, 0, NULL, 0);
-  if (re_err == REG_NOMATCH)
-     return (FALSE);
-
-  if (re_err == 0)
-     return (TRUE);
-
-  regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
-  DEBUGF (1, "Error while matching \"%s\": %d\n", str, re_err);
-  return (FALSE);
-}
-
 int main (int argc, char **argv)
 {
-  int need_regex, found = 0;
+  int found = 0;
 
   init_all();
 
@@ -3425,14 +3435,9 @@ int main (int argc, char **argv)
   /* These modes (all except '--evry') need an external PCRE library.
    * EveryThing has regexp as a built-in.
    */
-  need_regex = opt.use_regex &&
-               (opt.do_path || opt.do_include || opt.do_lib || opt.do_cmake || opt.do_python || opt.do_pkg);
-
-#if 1
-  if (need_regex)
-     WARN ("Regular expression is not yet supported for this mode. "
-           "Ignoring the \"-r/--regex\" option.\n");
-#endif
+  re_alloc = opt.use_regex &&
+             (opt.do_path || opt.do_include || opt.do_lib || opt.do_cmake ||
+              opt.do_python || opt.do_pkg);
 
   if (opt.help)
      return show_help();
@@ -3460,7 +3465,7 @@ int main (int argc, char **argv)
   if (!opt.file_spec)
      usage ("You must give a ~1filespec~0 to search for.\n");
 
-  opt.file_spec_re = opt.file_spec;
+  opt.file_spec_re = STRDUP (opt.file_spec);
 
   if (!opt.use_regex)
   {
@@ -3481,18 +3486,17 @@ int main (int argc, char **argv)
     else if (!dot && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
         opt.file_spec = _stracat (opt.file_spec, ".*");
   }
-
-  DEBUGF (1, "file_spec: '%s', file_spec_re: '%s'.\n", opt.file_spec, opt.file_spec_re);
-
-  if (need_regex)
+  else
   {
-    re_err = regcomp (&re_hnd, opt.file_spec_re, REG_EXTENDED | REG_ICASE | REG_NEWLINE);
+    re_err = regcomp (&re_hnd, opt.file_spec_re, opt.case_sensitive ? 0 : REG_ICASE);
     if (re_err)
     {
       regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
       WARN ("Invalid regular expression \"%s\": %s\n", opt.file_spec_re, re_errbuf);
     }
   }
+
+  DEBUGF (1, "file_spec: '%s', file_spec_re: '%s'.\n", opt.file_spec, opt.file_spec_re);
 
   if (!opt.no_sys_env)
      found += scan_system_env();
@@ -4091,20 +4095,30 @@ static void test_ReparsePoints (void)
 }
 
 /*
- * Test the parsing of %APPDATA%/.netrc
+ * Test the parsing of '%APPDATA%/.netrc' and '%APPDATA%/.authinfo'.
  */
-static void test_netrc (void)
+static void test_auth (void)
 {
-  int rc;
+  int rc1, rc2;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   netrc_init();
-  rc = netrc_lookup (NULL, NULL, NULL);
-  netrc_exit();
+  authinfo_init();
 
-  C_printf ("  Parsing \"%%APPDATA%%\\.netrc\" ");
-  if (rc == 0)
+  rc1 = netrc_lookup (NULL, NULL, NULL);
+  rc2 = authinfo_lookup (NULL, NULL, NULL, NULL);
+
+  netrc_exit();
+  authinfo_exit();
+
+  C_printf ("  Parsing \"%%APPDATA%%\\.netrc\"    ");
+  if (rc1 == 0)
+       C_puts ("~5failed.~0\n");
+  else C_puts ("~3okay.~0\n");
+
+  C_printf ("  Parsing \"%%APPDATA%%\\.authinfo\" ");
+  if (rc2 == 0)
        C_puts ("~5failed.~0\n");
   else C_puts ("~3okay.~0\n");
 }
@@ -4253,58 +4267,23 @@ static void test_ETP_host (void)
   }
 }
 
-static void test_regex (void)
+static void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
 {
-  static const char *patterns[] = {
-                    "^foo.*",
-                    "^Hello.*$",
-                    "[[:digit:]].*$",
-                  };
-  int i, flags = (REG_EXTENDED /* | REG_NEWLINE */ );
+  size_t i, j;
 
-  if (!opt.case_sensitive)
-     flags |= REG_ICASE;
-
-  C_printf ("~3%s():~0\n", __FUNCTION__);
-
-  for (i = 0; i < DIM(patterns); i++)
+  C_puts ("sub-expr: ");
+  for (i = 0; i < re->re_nsub; i++, rm++)
   {
-    regex_t re_hnd2;
-    int     re_err2;
-    BOOL    rc;
-
-    C_printf ("  Pattern '%s'%*s against '%s': regcomp() ",
-              patterns[i], 20-strlen(patterns[i]), "", opt.file_spec_re);
-
-    re_err2 = regcomp (&re_hnd2, patterns[i], flags);
-    if (re_err2)
+    for (j = 0; j < strlen(str); j++)
     {
-      regerror (re_err2, &re_hnd2, re_errbuf, sizeof(re_errbuf));
-      C_printf ("~5FAIL~0: %s\n", re_errbuf);
-      continue;
+      if (j >= (size_t)rm->rm_so && j <= (size_t)rm->rm_eo)
+           C_printf ("~5%c", str[j]);
+      else C_printf ("~0%c", str[j]);
     }
-    C_puts ("~2OKAY.~0");
-
-    re_err2 = regexec (&re_hnd2, opt.file_spec_re, 0, NULL, 0);
-    if (re_err2 == REG_NOMATCH)
-    {
-      rc = FALSE;
-      strcpy (re_errbuf, "~2No match");
-    }
-    else if (re_err2 == 0)
-    {
-      rc = TRUE;
-      strcpy (re_errbuf, "~2Match");
-    }
-    else
-    {
-      strcpy (re_errbuf, "~5");
-      regerror (re_err2, &re_hnd2, re_errbuf+2, sizeof(re_errbuf)-2);
-    }
-    regfree (&re_hnd2);
-    C_printf (" regexec() %s~0\n", re_errbuf);
   }
-  C_putc ('\n');
+  if (i == 0)
+       C_puts ("None\n");
+  else C_puts ("~0\n");
 }
 
 static int do_tests (void)
@@ -4321,13 +4300,6 @@ static int do_tests (void)
   {
     if (!halt_flag)
        py_test();
-    return (0);
-  }
-
-  if (opt.use_regex && opt.file_spec)
-  {
-    opt.file_spec_re = opt.file_spec;
-    test_regex();
     return (0);
   }
 
@@ -4365,7 +4337,7 @@ static int do_tests (void)
 
   if (!stricmp(get_user_name(),"APPVYR-WIN\\appveyor"))
        test_AppVeyor();
-  else test_netrc();
+  else test_auth();
 
   test_libssp();
   return (0);
