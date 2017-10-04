@@ -255,8 +255,6 @@ void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
   sl1->num_used = (int) new_size;
 }
 
-#if defined(NOT_USED_YET)
-
 /*
  * Sort the members of 'sl' into an order defined by
  * the ordering function 'compare', which returns less then 0 if a
@@ -264,12 +262,13 @@ void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
  */
 typedef int (__cdecl *CmpFunc) (const void *, const void *);
 
-void smartlist_sort (smartlist_t *sl, smartlist_compare_func compare)
+void smartlist_sort (smartlist_t *sl, smartlist_sort_func compare)
 {
   if (sl->num_used > 0)
      qsort (sl->list, sl->num_used, sizeof(void*), (CmpFunc)compare);
 }
 
+#if defined(NOT_USED_YET)
 /*
  * Assuming the members of 'sl' are in order, return the index of the
  * member that matches 'key'.  If no member matches, return the index of
