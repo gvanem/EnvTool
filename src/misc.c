@@ -1429,6 +1429,23 @@ char *_strlcpy (char *dst, const char *src, size_t len)
 }
 
 /*
+ * Return a string with 'ch' repeated 'num' times.
+ * Limited to 200 characters.
+ */
+char *_strrepeat (int ch, size_t num)
+{
+  static char buf [200];
+  char  *p = buf;
+  size_t i;
+
+  *p = '\0';
+  for (i = 0; i < num && i < sizeof(buf)-1; i++)
+     *p++ = ch;
+  *p = '\0';
+  return (buf);
+}
+
+/*
  * Get next token from string *stringp, where tokens are possibly-empty
  * strings separated by characters from delim.
  *

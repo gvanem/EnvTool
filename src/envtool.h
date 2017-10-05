@@ -337,6 +337,7 @@ extern int  process_dir (const char *path, int num_dup, BOOL exist, BOOL check_e
 
 extern void  init_misc     (void);
 extern char *_strlcpy      (char *dst, const char *src, size_t len);
+extern char *_strrepeat    (int ch, size_t num);
 extern char *_strsep       (char **s, const char *delim);
 extern char *_stracat      (char *s1, const char *s2);
 extern char *strip_nl      (char *s);
