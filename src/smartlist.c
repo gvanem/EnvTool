@@ -1,8 +1,6 @@
 /*
  * 'smartlist' functions for the envtool program.
  */
-#define INSIDE_SMARTLIST_C
-
 #include "envtool.h"
 #include "smartlist.h"
 
@@ -194,6 +192,29 @@ void smartlist_del (smartlist_t *sl, int idx)
   ASSERT (idx < sl->num_used);
   --sl->num_used;
   sl->list [idx] = sl->list [sl->num_used];
+  sl->list [sl->num_used] = NULL;
+}
+
+/*
+ * Remove the 'idx'-th element of 'sl':
+ *   if 'idx' is not the last element, move all subsequent elements back one
+ *   space. Return the old value of the 'idx'-th element.
+ */
+void smartlist_del_keeporder (smartlist_t *sl, int idx)
+{
+  ASSERT (sl);
+  ASSERT_VAL (sl);
+  ASSERT (idx >= 0);
+  ASSERT (idx < sl->num_used);
+  --sl->num_used;
+  if (idx < sl->num_used)
+  {
+    void  *src = sl->list+idx+1;
+    void  *dst = sl->list+idx;
+    size_t sz = (sl->num_used - idx) * sizeof(void*);
+
+    memmove (dst, src, sz);
+  }
   sl->list [sl->num_used] = NULL;
 }
 

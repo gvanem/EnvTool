@@ -1,11 +1,7 @@
 #ifndef _SMARTLIST_H
 #define _SMARTLIST_H
 
-#if defined(INSIDE_SMARTLIST_C)
-  typedef struct smartlist_t smartlist_t;        /* Forward */
-#else
-  typedef struct smartlist_internal smartlist_t; /* Opaque struct */
-#endif
+typedef struct smartlist_t smartlist_t;  /* Opaque struct; defined in smartlist.c */
 
 typedef int  (*smartlist_sort_func) (const void **a, const void **b);
 typedef int  (*smartlist_compare_func) (const void *key, const void **member);
@@ -23,6 +19,7 @@ void  smartlist_free_all (smartlist_t *sl);
 void  smartlist_ensure_capacity (smartlist_t *sl, size_t num);
 void  smartlist_add (smartlist_t *sl, void *element);
 void  smartlist_del (smartlist_t *sl, int idx);
+void  smartlist_del_keeporder (smartlist_t *sl, int idx);
 void  smartlist_append (smartlist_t *sl1, const smartlist_t *sl2);
 
 void  smartlist_sort (smartlist_t *sl, smartlist_sort_func compare);
