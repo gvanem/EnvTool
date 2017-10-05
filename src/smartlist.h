@@ -22,6 +22,8 @@ void  smartlist_del (smartlist_t *sl, int idx);
 void  smartlist_del_keeporder (smartlist_t *sl, int idx);
 void  smartlist_append (smartlist_t *sl1, const smartlist_t *sl2);
 
+void  smartlist_uniq (smartlist_t *sl, smartlist_sort_func compare, void (*free_fn)(void *a));
+
 void  smartlist_sort (smartlist_t *sl, smartlist_sort_func compare);
 
 int   smartlist_bsearch_idx (const smartlist_t *sl, const void *key,

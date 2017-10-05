@@ -218,6 +218,28 @@ void smartlist_del_keeporder (smartlist_t *sl, int idx)
   sl->list [sl->num_used] = NULL;
 }
 
+/**
+ * Given a sorted smartlist 'sl' and the comparison function used to
+ * sort it, remove all duplicate members. If 'free_fn' is provided, calls
+ * 'free_fn' on each duplicate. Otherwise, just removes them.
+ * Preserves order.
+ */
+void smartlist_uniq (smartlist_t *sl, smartlist_sort_func compare, void (*free_fn)(void *a))
+{
+  int i;
+
+  for (i = 1; i < sl->num_used; i++)
+  {
+    if ((*compare)((const void**)&sl->list[i-1],
+                   (const void**)&sl->list[i]) == 0)
+    {
+      if (free_fn)
+        (*free_fn) (sl->list[i]);
+      smartlist_del_keeporder (sl, i--);
+    }
+  }
+}
+
 /*
  * Open a file and return parsed lines as a smartlist.
  */
