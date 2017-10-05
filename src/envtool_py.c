@@ -142,6 +142,10 @@ static int tmp_ver_major, tmp_ver_minor, tmp_ver_micro;
 static int longest_py_program = 0;  /* set in py_init() */
 static int longest_py_version = 0;  /* set in py_init() */
 
+#if !defined(_DEBUG)
+  static HANDLE ex_hnd = NULL;
+#endif
+
 static int get_python_version (const char *exe_name);
 
 /* The list Pythons from the PATH and from 'HKLM\Software\Python\PythonCore\xx\InstallPath'
@@ -561,6 +565,13 @@ void py_exit (void)
     }
     smartlist_free (py_programs);
   }
+
+#if !defined(_DEBUG)
+  if (ex_hnd && ex_hnd != INVALID_HANDLE_VALUE)
+     FreeLibrary (ex_hnd);
+  ex_hnd = NULL;
+#endif
+
   g_py = NULL;
 }
 
@@ -1211,7 +1222,7 @@ int py_search (void)
 
     if (pp->is_zip)
          found += process_zip (g_py, pp->dir);
-    else found += process_dir (pp->dir, 0, pp->exist, TRUE, pp->is_dir,
+    else found += process_dir (pp->dir, 0, pp->exist, FALSE, pp->is_dir,
                                TRUE, "sys.path[]", NULL, FALSE);
   }
   return (found);
@@ -1605,15 +1616,16 @@ static void enum_python_in_registry (const char *key_name)
  */
 void py_init (void)
 {
-  static HANDLE ex_hnd = NULL;
-  int    i, max;
+  int i, max;
 
+#if !defined(_DEBUG)
   if (ex_hnd == NULL)
   {
     ex_hnd = LoadLibrary ("exc-abort.dll");
     GetLastError();
     DEBUGF (2, "LoadLibrary (\"exc-abort.dll\"): hnd: %p\n", ex_hnd);
   }
+#endif
 
   py_programs = smartlist_new();
 
