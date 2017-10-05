@@ -74,6 +74,18 @@ void *smartlist_get (const smartlist_t *sl, int idx)
 }
 
 /*
+ * Set the 'idx'th element of 'sl' to 'val'.
+ */
+void smartlist_set (smartlist_t *sl, int idx, void *val)
+{
+  ASSERT (sl);
+  ASSERT_VAL (sl);
+  ASSERT (idx >= 0);
+  ASSERT (sl->num_used > idx);
+  sl->list[idx] = val;
+}
+
+/*
  * Allocate and return an empty smartlist.
  */
 smartlist_t *smartlist_new (void)

@@ -14,6 +14,7 @@ typedef void (*smartlist_parse_func) (smartlist_t *sl, const char *line);
 
 int          smartlist_len (const smartlist_t *sl);
 void        *smartlist_get (const smartlist_t *sl, int idx);
+void         smartlist_set (smartlist_t *sl, int idx, void *val);
 smartlist_t *smartlist_new (void);
 smartlist_t *smartlist_init (smartlist_t *sl);
 
