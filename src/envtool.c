@@ -1,4 +1,6 @@
-/*
+/**
+ *\file envtool.c
+ *
  * EnvTool:
  *  a simple tool to search and check various environment variables
  *  for correctness and check where a specific file is in corresponding
@@ -46,13 +48,13 @@
 #include "envtool_py.h"
 
 #ifdef __MINGW32__
-  /*
+  /**
    * Tell MinGW's CRT to turn off command line globbing by default.
    */
   int _CRT_glob = 0;
 
 #ifndef __MINGW64_VERSION_MAJOR
-  /*
+  /**
    * MinGW-64's CRT seems to NOT glob the cmd-line by default.
    * Hence this doesn't change that behaviour.
    */
@@ -60,7 +62,7 @@
 #endif
 #endif
 
-/*
+/**
  * For getopt_long.c.
  */
 char *program_name = NULL;
@@ -70,7 +72,7 @@ char *program_name = NULL;
 #define MAX_PATHS       500
 #define MAX_ARGS        20
 
-/* These were added in Everything 1.4
+/** These were added in Everything 1.4
  */
 #ifndef EVERYTHING_IPC_IS_DB_LOADED
 #define EVERYTHING_IPC_IS_DB_LOADED 401
@@ -103,8 +105,7 @@ struct registry_array {
        HKEY    key;
      };
 
-struct directory_array dir_array [MAX_PATHS];
-struct registry_array  reg_array [MAX_PATHS];
+static smartlist_t *dir_array, *reg_array;
 
 struct prog_options opt;
 
@@ -162,7 +163,7 @@ static int   get_cmake_info (char **exe, struct ver_info *ver);
 static void  free_dir_array (void);
 static void  regex_print (const regex_t *re, const regmatch_t *rm, const char *str);
 
-/*
+/**
  * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
  *        E.g. if a PATH (or INCLUDE etc.) component contains "/foo/bar//", the search will
  *             do a recursive search for all files (and dirs) under "/foo/bar/".
@@ -577,16 +578,16 @@ static int strequal (const char *s1, const char *s2)
 }
 
 /*
- * Add the 'dir' to 'dir_array[]' at index 'i'.
- * 'is_cwd' == 1 if 'dir == cwd'.
+ * Add the 'dir' to the 'dir_array' smartlist.
+ * 'is_cwd' == 1 if 'dir' == current working directory.
  *
  * Since this function could be called with a 'dir' from ExpandEnvironmentStrings(),
  * we check here if it returned with no '%'.
  */
-void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
+void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
 {
-  struct directory_array *d = dir_array + i;
-  int    j, exp_ok = (dir && *dir != '%');
+  struct directory_array *d = CALLOC (1, sizeof(*d));
+  int    max, i, exp_ok = (dir && *dir != '%');
   BOOL   exists = FALSE;
   BOOL   is_dir = FALSE;
 
@@ -637,35 +638,58 @@ void add_to_dir_array (const char *dir, int i, int is_cwd, unsigned line)
   }
 #endif
 
+  smartlist_add (dir_array, d);
+
   if (is_cwd || !exp_ok)
      return;
 
-  for (j = 0; j < i; j++)
-      if (!strequal(dir,dir_array[j].dir))
-         d->num_dup++;
-}
-
-static void dump_dir_array (const char *where)
-{
-  const struct directory_array *dir = dir_array;
-  size_t       i;
-
-  DEBUGF (3, "%s now\n", where);
-  for (i = 0; i < DIM(dir_array); i++, dir++)
+  max = smartlist_len (dir_array);
+  for (i = 0; i < max-1; i++)
   {
-    DEBUGF (3, "  dir_array[%d]: exist:%d, num_dup:%d, %s  %s\n",
-            (int)i, dir->exist, dir->num_dup, dir->dir, dir->cyg_dir ? dir->cyg_dir : "");
-    if (!dir->dir)
-       break;
+    const struct directory_array *d2 = smartlist_get (dir_array, i);
+
+    if (!strequal(dir,d2->dir))
+       d->num_dup++;
   }
 }
 
-static int equal_dir_array (const struct directory_array *a,
-                            const struct directory_array *b)
+static int dump_dir_array (const char *where, const char *note)
 {
-  if (!a->dir || !b->dir)
+  int i, max;
+
+  DEBUGF (2, "%s now%s\n", where, note);
+
+  max = smartlist_len (dir_array);
+  for (i = 0; i < max; i++)
+  {
+    const struct directory_array *dir = smartlist_get (dir_array, i);
+
+    DEBUGF (3, "  dir_array[%d]: exist:%d, num_dup:%d, %s  %s\n",
+            (int)i, dir->exist, dir->num_dup, dir->dir, dir->cyg_dir ? dir->cyg_dir : "");
+  }
+  return (max);
+}
+
+/*
+ * 'smartlist_uniq()' helper.
+ */
+static int dir_array_compare (const void **_a, const void **_b)
+{
+  const struct directory_array *a = *_a;
+  const struct directory_array *b = *_b;
+
+  if (a->num_dup > 0 || b->num_dup > 0)
      return (0);
-  return (strequal(a->dir,b->dir) == 0);
+  return stricmp (a->dir, b->dir);
+}
+
+static void dir_array_free (void *_d)
+{
+  struct directory_array *d = (struct directory_array*) _d;
+
+  FREE (d->dir);
+  FREE (d->cyg_dir);
+  FREE (d);
 }
 
 /*
@@ -673,75 +697,38 @@ static int equal_dir_array (const struct directory_array *a,
  * non-canonical names. CygWin is more messy than others. So just remove the
  * duplicates.
  *
- * Allocate a local '_new' and copy into 'dir_array[]' all
- * unique items.
+ * Loop over the 'dir_array' smartlist and remove all non-unique items.
  */
-static void make_unique_dir_array (const char *where, int top)
+static int make_unique_dir_array (const char *where)
 {
-  struct directory_array *_new = CALLOC (top+1, sizeof(*_new));
-  struct directory_array *d = _new;
-  int    i, j;
+  int old_len, new_len;
 
-  dump_dir_array (where);
-
-  if (!_new || top <= 1)
-     goto quit;
-
-  for (i = 0; i < top; i++)
-  {
-    for (j = 0; j < i; j++)
-        if (equal_dir_array(&dir_array[j], &dir_array[i]))
-           break;
-    if (i == j)
-    {
-      memcpy (d, &dir_array[j], sizeof(*d));
-      d->dir = STRDUP (dir_array[j].dir);
-      if (dir_array[j].cyg_dir)
-         d->cyg_dir = STRDUP (dir_array[j].cyg_dir);
-      d++;
-    }
-  }
-
-  free_dir_array();
-  memcpy (&dir_array, _new, (top+1) * sizeof(*_new));
-  dump_dir_array (where);
-quit:
-  FREE (_new);
+  old_len = dump_dir_array (where, ", non-unique");
+  smartlist_uniq (dir_array, dir_array_compare, dir_array_free);
+  new_len = dump_dir_array (where, ", unique");
+  return (old_len - new_len);    /* This should always be 0 or positive */
 }
-
-static struct directory_array *arr0 = NULL;
 
 static void free_dir_array (void)
 {
-  struct directory_array *arr;
-  size_t i;
+  struct directory_array *dir;
+  int    i, max = smartlist_len (dir_array);
 
-  for (i = 0, arr = dir_array; i < DIM(dir_array); i++, arr++)
+  for (i = 0; i < max; i++)
   {
-    FREE (arr->dir);
-    FREE (arr->cyg_dir);
-    memset (arr, '\0', sizeof(*arr));
+    dir = smartlist_get (dir_array, i);
+    FREE (dir->dir);
+    FREE (dir->cyg_dir);
+    FREE (dir);
+    smartlist_del (dir_array, i);
+    i--;
+    max--;
   }
-}
-
-static void check_dir_array (void)
-{
-  const struct directory_array *arr = dir_array;
-  size_t i;
-
-  for (i = 0; i < DIM(dir_array); i++, arr++)
-  {
-    if (arr->line)
-    {
-      WARN ("Unfreed 'dir_array[]' called at line %u\n", arr->line);
-   // break;
-    }
-  }
+  ASSERT (smartlist_len(dir_array) == 0);
 }
 
 /*
- * Add elements to 'reg_array[]':
- *  - '*idx':    the array-index to store to. Increment on successfull add.
+ * Add elements to the 'reg_array' smartlist:
  *  - 'top_key': the key the entry came from: HKEY_CURRENT_USER or HKEY_LOCAL_MACHINE.
  *  - 'fname':   the result from 'RegEnumKeyEx()'; name of each key.
  *  - 'fqdn':    the result from 'enum_sub_values()'. This value includes the full path.
@@ -749,21 +736,13 @@ static void check_dir_array (void)
  * Note: 'basename (fqdn)' may NOT be equal to 'fname' (aliasing). That's the reason
  *       we store 'real_fname' too.
  */
-static void add_to_reg_array (int *idx, HKEY key, const char *fname, const char *fqdn)
+static void add_to_reg_array (HKEY key, const char *fname, const char *fqdn)
 {
   struct registry_array *reg;
   struct stat  st;
   const  char *base;
-  int    rc, i = *idx;
+  int    rc;
 
-  reg = reg_array + i;
-
-  assert (fname);
-  assert (fqdn);
-  assert (i >= 0);
-  assert (i < DIM(reg_array));
-
-  memset (&st, '\0', sizeof(st));
   base = basename (fqdn);
   if (base == fqdn)
   {
@@ -771,6 +750,10 @@ static void add_to_reg_array (int *idx, HKEY key, const char *fname, const char 
     return;
   }
 
+  reg = CALLOC (1, sizeof(*reg));
+  smartlist_add (reg_array, reg);
+
+  memset (&st, '\0', sizeof(st));
   st.st_size = (__int64)-1;    /* signal if stat() fails */
   rc = stat (fqdn, &st);
   reg->mtime      = st.st_mtime;
@@ -780,53 +763,65 @@ static void add_to_reg_array (int *idx, HKEY key, const char *fname, const char 
   reg->path       = dirname (fqdn);
   reg->exist      = (rc == 0) && FILE_EXISTS (fqdn);
   reg->key        = key;
-  *idx = ++i;
 }
 
 /*
- * `Sort the 'reg_array' on 'path' + 'real_fname'.
+ * Sort the 'reg_array' on 'path' + 'real_fname'.
  */
-typedef int (*CmpFunc) (const void *, const void *);
-
-static int reg_array_compare (const struct registry_array *a,
-                              const struct registry_array *b)
+static int reg_array_compare (const void **_a, const void **_b)
 {
-  char fqdn_a [_MAX_PATH];
-  char fqdn_b [_MAX_PATH];
-  int  slash = (opt.show_unix_paths ? '/' : '\\');
+  const struct registry_array *a = *_a;
+  const struct registry_array *b = *_b;
+  char  fqdn_a [_MAX_PATH];
+  char  fqdn_b [_MAX_PATH];
+  int   slash = (opt.show_unix_paths ? '/' : '\\');
 
   if (!a->path || !a->real_fname || !b->path || !b->real_fname)
      return (0);
+
   snprintf (fqdn_a, sizeof(fqdn_a), "%s%c%s", slashify(a->path, slash), slash, a->real_fname);
   snprintf (fqdn_b, sizeof(fqdn_b), "%s%c%s", slashify(b->path, slash), slash, b->real_fname);
-
   return strequal (fqdn_a, fqdn_b);
 }
 
-static void sort_reg_array (int num)
+static void print_reg_array (const char *intro)
 {
-  int i, slash = (opt.show_unix_paths ? '/' : '\\');
+  const struct registry_array *reg;
+  int   i, max, slash = (opt.show_unix_paths ? '/' : '\\');
 
-  DEBUGF (3, "before qsort():\n");
-  for (i = 0; i < num; i++)
-     DEBUGF (3, "%2d: FQDN: %s%c%s.\n", i, reg_array[i].path, slash, reg_array[i].real_fname);
+  DEBUGF (3, intro);
 
-  qsort (&reg_array, num, sizeof(reg_array[0]), (CmpFunc)reg_array_compare);
+  max = smartlist_len (reg_array);
+  for (i = 0; i < max; i++)
+  {
+    reg = smartlist_get (reg_array, i);
+    DEBUGF (3, "%2d: FQDN: %s%c%s.\n", i, reg->path, slash, reg->real_fname);
+  }
+}
 
-  DEBUGF (3, "after qsort():\n");
-  for (i = 0; i < num; i++)
-     DEBUGF (3, "%2d: FQDN: %s%c%s.\n", i, reg_array[i].path, slash, reg_array[i].real_fname);
+static void sort_reg_array (void)
+{
+  print_reg_array ("before smartlist_sort():\n");
+  smartlist_sort (reg_array, reg_array_compare);
+  print_reg_array ("after smartlist_sort():\n");
 }
 
 static void free_reg_array (void)
 {
   struct registry_array *arr;
 
-  for (arr = reg_array; arr->fname; arr++)
+  int i, max = smartlist_len (reg_array);
+
+  for (i = 0; i < max; i++)
   {
+    arr = smartlist_get (reg_array, i);
     FREE (arr->fname);
     FREE (arr->real_fname);
     FREE (arr->path);
+    FREE (arr);
+    smartlist_del (reg_array, i);
+    i--;
+    max--;
   }
 }
 
@@ -840,10 +835,10 @@ static void free_reg_array (void)
  *
  * Convert CygWin style paths to Windows paths: "/cygdrive/x/.." -> "x:/.."
  */
-static struct directory_array *split_env_var (const char *env_name, const char *value)
+static smartlist_t *split_env_var (const char *env_name, const char *value)
 {
   char *tok, *val;
-  int   is_cwd, i;
+  int   is_cwd, max, i;
   char  sep [2];
 
   if (!value)
@@ -872,9 +867,11 @@ static struct directory_array *split_env_var (const char *env_name, const char *
   */
   i = 0;
   if (opt.add_cwd && !is_cwd)
-     add_to_dir_array (current_dir, i++, 1, __LINE__);
+     add_to_dir_array (current_dir, 1, __LINE__);
 
-  for ( ; i < DIM(dir_array)-1 && tok; i++)
+  max = INT_MAX;
+
+  for ( ; i < max && tok; i++)
   {
     /* Remove trailing '\\', '/' or '\\"' from environment component
      * unless it's a simple "c:\".
@@ -941,13 +938,9 @@ static struct directory_array *split_env_var (const char *env_name, const char *
       tok = buf;
     }
 
-    add_to_dir_array (tok, i, !strequal(tok,current_dir), __LINE__);
-
+    add_to_dir_array (tok, !strequal(tok,current_dir), __LINE__);
     tok = strtok (NULL, sep);
   }
-
-  if (i == DIM(dir_array)-1)
-     WARN ("Too many paths (%d) in env-var \"%s\"\n", i, env_name);
 
   FREE (val);
   return (dir_array);
@@ -1494,26 +1487,26 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
 
 /*
  * Enumerate all keys under 'top_key + REG_APP_PATH' and build up
- * 'reg_array [idx..MAX_PATHS]'.
+ * the 'reg_array' smartlist.
  *
  * Either under:
  *   "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
  * or
  *   "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
  *
- * Return number of entries added.
+ * The number of entries added is given by 'smartlist_len (reg_array)'.
  */
-static int build_reg_array_app_path (HKEY top_key)
+static void build_reg_array_app_path (HKEY top_key)
 {
   HKEY   key = NULL;
-  int    num, idx = 0;
+  int    num;
   REGSAM acc = reg_read_access();
   DWORD  rc  = RegOpenKeyEx (top_key, REG_APP_PATH, 0, acc, &key);
 
   DEBUGF (1, "  RegOpenKeyEx (%s\\%s, %s):\n                   %s\n",
           reg_top_key_name(top_key), REG_APP_PATH, reg_access_name(acc), win_strerror(rc));
 
-  for (num = idx = 0; rc == ERROR_SUCCESS; num++)
+  for (num = 0; rc == ERROR_SUCCESS; num++)
   {
     char  sub_key [512];
     char  fname [512];
@@ -1529,15 +1522,10 @@ static int build_reg_array_app_path (HKEY top_key)
     snprintf (sub_key, sizeof(sub_key), "%s\\%s", REG_APP_PATH, fname);
 
     if (enum_sub_values(top_key,sub_key,&fqdn))
-       add_to_reg_array (&idx, top_key, fname, fqdn);
-
-    if (idx == DIM(reg_array)-1)
-       break;
+       add_to_reg_array (top_key, fname, fqdn);
   }
-
   if (key)
      RegCloseKey (key);
-  return (idx);
 }
 
 /*
@@ -1611,13 +1599,17 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
 
 static int do_check_env2 (HKEY key, const char *env, const char *value)
 {
-  struct directory_array *arr;
-  int    found = 0;
+  smartlist_t *list = split_env_var (env, value);
+  int          found = 0;
+  int          i, max = list ? smartlist_len (list) : 0;
 
-  for (arr = arr0 = split_env_var(env,value); arr->dir; arr++)
-      found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
-                            arr->is_dir, arr->exp_ok, env, key,
-                            FALSE);
+  for (i = 0; i < max; i++)
+  {
+    const struct directory_array *arr = smartlist_get (list, i);
+
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
+                          arr->is_dir, arr->exp_ok, env, key, FALSE);
+  }
   free_dir_array();
   return (found);
 }
@@ -1668,15 +1660,15 @@ static int scan_user_env (void)
 
 /************************************************************************************************/
 
-static int report_registry (const char *reg_key, int num)
+static int report_registry (const char *reg_key)
 {
-  struct registry_array *arr;
-  int    i, found;
+  int i, found, max = smartlist_len (reg_array);
 
-  for (i = found = 0, arr = reg_array; i < num; i++, arr++)
+  for (i = found = 0; i < max; i++)
   {
-    char fqdn [_MAX_PATH];
-    int  match = FNM_NOMATCH;
+    const struct registry_array *arr = smartlist_get (reg_array, i);
+    char  fqdn [_MAX_PATH];
+    int   match = FNM_NOMATCH;
 
     snprintf (fqdn, sizeof(fqdn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
 
@@ -1705,21 +1697,21 @@ static int report_registry (const char *reg_key, int num)
 static int do_check_registry (void)
 {
   char reg[300];
-  int  num, found = 0;
+  int  found = 0;
 
   snprintf (reg, sizeof(reg), "Matches in HKCU\\%s:\n", REG_APP_PATH);
   report_header = reg;
   DEBUGF (1, "%s\n", reg);
-  num = build_reg_array_app_path (HKEY_CURRENT_USER);
-  sort_reg_array (num);
-  found += report_registry (REG_APP_PATH, num);
+  build_reg_array_app_path (HKEY_CURRENT_USER);
+  sort_reg_array();
+  found += report_registry (REG_APP_PATH);
 
   snprintf (reg, sizeof(reg), "Matches in HKLM\\%s:\n", REG_APP_PATH);
   report_header = reg;
   DEBUGF (1, "%s\n", reg);
-  num = build_reg_array_app_path (HKEY_LOCAL_MACHINE);
-  sort_reg_array (num);
-  found += report_registry (REG_APP_PATH, num);
+  build_reg_array_app_path (HKEY_LOCAL_MACHINE);
+  sort_reg_array();
+  found += report_registry (REG_APP_PATH);
 
   report_header = NULL;
   return (found);
@@ -1750,7 +1742,7 @@ static BOOL dir_is_empty (const char *env_var, const char *dir)
   }
   while (num_entries == 0 && FindNextFile(handle, &ff_data));
 
-  DEBUGF (2, "%s(): num_entries: %d.\n", __FUNCTION__, num_entries);
+  DEBUGF (2, "%s(): at least %d entries.\n", __FUNCTION__, num_entries);
   FindClose (handle);
   return (num_entries == 0);
 }
@@ -2183,14 +2175,13 @@ static int do_check_evry (void)
  */
 static int do_check_env (const char *env_name, BOOL recursive)
 {
-  struct directory_array *arr;
-  int    found = 0;
-  char  *orig_e;
-  BOOL   check_empty = FALSE;
+  smartlist_t *list;
+  int          i, max, found = 0;
+  BOOL         check_empty = FALSE;
+  char        *orig_e = getenv_expand (env_name);
 
-  orig_e = getenv_expand (env_name);
-  arr0   = orig_e ? split_env_var (env_name, orig_e) : NULL;
-  if (!arr0)
+  list = orig_e ? split_env_var (env_name, orig_e) : NULL;
+  if (!list)
   {
     DEBUGF (1, "Env-var %s not defined.\n", env_name);
     return (0);
@@ -2204,8 +2195,11 @@ static int do_check_env (const char *env_name, BOOL recursive)
       !strcmp(env_name,"CPLUS_INCLUDE_PATH"))
     check_empty = TRUE;
 
-  for (arr = arr0; arr->dir; arr++)
+  max = smartlist_len (list);
+  for (i = 0; i < max; i++)
   {
+    struct directory_array *arr = smartlist_get (list, i);
+
     if (check_empty && arr->exist)
        arr->check_empty = check_empty;
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
@@ -2227,10 +2221,11 @@ static int do_check_env (const char *env_name, BOOL recursive)
 static int do_check_manpath (void)
 {
   struct directory_array *arr;
-  int    i, save, found = 0;
+  smartlist_t *list;
+  int    i, j, max, save, found = 0;
   char  *orig_e;
   char   subdir [_MAX_PATH];
-  char   report[300];
+  char   report [300];
   static const char env_name[] = "MANPATH";
 
   /* \todo: this should be all directories matching "man?[pn]" or "cat?[pn]".
@@ -2242,8 +2237,8 @@ static int do_check_manpath (void)
                                   };
 
   orig_e = getenv_expand (env_name);
-  arr0   = orig_e ? split_env_var (env_name, orig_e) : NULL;
-  if (!arr0)
+  list   = orig_e ? split_env_var (env_name, orig_e) : NULL;
+  if (!list)
   {
     WARN ("Env-var %s not defined.\n", env_name);
     return (0);
@@ -2258,9 +2253,10 @@ static int do_check_manpath (void)
    */
   opt.man_mode = 1;
 
-  for (arr = arr0; arr->dir; arr++)
+  max = smartlist_len (list);
+  for (i = 0; i < max; i++)
   {
-    DEBUGF (2, "Checking in dir '%s'\n", arr->dir);
+    arr = smartlist_get (list, i);
     if (!arr->exist)
     {
       WARN ("%s: directory \"%s\" doesn't exist.\n", env_name, arr->dir);
@@ -2278,9 +2274,9 @@ static int do_check_manpath (void)
       }
     }
 #endif
-    for (i = 0; i < DIM(sub_dirs); i++)
+    for (j = 0; j < DIM(sub_dirs); j++)
     {
-      snprintf (subdir, sizeof(subdir), "%s\\%s", arr->dir, sub_dirs[i]);
+      snprintf (subdir, sizeof(subdir), "%s\\%s", arr->dir, sub_dirs[j]);
       if (FILE_EXISTS(subdir))
          found += process_dir (subdir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
     }
@@ -2325,16 +2321,16 @@ static int get_pkg_config_info (const char **exe, struct ver_info *ver)
  */
 static int do_check_pkg (void)
 {
-  struct directory_array *arr;
-  int    num, prev_num = 0, found = 0;
-  BOOL   do_warn = FALSE;
-  char  *orig_e;
-  char   report[300];
+  smartlist_t *list;
+  int          i, max, num, prev_num = 0, found = 0;
+  BOOL         do_warn = FALSE;
+  char        *orig_e;
+  char         report [300];
   static const char env_name[] = "PKG_CONFIG_PATH";
 
   orig_e = getenv_expand (env_name);
-  arr0   = orig_e ? split_env_var (env_name, orig_e) : NULL;
-  if (!arr0)
+  list = orig_e ? split_env_var (env_name, orig_e) : NULL;
+  if (!list)
   {
     WARN ("Env-var %s not defined.\n", env_name);
     return (0);
@@ -2343,8 +2339,11 @@ static int do_check_pkg (void)
   snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
   report_header = report;
 
-  for (arr = arr0; arr->dir; arr++)
+  max = smartlist_len (list);
+  for (i = 0; i < max; i++)
   {
+    const struct directory_array *arr = smartlist_get (list, i);
+
     DEBUGF (2, "Checking in dir '%s'\n", arr->dir);
     num = process_dir (arr->dir, 0, arr->exist, TRUE, arr->is_dir, arr->exp_ok, env_name, NULL, FALSE);
 
@@ -2475,7 +2474,6 @@ static int do_check_cmake (void)
  */
 static BOOL looks_like_cygwin = FALSE;
 static BOOL found_search_line = FALSE;
-static int  found_index = 0;
 
 static const char cyg_usr[] = "/usr/";
 static const char cyg_drv[] = "/cygdrive/";
@@ -2485,12 +2483,6 @@ static int find_include_path_cb (char *buf, int index)
   static const char start[] = "#include <...> search starts here:";
   static const char end[]   = "End of search list.";
   const  char *p;
-
-  if (found_index >= DIM(dir_array))
-  {
-    WARN ("'dir_array[]' too small. Max %d\n", DIM(dir_array));
-    return (-1);
-  }
 
   if (!found_search_line && !memcmp(buf,&start,sizeof(start)-1))
   {
@@ -2530,7 +2522,7 @@ static int find_include_path_cb (char *buf, int index)
       p = _fix_path (str_trim(buf), buf2);
     }
 
-    add_to_dir_array (p, found_index++, !stricmp(current_dir,p), __LINE__);
+    add_to_dir_array (p, !stricmp(current_dir,p), __LINE__);
     DEBUGF (3, "line: '%s'\n", p);
     return (1);
   }
@@ -2577,15 +2569,8 @@ static int find_library_path_cb (char *buf, int index)
       if (end)
          *end = '\0';
     }
+    add_to_dir_array (rc, FALSE, __LINE__);
     DEBUGF (3, "tok %d: '%s'\n", i, rc);
-
-    add_to_dir_array (rc, found_index++, FALSE, __LINE__);
-
-    if (found_index >= DIM(dir_array))
-    {
-      WARN ("'dir_array[]' too small. Max %d\n", DIM(dir_array));
-      break;
-    }
   }
   ARGSUSED (index);
   return (i);
@@ -2610,7 +2595,6 @@ static int setup_gcc_includes (const char *gcc)
    * Hence redirect stderr + stdout into the same pipe for us to read.
    * Also assume that the '*gcc' is on PATH.
    */
-  found_index = 0;
   found_search_line = FALSE;
   looks_like_cygwin = FALSE;
 
@@ -2624,7 +2608,7 @@ static int setup_gcc_includes (const char *gcc)
 static int setup_gcc_library_path (const char *gcc, BOOL warn)
 {
   const char *m_cpu;
-  int   found;
+  int   found, duplicates;
 
   free_dir_array();
 
@@ -2641,7 +2625,6 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
    * Hence redirect stderr + stdout into the same pipe for us to read.
    * Also assume that the '*gcc' is on PATH.
    */
-  found_index = 0;
   found_search_line = FALSE;
   looks_like_cygwin = FALSE;
 
@@ -2667,11 +2650,13 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
     int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, "/usr/lib/w32api", result, sizeof(result));
 
     if (rc == 0)
-       add_to_dir_array (result, found_index++, FALSE, __LINE__);
+       add_to_dir_array (result, FALSE, __LINE__);
   }
 #endif
 
-  make_unique_dir_array ("library paths", found_index);
+  duplicates = make_unique_dir_array ("library paths");
+  if (duplicates > 0)
+     DEBUGF (1, "found %d duplicates in library paths for %s.\n", duplicates, gcc);
   return (found);
 }
 
@@ -2680,11 +2665,12 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
  */
 static int process_gcc_dirs (const char *gcc, int *num_dirs)
 {
-  struct directory_array *arr;
-  int    found = 0;
+  int i, found = 0, max = smartlist_len (dir_array);
 
-  for (arr = dir_array; arr->dir; arr++)
+  for (i = 0; i < max; i++)
   {
+    const struct directory_array *arr = smartlist_get (dir_array, i);
+
     DEBUGF (2, "dir: %s\n", arr->dir);
     (*num_dirs)++;
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
@@ -2764,33 +2750,44 @@ static void get_longest (const char **cc, size_t num)
 
 /*
  * Print the internal '*gcc' or '*g++' LIBRARY_PATH returned from 'setup_gcc_library_path()'.
- * I.e. only the directories NOT in %LIBRARY_PATH.
+ * I.e. only the directories NOT in %LIBRARY_PATH%.
+ * If we have no %LIBRARY_PATH%, the 'copy[]' will contain only internal directories.
  */
 static void print_gcc_internal_dirs (const char *env_name, const char *env_value)
 {
-  struct directory_array *arr = dir_array;
-  char                   *copy [DIM(dir_array)];
-  size_t                  i, j;
-  int                     ch = opt.show_unix_paths ? '/' : '\\';
-  static BOOL             done_note = FALSE;
+  struct directory_array *arr;
+  smartlist_t            *list;
+  char                  **copy;
+  int                     i, j, max, ch = opt.show_unix_paths ? '/' : '\\';
+  static                  BOOL  done_note = FALSE;
 
-  if (!env_name || !env_value)
+  max = smartlist_len (dir_array);
+  if (max == 0)
      return;
 
-  for (i = 0; i < DIM(dir_array) && arr->dir; i++, arr++)
-     copy[i] = STRDUP (slashify(arr->dir,ch));
+  copy = alloca ((max+1) * sizeof(char*));
+  for (i = 0; i < max; i++)
+  {
+    arr = smartlist_get (dir_array, i);
+    copy[i] = STRDUP (slashify(arr->dir,ch));
+  }
   copy[i] = NULL;
+  DEBUGF (3, "Made a 'copy[]' of %d directories.\n", max);
 
   free_dir_array();
-  arr = split_env_var (env_name, env_value);
+
+  list = split_env_var (env_name, env_value);
+  max  = list ? smartlist_len (list) : 0;
+  DEBUGF (3, "smartlist for '%s' have %d entries.\n", env_name, max);
 
   for (i = 0; copy[i]; i++)
   {
     BOOL  found = FALSE;
     const char *dir;
 
-    for (j = 0, arr = dir_array; arr->dir; j++, arr++)
+    for (j = 0; j < max; j++)
     {
+      arr = smartlist_get (list, j);
       dir = slashify (arr->dir, ch);
       if (!stricmp(dir,copy[i]))
       {
@@ -2860,11 +2857,14 @@ static size_t num_gpp (void)
 
 static void searchpath_all_cc (void)
 {
-  BOOL print_lib_path = (opt.do_version >= 3);
+  BOOL print_lib_path = FALSE;
   int  save = opt.cache_ver_level;
 
   if (opt.do_version >= 3)
-     opt.cache_ver_level = 3;
+  {
+    opt.cache_ver_level = 3;
+    print_lib_path = TRUE;
+  }
 
   build_gnu_prefixes();
 
@@ -3281,7 +3281,6 @@ static void cleanup (void)
      py_exit();
 
   free_dir_array();
-  check_dir_array();
 
   FREE (who_am_I);
 
@@ -3307,6 +3306,9 @@ static void cleanup (void)
 
   if (re_alloc)
     regfree (&re_hnd);
+
+  smartlist_free (dir_array);
+  smartlist_free (reg_array);
 
   smartlist_free_all (opt.evry_host);
 
@@ -3366,6 +3368,9 @@ static void init_all (void)
   memset (&opt, 0, sizeof(opt));
   opt.add_cwd = 1;
   C_use_colours = 1;  /* Turned off by "--no-colour" */
+
+  dir_array = smartlist_new();
+  reg_array = smartlist_new();
 
 #ifdef __CYGWIN__
   opt.conv_cygdrive = 1;
@@ -3584,20 +3589,21 @@ int main (int argc, char **argv)
  */
 void test_split_env (const char *env)
 {
-  struct directory_array *arr;
-  char  *value;
-  int    i;
+  smartlist_t *list;
+  char        *value;
+  int          i, max;
 
   C_printf ("~3%s():~0 ", __FUNCTION__);
   C_printf (" 'split_env_var (\"%s\",\"%%%s\")':\n", env, env);
 
   value = getenv_expand (env);
-  arr0  = split_env_var (env, value);
-
-  for (arr = arr0, i = 0; arr && arr->dir; i++, arr++)
+  list  = split_env_var (env, value);
+  max   = list ? smartlist_len (list) : 0;
+  for (i = 0; i < max; i++)
   {
-    char *dir = arr->dir;
+    const struct directory_array *arr = smartlist_get (list, i);
     char  buf [_MAX_PATH];
+    char *dir = arr->dir;
 
     if (arr->exist && arr->is_dir)
        dir = _fix_path (dir, buf);
@@ -3775,7 +3781,7 @@ static void test_searchpath (void)
   int    is_env, pad;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
-  C_printf ("  ~6What \t\t\t\t    Where\t\t       Result~0\n");
+  C_printf ("  ~6What %s Where                      Result~0\n", _strrepeat(' ',28));
 
   for (t = tab1; i < DIM(tab1); t++, i++)
   {
