@@ -160,7 +160,6 @@ static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 static int   get_pkg_config_info (const char **exe, struct ver_info *ver);
 static int   get_cmake_info (char **exe, struct ver_info *ver);
-static void  free_dir_array (void);
 static void  regex_print (const regex_t *re, const regmatch_t *rm, const char *str);
 
 /**
@@ -683,6 +682,24 @@ static int dir_array_compare (const void **_a, const void **_b)
   return stricmp (a->dir, b->dir);
 }
 
+/**
+ * 'smartlist_wipe()' and 'smartlist_uniq()' helper.
+ * Free an item in smartlist.
+ */
+static void reg_array_free (void *_r)
+{
+  struct registry_array *r = (struct registry_array*) _r;
+
+  FREE (r->fname);
+  FREE (r->real_fname);
+  FREE (r->path);
+  FREE (r);
+}
+
+/**
+ * 'smartlist_wipe()' and 'smartlist_uniq()' helper.
+ * Free an item in smartlist.
+ */
 static void dir_array_free (void *_d)
 {
   struct directory_array *d = (struct directory_array*) _d;
@@ -692,7 +709,7 @@ static void dir_array_free (void *_d)
   FREE (d);
 }
 
-/*
+/**
  * The GNU-C report of directories is a mess. Especially all the duplicates and
  * non-canonical names. CygWin is more messy than others. So just remove the
  * duplicates.
@@ -709,25 +726,7 @@ static int make_unique_dir_array (const char *where)
   return (old_len - new_len);    /* This should always be 0 or positive */
 }
 
-static void free_dir_array (void)
-{
-  struct directory_array *dir;
-  int    i, max = smartlist_len (dir_array);
-
-  for (i = 0; i < max; i++)
-  {
-    dir = smartlist_get (dir_array, i);
-    FREE (dir->dir);
-    FREE (dir->cyg_dir);
-    FREE (dir);
-    smartlist_del (dir_array, i);
-    i--;
-    max--;
-  }
-  ASSERT (smartlist_len(dir_array) == 0);
-}
-
-/*
+/**
  * Add elements to the 'reg_array' smartlist:
  *  - 'top_key': the key the entry came from: HKEY_CURRENT_USER or HKEY_LOCAL_MACHINE.
  *  - 'fname':   the result from 'RegEnumKeyEx()'; name of each key.
@@ -765,7 +764,7 @@ static void add_to_reg_array (HKEY key, const char *fname, const char *fqdn)
   reg->key        = key;
 }
 
-/*
+/**
  * Sort the 'reg_array' on 'path' + 'real_fname'.
  */
 static int reg_array_compare (const void **_a, const void **_b)
@@ -808,21 +807,14 @@ static void sort_reg_array (void)
 
 static void free_reg_array (void)
 {
-  struct registry_array *arr;
+  smartlist_wipe (reg_array, reg_array_free);
+  ASSERT (smartlist_len(reg_array) == 0);
+}
 
-  int i, max = smartlist_len (reg_array);
-
-  for (i = 0; i < max; i++)
-  {
-    arr = smartlist_get (reg_array, i);
-    FREE (arr->fname);
-    FREE (arr->real_fname);
-    FREE (arr->path);
-    FREE (arr);
-    smartlist_del (reg_array, i);
-    i--;
-    max--;
-  }
+static void free_dir_array (void)
+{
+  smartlist_wipe (dir_array, dir_array_free);
+  ASSERT (smartlist_len(dir_array) == 0);
 }
 
 /*
