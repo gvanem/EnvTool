@@ -683,8 +683,8 @@ static int dir_array_compare (const void **_a, const void **_b)
 }
 
 /**
- * 'smartlist_wipe()' and 'smartlist_uniq()' helper.
- * Free an item in smartlist.
+ * 'smartlist_wipe()' helper.
+ * Free an item in the 'reg_array' smartlist.
  */
 static void reg_array_free (void *_r)
 {
@@ -698,7 +698,7 @@ static void reg_array_free (void *_r)
 
 /**
  * 'smartlist_wipe()' and 'smartlist_uniq()' helper.
- * Free an item in smartlist.
+ * Free an item in the 'reg_array' smartlist.
  */
 static void dir_array_free (void *_d)
 {
