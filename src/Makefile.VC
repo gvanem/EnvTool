@@ -40,12 +40,12 @@ CFLAGS = -MD$(D) $(CFLAGS)
 !endif
 
 !if "$(Platform)" == "x64"
-CFLAGS  = $(CFLAGS) -wd4267
+CFLAGS  = $(CFLAGS) -wd4244 -wd4267
 RCFLAGS = $(RCFLAGS) -DWIN64
 !endif
 
 !if "$(CPU)" == "X64"
-CFLAGS  = $(CFLAGS) -wd4267
+CFLAGS  = $(CFLAGS) -wd4244 -wd4267
 RCFLAGS = $(RCFLAGS) -DWIN64
 !endif
 
