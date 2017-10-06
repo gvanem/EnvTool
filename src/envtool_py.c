@@ -16,7 +16,7 @@
 #include "envtool_py.h"
 #include "smartlist.h"
 
-/*
+/**
  * No need to include <Python.h> just for this:
  */
 #define PyObject      void
@@ -148,7 +148,8 @@ static int longest_py_version = 0;  /* set in py_init() */
 
 static int get_python_version (const char *exe_name);
 
-/* The list Pythons from the PATH and from 'HKLM\Software\Python\PythonCore\xx\InstallPath'
+/**
+ * The list Pythons from the PATH and from 'HKLM\Software\Python\PythonCore\xx\InstallPath'
  * locations. This is an array of 'struct python_info'.
  */
 static smartlist_t *py_programs;
@@ -167,7 +168,7 @@ static smartlist_t *py_programs;
 #define DEF_FUNC(ret,f,args)  typedef ret (__cdecl *func_##f) args; \
                               static func_##f f
 
-/*
+/**
  * We only need 1 set of func-ptr for each embeddable Python program function since
  * we can only embed 1 Python at a time.
  */
@@ -211,7 +212,7 @@ static const struct search_list full_names[] = {
                   { JYTHON_PYTHON, "Jython"      }
                 };
 
-/*
+/**
  * Return a variant value from a short or a full name.
  * E.g. 'py_variant_value("all",NULL)' -> ALL_PYTHONS.
  */
@@ -228,7 +229,7 @@ int py_variant_value (const char *short_name, const char *full_name)
   return (int) v;
 }
 
-/*
+/**
  * Return a full-name from a variant value.
  * E.g. 'py_variant_name(ALL_PYTHONS)' -> "All"
  */
@@ -322,7 +323,7 @@ const char **py_get_variants (void)
   return (const char**) result;
 }
 
-/*
+/**
  * Select a Python that is found on PATH and that we've found the DLL for
  * and that is of a suitable variant.
  * Cannot select ALL_PYTHONS here.
@@ -448,7 +449,7 @@ static wchar_t *get_prog_name_wchar (const struct python_info *py)
   return (p ? WCSDUP(p) : NULL);
 }
 
-/*
+/**
  * Setup the 'py->prog_a' or 'py->prog_w'.
  * The allocated string (ASCII or Unicode) is freed in 'py_exit()'.
  */
@@ -466,9 +467,9 @@ static void set_python_prog (struct python_info *py)
   }
 }
 
-/*
+/**
  * This should be the same as 'sys.prefix'.
- * The allocated string (ASCII or Unicode) is freed in 'py_exit()'.
+ * The allocated string (ASCII or Unicode) gets freed in 'py_exit()'.
  */
 static void set_python_home (struct python_info *py)
 {
@@ -557,7 +558,7 @@ static void free_py_program (void *e)
   FREE (py);
 }
 
-/*
+/**
  * Free memory allocated during 'py_init()'.
  */
 void py_exit (void)
@@ -577,7 +578,7 @@ void py_exit (void)
   g_py = NULL;
 }
 
-/*
+/**
  * Setup a class-instance for catching all output written
  * using 'sys.stdout'. I.e. 'print(...)' and 'os.write(1, ...)'.
  * This instance must reside at the global '__main__' level.
@@ -623,7 +624,7 @@ static PyObject *setup_stdout_catcher (void)
   return (obj);
 }
 
-/*
+/**
  * Do NOT call this unless 'py->is_embeddable == TRUE'.
  */
 static int py_init_embedding (struct python_info *py)
@@ -701,7 +702,7 @@ failed:
   return (0);
 }
 
-/*
+/**
  * Call the Python code in 'py_prog'. The returned memory (!= NULL)
  * MUST be freed using FREE().
  */
@@ -736,7 +737,7 @@ static char *call_python_func (struct python_info *py, const char *py_prog)
   return (str);
 }
 
-/*
+/**
  * A simple embedded test; capture the output from Python's 'print()' function.
  */
 static BOOL test_python_funcs (struct python_info *py)
@@ -769,7 +770,7 @@ static BOOL test_python_funcs (struct python_info *py)
   return (TRUE);
 }
 
-/*
+/**
  * Check if a Python .DLL has the correct bitness for LoadLibrary().
  */
 static BOOL check_bitness (struct python_info *pi, char **needed_bits)
@@ -791,7 +792,7 @@ static BOOL check_bitness (struct python_info *pi, char **needed_bits)
   return (pi->bitness_ok);
 }
 
-/*
+/**
  * Create a %TEMP%-file and write a .py-script to it.
  * The file-name 'tmp' is allocated in misc.c. Caller should call 'unlink(tmp)' and
  * MUST call 'FREE(tmp)' on this ret-value.
@@ -925,7 +926,7 @@ static int get_zip_output (char *str, int index)
   return (1);
 }
 
-/*
+/**
  * List a ZIP/EGG-file (file) for a matching file_spec.
  *
  * Note:
@@ -1011,7 +1012,7 @@ static int process_zip (struct python_info *py, const char *zfile)
   return (found);
 }
 
-/*
+/**
  * Allocate a 'python_path' node and add it to 'pi->sys_path[]' smartlist.
  */
 static void add_sys_path (struct python_info *pi, const char *dir)
@@ -1028,7 +1029,7 @@ static void add_sys_path (struct python_info *pi, const char *dir)
   smartlist_add (g_py->sys_path, pp);
 }
 
-/*
+/**
  * Build up the 'g_py->sys_path[]' array.
  * If 'index == -1' we are called from 'call_python_func()'.
  * Otherwise we are the 'popen_runf()' callback.
@@ -1037,13 +1038,13 @@ static int build_sys_path (char *str, int index)
 {
   if (index == -1)
   {
-    char *l = strtok (str, "\n");
+    char *tok = strtok (str, "\n");
 
-    for (index = 0; l; index++)
+    for (index = 0; tok; index++)
     {
-      DEBUGF (2, "index: %d: \"%s\"\n", index, l);
-      add_sys_path (g_py, l);
-      l = strtok (NULL, "\n");
+      DEBUGF (2, "index: %d: \"%s\"\n", index, tok);
+      add_sys_path (g_py, tok);
+      tok = strtok (NULL, "\n");
     }
   }
   else
@@ -1054,12 +1055,12 @@ static int build_sys_path (char *str, int index)
   return (1);
 }
 
-/*
+/**
  * Run python with this on the cmd-line to get the version tripplet.
  */
 #define PY_GET_VERSION  "import sys; print (sys.version_info)"
 
-/*
+/**
  * Run python, figure out the 'sys.path[]' array and search along that
  * for matches. If a 'sys.path[]' component contains a ZIP/EGG-file, use
  * 'process_zip()' to list files inside it for a match.
@@ -1083,7 +1084,7 @@ static int build_sys_path (char *str, int index)
 #define PY_PRINT_SYS_PATH3  "import sys; " \
                             "[print(p) for (i,p) in enumerate(sys.path)]"
 
-/*
+/**
  * \todo:
  *   CygWin's Python doesn't like the ";" and "\" in %PYTHONPATH.
  *   Try to detect Cygwin and please it before calling 'popen_runf()'.
@@ -1098,7 +1099,7 @@ static int get_sys_path (struct python_info *pi)
                      PY_PRINT_SYS_PATH3 : PY_PRINT_SYS_PATH2);
 }
 
-/*
+/**
  * \todo:
  *   If multiple DLLs with same name but different time-stamps are found
  *   (in 'pi->dir' and 'sys_dir'), report a warning.
@@ -1204,6 +1205,7 @@ int py_search (void)
     str = call_python_func (g_py, PY_PRINT_SYS_PATH);
     if (!str)
        return (0);
+
     build_sys_path (str, -1);
     FREE (str);
   }
@@ -1230,7 +1232,7 @@ int py_search (void)
   return (found);
 }
 
-/*
+/**
  * Allocate a new 'python_info' node, fill it and return it
  * for adding to 'py_programs' smartlist.
  */
@@ -1270,7 +1272,7 @@ static struct python_info *add_python (const char *exe, struct python_info *py)
   return (py2);
 }
 
-/*
+/**
  * For each 'dir' in PATH, try to match a Python from the ones in
  * 'all_py_programs[]'.
  * Figure out it's version and .DLL-name (if embeddable).
@@ -1333,7 +1335,7 @@ static int match_python_exe (const char *dir)
   return (rc);
 }
 
-/*
+/**
  * Search all directories on PATH for matches to 'all_py_programs::program'.
  */
 static void enum_pythons_on_path (void)
@@ -1349,7 +1351,7 @@ static void enum_pythons_on_path (void)
   FREE (path);
 }
 
-/*
+/**
  * Loop over 'all_py_programs[]' and do some tests on a Python matching 'py_which'.
  * This can be the 'default', one specific Python or 'all'.
  * This must be called after 'py_init()' has been called.
@@ -1407,7 +1409,7 @@ int py_test (void)
   return (found);
 }
 
-/*
+/**
  * 'popen_runf()' callback to get the Python version.
  */
 static int report_py_version_cb (char *output, int line)
@@ -1426,8 +1428,9 @@ static int report_py_version_cb (char *output, int line)
   return  (num >= 2);
 }
 
-/*
- * Get the Python version.
+/**
+ * Get the Python version by spawning the program and
+ * parsing the 'popen()' output.
  */
 static int get_python_version (const char *exe_name)
 {
@@ -1435,7 +1438,7 @@ static int get_python_version (const char *exe_name)
   return (popen_runf (report_py_version_cb, "%s -c \"%s\"", exe_name, PY_GET_VERSION) >= 1);
 }
 
-/*
+/**
  * Called from 'show_version()':
  *   Print information for all found Pythons.
  *   Print the 'sys_path[]' if 'envtool -VVV' was issued.
@@ -1497,7 +1500,7 @@ void py_searchpaths (void)
   else C_puts (" <None>.\n");
 }
 
-/*
+/**
  * Add the REG_SZ data in a 'HKLM\Software\Python\PythonCore\xx\InstallPath' key
  * to the 'py_programs' smartlist.
  */
@@ -1561,7 +1564,7 @@ static void get_install_path (const char *key_name, const struct python_info *pi
      RegCloseKey (key);
 }
 
-/*
+/**
  * Recursively walks the Registry branch under "HKLM\Software\Python\PythonCore".
  * Look for "InstallPath" keys and gather the REG_SZ "InstallPath" values.
  */
@@ -1610,7 +1613,7 @@ static void enum_python_in_registry (const char *key_name)
      RegCloseKey (key);
 }
 
-/*
+/**
  * Main initialiser function for this module;
  *  Find the details of all supported Pythons in 'all_py_programs[]'.
  *  Walk the PATH and Registry (not yet) to find this information.
@@ -1633,7 +1636,7 @@ void py_init (void)
 
   enum_pythons_on_path();
 
-#if 0  /* \todo */
+#if 0  /** \todo */
   enum_python_in_registry ("Software\\Python\\PythonCore");
 #endif
 
