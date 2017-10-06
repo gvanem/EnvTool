@@ -144,7 +144,7 @@ static regex_t    re_hnd;         /* regex handle/state */
 static regmatch_t re_matches[3];  /* regex sub-expressions */
 static int        re_err;         /* last regex error-code */
 static char       re_errbuf[300]; /* regex error-buffer */
-static int        re_alloc;
+static int        re_alloc;       /* the above 're_hnd' was allocated */
 
 volatile int halt_flag;
 
@@ -1734,7 +1734,7 @@ static BOOL dir_is_empty (const char *env_var, const char *dir)
   }
   while (num_entries == 0 && FindNextFile(handle, &ff_data));
 
-  DEBUGF (2, "%s(): at least %d entries.\n", __FUNCTION__, num_entries);
+  DEBUGF (2, "%s(): at least %d entries in '%s'.\n", __FUNCTION__, num_entries, dir);
   FindClose (handle);
   return (num_entries == 0);
 }
@@ -1747,7 +1747,7 @@ static BOOL regex_match (const char *str)
 {
   memset (&re_matches, '\0', sizeof(re_matches));
   re_err = regexec (&re_hnd, str, DIM(re_matches), re_matches, 0);
-  DEBUGF (2, "regex() pattern '%s' against '%s'. re_err: %d\n", opt.file_spec_re, str, re_err);
+  DEBUGF (3, "regex() pattern '%s' against '%s'. re_err: %d\n", opt.file_spec_re, str, re_err);
 
   if (re_err == REG_NOMATCH)
      return (FALSE);
@@ -3297,7 +3297,7 @@ static void cleanup (void)
   FREE (vcache_fname);
 
   if (re_alloc)
-    regfree (&re_hnd);
+     regfree (&re_hnd);
 
   smartlist_free (dir_array);
   smartlist_free (reg_array);
@@ -3429,13 +3429,6 @@ int main (int argc, char **argv)
   signal (SIGINT, halt);
   signal (SIGILL, halt);
 
-  /* These modes (all except '--evry') need an external PCRE library.
-   * EveryThing has regexp as a built-in.
-   */
-  re_alloc = opt.use_regex &&
-             (opt.do_path || opt.do_include || opt.do_lib || opt.do_cmake ||
-              opt.do_python || opt.do_pkg);
-
   if (opt.help)
      return show_help();
 
@@ -3486,6 +3479,7 @@ int main (int argc, char **argv)
   else
   {
     re_err = regcomp (&re_hnd, opt.file_spec_re, opt.case_sensitive ? 0 : REG_ICASE);
+    re_alloc = TRUE;
     if (re_err)
     {
       regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
