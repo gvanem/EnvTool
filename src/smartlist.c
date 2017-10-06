@@ -223,6 +223,7 @@ void smartlist_del_keeporder (smartlist_t *sl, int idx)
  */
 void smartlist_clear (smartlist_t *sl)
 {
+  ASSERT (sl);
   memset (sl->list, 0, sizeof(void*) * sl->num_used);
   sl->num_used = 0;
 }
@@ -234,7 +235,8 @@ void smartlist_wipe (smartlist_t *sl, void (*free_fn)(void *a))
 {
   int i;
 
-  for (i = 1; i < sl->num_used; i++)
+  ASSERT (sl);
+  for (i = 0; i < sl->num_used; i++)
      (*free_fn) (sl->list[i]);
   smartlist_clear (sl);
 }
