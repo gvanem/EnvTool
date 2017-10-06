@@ -243,11 +243,28 @@ void smartlist_wipe (smartlist_t *sl, void (*free_fn)(void *a))
 
 /**
  * Given a sorted smartlist 'sl' and the comparison function used to
+ * sort it, check for duplicate members.
+ */
+int smartlist_is_uniq (smartlist_t *sl, smartlist_sort_func compare)
+{
+  int i, dups = 0;
+
+  for (i = 1; i < sl->num_used; i++)
+  {
+    if ((*compare)((const void**)&sl->list[i-1],
+                   (const void**)&sl->list[i]) == 0)
+     dups++;
+  }
+  return (dups);
+}
+
+/**
+ * Given a sorted smartlist 'sl' and the comparison function used to
  * sort it, remove all duplicate members. If 'free_fn' is provided, calls
  * 'free_fn' on each duplicate. Otherwise, just removes them.
  * Preserves order.
  */
-void smartlist_uniq (smartlist_t *sl, smartlist_sort_func compare, void (*free_fn)(void *a))
+void smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, void (*free_fn)(void *a))
 {
   int i;
 

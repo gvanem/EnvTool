@@ -25,7 +25,8 @@ void  smartlist_append (smartlist_t *sl1, const smartlist_t *sl2);
 void  smartlist_clear (smartlist_t *sl);
 void  smartlist_wipe (smartlist_t *sl, void (*free_fn)(void *a));
 
-void  smartlist_uniq (smartlist_t *sl, smartlist_sort_func compare, void (*free_fn)(void *a));
+int   smartlist_is_uniq (smartlist_t *sl, smartlist_sort_func compare);
+void  smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, void (*free_fn)(void *a));
 
 void  smartlist_sort (smartlist_t *sl, smartlist_sort_func compare);
 

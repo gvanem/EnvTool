@@ -663,23 +663,28 @@ static int dump_dir_array (const char *where, const char *note)
   {
     const struct directory_array *dir = smartlist_get (dir_array, i);
 
-    DEBUGF (3, "  dir_array[%d]: exist:%d, num_dup:%d, %s  %s\n",
+    DEBUGF (2, "  dir_array[%d]: exist:%d, num_dup:%d, %s  %s\n",
             (int)i, dir->exist, dir->num_dup, dir->dir, dir->cyg_dir ? dir->cyg_dir : "");
   }
   return (max);
 }
 
-/*
- * 'smartlist_uniq()' helper.
+/**
+ * 'smartlist_make_uniq()' helper.
+ * No need to use 'stricmp()' or 'strequal()' since we already checked for
+ * duplicates when items where added. Use that 'num_dup' count.
  */
 static int dir_array_compare (const void **_a, const void **_b)
 {
-  const struct directory_array *a = *_a;
-  const struct directory_array *b = *_b;
+  struct directory_array *a = *(struct directory_array **) _a;
+  struct directory_array *b = *(struct directory_array **) _b;
 
-  if (a->num_dup > 0 || b->num_dup > 0)
-     return (0);
-  return stricmp (a->dir, b->dir);
+  if (b->num_dup > 0)  /* this will get removed */
+  {
+    a->num_dup = 0;
+    return (0);
+  }
+  return (1);
 }
 
 /**
@@ -697,7 +702,7 @@ static void reg_array_free (void *_r)
 }
 
 /**
- * 'smartlist_wipe()' and 'smartlist_uniq()' helper.
+ * 'smartlist_wipe()' and 'smartlist_make_uniq()' helper.
  * Free an item in the 'reg_array' smartlist.
  */
 static void dir_array_free (void *_d)
@@ -721,7 +726,7 @@ static int make_unique_dir_array (const char *where)
   int old_len, new_len;
 
   old_len = dump_dir_array (where, ", non-unique");
-  smartlist_uniq (dir_array, dir_array_compare, dir_array_free);
+  smartlist_make_uniq (dir_array, dir_array_compare, dir_array_free);
   new_len = dump_dir_array (where, ", unique");
   return (old_len - new_len);    /* This should always be 0 or positive */
 }
@@ -808,13 +813,11 @@ static void sort_reg_array (void)
 static void free_reg_array (void)
 {
   smartlist_wipe (reg_array, reg_array_free);
-  ASSERT (smartlist_len(reg_array) == 0);
 }
 
 static void free_dir_array (void)
 {
   smartlist_wipe (dir_array, dir_array_free);
-  ASSERT (smartlist_len(dir_array) == 0);
 }
 
 /*
