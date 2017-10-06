@@ -153,7 +153,7 @@ static void init_syntax_once (void)
 /* (Re)allocate N items of type T using realloc(), or fail.
  */
 #define RETALLOC(addr, n, t)  ((addr) = REALLOC (addr, (n) * sizeof(t)))
-#define REGEX_TALLOC(n, t)    REGEX_ALLOCATE((n) * sizeof(t))
+#define REGEX_TALLOC(n, t)    REGEX_ALLOCATE ((n) * sizeof(t))
 
 #define BYTEWIDTH     8       /* In bits. */
 
@@ -742,7 +742,7 @@ static reg_errcode_t compile_range (const char **p_ptr, const char *pend,
 
 /* Go backwards one character in the pattern.
  */
-#define PATUNFETCH p--
+#define PATUNFETCH() p--
 
 /* If `translate' is non-null, return translate[D], else just D.  We
  * cast the subscript to translate because some data is declared as
@@ -1176,20 +1176,20 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
                else if (syntax & RE_BK_PLUS_QM && c == '\\')
                {
                  if (p == pend)
-                   FREE_STACK_RETURN (REG_EESCAPE);
+                    FREE_STACK_RETURN (REG_EESCAPE);
 
                  PATFETCH (c1);
                  if (!(c1 == '+' || c1 == '?'))
                  {
-                   PATUNFETCH;
-                   PATUNFETCH;
+                   PATUNFETCH();
+                   PATUNFETCH();
                    break;
                  }
                  c = c1;
                }
                else
                {
-                 PATUNFETCH;
+                 PATUNFETCH();
                  break;
                }
 
@@ -1467,7 +1467,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
                  {
                    c1++;
                    while (c1--)
-                     PATUNFETCH;
+                     PATUNFETCH();
                    SET_LIST_BIT ('[');
                    SET_LIST_BIT (':');
                    had_char_class = false;
@@ -4248,7 +4248,7 @@ int regcomp (regex_t *preg, const char *pattern, int cflags)
   else
     preg->newline_anchor = 0;
 
-  preg->no_sub = ! !(cflags & REG_NOSUB);
+  preg->no_sub = !!(cflags & REG_NOSUB);
 
   /* POSIX says a null character in the pattern terminates it, so we
    * can use strlen here in compiling the pattern.
@@ -4347,7 +4347,7 @@ size_t regerror (int errcode, const regex_t *preg, char *errbuf, size_t errbuf_s
   const char *msg;
   size_t msg_size;
 
-  if (errcode < 0 || errcode >= (int)(sizeof(re_error_msgid) / sizeof(re_error_msgid[0])))
+  if (errcode < 0 || errcode >= DIM(re_error_msgid))
   {
     /* Only error codes returned by the rest of the code should be passed
      * to this routine.  If we are given anything else, or if other regex
@@ -4357,8 +4357,7 @@ size_t regerror (int errcode, const regex_t *preg, char *errbuf, size_t errbuf_s
     abort();
   }
 
-  msg = (re_error_msgid[errcode]);
-
+  msg = re_error_msgid [errcode];
   msg_size = strlen (msg) + 1;  /* Includes the null. */
 
   if (errbuf_size != 0)
