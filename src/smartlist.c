@@ -219,6 +219,27 @@ void smartlist_del_keeporder (smartlist_t *sl, int idx)
 }
 
 /**
+ * Remove all elements from the list.
+ */
+void smartlist_clear (smartlist_t *sl)
+{
+  memset (sl->list, 0, sizeof(void*) * sl->num_used);
+  sl->num_used = 0;
+}
+
+/**
+ * As above, but call a 'free_fn' for all items first.
+ */
+void smartlist_wipe (smartlist_t *sl, void (*free_fn)(void *a))
+{
+  int i;
+
+  for (i = 1; i < sl->num_used; i++)
+     (*free_fn) (sl->list[i]);
+  smartlist_clear (sl);
+}
+
+/**
  * Given a sorted smartlist 'sl' and the comparison function used to
  * sort it, remove all duplicate members. If 'free_fn' is provided, calls
  * 'free_fn' on each duplicate. Otherwise, just removes them.
