@@ -387,18 +387,6 @@ static void fix_python_variant (struct python_info *py, enum python_variants v)
     py->variant = v;
 }
 
-static void free_sys_path (const struct python_info *pi)
-{
-  int i, max = smartlist_len (pi->sys_path);
-
-  for (i = 0; i < max; i++)
-  {
-    struct python_path *pp = smartlist_get (pi->sys_path, i);
-
-    FREE (pp);
-  }
-}
-
 static void print_sys_path (const struct python_info *pi, int indent)
 {
   int i, max = smartlist_len (pi->sys_path);
@@ -519,7 +507,7 @@ static void set_python_home (struct python_info *py)
 #endif
 }
 
-/*
+/**
  * Free the Python DLL handle allocated by 'py_init_embedding()'.
  */
 static void py_exit_embedding (struct python_info *py)
@@ -533,36 +521,50 @@ static void py_exit_embedding (struct python_info *py)
   py->dll_hnd = INVALID_HANDLE_VALUE;
 }
 
+/**
+ * 'smartlist_wipe() helper;
+ * Free the 'sys.path[]' for a 'py_program[]'.
+ */
+static void free_sys_path (void *e)
+{
+  struct python_path *pp = (struct python_path*) e;
+
+  FREE (pp);
+}
+
+/**
+ * 'smartlist_wipe() helper;
+ * Free one 'py_program[]'.
+ */
+static void free_py_program (void *e)
+{
+  struct python_info *py = (struct python_info*) e;
+
+  FREE (py->prog_a);
+  FREE (py->prog_w);
+  FREE (py->home_a);
+  FREE (py->home_w);
+  FREE (py->dll_name);
+  FREE (py->exe_name);
+  if (py->is_embeddable)
+     py_exit_embedding (py);
+
+  if (py->sys_path)
+  {
+    smartlist_wipe (py->sys_path, free_sys_path);
+    smartlist_free (py->sys_path);
+  }
+  FREE (py);
+}
+
 /*
  * Free memory allocated during 'py_init()'.
  */
 void py_exit (void)
 {
-  struct python_info *py;
-  int    i, len;
-
   if (py_programs)
   {
-    len = smartlist_len (py_programs);
-    for (i = 0; i < len; i++)
-    {
-      py = smartlist_get (py_programs, i);
-      FREE (py->prog_a);
-      FREE (py->prog_w);
-      FREE (py->home_a);
-      FREE (py->home_w);
-      FREE (py->dll_name);
-      FREE (py->exe_name);
-      if (py->is_embeddable)
-         py_exit_embedding (py);
-
-      if (py->sys_path)
-      {
-        free_sys_path (py);
-        smartlist_free (py->sys_path);
-      }
-      FREE (py);
-    }
+    smartlist_wipe (py_programs, free_py_program);
     smartlist_free (py_programs);
   }
 
