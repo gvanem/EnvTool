@@ -35,13 +35,6 @@
 #include "regex.h"
 #include "envtool.h"
 
-#ifndef _CRTDBG_MAP_ALLOC
-  #define malloc  MALLOC
-  #define calloc  CALLOC
-  #define realloc REALLOC
-  #define free    FREE
-#endif
-
 // #define REGEX_MALLOC 1
 
 /* The following two types have to be signed and unsigned integer type
@@ -122,9 +115,9 @@ static void init_syntax_once (void)
  * function it is called in.
  */
 #ifdef REGEX_MALLOC
-  #define REGEX_ALLOCATE    malloc
-  #define REGEX_FREE        free
-  #define REGEX_REALLOCATE(source, osize, nsize)  realloc(source, nsize)
+  #define REGEX_ALLOCATE    MALLOC
+  #define REGEX_FREE        FREE
+  #define REGEX_REALLOCATE(source, osize, nsize)  REALLOC(source, nsize)
 #else
   #define REGEX_ALLOCATE    alloca
 
@@ -140,9 +133,9 @@ static void init_syntax_once (void)
 /* Define how to allocate the failure stack.
  */
 #ifdef REGEX_MALLOC
-  #define REGEX_ALLOCATE_STACK  malloc
-  #define REGEX_FREE_STACK      free
-  #define REGEX_REALLOCATE_STACK(source, osize, nsize) realloc (source, nsize)
+  #define REGEX_ALLOCATE_STACK  MALLOC
+  #define REGEX_FREE_STACK      FREE
+  #define REGEX_REALLOCATE_STACK(source, osize, nsize) REALLOC (source, nsize)
 #else
   #define REGEX_ALLOCATE_STACK  alloca
   #define REGEX_REALLOCATE_STACK(source, osize, nsize) \
@@ -159,7 +152,7 @@ static void init_syntax_once (void)
 
 /* (Re)allocate N items of type T using realloc(), or fail.
  */
-#define RETALLOC(addr, n, t)  ((addr) = realloc (addr, (n) * sizeof(t)))
+#define RETALLOC(addr, n, t)  ((addr) = REALLOC (addr, (n) * sizeof(t)))
 #define REGEX_TALLOC(n, t)    REGEX_ALLOCATE((n) * sizeof(t))
 
 #define BYTEWIDTH     8       /* In bits. */
@@ -838,7 +831,7 @@ static reg_errcode_t compile_range (const char **p_ptr, const char *pend,
           bufp->allocated <<= 1;                                              \
           if (bufp->allocated > MAX_BUF_SIZE)                                 \
              bufp->allocated = MAX_BUF_SIZE;                                  \
-          bufp->buffer = realloc (bufp->buffer, bufp->allocated);             \
+          bufp->buffer = REALLOC (bufp->buffer, bufp->allocated);             \
           if (bufp->buffer == NULL)                                           \
              return (REG_ESPACE);                                             \
                                                                               \
@@ -1067,7 +1060,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
 
   /* Initialize the compile stack.
    */
-  compile_stack.stack = malloc (INIT_COMPILE_STACK_SIZE);
+  compile_stack.stack = MALLOC (INIT_COMPILE_STACK_SIZE);
   if (!compile_stack.stack)
      return (REG_ESPACE);
 
@@ -1096,7 +1089,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
 
   if (bufp->allocated == 0)
   {
-    bufp->buffer = realloc (bufp->buffer, INIT_BUF_SIZE);
+    bufp->buffer = REALLOC (bufp->buffer, INIT_BUF_SIZE);
     if (!bufp->buffer)
        FREE_STACK_RETURN (REG_ESPACE);
     bufp->allocated = INIT_BUF_SIZE;
@@ -2009,7 +2002,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
   if (syntax & RE_NO_POSIX_BACKTRACKING)
     BUF_PUSH (succeed);
 
-  free (compile_stack.stack);
+  FREE (compile_stack.stack);
 
   /* We have succeeded; set the length of the buffer.
    */
@@ -2031,7 +2024,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
     if (fail_stack.size < (2 * re_max_failures * MAX_FAILURE_ITEMS))
     {
       fail_stack.size  = (2 * re_max_failures * MAX_FAILURE_ITEMS);
-      fail_stack.stack = realloc (fail_stack.stack, (fail_stack.size * sizeof(fail_stack_elt_t)));
+      fail_stack.stack = REALLOC (fail_stack.stack, (fail_stack.size * sizeof(fail_stack_elt_t)));
     }
 
     regex_grow_registers (num_regs);
@@ -3051,8 +3044,8 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
            * GNU code uses.
            */
           regs->num_regs = MAX (RE_NREGS, num_regs + 1);
-          regs->start    = malloc (regs->num_regs);
-          regs->end      = malloc (regs->num_regs);
+          regs->start    = MALLOC (regs->num_regs);
+          regs->end      = MALLOC (regs->num_regs);
           if (!regs->start || !regs->end)
           {
             FREE_VARIABLES();
@@ -4229,7 +4222,7 @@ int regcomp (regex_t *preg, const char *pattern, int cflags)
   {
     unsigned i;
 
-    preg->translate = malloc (CHAR_SET_SIZE * sizeof(*(RE_TRANSLATE_TYPE) 0));
+    preg->translate = MALLOC (CHAR_SET_SIZE * sizeof(*(RE_TRANSLATE_TYPE) 0));
     if (preg->translate == NULL)
        return (int) REG_ESPACE;
 
@@ -4307,8 +4300,8 @@ int regexec (const regex_t *preg, const char *string, size_t nmatch, regmatch_t 
   if (want_reg_info)
   {
     regs.num_regs = nmatch;
-    regs.start    = calloc (1, nmatch * sizeof(regoff_t));
-    regs.end      = calloc (1, nmatch * sizeof(regoff_t));
+    regs.start    = CALLOC (1, nmatch * sizeof(regoff_t));
+    regs.end      = CALLOC (1, nmatch * sizeof(regoff_t));
     if (regs.start == NULL || regs.end == NULL)
        return (int) REG_NOMATCH;
   }
@@ -4336,8 +4329,8 @@ int regexec (const regex_t *preg, const char *string, size_t nmatch, regmatch_t 
 
     /* If we needed the temporary register info, free the space now.
      */
-    free (regs.start);
-    free (regs.end);
+    FREE (regs.start);
+    FREE (regs.end);
   }
 
   /* We want zero return to mean success, unlike `re_search'.
@@ -4385,17 +4378,11 @@ size_t regerror (int errcode, const regex_t *preg, char *errbuf, size_t errbuf_s
  */
 void regfree (regex_t *preg)
 {
-  if (preg->buffer)
-     free (preg->buffer);
-  if (preg->fastmap)
-     free (preg->fastmap);
-  if (preg->translate != NULL)
-     free (preg->translate);
+  FREE (preg->buffer);
+  FREE (preg->fastmap);
+  FREE (preg->translate);
 
-  preg->buffer = NULL;
   preg->allocated = 0;
   preg->used = 0;
-  preg->fastmap = NULL;
   preg->fastmap_accurate = 0;
-  preg->translate = NULL;
 }
