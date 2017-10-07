@@ -31,7 +31,6 @@
 
 #include "color.h"
 #include "envtool.h"
-#include "smartlist.h"
 #include "auth.h"
 #include "Everything_ETP.h"
 
