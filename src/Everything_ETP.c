@@ -58,6 +58,7 @@
 #endif
 
 DWORD ETP_total_rcv;
+DWORD ETP_num_evry_dups;
 
 /* Forward definition.
  */
@@ -285,10 +286,23 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
      ctx->results_ignore++;
   else
   {
-    char fullname [_MAX_PATH];
+    static char prev_name [_MAX_PATH];
+    char   full_name [_MAX_PATH];
+    BOOL   equal = FALSE;
+    int    idx = (int) (ctx->results_got - ctx->results_ignore);
 
-    snprintf (fullname, sizeof(fullname), "%s%c%s", ctx->path, DIR_SEP, name);
-    report_file (fullname, ctx->mtime, ctx->fsize, is_dir, FALSE, HKEY_EVERYTHING_ETP);
+    snprintf (full_name, sizeof(full_name), "%s%c%s", ctx->path, DIR_SEP, name);
+
+    if (!opt.dir_mode && prev_name[0] && !strcmp(prev_name, full_name))
+    {
+      ETP_num_evry_dups++;
+      equal = TRUE;
+      DEBUGF (2, "dup (i:%2lu): file: %s\n"
+                 "\t\t\t     prev: %s\n", idx, full_name, prev_name);
+    }
+    _strlcpy (prev_name, full_name, sizeof(prev_name));
+    if (!equal)
+       report_file (full_name, ctx->mtime, ctx->fsize, is_dir, FALSE, HKEY_EVERYTHING_ETP);
   }
   ctx->mtime = 0;
   ctx->fsize = 0;
