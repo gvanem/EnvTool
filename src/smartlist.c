@@ -243,9 +243,9 @@ void smartlist_wipe (smartlist_t *sl, void (*free_fn)(void *a))
 
 /**
  * Given a sorted smartlist 'sl' and the comparison function used to
- * sort it, check for duplicate members.
+ * sort it, return number of duplicate members.
  */
-int smartlist_is_uniq (smartlist_t *sl, smartlist_sort_func compare)
+int smartlist_duplicates (smartlist_t *sl, smartlist_sort_func compare)
 {
   int i, dups = 0;
 
