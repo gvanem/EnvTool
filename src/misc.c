@@ -617,6 +617,27 @@ char *str_trim (char *s)
 }
 
 /*
+ * Comparisions of file-names:
+ * Use 'strnicmp()' or 'strncmp()' depending on 'opt.case_sensitive'.
+ */
+int str_equal_n (const char *s1, const char *s2, size_t len)
+{
+  if (opt.case_sensitive)
+     return strncmp (s1, s2, len);
+  return strnicmp (s1, s2, len);
+}
+
+/*
+ * Ditto for 'strcmp()' and 'stricmp()'.
+ */
+int str_equal (const char *s1, const char *s2)
+{
+  if (opt.case_sensitive)
+     return strcmp (s1, s2);
+  return stricmp (s1, s2);
+}
+
+/*
  * Return the left-trimmed place where paths 'p1' and 'p2' are similar.
  * Not case sensitive. Treats '/' and '\\' equally.
  */

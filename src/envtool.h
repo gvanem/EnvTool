@@ -344,6 +344,8 @@ extern char *strip_nl      (char *s);
 extern char *str_ltrim     (char *s);
 extern char *str_rtrim     (char *s);
 extern char *str_trim      (char *s);
+extern int   str_equal     (const char *s1, const char *s2);
+extern int   str_equal_n   (const char *s1, const char *s2, size_t len);
 extern char *searchpath    (const char *file, const char *env_var);
 extern int   searchpath_pos(void);
 extern char *getenv_expand (const char *variable);

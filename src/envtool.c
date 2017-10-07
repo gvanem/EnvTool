@@ -556,27 +556,6 @@ static int show_help (void)
 }
 
 /*
- * Comparisions of file-names:
- * Use 'strnicmp()' or 'strncmp()' depending on 'opt.case_sensitive'.
- */
-static int strequal_n (const char *s1, const char *s2, size_t len)
-{
-  if (opt.case_sensitive)
-     return strncmp (s1, s2, len);
-  return strnicmp (s1, s2, len);
-}
-
-/*
- * Ditto for 'strcmp()' and 'stricmp()'.
- */
-static int strequal (const char *s1, const char *s2)
-{
-  if (opt.case_sensitive)
-     return strcmp (s1, s2);
-  return stricmp (s1, s2);
-}
-
-/*
  * Add the 'dir' to the 'dir_array' smartlist.
  * 'is_cwd' == 1 if 'dir' == current working directory.
  *
@@ -611,7 +590,7 @@ void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
 
   /* Can we have >1 native dirs?
    */
-  d->is_native = (strequal(dir,sys_native_dir) == 0);
+  d->is_native = (str_equal(dir,sys_native_dir) == 0);
 
 #if (IS_WIN64)
   if (d->is_native && !d->exist)  /* No access to this directory from WIN64; ignore */
@@ -647,7 +626,7 @@ void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
   {
     const struct directory_array *d2 = smartlist_get (dir_array, i);
 
-    if (!strequal(dir,d2->dir))
+    if (!str_equal(dir,d2->dir))
        d->num_dup++;
   }
 }
@@ -671,7 +650,7 @@ static int dump_dir_array (const char *where, const char *note)
 
 /**
  * 'smartlist_make_uniq()' helper.
- * No need to use 'stricmp()' or 'strequal()' since we already checked for
+ * No need to use 'stricmp()' or 'str_equal()' since we already checked for
  * duplicates when items where added. Use that 'num_dup' count.
  */
 static int dir_array_compare (const void **_a, const void **_b)
@@ -785,7 +764,7 @@ static int reg_array_compare (const void **_a, const void **_b)
 
   snprintf (fqdn_a, sizeof(fqdn_a), "%s%c%s", slashify(a->path, slash), slash, a->real_fname);
   snprintf (fqdn_b, sizeof(fqdn_b), "%s%c%s", slashify(b->path, slash), slash, b->real_fname);
-  return strequal (fqdn_a, fqdn_b);
+  return str_equal (fqdn_a, fqdn_b);
 }
 
 static void print_reg_array (const char *intro)
@@ -924,7 +903,7 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
                tok, env_name);
       tok = current_dir;
     }
-    else if (opt.conv_cygdrive && strlen(tok) >= 12 && !strequal_n(tok,"/cygdrive/",10))
+    else if (opt.conv_cygdrive && strlen(tok) >= 12 && !str_equal_n(tok,"/cygdrive/",10))
     {
       char buf [_MAX_PATH];
 
@@ -933,7 +912,7 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
       tok = buf;
     }
 
-    add_to_dir_array (tok, !strequal(tok,current_dir), __LINE__);
+    add_to_dir_array (tok, !str_equal(tok,current_dir), __LINE__);
     tok = strtok (NULL, sep);
   }
 
@@ -1165,7 +1144,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
      * don't set 'found_everything_db_dirty=1' when we don't 'have_sys_native_dir'.
      */
     if (mtime == 0 &&
-        (!have_sys_native_dir || !strequal_n(file,sys_native_dir,strlen(sys_native_dir))))
+        (!have_sys_native_dir || !str_equal_n(file,sys_native_dir,strlen(sys_native_dir))))
        have_it = FALSE;
 #endif
     if (is_dir)
@@ -1880,7 +1859,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
        *      this as a match.
        */
       if (!is_dir && !opt.dir_mode && !opt.man_mode &&
-          !strequal_n(base,opt.file_spec,strlen(base)))
+          !str_equal_n(base,opt.file_spec,strlen(base)))
          match = FNM_MATCH;
     }
 
@@ -1959,7 +1938,7 @@ static void check_sys_dirs (void)
 static const char *get_sysnative_file (const char *file, time_t *mtime_p, UINT64 *fsize_p)
 {
 #if (IS_WIN64 == 0)
-  if (!strequal_n(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
+  if (!str_equal_n(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
   {
     static char shadow [_MAX_PATH];
     struct stat st;
@@ -2251,7 +2230,7 @@ static int do_check_manpath (void)
       continue;
     }
 #if 0
-    if (!strequal(arr->dir,current_dir))
+    if (!str_equal(arr->dir,current_dir))
     {
       DEBUGF (2, "Checking in current_dir '%s'\n", current_dir);
 
