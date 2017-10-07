@@ -246,7 +246,7 @@ int netrc_lookup (const char *host, const char **user, const char **passw)
      *user = li->user;
   if (passw)
      *passw = li->passw;
-  return (li != NULL);
+  return (1);
 }
 
 /*
