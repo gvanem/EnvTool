@@ -573,7 +573,7 @@ static int strequal (const char *s1, const char *s2)
 {
   if (opt.case_sensitive)
      return strcmp (s1, s2);
- return stricmp (s1, s2);
+  return stricmp (s1, s2);
 }
 
 /*
@@ -1305,6 +1305,9 @@ static void final_report (int found)
 
   if (num_evry_dups)
      snprintf (duplicates, sizeof(duplicates), " (%u duplicated)", num_evry_dups);
+  else
+  if (ETP_num_evry_dups)
+     snprintf (duplicates, sizeof(duplicates), " (%u duplicated)", ETP_num_evry_dups);
 
   C_printf ("%s match%s found for \"%s\"%s.",
             dword_str((DWORD)found), (found == 0 || found > 1) ? "es" : "", opt.file_spec, duplicates);
@@ -1608,7 +1611,6 @@ static int do_check_env2 (HKEY key, const char *env, const char *value)
   free_dir_array();
   return (found);
 }
-
 
 static int scan_system_env (void)
 {
@@ -1985,7 +1987,7 @@ static const char *get_sysnative_file (const char *file, time_t *mtime_p, UINT64
   return (file);
 }
 
-/*
+/**
  * \todo: If the result returns a file on a remote disk (X:) and the
  *        remote computer is down, EveryThing will return the
  *        the entry in it's database. But then the stat() below
@@ -2132,9 +2134,8 @@ static int do_check_evry (void)
 
   for (i = 0; i < num; i++)
   {
-    char file [_MAX_PATH];
-    char prev [_MAX_PATH];
-    BOOL equal = FALSE;
+    static char prev [_MAX_PATH];
+    char   file [_MAX_PATH];
 
     if (halt_flag > 0)
        break;
@@ -2148,19 +2149,11 @@ static int do_check_evry (void)
       break;
     }
 
-    if (i > 0 && !opt.dir_mode && !strcmp(prev, file))
-    {
-      num_evry_dups++;
-      equal = TRUE;
-      DEBUGF (2, "dup (i:%2lu): file: %s\n"
-                 "\t\t\t     prev: %s\n", i, file, prev);
-    }
-    _strlcpy (prev, file, sizeof(prev));
-    if (equal)
-       continue;
-
-    if (report_evry_file(file))
+    if (!opt.dir_mode && prev[0] && !strcmp(prev, file))
+       num_evry_dups++;
+    else if (report_evry_file(file))
        found++;
+    _strlcpy (prev, file, sizeof(prev));
   }
   return (found);
 }
@@ -3547,12 +3540,18 @@ int main (int argc, char **argv)
     found += py_search();
   }
 
+  /* Mode "--evry" specified.
+   */
   if (opt.do_evry)
   {
     int i, max = 0;
 
     if (opt.evry_host)
        max = smartlist_len (opt.evry_host);
+
+    /* Mode "--evry:host" specified at least once.
+     * Connect and query all hosts.
+     */
     for (i = 0; i < max; i++)
     {
       const char *host = smartlist_get (opt.evry_host, i);
