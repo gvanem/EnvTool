@@ -1,6 +1,7 @@
 #ifndef _COLOR_H
 #define _COLOR_H
 
+#include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
 
