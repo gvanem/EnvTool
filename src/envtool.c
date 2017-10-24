@@ -2439,8 +2439,9 @@ static int do_check_cmake (void)
  *
  * Same goes for the LIBRARY_PATH.
  */
-static BOOL looks_like_cygwin = FALSE;
-static BOOL found_search_line = FALSE;
+static BOOL  looks_like_cygwin = FALSE;
+static BOOL  found_search_line = FALSE;
+static char  cygwin_fqfn [_MAX_PATH];
 static char *cygwin_root = NULL;
 
 static void check_if_cygwin (const char *path)
@@ -2469,21 +2470,21 @@ static void check_if_cygwin (const char *path)
  */
 static void setup_cygwin_root (const char *gcc)
 {
-  static char gcc_fqfn [_MAX_PATH];
   char *p = searchpath (gcc, "PATH");
 
   looks_like_cygwin = FALSE;
   cygwin_root = NULL;
+  cygwin_fqfn[0] = '\0';
   if (p)
   {
     char *bin_dir;
 
-    _strlcpy (gcc_fqfn, slashify(p,'/'), sizeof(gcc_fqfn));
-    bin_dir = strstr (gcc_fqfn, "/bin");
+    _strlcpy (cygwin_fqfn, slashify(p,'/'), sizeof(cygwin_fqfn));
+    bin_dir = strstr (cygwin_fqfn, "/bin");
     if (bin_dir)
     {
-      cygwin_root = gcc_fqfn;
-      *bin_dir = '\0';
+      cygwin_root = STRDUP (cygwin_fqfn);
+      *strstr (cygwin_root, "/bin") = '\0';
     }
   }
 }
@@ -2632,7 +2633,7 @@ static int setup_gcc_includes (const char *gcc)
   found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
   if (found > 0)
        DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
-  else WARN ("Calling %s returned %d (line %u).\n", gcc, found, __LINE__);
+  else WARN ("Calling %s returned %d (line %u).\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, found, __LINE__);
   return (found);
 }
 
@@ -2664,7 +2665,7 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
   if (found <= 0)
   {
     if (warn)
-       WARN ("Calling %s returned %d (line %u).\n", gcc, found, __LINE__);
+       WARN ("Calling %s returned %d (line %u).\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, found, __LINE__);
     return (found);
   }
 
@@ -2875,6 +2876,7 @@ static void searchpath_compilers (const char **cc, size_t num, BOOL print_lib_pa
       print_gcc_internal_dirs ("LIBRARY_PATH", env);
       FREE (env);
     }
+    FREE (cygwin_root);
   }
 }
 
@@ -2926,12 +2928,15 @@ static int do_check_gcc_includes (void)
   build_gnu_prefixes();
 
   for (i = 0; i < num_gcc(); i++)
-      if (setup_gcc_includes(gcc[i]) > 0)
-      {
-        snprintf (report, sizeof(report), "Matches in %s %%C_INCLUDE_PATH%% path:\n", gcc[i]);
-        report_header = report;
-        found += process_gcc_dirs (gcc[i], &num_dirs);
-      }
+  {
+    if (setup_gcc_includes(gcc[i]) > 0)
+    {
+      snprintf (report, sizeof(report), "Matches in %s %%C_INCLUDE_PATH%% path:\n", gcc[i]);
+      report_header = report;
+      found += process_gcc_dirs (gcc[i], &num_dirs);
+    }
+    FREE (cygwin_root);
+  }
 
   if (num_dirs == 0)  /* Impossible? */
      WARN ("No gcc.exe programs returned any include paths.\n");
@@ -2949,12 +2954,15 @@ static int do_check_gpp_includes (void)
   build_gnu_prefixes();
 
   for (i = 0; i < num_gpp(); i++)
-      if (setup_gcc_includes(gpp[i]) > 0)
-      {
-        snprintf (report, sizeof(report), "Matches in %s %%CPLUS_INCLUDE_PATH%% path:\n", gpp[i]);
-        report_header = report;
-        found += process_gcc_dirs (gpp[i], &num_dirs);
-      }
+  {
+    if (setup_gcc_includes(gpp[i]) > 0)
+    {
+      snprintf (report, sizeof(report), "Matches in %s %%CPLUS_INCLUDE_PATH%% path:\n", gpp[i]);
+      report_header = report;
+      found += process_gcc_dirs (gpp[i], &num_dirs);
+    }
+    FREE (cygwin_root);
+  }
 
   if (num_dirs == 0)  /* Impossible? */
      WARN ("No g++.exe programs returned any include paths.\n");
@@ -2972,12 +2980,15 @@ static int do_check_gcc_library_paths (void)
   build_gnu_prefixes();
 
   for (i = 0; i < num_gcc(); i++)
-      if (setup_gcc_library_path(gcc[i],TRUE) > 0)
-      {
-        snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", gcc[i]);
-        report_header = report;
-        found += process_gcc_dirs (gcc[i], &num_dirs);
-      }
+  {
+    if (setup_gcc_library_path(gcc[i],TRUE) > 0)
+    {
+      snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", gcc[i]);
+      report_header = report;
+      found += process_gcc_dirs (gcc[i], &num_dirs);
+    }
+    FREE (cygwin_root);
+  }
 
   if (num_dirs == 0)  /* Impossible? */
      WARN ("No gcc.exe programs returned any LIBRARY_PATH paths!?.\n");
