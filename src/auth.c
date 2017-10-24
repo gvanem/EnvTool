@@ -39,10 +39,7 @@ static int common_init (const char *fname, smartlist_parse_func parser)
   FREE (file);
 
   if (!sl)
-  {
-    WARN ("Failed to open \"%s\". Authenticated logins will not work.\n", fname);
-    return (0);
-  }
+     return (0);
 
   if (first_time)
      login_list = sl;
