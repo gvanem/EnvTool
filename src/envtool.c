@@ -873,11 +873,11 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
       /*
        * Check for missing drive-letter ('x:') in component.
        */
-      if (!is_cwd && IS_SLASH(tok[0]))
+      if (!is_cwd && IS_SLASH(tok[0]) && str_equal_n(tok,"/cygdrive/",10))
          WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
 #endif
 
-      /* Warn on 'x:'
+      /* Warn on 'x:' (a missing trailing slash)
        */
       if (strlen(tok) <= 3 && isalpha((int)tok[0]) && tok[1] == ':' && !IS_SLASH(tok[2]))
          WARN ("%s: Component \"%s\" should be \"%s%c\".\n", env_name, tok, tok, DIR_SEP);
@@ -2441,9 +2441,52 @@ static int do_check_cmake (void)
  */
 static BOOL looks_like_cygwin = FALSE;
 static BOOL found_search_line = FALSE;
+static char *cygwin_root = NULL;
 
-static const char cyg_usr[] = "/usr/";
-static const char cyg_drv[] = "/cygdrive/";
+static void check_if_cygwin (const char *path)
+{
+  static const char cyg_usr[] = "/usr/";
+  static const char cyg_drv[] = "/cygdrive/";
+
+  if (looks_like_cygwin)
+     return;
+
+  if (!memcmp(path,&cyg_usr,sizeof(cyg_usr)-1) || !memcmp(path,&cyg_drv,sizeof(cyg_drv)-1))
+  {
+    looks_like_cygwin = TRUE;
+//  opt.conv_cygdrive = 1;
+    DEBUGF (2, "looks_like_cygwin = %d, cygwin_root: '%s'\n", looks_like_cygwin, cygwin_root);
+  }
+}
+
+/*
+ * In case the 'gcc' is a CygWin gcc, we need to figure out the root-directory.
+ * Since 'gcc' reports 'C_INCLUDE_PATH' like "/usr/lib/gcc/i686-w64-mingw32/6.4.0/include", we
+ * must prefix this as "<cygwin_root>/usr/lib/gcc/i686-w64-mingw32/6.4.0/include".
+ *
+ * Otherwise 'FILE_EXISTS()' wont work.
+ * An alternative would be to parse the "<cygwin_root>/etc/fstab" file.
+ */
+static void setup_cygwin_root (const char *gcc)
+{
+  static char gcc_fqfn [_MAX_PATH];
+  char *p = searchpath (gcc, "PATH");
+
+  looks_like_cygwin = FALSE;
+  cygwin_root = NULL;
+  if (p)
+  {
+    char *bin_dir;
+
+    _strlcpy (gcc_fqfn, slashify(p,'/'), sizeof(gcc_fqfn));
+    bin_dir = strstr (gcc_fqfn, "/bin");
+    if (bin_dir)
+    {
+      cygwin_root = gcc_fqfn;
+      *bin_dir = '\0';
+    }
+  }
+}
 
 static int find_include_path_cb (char *buf, int index)
 {
@@ -2460,8 +2503,7 @@ static int find_include_path_cb (char *buf, int index)
   if (found_search_line)
   {
     p = str_ltrim (buf);
-    if (!memcmp(p,&cyg_usr,sizeof(cyg_usr)-1) || !memcmp(p,&cyg_drv,sizeof(cyg_drv)-1))
-       looks_like_cygwin = TRUE;
+    check_if_cygwin (p);
 
     if (!memcmp(buf,&end,sizeof(end)-1)) /* got: "End of search list.". No more paths excepted. */
     {
@@ -2486,7 +2528,16 @@ static int find_include_path_cb (char *buf, int index)
 #endif
     {
       char buf2 [_MAX_PATH];
-      p = _fix_path (str_trim(buf), buf2);
+
+#if !defined(__CYGWIN__)
+      if (looks_like_cygwin && cygwin_root)
+      {
+        snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, str_trim(buf));
+        p = buf2;
+      }
+      else
+#endif
+        p = _fix_path (str_trim(buf), buf2);
     }
 
     add_to_dir_array (p, !stricmp(current_dir,p), __LINE__);
@@ -2510,8 +2561,7 @@ static int find_library_path_cb (char *buf, int index)
 
   p = buf + sizeof(prefix) - 1;
 
-  if (!memcmp(p,&cyg_usr,sizeof(cyg_usr)-1) || !memcmp(p,&cyg_drv,sizeof(cyg_drv)-1))
-     looks_like_cygwin = TRUE;
+  check_if_cygwin (p);
 
   sep[0] = looks_like_cygwin ? ':' : ';';
   sep[1] = '\0';
@@ -2531,10 +2581,23 @@ static int find_library_path_cb (char *buf, int index)
     else
 #endif
     {
-      rc = _fix_path (tok, buf2);
-      end = rc ? strrchr(rc,'\\') : NULL;
-      if (end)
-         *end = '\0';
+#if !defined(__CYGWIN__)
+      if (looks_like_cygwin && cygwin_root)
+      {
+        snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, tok);
+        rc = _fix_path (buf2, buf2);
+        end = rc ? strrchr(rc,'\\') : NULL;
+        if (end)
+           *end = '\0';
+      }
+      else
+#endif
+      {
+        rc = _fix_path (tok, buf2);
+        end = rc ? strrchr(rc,'\\') : NULL;
+        if (end)
+           *end = '\0';
+      }
     }
     add_to_dir_array (rc, FALSE, __LINE__);
     DEBUGF (3, "tok %d: '%s'\n", i, rc);
@@ -2563,7 +2626,8 @@ static int setup_gcc_includes (const char *gcc)
    * Also assume that the '*gcc' is on PATH.
    */
   found_search_line = FALSE;
-  looks_like_cygwin = FALSE;
+
+  setup_cygwin_root (gcc);
 
   found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
   if (found > 0)
@@ -2593,7 +2657,8 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
    * Also assume that the '*gcc' is on PATH.
    */
   found_search_line = FALSE;
-  looks_like_cygwin = FALSE;
+
+  setup_cygwin_root (gcc);
 
   found = popen_runf (find_library_path_cb, GCC_DUMP_FMT, gcc, m_cpu);
   if (found <= 0)
@@ -2632,18 +2697,19 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
  */
 static int process_gcc_dirs (const char *gcc, int *num_dirs)
 {
-  int i, found = 0, max = smartlist_len (dir_array);
+  int i, found = 0;
+  int max = smartlist_len (dir_array);
 
   for (i = 0; i < max; i++)
   {
     const struct directory_array *arr = smartlist_get (dir_array, i);
 
     DEBUGF (2, "dir: %s\n", arr->dir);
-    (*num_dirs)++;
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
                           arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE,
                           FALSE);
   }
+  *num_dirs = max;
   free_dir_array();
   return (found);
 }
