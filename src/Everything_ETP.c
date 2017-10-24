@@ -1089,7 +1089,7 @@ static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...)
  *
  * Note: Winsock ignores the first argument in 'select()'.
  *       All needed information is really in the 'fd_set's.
- *       But we use for Cygwin (which tries hard to be POSIX compatible).
+ *       But we use it for Cygwin (which tries hard to be POSIX compatible).
  */
 static int rbuf_read_sock (struct state_CTX *ctx)
 {
@@ -1125,7 +1125,7 @@ static int rbuf_read_char (struct state_CTX *ctx, char *store)
   if (ctx->recv.buffer_left == 0)
   {
    /* If nothing left in 'ctx->recv.buffer', refill the buffer
-    * using the qabove 'rbuf_read_sock()'.
+    * using the above 'rbuf_read_sock()'.
     */
     int num;
 
