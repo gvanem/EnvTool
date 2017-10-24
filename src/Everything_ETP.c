@@ -301,6 +301,39 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
 }
 
 /*
+ * Print a warning for a failed login or a non-existant.
+ * And optionally what action to take next.
+ */
+static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
+{
+  const char *next_action = "\n";
+  char       *file;
+
+  if (is_authinfo)
+  {
+    file = getenv_expand ("%APPDATA%\\.authinfo");
+    if (!FILE_EXISTS(file))
+         WARN ("%s: file not found.", file);
+    else WARN ("%s: user/password/port not found for host \"%s\".", file, ctx->hostname);
+
+    if (ctx->use_netrc)
+       next_action = " Will try %%APPDATA%%\\.netrc next.\n";
+  }
+  else
+  {
+    file = getenv_expand ("%APPDATA%\\.netrc");
+    if (!FILE_EXISTS(file))
+         WARN ("%s: file not found.", file);
+    else WARN ("%s: user/password not found for host \"%s\".", file, ctx->hostname);
+
+    if (ctx->use_authinfo)
+       next_action = " Will try %%APPDATA%%\\.authinfo next.\n";
+  }
+  WARN  (next_action);
+  FREE (file);
+}
+
+/*
  * PATH state: gooble up the results.
  * Expect 'results_expected' results set in 'RESULT_COUNT_state()'.
  * When "200 End" is received, enter 'state_closing'.
@@ -682,21 +715,32 @@ static BOOL state_netrc_lookup (struct state_CTX *ctx)
 {
   const char *user  = NULL;
   const char *passw = NULL;
+  BOOL  okay = (netrc_init() && netrc_lookup(ctx->hostname, &user, &passw));
 
-  if (netrc_init() && !netrc_lookup(ctx->hostname, &user, &passw))
-     WARN ("No user/password found for host \"%s\".\n", ctx->hostname);
-
-  if (user)
-     _strlcpy (ctx->username, user, sizeof(ctx->username));
-
-  if (passw)
-     _strlcpy (ctx->password, passw, sizeof(ctx->password));
+  if (!okay)
+     login_warning (ctx, FALSE);
+  else
+  {
+    if (user)
+       _strlcpy (ctx->username, user, sizeof(ctx->username));
+    if (passw)
+       _strlcpy (ctx->password, passw, sizeof(ctx->password));
+  }
 
   ETP_tracef (ctx, "Got USER: %s and PASS: %s in '%%APPDATA%%\\.netrc' for '%s'\n",
               user ? user : "<None>", passw ? passw : "<none>", ctx->hostname);
 
   netrc_exit();
-  ctx->state = state_resolve;
+
+  /* Do not attempt "~/.netrc" login ever again.
+   */
+  ctx->use_netrc = FALSE;
+
+  /* If "~/.netrc" login failed, maybe try "~/.authinfo" next?
+   */
+  if (!okay && ctx->use_authinfo)
+       ctx->state = state_authinfo_lookup;
+  else ctx->state = state_resolve;
   return (TRUE);
 }
 
@@ -709,24 +753,35 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
   const char *user  = NULL;
   const char *passw = NULL;
   int         port = 0;
+  BOOL        okay = (authinfo_init() && authinfo_lookup(ctx->hostname, &user, &passw, &port));
 
-  if (authinfo_init() && !authinfo_lookup(ctx->hostname, &user, &passw, &port))
-     WARN ("No user/password/port found for host \"%s\".\n", ctx->hostname);
-
-  if (user)
-     _strlcpy (ctx->username, user, sizeof(ctx->username));
-
-  if (passw)
-     _strlcpy (ctx->password, passw, sizeof(ctx->password));
-
-  if (port)
-     ctx->port = port;
+  if (!okay)
+     login_warning (ctx, TRUE);
+  else
+  {
+    if (user)
+       _strlcpy (ctx->username, user, sizeof(ctx->username));
+    if (passw)
+       _strlcpy (ctx->password, passw, sizeof(ctx->password));
+    if (port)
+       ctx->port = port;
+  }
 
   ETP_tracef (ctx, "Got USER: %s, PASS: %s and PORT: %u in '%%APPDATA%%\\.authinfo' for '%s'\n",
-              user ? user : "<None>", passw ? passw : "<none>", port, ctx->hostname);
+              user ? user : "<None>", passw ? passw : "<none>", ctx->port, ctx->hostname);
 
   authinfo_exit();
-  ctx->state = state_resolve;
+
+  /* Do not attempt "~/.authinfo" login ever again.
+   */
+  ctx->use_authinfo = FALSE;
+
+  /* If "~/.authinfo" login failed, maybe try "~/.netrc" next?
+   */
+  if (!okay && ctx->use_netrc)
+       ctx->state = state_netrc_lookup;
+  else ctx->state = state_resolve;
+
   return (TRUE);
 }
 
