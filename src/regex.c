@@ -164,7 +164,12 @@ static void init_syntax_once (void)
 #define MAX(a, b)     ((a) > (b) ? (a) : (b))
 #define MIN(a, b)     ((a) < (b) ? (a) : (b))
 
-typedef char boolean;
+#if !defined(boolean) && !defined(__CYGWIN__)
+ /*
+  * 'boolean' is a typedef in CygWin's "/usr/include/w32api/rpcndr.h"
+  */
+  typedef char boolean;
+#endif
 
 #define false 0
 #define true  1
