@@ -36,12 +36,12 @@ else
   LDFLAGS += -s
 endif
 
-ifeq ($(FORTIFY_SOURCE),1)
+ifneq ($(FORTIFY_SOURCE),0)
   ifneq ($(USE_DEBUG),1)
     $(error $$(FORTIFY_SOURCE) needs 'USE_DEBUG=1')
   endif
 
-  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) -fstack-protector-all -Wstack-protector
+  CFLAGS += -D_FORTIFY_SOURCE=$(FORTIFY_SOURCE) -fstack-protector-all # -Wstack-protector
 
   #
   # Use the static 'libssp.a'

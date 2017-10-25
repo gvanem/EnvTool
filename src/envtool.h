@@ -65,7 +65,7 @@
 
 #if !defined(RC_INVOKED)  /* rest of file */
 
-#if defined(__MINGW32__) && defined(_FORTIFY_SOURCE)
+#if (defined(__MINGW32__) || defined(_CYGWIN__)) && defined(_FORTIFY_SOURCE)
   /*
    * Enable GNU LibSSP; "Stack Smashing Protector".
    *   Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro

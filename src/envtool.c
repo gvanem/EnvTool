@@ -4269,7 +4269,7 @@ static void test_disk_ready (void)
 }
 
 /*
- * Code for MinGW only:
+ * Code for MinGW/Cygwin only:
  *
  * When run as:
  *   gdb -args envtool.exe -t
