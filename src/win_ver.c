@@ -246,12 +246,13 @@ const char *os_name (void)
 
 const char *os_bits (void)
 {
-#if (IS_WIN64 == 1)
-  return ("64");
-#else
   char dir [_MAX_PATH];
-  return (GetSystemWow64Directory(dir,sizeof(dir)) ? "64" : "32");
-#endif
+
+  if (sizeof(void*) == 8)
+     return ("64");
+  if (GetSystemWow64Directory(dir,sizeof(dir)))
+     return ("64");
+  return ("32");
 }
 
 #if defined(WIN_VER_TEST)
