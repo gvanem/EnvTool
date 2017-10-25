@@ -284,6 +284,7 @@ struct prog_options {
        int   gcc_no_prefixed;
        int   no_gcc;
        int   no_gpp;
+       int   no_watcom;
        int   do_tests;
        int   do_evry;
        int   do_version;

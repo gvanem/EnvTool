@@ -262,7 +262,7 @@ static void get_evry_bitness (HWND wnd)
    */
   e_tid = GetWindowThreadProcessId (wnd, &e_pid);
 
-  DEBUGF (2, "e_pid: %lu, e_tid: %lu.\n", e_pid, e_tid);
+  DEBUGF (2, "e_pid: %lu, e_tid: %lu.\n", (long unsigned int)e_pid, (long unsigned int)e_tid);
 
   hnd = OpenProcess (PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, e_pid);
   if (!hnd)
@@ -1286,7 +1286,8 @@ static void final_report (int found)
      snprintf (duplicates, sizeof(duplicates), " (%u duplicated)", num_evry_dups);
   else
   if (ETP_num_evry_dups)
-     snprintf (duplicates, sizeof(duplicates), " (%u duplicated)", ETP_num_evry_dups);
+     snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)",
+               (long unsigned int)ETP_num_evry_dups);
 
   C_printf ("%s match%s found for \"%s\"%s.",
             dword_str((DWORD)found), (found == 0 || found > 1) ? "es" : "", opt.file_spec, duplicates);
@@ -1706,10 +1707,10 @@ static BOOL dir_is_empty (const char *env_var, const char *dir)
   char            fqfn  [_MAX_PATH];  /* Fully qualified file-name */
   int             num_entries = 0;
 
-  snprintf (fqfn, sizeof(fqfn), "%s%c*", dir, DIR_SEP);
+  snprintf (fqfn, sizeof(fqfn), "%s\\*", dir);
   handle = FindFirstFile (fqfn, &ff_data);
   if (handle == INVALID_HANDLE_VALUE)
-     return (TRUE);
+     return (FALSE);    /* We really can't tell */
 
   do
   {
@@ -1914,7 +1915,7 @@ static void check_sys_dir (const char *dir, const char *name, BOOL *have_it)
 
   if (is_dir)
        DEBUGF (1, "%s: '%s' okay\n", name, dir);
-  else DEBUGF (1, "%s: '%s', GetLastError(): %lu\n", name, dir, GetLastError());
+  else DEBUGF (1, "%s: '%s', GetLastError(): %lu\n", name, dir, (long unsigned int)GetLastError());
 
   if (have_it)
      *have_it = is_dir;
@@ -2996,6 +2997,22 @@ static int do_check_gcc_library_paths (void)
   return (found);
 }
 
+/**
+ * \todo: Check Watcom's include-path(s)
+ */
+static int do_check_watcom_includes (void)
+{
+  return (0);
+}
+
+/**
+ * \todo: Check Watcom's library-path(s)
+ */
+static int do_check_watcom_library_paths (void)
+{
+  return (0);
+}
+
 /*
  * getopt_long() processing.
  */
@@ -3562,6 +3579,8 @@ int main (int argc, char **argv)
     found += do_check_env ("LIB", FALSE);
     if (!opt.no_gcc && !opt.no_gpp)
        found += do_check_gcc_library_paths();
+    if (!opt.no_watcom)
+       found += do_check_watcom_library_paths();
   }
 
   if (opt.do_include)
@@ -3574,6 +3593,9 @@ int main (int argc, char **argv)
 
     if (!opt.no_gpp)
        found += do_check_gpp_includes();
+
+    if (!opt.no_watcom)
+       found += do_check_watcom_includes();
   }
 
   if (opt.do_cmake)
@@ -3683,9 +3705,9 @@ void test_split_env (const char *env)
 
 void test_split_env_cygwin (const char *env)
 {
-  struct directory_array *arr;
-  char  *value, *cyg_value;
-  int    i, rc, needed, save = opt.conv_cygdrive;
+  smartlist_t *list;
+  char        *value, *cyg_value;
+  int          i, max, rc, needed, save = opt.conv_cygdrive;
 
   free_dir_array();
 
@@ -3702,10 +3724,13 @@ void test_split_env_cygwin (const char *env)
 
   path_separator = ':';
   opt.conv_cygdrive = 0;
-  arr0 = split_env_var (env, cyg_value);
+  list = split_env_var (env, cyg_value);
 
-  for (arr = arr0, i = 0; arr->dir; i++, arr++)
+  max = list ? smartlist_len (list) : 0;
+
+  for (i = 0; i < max; i++)
   {
+    const struct directory_array *arr = smartlist_get (list, i);
     char *dir = arr->dir;
 
     if (arr->exist && arr->is_dir)
@@ -3935,15 +3960,19 @@ static void test_slashify (void)
  */
 static void test_fix_path (void)
 {
+#if defined(__CYGWIN__)
+  extern char *canonicalize_file_name (const char *);
+#endif
+
   static const char *files[] = {
     "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include",                             /* exists here */
     "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include\\ssp\\ssp.h",                 /* exists here */
     "f:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",  /* exists here */
     "c:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",  /* doesn't exist here */
-    "/usr/lib/gcc/x86_64-pc-cygwin/4.9.2/../../../../include/w32api"                             /* CygWin output, exists here */
+    "/usr/lib/gcc/x86_64-pc-cygwin/6.4.0/../../../../include/w32api"                             /* CygWin64 output, exists here */
   };
   const char *f;
-  char *rc1;
+  char *rc1, *realname;
   int   i, rc2, rc3;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
@@ -3951,7 +3980,7 @@ static void test_fix_path (void)
   for (i = 0; i < DIM(files); i++)
   {
     struct stat st;
-    char   buf [_MAX_PATH];
+    char   buf [_MAX_PATH], *cyg_result = "";
     BOOL   is_dir;
 
     f = files [i];
@@ -3963,17 +3992,26 @@ static void test_fix_path (void)
     if (opt.show_unix_paths)
        rc1 = slashify (buf, '/');
 
+#if defined(__CYGWIN__)
+    realname = canonicalize_file_name (f);
+    if (realname)
+    {
+      cyg_result = ", ~2cyg-exists: 1~0";
+      rc1 = _strlcpy (buf, realname, sizeof(buf));
+      free (realname);
+    }
+    else
+      cyg_result = ", ~2cyg-exists: 0~0";
+#endif
+
     C_printf ("  _fix_path (\"%s\")\n     -> \"%s\" ", f, rc1);
     if (!rc2)
-         C_printf ("~5exists 0, is_dir %d~0", is_dir);
-    else C_printf ("exists 1, is_dir %d~0", is_dir);
-
-#if defined(__CYGWIN__)
-    C_printf (", ~2cyg-exists: %d~0", FILE_EXISTS(f));
-#endif
+         C_printf ("~5exists 0, is_dir %d~0%s", is_dir, cyg_result);
+    else C_printf ("exists 1, is_dir %d~0%s", is_dir, cyg_result);
 
     C_putc ('\n');
   }
+  ARGSUSED (realname);
   C_putc ('\n');
 }
 
@@ -4317,6 +4355,11 @@ static void test_ETP_host (void)
   }
 }
 
+#ifdef __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored  "-Wunused-function"
+#endif
+
 static void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
 {
   size_t i, j;
@@ -4335,6 +4378,10 @@ static void regex_print (const regex_t *re, const regmatch_t *rm, const char *st
        C_puts ("None\n");
   else C_puts ("~0\n");
 }
+
+#ifdef __GNUC__
+  #pragma GCC diagnostic warning  "-Wunused-function"
+#endif
 
 static int do_tests (void)
 {
