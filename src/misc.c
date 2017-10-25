@@ -1093,7 +1093,7 @@ void set_error_mode (int restore)
          rc = (*p_SetThreadErrorMode) (mode, NULL);
     else rc = (*p_SetThreadErrorMode) (mode, &old_mode);
     DEBUGF (2, "restore: %d, SetThreadErrorMode (0x%04lX), rc: %d.\n",
-            restore, (long unsigned int)mode, rc);
+            restore, (unsigned long)mode, rc);
   }
   else
   {
@@ -1154,7 +1154,7 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
   }
 
   DEBUGF (1, "GetDiskFreeSpace(): sect_per_cluster: %lu, bytes_per_sector: %lu, total_clusters: %lu, error: %s\n",
-          (long unsigned int)sect_per_cluster, (long unsigned int)bytes_per_sector, (long unsigned int)total_clusters,
+          (unsigned long)sect_per_cluster, (unsigned long)bytes_per_sector, (unsigned long)total_clusters,
           err);
 
   if (rc && size)
@@ -1621,7 +1621,7 @@ char *win_strerror (unsigned long err)
   }
 
   if (hr)
-       snprintf (buf, sizeof(buf), "0x%08lX: %s", (long unsigned int)hr, err_buf);
+       snprintf (buf, sizeof(buf), "0x%08lX: %s", (unsigned long)hr, err_buf);
   else snprintf (buf, sizeof(buf), "%lu: %s", err, err_buf);
   strip_nl (buf);
   p = strrchr (buf, '.');
@@ -2583,9 +2583,9 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   }
   else
   {
-    DEBUGF (2, "ReparseTag: 0x%08lX??\n", (long unsigned int)rdata->ReparseTag);
+    DEBUGF (2, "ReparseTag: 0x%08lX??\n", (unsigned long)rdata->ReparseTag);
     return reparse_err (1, "Not a Mount-Point nor a Symbolic-Link; ReparseTag: 0x%08lX??\n",
-                        (long unsigned int)rdata->ReparseTag);
+                        (unsigned long)rdata->ReparseTag);
   }
 
   DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);

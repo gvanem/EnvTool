@@ -262,7 +262,7 @@ static void get_evry_bitness (HWND wnd)
    */
   e_tid = GetWindowThreadProcessId (wnd, &e_pid);
 
-  DEBUGF (2, "e_pid: %lu, e_tid: %lu.\n", (long unsigned int)e_pid, (long unsigned int)e_tid);
+  DEBUGF (2, "e_pid: %lu, e_tid: %lu.\n", (unsigned long)e_pid, (unsigned long)e_tid);
 
   hnd = OpenProcess (PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, e_pid);
   if (!hnd)
@@ -1287,7 +1287,7 @@ static void final_report (int found)
   else
   if (ETP_num_evry_dups)
      snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)",
-               (long unsigned int)ETP_num_evry_dups);
+               (unsigned long)ETP_num_evry_dups);
 
   C_printf ("%s match%s found for \"%s\"%s.",
             dword_str((DWORD)found), (found == 0 || found > 1) ? "es" : "", opt.file_spec, duplicates);
@@ -1915,7 +1915,7 @@ static void check_sys_dir (const char *dir, const char *name, BOOL *have_it)
 
   if (is_dir)
        DEBUGF (1, "%s: '%s' okay\n", name, dir);
-  else DEBUGF (1, "%s: '%s', GetLastError(): %lu\n", name, dir, (long unsigned int)GetLastError());
+  else DEBUGF (1, "%s: '%s', GetLastError(): %lu\n", name, dir, (unsigned long)GetLastError());
 
   if (have_it)
      *have_it = is_dir;
