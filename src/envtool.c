@@ -2148,8 +2148,7 @@ static int do_check_env (const char *env_name, BOOL recursive)
   BOOL         check_empty = FALSE;
   char        *orig_e = getenv_expand (env_name);
 
-  list = orig_e ? split_env_var (env_name, orig_e) : NULL;
-  if (!list)
+  if (!orig_e)
   {
     DEBUGF (1, "Env-var %s not defined.\n", env_name);
     return (0);
@@ -2163,7 +2162,8 @@ static int do_check_env (const char *env_name, BOOL recursive)
       !strcmp(env_name,"CPLUS_INCLUDE_PATH"))
     check_empty = TRUE;
 
-  max = smartlist_len (list);
+  list = split_env_var (env_name, orig_e);
+  max  = smartlist_len (list);
   for (i = 0; i < max; i++)
   {
     struct directory_array *arr = smartlist_get (list, i);
@@ -2466,7 +2466,7 @@ static void check_if_cygwin (const char *path)
  * Since 'gcc' reports 'C_INCLUDE_PATH' like "/usr/lib/gcc/i686-w64-mingw32/6.4.0/include", we
  * must prefix this as "<cygwin_root>/usr/lib/gcc/i686-w64-mingw32/6.4.0/include".
  *
- * Otherwise 'FILE_EXISTS()' wont work.
+ * Otherwise 'FILE_EXISTS()' wont work for non-Cygwin targets.
  * An alternative would be to parse the "<cygwin_root>/etc/fstab" file.
  */
 static void setup_cygwin_root (const char *gcc)
@@ -2634,7 +2634,7 @@ static int setup_gcc_includes (const char *gcc)
   found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
   if (found > 0)
        DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
-  else WARN ("Calling %s returned %d (line %u).\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, found, __LINE__);
+  else WARN ("Calling %s returned %d.\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, found);
   return (found);
 }
 
@@ -2666,7 +2666,7 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
   if (found <= 0)
   {
     if (warn)
-       WARN ("Calling %s returned %d (line %u).\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, found, __LINE__);
+       WARN ("Calling %s returned %d.\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, found);
     return (found);
   }
 
