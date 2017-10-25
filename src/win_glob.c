@@ -60,9 +60,6 @@ typedef struct Save_new {
         glob_new_entry   entry;
       } Save_new;
 
-static Save_new *save_list_new;
-static int       save_count_new;
-
 static DWORD find_first (const char *file_spec, struct ffblk *ffblk);
 static DWORD find_next (struct ffblk *ffblk);
 
@@ -247,7 +244,7 @@ static DWORD find_first (const char *file_spec, struct ffblk *ffblk)
   {
     rc = GetLastError();
     DEBUGF (1, "recursion_level: %lu, GetLastError(): %s.\n",
-            recursion_level, win_strerror(rc));
+            (unsigned long)recursion_level, win_strerror(rc));
 
     /*
      * We get "access denied" for a directory-name which is a Junction.
@@ -365,7 +362,7 @@ static int glob_dirs (const char *rest, char *epathbuf,
   int    done;
 
   DEBUGF (2, "glob_dirs[%lu]: rest='%s' %c epathbuf='%s' %c pathbuf='%s'\n",
-          recursion_level, rest, *rest, epathbuf, *epathbuf, pathbuf);
+          (unsigned long)recursion_level, rest, *rest, epathbuf, *epathbuf, pathbuf);
 
   if (first)
   {
@@ -525,7 +522,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   }
 
   DEBUGF (2, "glob2(): initial segment is '%s', recursion_level: %lu\n",
-          pathbuf, recursion_level);
+          pathbuf, (unsigned long)recursion_level);
 
   if (recursion_level)
   {
@@ -814,7 +811,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
   if (is_dir || is_junction)
   {
     total_dirs++;
-    printf ("%2lu, %14s: %s %s\\%s\n", recursion_level, "<N/A>", attr_str, path, orig_path);
+    printf ("%2lu, %14s: %s %s\\%s\n", (unsigned long)recursion_level, "<N/A>", attr_str, path, orig_path);
   }
   else
   {
@@ -822,7 +819,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
      */
     total_size += ff->ff_fsize;
     total_files++;
-    printf ("%2lu, %14s: %s %s\n", recursion_level, qword_str(ff->ff_fsize), attr_str, path);
+    printf ("%2lu, %14s: %s %s\n", (unsigned long)recursion_level, qword_str(ff->ff_fsize), attr_str, path);
   }
   return (0);
 }
@@ -920,7 +917,7 @@ static void do_glob_new (const char *spec)
     const char *size_str = str_trim ((char*)get_file_size_str(total_size));
 
     printf ("\nglob_new: %lu, total_files: %s, ",
-            rc, qword_str(total_files));
+            (unsigned long)rc, qword_str(total_files));
 
     printf ("total_dirs: %s, total_size: %s ",
             qword_str(total_dirs), size_str);
@@ -928,7 +925,8 @@ static void do_glob_new (const char *spec)
     printf ("(%s), total_reparse_points: %" U64_FMT "\n",
             qword_str(total_size), total_reparse_points);
   }
-  printf ("recursion_level: %lu, num_ignored_errors: %lu\n", recursion_level, num_ignored_errors);
+  printf ("recursion_level: %lu, num_ignored_errors: %lu\n",
+          (unsigned long)recursion_level, (unsigned long)num_ignored_errors);
 
   fflush (stdout);
   if (opt.debug >= 2)

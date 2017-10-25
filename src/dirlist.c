@@ -690,7 +690,7 @@ static void print_de (const struct dirent2 *de, int idx, const struct od2x_optio
   int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
   int slash;
 
-  C_printf ("~1%3d ~0(%lu): ", idx, recursion_level);
+  C_printf ("~1%3d ~0(%lu): ", idx, (unsigned long)recursion_level);
   C_printf ("~4%-7s~6", is_junction ? "<LINK>" : is_dir ? "<DIR>" : "");
 
   /* Junctions need special handling.
@@ -737,9 +737,9 @@ static void print_de (const struct dirent2 *de, int idx, const struct od2x_optio
 
 static void final_report (void)
 {
-  C_printf ("  Num files:        %lu\n", num_files);
-  C_printf ("  Num directories:  %lu\n", num_directories);
-  C_printf ("  Num junctions:    %lu (errors: %lu)\n", num_junctions, num_junctions_err);
+  C_printf ("  Num files:        %lu\n", (unsigned long)num_files);
+  C_printf ("  Num directories:  %lu\n", (unsigned long)num_directories);
+  C_printf ("  Num junctions:    %lu (errors: %lu)\n", (unsigned long)num_junctions, (unsigned long)num_junctions_err);
   C_printf ("  total-size:       %s bytes", qword_str(total_size));
   C_printf (" (allocated: %s)\n", qword_str(total_size_alloc));
 }
@@ -760,7 +760,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
 
   if (n < 0)
      DEBUGF (0, "(recursion_level: %lu). Error in scandir2 (\"%s\"): %s\n",
-             recursion_level, dir, strerror(errno));
+             (unsigned long)recursion_level, dir, strerror(errno));
   else
   {
     for (i = 0; i < n; i++)
@@ -790,7 +790,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
     }
 
     DEBUGF (2, "(recursion_level: %lu). freeing %d items and *namelist.\n",
-            recursion_level, n);
+            (unsigned long)recursion_level, n);
 
     while (n--)
        FREE (namelist[n]);

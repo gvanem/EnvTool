@@ -132,7 +132,7 @@ int main (int argc, char **argv)
          break;
 
     default:
-         printf ("Error is: 0x%lx.\n", err);
+         printf ("Error is: 0x%lx.\n", (unsigned long)err);
          break;
   }
 
@@ -255,7 +255,7 @@ const char *wintrust_check_result (DWORD rc)
     default:
          /* Cast to shut-up gcc in 64-bit mode.
           */
-         snprintf (buf, sizeof(buf), "0x%08lx", (long unsigned int)rc);
+         snprintf (buf, sizeof(buf), "0x%08lx", (unsigned long)rc);
          return (buf);
   }
 }
