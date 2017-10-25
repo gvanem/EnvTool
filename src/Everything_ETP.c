@@ -865,6 +865,11 @@ static BOOL state_init (struct state_CTX *ctx)
     ctx->state = state_exit;
     return (TRUE);
   }
+
+#if defined(CYGWIN_POSIX)
+  ETP_tracef (ctx, "state_init() okay.\n");
+#endif
+
   ctx->state = state_parse_url;
   return (TRUE);
 }
