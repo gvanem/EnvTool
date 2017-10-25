@@ -1568,6 +1568,11 @@ static void get_install_path (const char *key_name, const struct python_info *pi
  * Recursively walks the Registry branch under "HKLM\Software\Python\PythonCore".
  * Look for "InstallPath" keys and gather the REG_SZ "InstallPath" values.
  */
+#ifdef __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored  "-Wunused-function"
+#endif
+
 static void enum_python_in_registry (const char *key_name)
 {
   static struct python_info pi;   /* filled in sscanf() below */
@@ -1592,7 +1597,8 @@ static void enum_python_in_registry (const char *key_name)
 
     snprintf (sub_key, sizeof(sub_key), "%s\\%s", key_name, value);
     DEBUGF (2, " rec_level %d, num %lu, value: '%s'\n"
-               "                     sub_key: '%s'\n", rec_level, num-1, value, sub_key);
+               "                     sub_key: '%s'\n",
+            rec_level, (unsigned long)num-1, value, sub_key);
 
     if (sscanf(value,"%d.%d-%2s", &pi.ver_major, &pi.ver_minor, bitness) >= 2)
     {
@@ -1612,6 +1618,10 @@ static void enum_python_in_registry (const char *key_name)
   if (key)
      RegCloseKey (key);
 }
+
+#ifdef __GNUC__
+  #pragma GCC diagnostic warning  "-Wunused-function"
+#endif
 
 /**
  * Main initialiser function for this module;
