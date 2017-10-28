@@ -55,7 +55,7 @@ typedef unsigned long int active_reg_t;
 /* How many characters in the character set.
  */
 #define CHAR_SET_SIZE 256
-#define SYNTAX(c)     re_syntax_table[c]
+#define SYNTAX(c)     re_syntax_table [(int)(c)]
 
 static char re_syntax_table [CHAR_SET_SIZE];
 

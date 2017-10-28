@@ -355,7 +355,7 @@ void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
  * the ordering function 'compare', which returns less then 0 if a
  * precedes b, greater than 0 if b precedes a, and 0 if a 'equals' b.
  */
-typedef int (__cdecl *CmpFunc) (const void *, const void *);
+typedef int (*CmpFunc) (const void *, const void *);
 
 void smartlist_sort (smartlist_t *sl, smartlist_sort_func compare)
 {
