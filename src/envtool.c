@@ -4105,7 +4105,6 @@ static void test_fix_path (void)
 
     C_putc ('\n');
   }
-  ARGSUSED (realname);
   C_putc ('\n');
 }
 
