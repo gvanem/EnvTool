@@ -7,7 +7,7 @@ build_script:
     - envtool -VV
 
     - echo Testing test output
-    - envtool --test
+    - envtool --test --owner
 
     - echo Testing Python2 test output
     - envtool --test --python=py2
