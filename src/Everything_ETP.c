@@ -940,7 +940,7 @@ static void connect_common_init (struct state_CTX *ctx, const char *which_state)
   setsockopt (ctx->sock, SOL_SOCKET, SO_RCVBUF, (const char*)&rx_size, sizeof(rx_size));
 
   if (!opt.quiet)
-     C_printf ("Connecting to %s (port %u)...", inet_ntoa(ctx->sa.sin_addr), ctx->port);
+     C_printf ("Connecting to %s/%u...", inet_ntoa(ctx->sa.sin_addr), ctx->port);
 
   C_flush();
 }
