@@ -1212,15 +1212,14 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 
   C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
 
-  if (opt.show_owner)
+  /* The remote 'file' from EveryThing is not something Windows knows
+   * about. Hence no point in trying.
+   */
+  if (key != HKEY_EVERYTHING_ETP && opt.show_owner)
   {
     char *account_name, *domain_name;
 
-   /* The remote 'file' from EveryThing is not something Windows knows
-    * about. Hence no point in trying.
-    */
-    if (key != HKEY_EVERYTHING_ETP &&
-        get_file_owner(file, &domain_name, &account_name))
+    if (get_file_owner(file, &domain_name, &account_name))
     {
       C_printf ("%-16s ", account_name);
       FREE (domain_name);
@@ -3951,9 +3950,9 @@ static void test_searchpath (void)
 
     is_env = (strchr(env,'\\') == NULL);
     len = C_printf ("  %s:", t->file);
-    pad = max (0, 35-len);
+    pad = max (0, 35-(int)len);
     C_printf ("%*s %s%s", pad, "", is_env ? "%" : "", env);
-    pad = max (0, 26-strlen(env)-is_env);
+    pad = max (0, 26-(int)strlen(env)-is_env);
     C_printf ("%*s -> %s, pos: %d\n", pad, "",
               found ? found : strerror(errno), searchpath_pos());
   }
@@ -4064,7 +4063,7 @@ static void test_fix_path (void)
     "/usr/lib/gcc/x86_64-pc-cygwin/6.4.0/../../../../include/w32api"                             /* CygWin64 output, exists here */
   };
   const char *f;
-  char *rc1, *realname;
+  char *rc1;
   int   i, rc2, rc3;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
@@ -4085,15 +4084,18 @@ static void test_fix_path (void)
        rc1 = slashify (buf, '/');
 
 #if defined(__CYGWIN__)
-    realname = canonicalize_file_name (f);
-    if (realname)
     {
-      cyg_result = ", ~2cyg-exists: 1~0";
-      rc1 = _strlcpy (buf, realname, sizeof(buf));
-      free (realname);
+      char *realname = canonicalize_file_name (f);
+
+      if (realname)
+      {
+        cyg_result = ", ~2cyg-exists: 1~0";
+        rc1 = _strlcpy (buf, realname, sizeof(buf));
+        free (realname);
+      }
+      else
+        cyg_result = ", ~2cyg-exists: 0~0";
     }
-    else
-      cyg_result = ", ~2cyg-exists: 0~0";
 #endif
 
     C_printf ("  _fix_path (\"%s\")\n     -> \"%s\" ", f, rc1);
