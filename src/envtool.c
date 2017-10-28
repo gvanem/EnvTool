@@ -160,7 +160,6 @@ static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 static int   get_pkg_config_info (const char **exe, struct ver_info *ver);
 static int   get_cmake_info (char **exe, struct ver_info *ver);
-static void  regex_print (const regex_t *re, const regmatch_t *rm, const char *str);
 
 /**
  * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
@@ -499,7 +498,9 @@ static int show_help (void)
             "    ~6--no-app~0:       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
             "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
             "    ~6--no-colour~0:    don't print using colours.\n"
+            "    ~6--no-watcom~0:    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode\n"
             NO_ANSI
+            "    ~6--owner~0:        shown owner of the file.\n"
             "    ~6--pe~0:           print checksum and version-info for PE-files.\n"
             "    ~6--32~0:           tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
             "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
@@ -1210,6 +1211,24 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
      return print_PE_file (file, note, filler, size, mtime);
 
   C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
+
+  if (opt.show_owner)
+  {
+    char *account_name, *domain_name;
+
+   /* The remote 'file' from EveryThing is not something Windows knows
+    * about. Hence no point in trying.
+    */
+    if (key != HKEY_EVERYTHING_ETP &&
+        get_file_owner(file, &domain_name, &account_name))
+    {
+      C_printf ("%-16s ", account_name);
+      FREE (domain_name);
+      FREE (account_name);
+    }
+    else
+      C_printf ("%-16s ", "<None>");
+  }
 
   /* In case 'file' contains a "~" (SFN), we switch to raw mode.
    */
@@ -2998,19 +3017,88 @@ static int do_check_gcc_library_paths (void)
 }
 
 /**
- * \todo: Check Watcom's include-path(s)
+ * Common stuff for Watcom checking.
  */
-static int do_check_watcom_includes (void)
+static char *watcom_dir[2];
+
+static int setup_watcom_dirs (const char *dir1, const char *dir2)
 {
-  return (0);
+  if (!getenv("WATCOM"))
+  {
+    DEBUGF (1, "%%WATCOM%% not defined.\n");
+    return (0);
+  }
+
+  if (opt.add_cwd)
+     add_to_dir_array (current_dir, 1, __LINE__);
+
+  watcom_dir[0] = getenv_expand (dir1);
+  watcom_dir[1] = getenv_expand (dir2);
+
+  add_to_dir_array (watcom_dir[0], 0, __LINE__);
+  add_to_dir_array (watcom_dir[1], 0, __LINE__);
+  return (1);
+}
+
+static void frere_watcom_dirs (void)
+{
+  FREE (watcom_dir[0]);
+  FREE (watcom_dir[1]);
 }
 
 /**
- * \todo: Check Watcom's library-path(s)
+ * Check in Watcom's include-directories
+ * "%WATCOM%\h" and "%WATCOM%\nt"
+ */
+static int do_check_watcom_includes (void)
+{
+  int i, max, found;
+
+  if (!setup_watcom_dirs("%WATCOM%\\h", "%WATCOM%\\h\\nt"))
+  {
+    DEBUGF (1, "%%WATCOM%% not defined.\n");
+    return (0);
+  }
+
+  max = smartlist_len (dir_array);
+  for (i = found = 0; i < max; i++)
+  {
+    struct directory_array *arr = smartlist_get (dir_array, i);
+
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
+                          arr->is_dir, arr->exp_ok, "WATCOM", NULL, 0);
+  }
+  frere_watcom_dirs();
+  free_dir_array();
+  return (found);
+}
+
+/**
+ * Check in Watcom's library-directories
+ * "%WATCOM%\lib386" and "%WATCOM%\lib386\nt"
  */
 static int do_check_watcom_library_paths (void)
 {
-  return (0);
+  int i, max, found;
+
+  if (!setup_watcom_dirs("%WATCOM%\\lib386", "%WATCOM%\\lib386\\nt"))
+  {
+    DEBUGF (1, "%%WATCOM%% not defined.\n");
+    return (0);
+  }
+
+  max = smartlist_len (dir_array);
+  for (i = found = 0; i < max; i++)
+  {
+    struct directory_array *arr = smartlist_get (dir_array, i);
+
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
+                          arr->is_dir, arr->exp_ok, "WATCOM", NULL, 0);
+  }
+  dump_dir_array (NULL, NULL);
+  frere_watcom_dirs();
+  free_dir_array();
+  return (found);
 }
 
 /*
@@ -3050,7 +3138,9 @@ static const struct option long_options[] = {
            { "host",        required_argument, NULL, 0 },
            { "buffered-io", no_argument,       NULL, 0 },    /* 31 */
            { "nonblock-io", no_argument,       NULL, 0 },
-           { NULL,          no_argument,       NULL, 0 }     /* 33 */
+           { "no-watcom",   no_argument,       NULL, 0 },    /* 33 */
+           { "owner",       no_argument,       NULL, 0 },
+           { NULL,          no_argument,       NULL, 0 }     /* 35 */
          };
 
 static int *values_tab[] = {
@@ -3086,7 +3176,9 @@ static int *values_tab[] = {
             &opt.no_ansi,         /* 29 */
             (int*)&opt.evry_host,
             &opt.use_buffered_io, /* 31 */
-            &opt.use_nonblock_io
+            &opt.use_nonblock_io,
+            &opt.no_watcom,       /* 33 */
+            &opt.show_owner,
           };
 
 /*
@@ -3577,10 +3669,10 @@ int main (int argc, char **argv)
   {
     report_header = "Matches in %LIB:\n";
     found += do_check_env ("LIB", FALSE);
-    if (!opt.no_gcc && !opt.no_gpp)
-       found += do_check_gcc_library_paths();
     if (!opt.no_watcom)
        found += do_check_watcom_library_paths();
+    if (!opt.no_gcc && !opt.no_gpp)
+       found += do_check_gcc_library_paths();
   }
 
   if (opt.do_include)
@@ -3588,14 +3680,14 @@ int main (int argc, char **argv)
     report_header = "Matches in %INCLUDE:\n";
     found += do_check_env ("INCLUDE", FALSE);
 
+    if (!opt.no_watcom)
+       found += do_check_watcom_includes();
+
     if (!opt.no_gcc)
        found += do_check_gcc_includes();
 
     if (!opt.no_gpp)
        found += do_check_gpp_includes();
-
-    if (!opt.no_watcom)
-       found += do_check_watcom_includes();
   }
 
   if (opt.do_cmake)
@@ -4219,6 +4311,7 @@ static void test_PE_wintrust (void)
   static const char *files[] = {
               "%s\\kernel32.dll",
               "%s\\drivers\\usbport.sys",
+              "c:\\bootmgr",
               "notepad.exe",
               "cl.exe"
             };
@@ -4228,14 +4321,17 @@ static void test_PE_wintrust (void)
 
   for (i = 0; i < DIM(files); i++)
   {
-    char *file = (char*) files[i];
-    char  path [_MAX_PATH];
-    char *is_sys = strchr (file, '%');
-    DWORD rc;
+    char  *file = (char*) files[i];
+    char   path [_MAX_PATH];
+    char  *is_sys = strchr (file, '%');
+    size_t len;
+    DWORD  rc;
 
     if (is_sys)
     {
-      snprintf (path, sizeof(path), "%s\\%s", sys_dir, is_sys+3);
+      if (have_sys_native_dir)
+           snprintf (path, sizeof(path), "%s\\%s", sys_native_dir, is_sys+3);
+      else snprintf (path, sizeof(path), "%s\\%s", sys_dir, is_sys+3);
       file = path;
     }
     else
@@ -4245,8 +4341,25 @@ static void test_PE_wintrust (void)
     if (!file)
        file = _strlcpy (path, files[i], sizeof(path)-1);
 
-    C_printf ("  %d: %s %*s->", i, _fix_drive(file), (int)(45-strlen(file)), "");
-    C_printf (" ~2%s~0\n", wintrust_check_result(rc));
+    len = strlen (file);
+    if (len > 50)
+         C_printf ("  %d: ...%-47.47s ->", i, file+len-47);
+    else C_printf ("  %d: %-50.50s ->", i, _fix_drive(file));
+
+    C_printf (" ~2%-10s~0", wintrust_check_result(rc));
+
+    if (file && opt.show_owner)
+    {
+      char *account_name, *domain_name;
+
+      if (get_file_owner(file, &domain_name, &account_name))
+      {
+        C_printf (" ~4%s\\%s~0", domain_name, account_name);
+        FREE (domain_name);
+        FREE (account_name);
+      }
+    }
+    C_putc ('\n');
   }
   C_putc ('\n');
 }
@@ -4355,12 +4468,7 @@ static void test_ETP_host (void)
   }
 }
 
-#ifdef __GNUC__
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored  "-Wunused-function"
-#endif
-
-static void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
+void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
 {
   size_t i, j;
 
@@ -4378,10 +4486,6 @@ static void regex_print (const regex_t *re, const regmatch_t *rm, const char *st
        C_puts ("None\n");
   else C_puts ("~0\n");
 }
-
-#ifdef __GNUC__
-  #pragma GCC diagnostic warning  "-Wunused-function"
-#endif
 
 static int do_tests (void)
 {
