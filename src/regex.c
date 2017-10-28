@@ -3716,6 +3716,8 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
 
              POP_FAILURE_POINT (sdummy, pdummy, dummy_low_reg, dummy_high_reg,
                                 reg_dummy, reg_dummy, reg_info_dummy);
+             ARGSUSED (sdummy);
+             ARGSUSED (pdummy);
            }
            /* Note fall through. */
 
