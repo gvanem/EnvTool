@@ -24,6 +24,7 @@
 #include <shlobj.h>
 #include <accctrl.h>
 #include <aclapi.h>
+#include <sddl.h>
 
 /*
  * Suppress warning:
@@ -570,6 +571,17 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
       return (FALSE);
     }
   }
+
+#if (_WIN32_WINNT >= 0x0500)
+  if (opt.debug >= 1)
+  {
+    char *sid_str = "?";
+
+    ConvertSidToStringSid (sid_owner, &sid_str);
+    DEBUGF (1, "\n  sid_str: %s.\n", sid_str);
+    LocalFree (sid_str);
+  }
+#endif
 
   *account_name = CALLOC (account_name_sz, 1);
   if (*account_name == NULL)
