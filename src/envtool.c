@@ -4349,7 +4349,7 @@ static void test_PE_wintrust (void)
 
     C_printf (" ~2%-10s~0", wintrust_check_result(rc));
 
-    if (opt.show_owner)
+    if (opt.show_owner && rc != ERROR_FILE_NOT_FOUND)
     {
       char *account_name, *domain_name;
 
