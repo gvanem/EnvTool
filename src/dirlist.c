@@ -659,7 +659,7 @@ static const char *make_unixy_path (const char *path)
 #endif
 }
 
-static int print_it (const char *what, const char *prefix, const struct od2x_options *opts)
+static int print_it (const char *what, const char *prefix, const struct od2x_options *opts, BOOL show_owner)
 {
   const char *f;
   int         slash;
@@ -677,6 +677,23 @@ static int print_it (const char *what, const char *prefix, const struct od2x_opt
 
   if (prefix)
      C_puts (prefix);
+
+  if (show_owner)
+  {
+    char *account_name, *domain_name;
+
+    if (get_file_owner(f, &domain_name, &account_name))
+    {
+      C_printf ("%-16s ", account_name);
+      FREE (domain_name);
+      FREE (account_name);
+    }
+    else
+      C_printf ("%-16s ", "<Unknown>");
+  }
+  else
+  if (opt.show_owner)
+      C_puts ("                 ");
 
   C_setraw (1);
   C_puts (f);
@@ -699,14 +716,14 @@ static void print_de (const struct dirent2 *de, int idx, const struct od2x_optio
   {
     static char prefix[] = " \n             -> ~3";
 
-    prefix[0] = print_it (de->d_name, NULL, opts);
-    slash = print_it (de->d_link ? de->d_link : "??", prefix, opts);
+    prefix[0] = print_it (de->d_name, NULL, opts, FALSE);
+    slash = print_it (de->d_link ? de->d_link : "??", prefix, opts, FALSE);
     if (de->d_link)
        C_putc (slash);
   }
   else
   {
-    slash = print_it (de->d_name, NULL, opts);
+    slash = print_it (de->d_name, NULL, opts, opt.show_owner && !is_dir);
     if (is_dir)
        C_putc (slash);
   }
@@ -877,8 +894,9 @@ int main (int argc, char **argv)
 
   crtdbug_init();
   memset (&opts, '\0', sizeof(opts));
+  memset (&opt, '\0', sizeof(opt));
 
-  while ((ch = getopt(argc, argv, "cdjurs:Sh?")) != EOF)
+  while ((ch = getopt(argc, argv, "cdjurs:Soh?")) != EOF)
      switch (ch)
      {
        case 'c':
@@ -901,6 +919,9 @@ int main (int argc, char **argv)
             break;
        case 's':
             opts.sort |= get_sorting (optarg);
+            break;
+       case 'o':
+            opt.show_owner++;
             break;
        case '?':
        case 'h':
