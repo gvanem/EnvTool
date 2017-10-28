@@ -4349,13 +4349,13 @@ static void test_PE_wintrust (void)
 
     C_printf (" ~2%-10s~0", wintrust_check_result(rc));
 
-    if (file && opt.show_owner)
+    if (opt.show_owner)
     {
       char *account_name, *domain_name;
 
       if (get_file_owner(file, &domain_name, &account_name))
       {
-        C_printf (" ~4%s\\%s~0", domain_name, account_name);
+        C_printf ("  ~4%s\\%s~0", domain_name, account_name);
         FREE (domain_name);
         FREE (account_name);
       }
