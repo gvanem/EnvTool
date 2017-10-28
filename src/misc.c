@@ -22,6 +22,8 @@
 #include <wincon.h>
 #include <winioctl.h>
 #include <shlobj.h>
+#include <accctrl.h>
+#include <aclapi.h>
 
 /*
  * Suppress warning:
@@ -494,6 +496,113 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
   if (p_GetModuleFileNameEx)
      return (*p_GetModuleFileNameEx) (proc, 0, filename, _MAX_PATH);
   return (FALSE);
+}
+
+/*
+ * get the Domain and account name for a file.
+ *
+ * Adapted from:
+ *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa446629(v=vs.85).aspx
+ */
+BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
+{
+  DWORD        rc, err;
+  BOOL         rc2;
+  DWORD        account_name_sz = 0;
+  DWORD        domain_name_sz  = 0;
+  SID_NAME_USE sid_use = SidTypeUnknown;
+  PSID         sid_owner = NULL;
+  HANDLE       hFile;
+  PSECURITY_DESCRIPTOR pSD  = NULL;
+  const char   *system_name = NULL;
+
+  *domain_name = *account_name = NULL;
+
+  /* Get the handle of the file object.
+   */
+  hFile = CreateFile (file,
+                      GENERIC_READ,
+                      FILE_SHARE_READ,
+                      NULL,
+                      OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL,
+                      NULL);
+
+  /* Check GetLastError for CreateFile error code.
+   */
+  if (hFile == INVALID_HANDLE_VALUE)
+  {
+    DEBUGF (1, "CreateFile error = %s\n", win_strerror(GetLastError()));
+    return (FALSE);
+  }
+
+  /* Get the owner SID of the file.
+   */
+  rc = GetSecurityInfo (hFile,
+                        SE_FILE_OBJECT,
+                        OWNER_SECURITY_INFORMATION,
+                        &sid_owner,
+                        NULL,
+                        NULL,
+                        NULL,
+                        &pSD);
+  CloseHandle (hFile);
+
+  /* Check GetLastError for GetSecurityInfo error condition.
+   */
+  if (rc != ERROR_SUCCESS)
+  {
+    DEBUGF (1, "GetSecurityInfo error = %s\n", win_strerror(GetLastError()));
+    return (FALSE);
+  }
+
+  /* First call to LookupAccountSid to get the buffer sizes.
+   */
+  rc2 = LookupAccountSid (system_name, sid_owner,
+                          NULL, (DWORD*)&account_name_sz,
+                          NULL, (DWORD*)&domain_name_sz, &sid_use);
+  if (!rc2)
+  {
+    err = GetLastError();
+    if (err != ERROR_INSUFFICIENT_BUFFER)
+    {
+      DEBUGF (1, "(1): Error in LookupAccountSid(): %s.\n", win_strerror(err));
+      return (FALSE);
+    }
+  }
+
+  *account_name = CALLOC (account_name_sz, 1);
+  if (*account_name == NULL)
+    return (FALSE);
+
+  *domain_name = CALLOC (domain_name_sz, 1);
+  if (*domain_name == NULL)
+  {
+    FREE (*account_name);
+    *account_name = NULL;
+    return (FALSE);
+  }
+
+  /* Second call to LookupAccountSid() to get the account name.
+   */
+  rc2 = LookupAccountSid (system_name,               /* name of local or remote computer */
+                          sid_owner,                 /* security identifier */
+                          *account_name,             /* account name buffer */
+                          (DWORD*)&account_name_sz,  /* size of account name buffer */
+                          *domain_name,              /* domain name */
+                          (DWORD*)&domain_name_sz,   /* size of domain name buffer */
+                          &sid_use);                 /* SID type */
+
+  if (!rc2)
+  {
+    err = GetLastError();
+    if (err == ERROR_NONE_MAPPED)
+         DEBUGF (1, "Account owner not found for specified SID.\n");
+    else DEBUGF (1, "(2) Error in LookupAccountSid(): %s.\n", win_strerror(err));
+    free (*domain_name);
+    free (*account_name);
+  }
+  return (rc2);
 }
 
 /*
