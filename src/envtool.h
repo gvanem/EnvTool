@@ -126,6 +126,9 @@
   #define  stat     _stati64
   #define  DEV_NULL "NUL"
 
+  #undef  _MAX_PATH
+  #define _MAX_PATH 512
+
   #if !defined(_WINSOCK2API_) && !defined(_WINSOCK2_H) && !defined(_BSDTYPES_DEFINED)
     #define u_long unsigned long
     #define _BSDTYPES_DEFINED
@@ -136,7 +139,6 @@
   #include <wctype.h>
   #include <wchar.h>
 
-  #define _MAX_PATH       MAX_PATH   /* 260 */
   #define __FUNCTION__    __func__
   #undef  stat
   #define tzset()        ((void)0)
@@ -265,6 +267,7 @@ struct prog_options {
        int   quotes_warn;
        int   add_cwd;
        int   show_unix_paths;
+       int   show_owner;
        int   decimal_timestamp;
        int   no_sys_env;
        int   no_usr_env;
@@ -385,6 +388,7 @@ extern char       *translate_shell_pattern (const char *pattern);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
 extern BOOL        get_module_filename_ex (HANDLE proc, char *filename);
+extern BOOL        get_file_owner (const char *file, char **domain_name, char **account_name);
 
 /* Functions for handling Reparse Points:
  * (Junctions and Symlinks).
