@@ -31,8 +31,6 @@
 typedef int (*QsortCmpFunc) (const void *, const void *);
 typedef int (*ScandirCmpFunc) (const void **, const void **);
 
-static ATTR_UNUSED() BOOL follow_junctions = TRUE;
-
 /*
  * Local functions
  */
@@ -618,6 +616,7 @@ static DWORD  num_junctions_err = 0;
 static DWORD  num_files = 0;
 static UINT64 total_size = 0;
 static UINT64 total_size_alloc = 0;
+static BOOL   follow_junctions = TRUE;
 
 void usage (void)
 {
@@ -786,7 +785,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
       int    is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
       int    is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
 
-      if (is_junction && follow_junctions &&get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
+      if (is_junction && follow_junctions && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
       {
         char result [_MAX_PATH] = "??";
         BOOL rc = get_reparse_point (de->d_name, result, TRUE);
