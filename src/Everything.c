@@ -92,8 +92,40 @@
 #define HWND_32BIT(h)  ( (*(DWORD*) &(h)) & ULONG_MAX)
 
 // return copydata code
-#define _EVERYTHING_COPYDATA_QUERYCOMPLETEA	0
-#define _EVERYTHING_COPYDATA_QUERYCOMPLETEW	1
+#define _EVERYTHING_COPYDATA_QUERYREPLY		0
+
+#define _EVERYTHING_MSGFLT_ALLOW		1
+
+typedef struct _EVERYTHING_tagCHANGEFILTERSTRUCT
+{
+	DWORD cbSize;
+	DWORD ExtStatus;
+}_EVERYTHING_CHANGEFILTERSTRUCT, *_EVERYTHING_PCHANGEFILTERSTRUCT;
+
+static void *_Everything_Alloc(DWORD size);
+static void _Everything_Free(void *ptr);
+static void _Everything_Initialize(void);
+static void _Everything_Lock(void);
+static void _Everything_Unlock(void);
+static DWORD _Everything_StringLengthA(LPCSTR start);
+static DWORD _Everything_StringLengthW(LPCWSTR start);
+static BOOL EVERYTHINGAPI _Everything_Query(void);
+static BOOL _Everything_ShouldUseVersion2(void);
+static BOOL _Everything_SendIPCQuery(void);
+static BOOL _Everything_SendIPCQuery2(HWND everything_hwnd);
+static void _Everything_FreeLists(void);
+static BOOL _Everything_IsValidResultIndex(DWORD dwIndex);
+static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType);
+static BOOL _Everything_IsSchemeNameW(LPCWSTR s);
+static BOOL _Everything_IsSchemeNameA(LPCSTR s);
+static void _Everything_ChangeWindowMessageFilter(HWND hwnd);
+static BOOL _Everything_GetResultRequestData(DWORD dwIndex,DWORD dwRequestType,void *data,int size);
+static LPCWSTR _Everything_GetResultRequestStringW(DWORD dwIndex,DWORD dwRequestType);
+static LPCSTR _Everything_GetResultRequestStringA(DWORD dwIndex,DWORD dwRequestType);
+static BOOL _Everything_SendAPIBoolCommand(int command,LPARAM lParam);
+static DWORD _Everything_SendAPIDwordCommand(int command,LPARAM lParam);
+static LRESULT _Everything_SendCopyData(int command,const void *data,int size);
+static LRESULT WINAPI _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 // internal state
 static BOOL _Everything_MatchPath = FALSE;
@@ -103,17 +135,24 @@ static BOOL _Everything_Regex = FALSE;
 static DWORD _Everything_LastError = FALSE;
 static DWORD _Everything_Max = EVERYTHING_IPC_ALLRESULTS;
 static DWORD _Everything_Offset = 0;
+static DWORD _Everything_Sort = EVERYTHING_SORT_NAME_ASCENDING;
+static DWORD _Everything_RequestFlags = EVERYTHING_REQUEST_PATH | EVERYTHING_REQUEST_FILE_NAME;
 static BOOL _Everything_IsUnicodeQuery = FALSE;
+static DWORD _Everything_QueryVersion = 0;
 static BOOL _Everything_IsUnicodeSearch = FALSE;
-static LPVOID _Everything_Search = NULL; // wchar or char
-static LPVOID _Everything_List = NULL; // EVERYTHING_IPC_LISTW or EVERYTHING_IPC_LISTA
+static void *_Everything_Search = NULL; // wchar or char
+static EVERYTHING_IPC_LIST2 *_Everything_List2 = NULL;
+static void *_Everything_List = NULL; // EVERYTHING_IPC_LISTW or EVERYTHING_IPC_LISTA
 static volatile BOOL _Everything_Initialized = FALSE;
 static volatile LONG _Everything_InterlockedCount = 0;
 static CRITICAL_SECTION _Everything_cs;
 static HWND _Everything_ReplyWindow = 0;
 static DWORD _Everything_ReplyID = 0;
+static BOOL (WINAPI *_Everything_pChangeWindowMessageFilterEx)(HWND hWnd,UINT message,DWORD action,_EVERYTHING_PCHANGEFILTERSTRUCT pChangeFilterStruct) = 0;
+static HANDLE _Everything_user32_hdll = NULL;
+static BOOL _Everything_GotChangeWindowMessageFilterEx = FALSE;
 
-static VOID _Everything_Initialize(VOID)
+static void _Everything_Initialize(void)
 {
 	if (!_Everything_Initialized)
 	{
@@ -126,25 +165,25 @@ static VOID _Everything_Initialize(VOID)
 		}
 		else
 		{
-			// wait for initialization..
+			// wait for initialization by other thread.
 			while (!_Everything_Initialized) Sleep(0);
 		}
 	}
 }
 
-static VOID _Everything_Lock(VOID)
+static void _Everything_Lock(void)
 {
 	_Everything_Initialize();
 
 	EnterCriticalSection(&_Everything_cs);
 }
 
-static VOID _Everything_Unlock(VOID)
+static void _Everything_Unlock(void)
 {
 	LeaveCriticalSection(&_Everything_cs);
 }
 
-// aVOID other libs
+// avoid other libs
 static DWORD _Everything_StringLengthA(LPCSTR start)
 {
 	register LPCSTR s;
@@ -173,20 +212,23 @@ static DWORD _Everything_StringLengthW(LPCWSTR start)
 	return (DWORD)(s-start);
 }
 
-VOID EVERYTHINGAPI Everything_SetSearchW(LPCWSTR lpString)
+void EVERYTHINGAPI Everything_SetSearchW(LPCWSTR lpString)
 {
 	DWORD len;
 
 	_Everything_Lock();
 
-	if (_Everything_Search) HeapFree(GetProcessHeap(),0,_Everything_Search);
+	if (_Everything_Search)
+	{
+		_Everything_Free(_Everything_Search);
+	}
 
 	len = _Everything_StringLengthW(lpString) + 1;
 
-	_Everything_Search = HeapAlloc(GetProcessHeap(),0,len*sizeof(wchar_t));
+	_Everything_Search = _Everything_Alloc(len*sizeof(WCHAR));
 	if (_Everything_Search)
 	{
-		CopyMemory(_Everything_Search,lpString,len*sizeof(wchar_t));
+		CopyMemory(_Everything_Search,lpString,len*sizeof(WCHAR));
 	}
 	else
 	{
@@ -198,17 +240,20 @@ VOID EVERYTHINGAPI Everything_SetSearchW(LPCWSTR lpString)
 	_Everything_Unlock();
 }
 
-VOID EVERYTHINGAPI Everything_SetSearchA(LPCSTR lpString)
+void EVERYTHINGAPI Everything_SetSearchA(LPCSTR lpString)
 {
 	DWORD size;
 
 	_Everything_Lock();
 
-	if (_Everything_Search) HeapFree(GetProcessHeap(),0,_Everything_Search);
+	if (_Everything_Search)
+	{
+		_Everything_Free(_Everything_Search);
+	}
 
 	size = _Everything_StringLengthA(lpString) + 1;
 
-	_Everything_Search = (LPWSTR )HeapAlloc(GetProcessHeap(),0,size);
+	_Everything_Search = _Everything_Alloc(size);
 	if (_Everything_Search)
 	{
 		CopyMemory(_Everything_Search,lpString,size);
@@ -223,7 +268,7 @@ VOID EVERYTHINGAPI Everything_SetSearchA(LPCSTR lpString)
 	_Everything_Unlock();
 }
 
-LPCSTR EVERYTHINGAPI Everything_GetSearchA(VOID)
+LPCSTR EVERYTHINGAPI Everything_GetSearchA(void)
 {
 	LPCSTR ret;
 
@@ -252,7 +297,7 @@ LPCSTR EVERYTHINGAPI Everything_GetSearchA(VOID)
 	return ret;
 }
 
-LPCWSTR EVERYTHINGAPI Everything_GetSearchW(VOID)
+LPCWSTR EVERYTHINGAPI Everything_GetSearchW(void)
 {
 	LPCWSTR ret;
 
@@ -281,7 +326,7 @@ LPCWSTR EVERYTHINGAPI Everything_GetSearchW(VOID)
 	return ret;
 }
 
-VOID EVERYTHINGAPI Everything_SetMatchPath(BOOL bEnable)
+void EVERYTHINGAPI Everything_SetMatchPath(BOOL bEnable)
 {
 	_Everything_Lock();
 
@@ -290,7 +335,7 @@ VOID EVERYTHINGAPI Everything_SetMatchPath(BOOL bEnable)
 	_Everything_Unlock();
 }
 
-VOID EVERYTHINGAPI Everything_SetMatchCase(BOOL bEnable)
+void EVERYTHINGAPI Everything_SetMatchCase(BOOL bEnable)
 {
 	_Everything_Lock();
 
@@ -299,7 +344,7 @@ VOID EVERYTHINGAPI Everything_SetMatchCase(BOOL bEnable)
 	_Everything_Unlock();
 }
 
-VOID EVERYTHINGAPI Everything_SetMatchWholeWord(BOOL bEnable)
+void EVERYTHINGAPI Everything_SetMatchWholeWord(BOOL bEnable)
 {
 	_Everything_Lock();
 
@@ -308,7 +353,7 @@ VOID EVERYTHINGAPI Everything_SetMatchWholeWord(BOOL bEnable)
 	_Everything_Unlock();
 }
 
-VOID EVERYTHINGAPI Everything_SetRegex(BOOL bEnable)
+void EVERYTHINGAPI Everything_SetRegex(BOOL bEnable)
 {
 	_Everything_Lock();
 
@@ -317,7 +362,7 @@ VOID EVERYTHINGAPI Everything_SetRegex(BOOL bEnable)
 	_Everything_Unlock();
 }
 
-VOID EVERYTHINGAPI Everything_SetMax(DWORD dwMax)
+void EVERYTHINGAPI Everything_SetMax(DWORD dwMax)
 {
 	_Everything_Lock();
 
@@ -326,7 +371,7 @@ VOID EVERYTHINGAPI Everything_SetMax(DWORD dwMax)
 	_Everything_Unlock();
 }
 
-VOID EVERYTHINGAPI Everything_SetOffset(DWORD dwOffset)
+void EVERYTHINGAPI Everything_SetOffset(DWORD dwOffset)
 {
 	_Everything_Lock();
 
@@ -335,7 +380,25 @@ VOID EVERYTHINGAPI Everything_SetOffset(DWORD dwOffset)
 	_Everything_Unlock();
 }
 
-VOID EVERYTHINGAPI Everything_SetReplyWindow(HWND hWnd)
+void EVERYTHINGAPI Everything_SetSort(DWORD dwSort)
+{
+	_Everything_Lock();
+
+	_Everything_Sort = dwSort;
+
+	_Everything_Unlock();
+}
+
+EVERYTHINGUSERAPI void EVERYTHINGAPI Everything_SetRequestFlags(DWORD dwRequestFlags)
+{
+	_Everything_Lock();
+
+	_Everything_RequestFlags = dwRequestFlags;
+
+	_Everything_Unlock();
+}
+
+void EVERYTHINGAPI Everything_SetReplyWindow(HWND hWnd)
 {
 	_Everything_Lock();
 
@@ -344,16 +407,16 @@ VOID EVERYTHINGAPI Everything_SetReplyWindow(HWND hWnd)
 	_Everything_Unlock();
 }
 
-VOID EVERYTHINGAPI Everything_SetReplyID(DWORD nId)
+void EVERYTHINGAPI Everything_SetReplyID(DWORD dwId)
 {
 	_Everything_Lock();
 
-	_Everything_ReplyID = nId;
+	_Everything_ReplyID = dwId;
 
 	_Everything_Unlock();
 }
 
-BOOL EVERYTHINGAPI Everything_GetMatchPath(VOID)
+BOOL EVERYTHINGAPI Everything_GetMatchPath(void)
 {
 	BOOL ret;
 
@@ -366,7 +429,7 @@ BOOL EVERYTHINGAPI Everything_GetMatchPath(VOID)
 	return ret;
 }
 
-BOOL EVERYTHINGAPI Everything_GetMatchCase(VOID)
+BOOL EVERYTHINGAPI Everything_GetMatchCase(void)
 {
 	BOOL ret;
 
@@ -379,7 +442,7 @@ BOOL EVERYTHINGAPI Everything_GetMatchCase(VOID)
 	return ret;
 }
 
-BOOL EVERYTHINGAPI Everything_GetMatchWholeWord(VOID)
+BOOL EVERYTHINGAPI Everything_GetMatchWholeWord(void)
 {
 	BOOL ret;
 
@@ -392,7 +455,7 @@ BOOL EVERYTHINGAPI Everything_GetMatchWholeWord(VOID)
 	return ret;
 }
 
-BOOL EVERYTHINGAPI Everything_GetRegex(VOID)
+BOOL EVERYTHINGAPI Everything_GetRegex(void)
 {
 	BOOL ret;
 
@@ -405,9 +468,9 @@ BOOL EVERYTHINGAPI Everything_GetRegex(VOID)
 	return ret;
 }
 
-DWORD EVERYTHINGAPI Everything_GetMax(VOID)
+DWORD EVERYTHINGAPI Everything_GetMax(void)
 {
-	BOOL ret;
+	DWORD ret;
 
 	_Everything_Lock();
 
@@ -418,9 +481,9 @@ DWORD EVERYTHINGAPI Everything_GetMax(VOID)
 	return ret;
 }
 
-DWORD EVERYTHINGAPI Everything_GetOffset(VOID)
+DWORD EVERYTHINGAPI Everything_GetOffset(void)
 {
-	BOOL ret;
+	DWORD ret;
 
 	_Everything_Lock();
 
@@ -431,7 +494,33 @@ DWORD EVERYTHINGAPI Everything_GetOffset(VOID)
 	return ret;
 }
 
-HWND EVERYTHINGAPI Everything_GetReplyWindow(VOID)
+DWORD EVERYTHINGAPI Everything_GetSort(void)
+{
+	DWORD ret;
+
+	_Everything_Lock();
+
+	ret = _Everything_Sort;
+
+	_Everything_Unlock();
+
+	return ret;
+}
+
+EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_GetRequestFlags(void)
+{
+	DWORD ret;
+
+	_Everything_Lock();
+
+	ret = _Everything_RequestFlags;
+
+	_Everything_Unlock();
+
+	return ret;
+}
+
+HWND EVERYTHINGAPI Everything_GetReplyWindow(void)
 {
 	HWND ret;
 
@@ -444,7 +533,7 @@ HWND EVERYTHINGAPI Everything_GetReplyWindow(VOID)
 	return ret;
 }
 
-DWORD EVERYTHINGAPI Everything_GetReplyID(VOID)
+DWORD EVERYTHINGAPI Everything_GetReplyID(void)
 {
 	DWORD ret;
 
@@ -458,7 +547,7 @@ DWORD EVERYTHINGAPI Everything_GetReplyID(VOID)
 }
 
 // custom window proc
-static LRESULT __stdcall _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+static LRESULT WINAPI _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch(msg)
 	{
@@ -468,17 +557,17 @@ static LRESULT __stdcall _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wPara
 
 			switch(cds->dwData)
 			{
-				case _EVERYTHING_COPYDATA_QUERYCOMPLETEA:
+				case _EVERYTHING_COPYDATA_QUERYREPLY:
 
-					if (!_Everything_IsUnicodeQuery)
+					if (_Everything_QueryVersion == 2)
 					{
-						if (_Everything_List) HeapFree(GetProcessHeap(),0,_Everything_List);
+						_Everything_FreeLists();
 
-						_Everything_List = (EVERYTHING_IPC_LISTW *)HeapAlloc(GetProcessHeap(),0,cds->cbData);
+						_Everything_List2 = _Everything_Alloc(cds->cbData);
 
-						if (_Everything_List)
+						if (_Everything_List2)
 						{
-							CopyMemory(_Everything_List,cds->lpData,cds->cbData);
+							CopyMemory(_Everything_List2,cds->lpData,cds->cbData);
 						}
 						else
 						{
@@ -486,19 +575,13 @@ static LRESULT __stdcall _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wPara
 						}
 
 						PostQuitMessage(0);
-
-						return TRUE;
 					}
-
-					break;
-
-				case _EVERYTHING_COPYDATA_QUERYCOMPLETEW:
-
-					if (_Everything_IsUnicodeQuery)
+					else
+					if (_Everything_QueryVersion == 1)
 					{
-						if (_Everything_List) HeapFree(GetProcessHeap(),0,_Everything_List);
+						_Everything_FreeLists();
 
-						_Everything_List = (EVERYTHING_IPC_LISTW *)HeapAlloc(GetProcessHeap(),0,cds->cbData);
+						_Everything_List = _Everything_Alloc(cds->cbData);
 
 						if (_Everything_List)
 						{
@@ -525,7 +608,7 @@ static LRESULT __stdcall _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wPara
 }
 
 // get the search length
-static DWORD _Everything_GetSearchLengthW(VOID)
+static DWORD _Everything_GetSearchLengthW(void)
 {
 	if (_Everything_Search)
 	{
@@ -543,7 +626,7 @@ static DWORD _Everything_GetSearchLengthW(VOID)
 }
 
 // get the search length
-static DWORD _Everything_GetSearchLengthA(VOID)
+static DWORD _Everything_GetSearchLengthA(void)
 {
 	if (_Everything_Search)
 	{
@@ -561,7 +644,7 @@ static DWORD _Everything_GetSearchLengthA(VOID)
 }
 
 // get the search length
-static VOID _Everything_GetSearchTextW(LPWSTR wbuf)
+static void _Everything_GetSearchTextW(LPWSTR wbuf)
 {
 	DWORD wlen;
 
@@ -571,7 +654,7 @@ static VOID _Everything_GetSearchTextW(LPWSTR wbuf)
 
 		if (_Everything_IsUnicodeSearch)
 		{
-			CopyMemory(wbuf,_Everything_Search,(wlen+1) * sizeof(wchar_t));
+			CopyMemory(wbuf,_Everything_Search,(wlen+1) * sizeof(WCHAR));
 
 			return;
 		}
@@ -587,7 +670,7 @@ static VOID _Everything_GetSearchTextW(LPWSTR wbuf)
 }
 
 // get the search length
-static VOID _Everything_GetSearchTextA(LPSTR buf)
+static void _Everything_GetSearchTextA(LPSTR buf)
 {
 	DWORD len;
 
@@ -612,149 +695,89 @@ static VOID _Everything_GetSearchTextA(LPSTR buf)
 	*buf = 0;
 }
 
-static DWORD __stdcall _Everything_thread_proc(VOID *param)
+static DWORD __stdcall _Everything_query_thread_proc(void *param)
 {
 	HWND everything_hwnd;
-	COPYDATASTRUCT cds;
-	WNDCLASSEX wcex;
-	HWND hwnd;
-	MSG msg;
-	int ret;
-	DWORD len;
-	DWORD size;
-	union
-	{
-		EVERYTHING_IPC_QUERYA *queryA;
-		EVERYTHING_IPC_QUERYW *queryW;
-		VOID *query;
-	}q;
 
-	ZeroMemory(&wcex,sizeof(WNDCLASSEX));
-	wcex.cbSize = sizeof(WNDCLASSEX);
-
-	if (!GetClassInfoEx(GetModuleHandle(0),TEXT("EVERYTHING_DLL"),&wcex))
+	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+	if (everything_hwnd)
 	{
+		WNDCLASSEX wcex;
+		HWND hwnd;
+		MSG msg;
+		int ret;
+
 		ZeroMemory(&wcex,sizeof(WNDCLASSEX));
 		wcex.cbSize = sizeof(WNDCLASSEX);
-		wcex.hInstance = GetModuleHandle(0);
-		wcex.lpfnWndProc = _Everything_window_proc;
-		wcex.lpszClassName = TEXT("EVERYTHING_DLL");
 
-		if (!RegisterClassEx(&wcex))
+		if (!GetClassInfoEx(GetModuleHandle(0),TEXT("EVERYTHING_DLL"),&wcex))
 		{
-			_Everything_LastError = EVERYTHING_ERROR_REGISTERCLASSEX;
+			ZeroMemory(&wcex,sizeof(WNDCLASSEX));
+			wcex.cbSize = sizeof(WNDCLASSEX);
+			wcex.hInstance = GetModuleHandle(0);
+			wcex.lpfnWndProc = _Everything_window_proc;
+			wcex.lpszClassName = TEXT("EVERYTHING_DLL");
 
-			return 0;
+			if (!RegisterClassEx(&wcex))
+			{
+				_Everything_LastError = EVERYTHING_ERROR_REGISTERCLASSEX;
+
+				return 0;
+			}
 		}
-	}
 
-	hwnd = CreateWindow(
-		TEXT("EVERYTHING_DLL"),
-		TEXT(""),
-		0,
-		0,0,0,0,
-		0,0,GetModuleHandle(0),0);
+		hwnd = CreateWindow(
+			TEXT("EVERYTHING_DLL"),
+			TEXT(""),
+			0,
+			0,0,0,0,
+			0,0,GetModuleHandle(0),0);
 
-	if (hwnd)
-	{
-		everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
-		if (everything_hwnd)
+		if (hwnd)
 		{
-			if (param)
+			_Everything_ChangeWindowMessageFilter(hwnd);
+
+			_Everything_ReplyWindow = hwnd;
+			_Everything_ReplyID = _EVERYTHING_COPYDATA_QUERYREPLY;
+
+			if (_Everything_SendIPCQuery())
 			{
-				// unicode
-				len = _Everything_GetSearchLengthW();
+				// message pump
+loop:
 
-				size = sizeof(EVERYTHING_IPC_QUERYW) - sizeof(wchar_t) + len*sizeof(wchar_t) + sizeof(wchar_t);
-			}
-			else
-			{
-				// ansi
-				len = _Everything_GetSearchLengthA();
+				WaitMessage();
 
-				size = sizeof(EVERYTHING_IPC_QUERYA) - sizeof(char) + (len*sizeof(char)) + sizeof(char);
-			}
-
-			// alloc
-			q.query = (EVERYTHING_IPC_QUERYW *)HeapAlloc(GetProcessHeap(),0,size);
-
-			if (q.query)
-			{
-				if (param)
+				// update windows
+				while(PeekMessage(&msg,NULL,0,0,0))
 				{
-					q.queryW->max_results = _Everything_Max;
-					q.queryW->offset = _Everything_Offset;
-					q.queryW->reply_copydata_message = _EVERYTHING_COPYDATA_QUERYCOMPLETEW;
-					q.queryW->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
-					q.queryW->reply_hwnd = HWND_32BIT (hwnd);
+					ret = (DWORD)GetMessage(&msg,0,0,0);
+					if (ret == -1) goto exit;
+					if (!ret) goto exit;
 
-					_Everything_GetSearchTextW(q.queryW->search_string);
-				}
-				else
-				{
-					q.queryA->max_results = _Everything_Max;
-					q.queryA->offset = _Everything_Offset;
-					q.queryA->reply_copydata_message = _EVERYTHING_COPYDATA_QUERYCOMPLETEA;
-					q.queryA->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
-					q.queryA->reply_hwnd = HWND_32BIT (hwnd);
-
-					_Everything_GetSearchTextA(q.queryA->search_string);
+					// let windows handle it.
+					TranslateMessage(&msg);
+					DispatchMessage(&msg);
 				}
 
-				cds.cbData = size;
-				cds.dwData = param?EVERYTHING_IPC_COPYDATAQUERYW:EVERYTHING_IPC_COPYDATAQUERYA;
-				cds.lpData = q.query;
-
-				if (SendMessage(everything_hwnd,WM_COPYDATA,(WPARAM)hwnd,(LPARAM)&cds) == TRUE)
-				{
-					// message pump
-	loop:
-
-					WaitMessage();
-
-					// update windows
-					while(PeekMessage(&msg,NULL,0,0,0))
-					{
-						ret = (DWORD)GetMessage(&msg,0,0,0);
-						if (ret == -1) goto exit;
-						if (!ret) goto exit;
-
-						// let windows handle it.
-						TranslateMessage(&msg);
-						DispatchMessage(&msg);
-					}
-
-					goto loop;
-
-	exit:
-
-					// get result from window.
-					DestroyWindow(hwnd);
-				}
-				else
-				{
-					_Everything_LastError = EVERYTHING_ERROR_IPC;
-				}
-
-				// get result from window.
-				HeapFree(GetProcessHeap(),0,q.query);
+				goto loop;
 			}
-			else
-			{
-				_Everything_LastError = EVERYTHING_ERROR_MEMORY;
-			}
+
+exit:
+
+			// get result from window.
+			DestroyWindow(hwnd);
 		}
 		else
 		{
-			// the everything window was not found.
-			// we can optionally RegisterWindowMessage("EVERYTHING_IPC_CREATED") and
-			// wait for Everything to post this message to all top level windows when its up and running.
-			_Everything_LastError = EVERYTHING_ERROR_IPC;
+			_Everything_LastError = EVERYTHING_ERROR_CREATEWINDOW;
 		}
 	}
 	else
 	{
-		_Everything_LastError = EVERYTHING_ERROR_CREATEWINDOW;
+		// the everything window was not found.
+		// we can optionally RegisterWindowMessage("EVERYTHING_IPC_CREATED") and
+		// wait for Everything to post this message to all top level windows when its up and running.
+		_Everything_LastError = EVERYTHING_ERROR_IPC;
 	}
 
 	return 0;
@@ -762,28 +785,16 @@ static DWORD __stdcall _Everything_thread_proc(VOID *param)
 
 HANDLE Everything_hthread;
 
-static BOOL EVERYTHINGAPI _Everything_Query(BOOL bUnicode)
+static BOOL EVERYTHINGAPI _Everything_Query(void)
 {
 	HANDLE hthread;
-	DWORD threadid;
-	VOID *param;
+	DWORD thread_id;
 
 	// reset the error flag.
 	_Everything_LastError = 0;
 
-	if (bUnicode)
-	{
-		param = (VOID *)1;
-	}
-	else
-	{
-		param = 0;
-	}
-
-	_Everything_IsUnicodeQuery = bUnicode;
-
-	hthread = CreateThread(0,0,_Everything_thread_proc,param,0,&threadid);
-    Everything_hthread = hthread;
+	hthread = CreateThread(0,0,_Everything_query_thread_proc,0,0,&thread_id);
+	Everything_hthread = hthread;
 
 	if (hthread)
 	{
@@ -799,93 +810,191 @@ static BOOL EVERYTHINGAPI _Everything_Query(BOOL bUnicode)
 	return (_Everything_LastError == 0)?TRUE:FALSE;
 }
 
+static BOOL _Everything_SendIPCQuery2(HWND everything_hwnd)
+{
+	BOOL ret;
+	DWORD size;
+	EVERYTHING_IPC_QUERY2 *query;
 
-BOOL _Everything_SendIPCQuery(BOOL bUnicode)
+	// try version 2.
+
+	if (_Everything_IsUnicodeQuery)
+	{
+		// unicode
+		size = sizeof(EVERYTHING_IPC_QUERY2) + ((_Everything_GetSearchLengthW() + 1) * sizeof(WCHAR));
+	}
+	else
+	{
+		// ansi
+		size = sizeof(EVERYTHING_IPC_QUERY2) + ((_Everything_GetSearchLengthA() + 1) * sizeof(char));
+	}
+
+	// alloc
+	query = _Everything_Alloc(size);
+
+	if (query)
+	{
+		COPYDATASTRUCT cds;
+
+		query->max_results = _Everything_Max;
+		query->offset = _Everything_Offset;
+		query->reply_copydata_message = _Everything_ReplyID;
+		query->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
+		query->reply_hwnd = (DWORD)(DWORD_PTR)_Everything_ReplyWindow;
+		query->sort_type = (DWORD)_Everything_Sort;
+		query->request_flags = (DWORD)_Everything_RequestFlags;
+
+		if (_Everything_IsUnicodeQuery)
+		{
+			_Everything_GetSearchTextW((LPWSTR)(query + 1));
+		}
+		else
+		{
+			_Everything_GetSearchTextA((LPSTR)(query + 1));
+		}
+
+		cds.cbData = size;
+		cds.dwData = _Everything_IsUnicodeQuery ? EVERYTHING_IPC_COPYDATA_QUERY2W : EVERYTHING_IPC_COPYDATA_QUERY2A;
+		cds.lpData = query;
+
+		if (SendMessage(everything_hwnd,WM_COPYDATA,(WPARAM)_Everything_ReplyWindow,(LPARAM)&cds))
+		{
+			// successful.
+			ret = TRUE;
+		}
+		else
+		{
+			// no ipc
+			_Everything_LastError = EVERYTHING_ERROR_IPC;
+
+			ret = FALSE;
+		}
+
+		// get result from window.
+		_Everything_Free(query);
+	}
+	else
+	{
+		_Everything_LastError = EVERYTHING_ERROR_MEMORY;
+
+		ret = FALSE;
+	}
+
+	return ret;
+}
+
+static BOOL _Everything_ShouldUseVersion2(void)
+{
+	if (_Everything_RequestFlags != (EVERYTHING_REQUEST_PATH | EVERYTHING_REQUEST_FILE_NAME))
+	{
+		return TRUE;
+	}
+
+	if (_Everything_Sort != EVERYTHING_SORT_NAME_ASCENDING)
+	{
+		return TRUE;
+	}
+
+	// just use version 1
+	return FALSE;
+}
+
+static BOOL _Everything_SendIPCQuery(void)
 {
 	HWND everything_hwnd;
-	COPYDATASTRUCT cds;
-	int ret;
-	DWORD len;
-	DWORD size;
-	union
-	{
-		EVERYTHING_IPC_QUERYA *queryA;
-		EVERYTHING_IPC_QUERYW *queryW;
-		VOID *query;
-	}q;
-
-	_Everything_IsUnicodeQuery = bUnicode;
+	BOOL ret;
 
 		// find the everything ipc window.
 	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
 	if (everything_hwnd)
 	{
-		if (bUnicode)
-		{
-			// unicode
-			len = _Everything_GetSearchLengthW();
+		_Everything_QueryVersion = 2;
 
-			size = sizeof(EVERYTHING_IPC_QUERYW) - sizeof(wchar_t) + len*sizeof(wchar_t) + sizeof(wchar_t);
+		// try version 2 first (if we specified some non-version 1 request flags)
+		if ((_Everything_ShouldUseVersion2()) && (_Everything_SendIPCQuery2(everything_hwnd)))
+		{
+			// sucessful.
+			ret = TRUE;
 		}
 		else
 		{
-			// ansi
-			len = _Everything_GetSearchLengthA();
+			DWORD len;
+			DWORD size;
+			void *query;
 
-			size = sizeof(EVERYTHING_IPC_QUERYA) - sizeof(char) + (len*sizeof(char)) + sizeof(char);
-		}
+			// try version 1.
 
-		// alloc
-		q.query = (EVERYTHING_IPC_QUERYW *)HeapAlloc(GetProcessHeap(),0,size);
-
-		if (q.query)
-		{
-			if (bUnicode)
+			if (_Everything_IsUnicodeQuery)
 			{
-				q.queryW->max_results = _Everything_Max;
-				q.queryW->offset = _Everything_Offset;
-				q.queryW->reply_copydata_message = _Everything_ReplyID;
-				q.queryW->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
-				q.queryW->reply_hwnd = HWND_32BIT (_Everything_ReplyWindow);
+				// unicode
+				len = _Everything_GetSearchLengthW();
 
-				_Everything_GetSearchTextW(q.queryW->search_string);
+				size = sizeof(EVERYTHING_IPC_QUERYW) - sizeof(WCHAR) + len*sizeof(WCHAR) + sizeof(WCHAR);
 			}
 			else
 			{
-				q.queryA->max_results = _Everything_Max;
-				q.queryA->offset = _Everything_Offset;
-				q.queryA->reply_copydata_message = _Everything_ReplyID;
-				q.queryA->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
-				q.queryA->reply_hwnd = HWND_32BIT (_Everything_ReplyWindow);
+				// ansi
+				len = _Everything_GetSearchLengthA();
 
-				_Everything_GetSearchTextA(q.queryA->search_string);
+				size = sizeof(EVERYTHING_IPC_QUERYA) - sizeof(char) + (len*sizeof(char)) + sizeof(char);
 			}
 
-			cds.cbData = size;
-			cds.dwData = bUnicode?EVERYTHING_IPC_COPYDATAQUERYW:EVERYTHING_IPC_COPYDATAQUERYA;
-			cds.lpData = q.query;
+			// alloc
+			query = _Everything_Alloc(size);
 
-			if (SendMessage(everything_hwnd,WM_COPYDATA,(WPARAM)_Everything_ReplyWindow,(LPARAM)&cds))
+			if (query)
 			{
-				// sucessful.
-				ret = TRUE;
+				COPYDATASTRUCT cds;
+
+				if (_Everything_IsUnicodeQuery)
+				{
+					((EVERYTHING_IPC_QUERYW *)query)->max_results = _Everything_Max;
+					((EVERYTHING_IPC_QUERYW *)query)->offset = _Everything_Offset;
+					((EVERYTHING_IPC_QUERYW *)query)->reply_copydata_message = _Everything_ReplyID;
+					((EVERYTHING_IPC_QUERYW *)query)->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
+					((EVERYTHING_IPC_QUERYW *)query)->reply_hwnd = (DWORD)(DWORD_PTR)_Everything_ReplyWindow;
+
+					_Everything_GetSearchTextW(((EVERYTHING_IPC_QUERYW *)query)->search_string);
+				}
+				else
+				{
+					((EVERYTHING_IPC_QUERYA *)query)->max_results = _Everything_Max;
+					((EVERYTHING_IPC_QUERYA *)query)->offset = _Everything_Offset;
+					((EVERYTHING_IPC_QUERYA *)query)->reply_copydata_message = _Everything_ReplyID;
+					((EVERYTHING_IPC_QUERYA *)query)->search_flags = (_Everything_Regex?EVERYTHING_IPC_REGEX:0) | (_Everything_MatchCase?EVERYTHING_IPC_MATCHCASE:0) | (_Everything_MatchWholeWord?EVERYTHING_IPC_MATCHWHOLEWORD:0) | (_Everything_MatchPath?EVERYTHING_IPC_MATCHPATH:0);
+					((EVERYTHING_IPC_QUERYA *)query)->reply_hwnd = (DWORD)(DWORD_PTR)_Everything_ReplyWindow;
+
+					_Everything_GetSearchTextA(((EVERYTHING_IPC_QUERYA *)query)->search_string);
+				}
+
+				cds.cbData = size;
+				cds.dwData = _Everything_IsUnicodeQuery ? EVERYTHING_IPC_COPYDATAQUERYW : EVERYTHING_IPC_COPYDATAQUERYA;
+				cds.lpData = query;
+
+				_Everything_QueryVersion = 1;
+
+				if (SendMessage(everything_hwnd,WM_COPYDATA,(WPARAM)_Everything_ReplyWindow,(LPARAM)&cds))
+				{
+					// sucessful.
+					ret = TRUE;
+				}
+				else
+				{
+					// no ipc
+					_Everything_LastError = EVERYTHING_ERROR_IPC;
+
+					ret = FALSE;
+				}
+
+				// get result from window.
+				_Everything_Free(query);
 			}
 			else
 			{
-				// no ipc
-				_Everything_LastError = EVERYTHING_ERROR_IPC;
+				_Everything_LastError = EVERYTHING_ERROR_MEMORY;
 
 				ret = FALSE;
 			}
-
-			// get result from window.
-			HeapFree(GetProcessHeap(),0,q.query);
-		}
-		else
-		{
-			_Everything_LastError = EVERYTHING_ERROR_MEMORY;
-
-			ret = FALSE;
 		}
 	}
 	else
@@ -904,13 +1013,15 @@ BOOL EVERYTHINGAPI Everything_QueryA(BOOL bWait)
 
 	_Everything_Lock();
 
+	_Everything_IsUnicodeQuery = FALSE;
+
 	if (bWait)
 	{
-		ret = _Everything_Query(FALSE);
+		ret = _Everything_Query();
 	}
 	else
 	{
-		ret = _Everything_SendIPCQuery(FALSE);
+		ret = _Everything_SendIPCQuery();
 	}
 
 	_Everything_Unlock();
@@ -924,13 +1035,15 @@ BOOL EVERYTHINGAPI Everything_QueryW(BOOL bWait)
 
 	_Everything_Lock();
 
+	_Everything_IsUnicodeQuery = TRUE;
+
 	if (bWait)
 	{
-		ret = _Everything_Query(TRUE);
+		ret = _Everything_Query();
 	}
 	else
 	{
-		ret = _Everything_SendIPCQuery(TRUE);
+		ret = _Everything_SendIPCQuery();
 	}
 
 	_Everything_Unlock();
@@ -938,7 +1051,7 @@ BOOL EVERYTHINGAPI Everything_QueryW(BOOL bWait)
 	return ret;
 }
 
-static int _Everything_CompareA(const VOID *a,const VOID *b)
+static int __cdecl _Everything_CompareA(const void *a,const void *b)
 {
 	int i;
 
@@ -959,7 +1072,7 @@ static int _Everything_CompareA(const VOID *a,const VOID *b)
 	}
 }
 
-static int _Everything_CompareW(const VOID *a,const VOID *b)
+static int __cdecl _Everything_CompareW(const void *a,const void *b)
 {
 	int i;
 
@@ -980,7 +1093,7 @@ static int _Everything_CompareW(const VOID *a,const VOID *b)
 	}
 }
 
-VOID EVERYTHINGAPI Everything_SortResultsByPath(VOID)
+void EVERYTHINGAPI Everything_SortResultsByPath(void)
 {
 	_Everything_Lock();
 
@@ -1000,10 +1113,12 @@ VOID EVERYTHINGAPI Everything_SortResultsByPath(VOID)
 		_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
 	}
 
+//FIXME://TODO: sort list2
+
 	_Everything_Unlock();
 }
 
-DWORD EVERYTHINGAPI Everything_GetLastError(VOID)
+DWORD EVERYTHINGAPI Everything_GetLastError(void)
 {
 	DWORD ret;
 
@@ -1016,7 +1131,7 @@ DWORD EVERYTHINGAPI Everything_GetLastError(VOID)
 	return ret;
 }
 
-DWORD EVERYTHINGAPI Everything_GetNumFileResults(VOID)
+DWORD EVERYTHINGAPI Everything_GetNumFileResults(void)
 {
 	DWORD ret;
 
@@ -1045,7 +1160,7 @@ DWORD EVERYTHINGAPI Everything_GetNumFileResults(VOID)
 	return ret;
 }
 
-DWORD EVERYTHINGAPI Everything_GetNumFolderResults(VOID)
+DWORD EVERYTHINGAPI Everything_GetNumFolderResults(void)
 {
 	DWORD ret;
 
@@ -1074,7 +1189,7 @@ DWORD EVERYTHINGAPI Everything_GetNumFolderResults(VOID)
 	return ret;
 }
 
-DWORD EVERYTHINGAPI Everything_GetNumResults(VOID)
+DWORD EVERYTHINGAPI Everything_GetNumResults(void)
 {
 	DWORD ret;
 
@@ -1092,6 +1207,11 @@ DWORD EVERYTHINGAPI Everything_GetNumResults(VOID)
 		}
 	}
 	else
+	if (_Everything_List2)
+	{
+		ret = _Everything_List2->numitems;
+	}
+	else
 	{
 		_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
 
@@ -1103,7 +1223,7 @@ DWORD EVERYTHINGAPI Everything_GetNumResults(VOID)
 	return ret;
 }
 
-DWORD EVERYTHINGAPI Everything_GetTotFileResults(VOID)
+DWORD EVERYTHINGAPI Everything_GetTotFileResults(void)
 {
 	DWORD ret;
 
@@ -1132,9 +1252,11 @@ DWORD EVERYTHINGAPI Everything_GetTotFileResults(VOID)
 	return ret;
 }
 
-DWORD EVERYTHINGAPI Everything_GetTotFolderResults(VOID)
+DWORD EVERYTHINGAPI Everything_GetTotFolderResults(void)
 {
 	DWORD ret;
+
+	ret = 0;
 
 	_Everything_Lock();
 
@@ -1152,8 +1274,6 @@ DWORD EVERYTHINGAPI Everything_GetTotFolderResults(VOID)
 	else
 	{
 		_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
-
-		ret = 0;
 	}
 
 	_Everything_Unlock();
@@ -1161,7 +1281,7 @@ DWORD EVERYTHINGAPI Everything_GetTotFolderResults(VOID)
 	return ret;
 }
 
-DWORD EVERYTHINGAPI Everything_GetTotResults(VOID)
+DWORD EVERYTHINGAPI Everything_GetTotResults(void)
 {
 	DWORD ret;
 
@@ -1179,6 +1299,11 @@ DWORD EVERYTHINGAPI Everything_GetTotResults(VOID)
 		}
 	}
 	else
+	if (_Everything_List2)
+	{
+		ret = _Everything_List2->totitems;
+	}
+	else
 	{
 		_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
 
@@ -1190,7 +1315,7 @@ DWORD EVERYTHINGAPI Everything_GetTotResults(VOID)
 	return ret;
 }
 
-BOOL EVERYTHINGAPI Everything_IsVolumeResult(DWORD nIndex)
+BOOL EVERYTHINGAPI Everything_IsVolumeResult(DWORD dwIndex)
 {
 	BOOL ret;
 
@@ -1198,31 +1323,36 @@ BOOL EVERYTHINGAPI Everything_IsVolumeResult(DWORD nIndex)
 
 	if (_Everything_List)
 	{
-		if (nIndex < 0)
+		if (_Everything_IsValidResultIndex(dwIndex))
 		{
-			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
-
-			ret = FALSE;
-
-			goto exit;
-		}
-
-		if (nIndex >= Everything_GetNumResults())
-		{
-			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
-
-			ret = FALSE;
-
-			goto exit;
-		}
-
-		if (_Everything_IsUnicodeQuery)
-		{
-			ret = ((EVERYTHING_IPC_LISTW *)_Everything_List)->items[nIndex].flags & EVERYTHING_IPC_DRIVE;
+			if (_Everything_IsUnicodeQuery)
+			{
+				ret = (((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex].flags & EVERYTHING_IPC_DRIVE) ? TRUE : FALSE;
+			}
+			else
+			{
+				ret = (((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex].flags & EVERYTHING_IPC_DRIVE) ? TRUE : FALSE;
+			}
 		}
 		else
 		{
-			ret = ((EVERYTHING_IPC_LISTA *)_Everything_List)->items[nIndex].flags & EVERYTHING_IPC_DRIVE;
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
+
+			ret = FALSE;
+		}
+	}
+	else
+	if (_Everything_List2)
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = (((EVERYTHING_IPC_ITEM2 *)(_Everything_List2 + 1))[dwIndex].flags & EVERYTHING_IPC_DRIVE) ? TRUE : FALSE;
+		}
+		else
+		{
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
+
+			ret = FALSE;
 		}
 	}
 	else
@@ -1232,14 +1362,12 @@ BOOL EVERYTHINGAPI Everything_IsVolumeResult(DWORD nIndex)
 		ret = FALSE;
 	}
 
-exit:
-
 	_Everything_Unlock();
 
 	return ret;
 }
 
-BOOL EVERYTHINGAPI Everything_IsFolderResult(DWORD nIndex)
+BOOL EVERYTHINGAPI Everything_IsFolderResult(DWORD dwIndex)
 {
 	BOOL ret;
 
@@ -1247,78 +1375,36 @@ BOOL EVERYTHINGAPI Everything_IsFolderResult(DWORD nIndex)
 
 	if (_Everything_List)
 	{
-		if (nIndex < 0)
+		if (_Everything_IsValidResultIndex(dwIndex))
 		{
-			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
-
-			ret = FALSE;
-
-			goto exit;
-		}
-
-		if (nIndex >= Everything_GetNumResults())
-		{
-			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
-
-			ret = FALSE;
-
-			goto exit;
-		}
-
-		if (_Everything_IsUnicodeQuery)
-		{
-			ret = ((EVERYTHING_IPC_LISTW *)_Everything_List)->items[nIndex].flags & (EVERYTHING_IPC_DRIVE|EVERYTHING_IPC_FOLDER);
+			if (_Everything_IsUnicodeQuery)
+			{
+				ret = ((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex].flags & (EVERYTHING_IPC_FOLDER) ? TRUE : FALSE;
+			}
+			else
+			{
+				ret = ((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex].flags & (EVERYTHING_IPC_FOLDER) ? TRUE : FALSE;
+			}
 		}
 		else
 		{
-			ret = ((EVERYTHING_IPC_LISTA *)_Everything_List)->items[nIndex].flags & (EVERYTHING_IPC_DRIVE|EVERYTHING_IPC_FOLDER);
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
+
+			ret = FALSE;
 		}
 	}
 	else
+	if (_Everything_List2)
 	{
-		ret = FALSE;
-	}
-
-exit:
-
-	_Everything_Unlock();
-
-	return ret;
-}
-
-BOOL EVERYTHINGAPI Everything_IsFileResult(DWORD nIndex)
-{
-	BOOL ret;
-
-	_Everything_Lock();
-
-	if (_Everything_List)
-	{
-		if (nIndex < 0)
+		if (_Everything_IsValidResultIndex(dwIndex))
 		{
-			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
-
-			ret = FALSE;
-
-			goto exit;
-		}
-
-		if (nIndex >= Everything_GetNumResults())
-		{
-			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
-
-			ret = FALSE;
-
-			goto exit;
-		}
-
-		if (_Everything_IsUnicodeQuery)
-		{
-			ret = !(((EVERYTHING_IPC_LISTW *)_Everything_List)->items[nIndex].flags & (EVERYTHING_IPC_DRIVE|EVERYTHING_IPC_FOLDER));
+			ret = (((EVERYTHING_IPC_ITEM2 *)(_Everything_List2 + 1))[dwIndex].flags & (EVERYTHING_IPC_FOLDER)) ? TRUE : FALSE;
 		}
 		else
 		{
-			ret = !(((EVERYTHING_IPC_LISTA *)_Everything_List)->items[nIndex].flags & (EVERYTHING_IPC_DRIVE|EVERYTHING_IPC_FOLDER));
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
+
+			ret = FALSE;
 		}
 	}
 	else
@@ -1328,14 +1414,64 @@ BOOL EVERYTHINGAPI Everything_IsFileResult(DWORD nIndex)
 		ret = FALSE;
 	}
 
-exit:
+	_Everything_Unlock();
+
+	return ret;
+}
+
+BOOL EVERYTHINGAPI Everything_IsFileResult(DWORD dwIndex)
+{
+	BOOL ret;
+
+	_Everything_Lock();
+
+	if (_Everything_List)
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			if (_Everything_IsUnicodeQuery)
+			{
+				ret = (((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex].flags & (EVERYTHING_IPC_FOLDER)) ? FALSE : TRUE;
+			}
+			else
+			{
+				ret = (((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex].flags & (EVERYTHING_IPC_FOLDER)) ? FALSE : TRUE;
+			}
+		}
+		else
+		{
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
+
+			ret = FALSE;
+		}
+	}
+	else
+	if (_Everything_List2)
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = (((EVERYTHING_IPC_ITEM2 *)(_Everything_List2 + 1))[dwIndex].flags & (EVERYTHING_IPC_FOLDER)) ? FALSE : TRUE;
+		}
+		else
+		{
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
+
+			ret = FALSE;
+		}
+	}
+	else
+	{
+		_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
+
+		ret = FALSE;
+	}
 
 	_Everything_Unlock();
 
 	return ret;
 }
 
-LPCWSTR EVERYTHINGAPI Everything_GetResultFileNameW(DWORD nIndex)
+LPCWSTR EVERYTHINGAPI Everything_GetResultFileNameW(DWORD dwIndex)
 {
 	LPCWSTR ret;
 
@@ -1343,25 +1479,40 @@ LPCWSTR EVERYTHINGAPI Everything_GetResultFileNameW(DWORD nIndex)
 
 	if ((_Everything_List) && (_Everything_IsUnicodeQuery))
 	{
-		if (nIndex < 0)
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex]);
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			ret = NULL;
-
-			goto exit;
 		}
+	}
+	else
+	if ((_Everything_List2) && (_Everything_IsUnicodeQuery))
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_FILE_NAME);
 
-		if (nIndex >= ((EVERYTHING_IPC_LISTW *)_Everything_List)->numitems)
+			if (ret)
+			{
+				// skip length in characters.
+				ret = (LPCWSTR)(((char *)ret) + sizeof(DWORD));
+			}
+			else
+			{
+				_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+			}
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			ret = NULL;
-
-			goto exit;
 		}
-
-		ret = EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[nIndex]);
 	}
 	else
 	{
@@ -1370,14 +1521,12 @@ LPCWSTR EVERYTHINGAPI Everything_GetResultFileNameW(DWORD nIndex)
 		ret = NULL;
 	}
 
-exit:
-
 	_Everything_Unlock();
 
 	return ret;
 }
 
-LPCSTR EVERYTHINGAPI Everything_GetResultFileNameA(DWORD nIndex)
+LPCSTR EVERYTHINGAPI Everything_GetResultFileNameA(DWORD dwIndex)
 {
 	LPCSTR ret;
 
@@ -1385,25 +1534,40 @@ LPCSTR EVERYTHINGAPI Everything_GetResultFileNameA(DWORD nIndex)
 
 	if ((_Everything_List) && (!_Everything_IsUnicodeQuery))
 	{
-		if (nIndex < 0)
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = EVERYTHING_IPC_ITEMFILENAMEA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex]);
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			ret = NULL;
-
-			goto exit;
 		}
+	}
+	else
+	if ((_Everything_List2) && (!_Everything_IsUnicodeQuery))
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_FILE_NAME);
 
-		if (nIndex >= (DWORD)((EVERYTHING_IPC_LISTA *)_Everything_List)->numitems)
+			if (ret)
+			{
+				// skip length in characters.
+				ret = (LPCSTR)(((char *)ret) + sizeof(DWORD));
+			}
+			else
+			{
+				_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+			}
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			ret = NULL;
-
-			goto exit;
 		}
-
-		ret = EVERYTHING_IPC_ITEMFILENAMEA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[nIndex]);
 	}
 	else
 	{
@@ -1412,14 +1576,12 @@ LPCSTR EVERYTHINGAPI Everything_GetResultFileNameA(DWORD nIndex)
 		ret = NULL;
 	}
 
-exit:
-
 	_Everything_Unlock();
 
 	return ret;
 }
 
-LPCWSTR EVERYTHINGAPI Everything_GetResultPathW(DWORD nIndex)
+LPCWSTR EVERYTHINGAPI Everything_GetResultPathW(DWORD dwIndex)
 {
 	LPCWSTR ret;
 
@@ -1427,25 +1589,40 @@ LPCWSTR EVERYTHINGAPI Everything_GetResultPathW(DWORD nIndex)
 
 	if ((_Everything_List) && (_Everything_IsUnicodeQuery))
 	{
-		if (nIndex < 0)
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = EVERYTHING_IPC_ITEMPATHW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex]);
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			ret = NULL;
-
-			goto exit;
 		}
+	}
+	else
+	if ((_Everything_List2) && (_Everything_IsUnicodeQuery))
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_PATH);
 
-		if (nIndex >= ((EVERYTHING_IPC_LISTW *)_Everything_List)->numitems)
+			if (ret)
+			{
+				// skip length in characters.
+				ret = (LPCWSTR)(((char *)ret) + sizeof(DWORD));
+			}
+			else
+			{
+				_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+			}
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			ret = NULL;
-
-			goto exit;
 		}
-
-		ret = EVERYTHING_IPC_ITEMPATHW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[nIndex]);
 	}
 	else
 	{
@@ -1454,14 +1631,12 @@ LPCWSTR EVERYTHINGAPI Everything_GetResultPathW(DWORD nIndex)
 		ret = NULL;
 	}
 
-exit:
-
 	_Everything_Unlock();
 
 	return ret;
 }
 
-LPCSTR EVERYTHINGAPI Everything_GetResultPathA(DWORD nIndex)
+LPCSTR EVERYTHINGAPI Everything_GetResultPathA(DWORD dwIndex)
 {
 	LPCSTR ret;
 
@@ -1469,25 +1644,40 @@ LPCSTR EVERYTHINGAPI Everything_GetResultPathA(DWORD nIndex)
 
 	if (_Everything_List)
 	{
-		if (nIndex < 0)
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = EVERYTHING_IPC_ITEMPATHA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex]);
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			ret = NULL;
-
-			goto exit;
 		}
+	}
+	else
+	if ((_Everything_List2) && (!_Everything_IsUnicodeQuery))
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			ret = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_PATH);
 
-		if (nIndex >= ((EVERYTHING_IPC_LISTA *)_Everything_List)->numitems)
+			if (ret)
+			{
+				// skip length in characters.
+				ret = (LPCSTR)(((char *)ret) + sizeof(DWORD));
+			}
+			else
+			{
+				_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+			}
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			ret = NULL;
-
-			goto exit;
 		}
-
-		ret = EVERYTHING_IPC_ITEMPATHA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[nIndex]);
 	}
 	else
 	{
@@ -1495,8 +1685,6 @@ LPCSTR EVERYTHINGAPI Everything_GetResultPathA(DWORD nIndex)
 
 		ret = NULL;
 	}
-
-exit:
 
 	_Everything_Unlock();
 
@@ -1530,7 +1718,7 @@ static DWORD _Everything_CopyW(LPWSTR buf,DWORD bufmax,DWORD catlen,LPCWSTR s)
 
 	if (buf)
 	{
-		CopyMemory(buf,s,wlen*sizeof(wchar_t));
+		CopyMemory(buf,s,wlen*sizeof(WCHAR));
 
 		buf[wlen] = 0;
 	}
@@ -1643,7 +1831,7 @@ static DWORD _Everything_CopyAFromW(LPSTR buf,DWORD max,DWORD catlen,LPCWSTR s)
 
 }
 
-DWORD EVERYTHINGAPI Everything_GetResultFullPathNameW(DWORD nIndex,LPWSTR wbuf,DWORD wbuf_size_in_wchars)
+DWORD EVERYTHINGAPI Everything_GetResultFullPathNameW(DWORD dwIndex,LPWSTR wbuf,DWORD wbuf_size_in_wchars)
 {
 	DWORD len;
 
@@ -1651,47 +1839,127 @@ DWORD EVERYTHINGAPI Everything_GetResultFullPathNameW(DWORD nIndex,LPWSTR wbuf,D
 
 	if (_Everything_List)
 	{
-		if (nIndex < 0)
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			if (_Everything_IsUnicodeQuery)
+			{
+				len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,EVERYTHING_IPC_ITEMPATHW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex]));
+			}
+			else
+			{
+				len = _Everything_CopyWFromA(wbuf,wbuf_size_in_wchars,0,EVERYTHING_IPC_ITEMPATHA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex]));
+			}
+
+			if (len)
+			{
+				len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,_Everything_IsSchemeNameW(wbuf) ? L"/" : L"\\");
+			}
+
+			if (_Everything_IsUnicodeQuery)
+			{
+				len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex]));
+			}
+			else
+			{
+				len = _Everything_CopyWFromA(wbuf,wbuf_size_in_wchars,len,EVERYTHING_IPC_ITEMFILENAMEA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex]));
+			}
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,L"");
-
-			goto exit;
 		}
+	}
+	else
+	if (_Everything_List2)
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			const void *full_path_and_name;
 
-		if (nIndex >= ((EVERYTHING_IPC_LISTW *)_Everything_List)->numitems)
+			full_path_and_name = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_FULL_PATH_AND_FILE_NAME);
+
+			if (full_path_and_name)
+			{
+				// skip number of characters.
+				full_path_and_name = (void *)(((char *)full_path_and_name) + sizeof(DWORD));
+
+				// we got the full path and name already.
+				if (_Everything_IsUnicodeQuery)
+				{
+					len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,full_path_and_name);
+				}
+				else
+				{
+					len = _Everything_CopyWFromA(wbuf,wbuf_size_in_wchars,0,full_path_and_name);
+				}
+			}
+			else
+			{
+				const void *path;
+
+				path = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_PATH);
+
+				if (path)
+				{
+					const void *name;
+
+					// skip number of characters.
+					path = (void *)(((char *)path) + sizeof(DWORD));
+
+					name = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_FILE_NAME);
+
+					if (name)
+					{
+						// skip number of characters.
+						name = (void *)(((char *)name) + sizeof(DWORD));
+
+						if (_Everything_IsUnicodeQuery)
+						{
+							len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,path);
+						}
+						else
+						{
+							len = _Everything_CopyWFromA(wbuf,wbuf_size_in_wchars,0,path);
+						}
+
+						if (len)
+						{
+							len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,_Everything_IsSchemeNameW(wbuf) ? L"/" : L"\\");
+						}
+
+						if (_Everything_IsUnicodeQuery)
+						{
+							len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,name);
+						}
+						else
+						{
+							len = _Everything_CopyWFromA(wbuf,wbuf_size_in_wchars,len,name);
+						}
+					}
+					else
+					{
+						// name data not available.
+						_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+
+						len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,L"");
+					}
+				}
+				else
+				{
+					// path data not available.
+					_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+
+					len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,L"");
+				}
+			}
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,L"");
-
-			goto exit;
-		}
-
-		len = 0;
-
-		if (_Everything_IsUnicodeQuery)
-		{
-			len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,EVERYTHING_IPC_ITEMPATHW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[nIndex]));
-		}
-		else
-		{
-			len = _Everything_CopyWFromA(wbuf,wbuf_size_in_wchars,len,EVERYTHING_IPC_ITEMPATHA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[nIndex]));
-		}
-
-		if (len)
-		{
-			len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,L"\\");
-		}
-
-		if (_Everything_IsUnicodeQuery)
-		{
-			len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[nIndex]));
-		}
-		else
-		{
-			len = _Everything_CopyWFromA(wbuf,wbuf_size_in_wchars,len,EVERYTHING_IPC_ITEMFILENAMEA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[nIndex]));
 		}
 	}
 	else
@@ -1701,14 +1969,12 @@ DWORD EVERYTHINGAPI Everything_GetResultFullPathNameW(DWORD nIndex,LPWSTR wbuf,D
 		len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,L"");
 	}
 
-exit:
-
 	_Everything_Unlock();
 
 	return len;
 }
 
-DWORD EVERYTHINGAPI Everything_GetResultFullPathNameA(DWORD nIndex,LPSTR buf,DWORD bufsize)
+DWORD EVERYTHINGAPI Everything_GetResultFullPathNameA(DWORD dwIndex,LPSTR buf,DWORD bufsize)
 {
 	DWORD len;
 
@@ -1716,47 +1982,127 @@ DWORD EVERYTHINGAPI Everything_GetResultFullPathNameA(DWORD nIndex,LPSTR buf,DWO
 
 	if (_Everything_List)
 	{
-		if (nIndex < 0)
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			if (_Everything_IsUnicodeQuery)
+			{
+				len = _Everything_CopyAFromW(buf,bufsize,0,EVERYTHING_IPC_ITEMPATHW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex]));
+			}
+			else
+			{
+				len = _Everything_CopyA(buf,bufsize,0,EVERYTHING_IPC_ITEMPATHA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex]));
+			}
+
+			if (len)
+			{
+				len = _Everything_CopyA(buf,bufsize,len,_Everything_IsSchemeNameA(buf) ? "/" : "\\");
+			}
+
+			if (_Everything_IsUnicodeQuery)
+			{
+				len = _Everything_CopyAFromW(buf,bufsize,len,EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex]));
+			}
+			else
+			{
+				len = _Everything_CopyA(buf,bufsize,len,EVERYTHING_IPC_ITEMFILENAMEA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex]));
+			}
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			len = _Everything_CopyA(buf,bufsize,0,"");
-
-			goto exit;
 		}
+	}
+	else
+	if (_Everything_List2)
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			const void *full_path_and_name;
 
-		if (nIndex >= ((EVERYTHING_IPC_LISTW *)_Everything_List)->numitems)
+			full_path_and_name = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_FULL_PATH_AND_FILE_NAME);
+
+			if (full_path_and_name)
+			{
+				// skip number of characters.
+				full_path_and_name = (void *)(((char *)full_path_and_name) + sizeof(DWORD));
+
+				// we got the full path and name already.
+				if (_Everything_IsUnicodeQuery)
+				{
+					len = _Everything_CopyAFromW(buf,bufsize,0,full_path_and_name);
+				}
+				else
+				{
+					len = _Everything_CopyA(buf,bufsize,0,full_path_and_name);
+				}
+			}
+			else
+			{
+				const void *path;
+
+				path = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_PATH);
+
+				if (path)
+				{
+					const void *name;
+
+					// skip number of characters.
+					path = (void *)(((char *)path) + sizeof(DWORD));
+
+					name = _Everything_GetRequestData(dwIndex,EVERYTHING_REQUEST_FILE_NAME);
+
+					if (name)
+					{
+						// skip number of characters.
+						name = (void *)(((char *)name) + sizeof(DWORD));
+
+						if (_Everything_IsUnicodeQuery)
+						{
+							len = _Everything_CopyAFromW(buf,bufsize,0,path);
+						}
+						else
+						{
+							len = _Everything_CopyA(buf,bufsize,0,path);
+						}
+
+						if (len)
+						{
+							len = _Everything_CopyA(buf,bufsize,len,_Everything_IsSchemeNameA(buf) ? "/" : "\\");
+						}
+
+						if (_Everything_IsUnicodeQuery)
+						{
+							len = _Everything_CopyAFromW(buf,bufsize,len,name);
+						}
+						else
+						{
+							len = _Everything_CopyA(buf,bufsize,len,name);
+						}
+					}
+					else
+					{
+						// name data not available.
+						_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+
+						len = _Everything_CopyA(buf,bufsize,0,"");
+					}
+				}
+				else
+				{
+					// path data not available.
+					_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+
+					len = _Everything_CopyA(buf,bufsize,0,"");
+				}
+			}
+		}
+		else
 		{
 			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
 
 			len = _Everything_CopyA(buf,bufsize,0,"");
-
-			goto exit;
-		}
-
-		len = 0;
-
-		if (_Everything_IsUnicodeQuery)
-		{
-			len = _Everything_CopyAFromW(buf,bufsize,len,EVERYTHING_IPC_ITEMPATHW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[nIndex]));
-		}
-		else
-		{
-			len = _Everything_CopyA(buf,bufsize,len,EVERYTHING_IPC_ITEMPATHA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[nIndex]));
-		}
-
-		if (len)
-		{
-			len = _Everything_CopyA(buf,bufsize,len,"\\");
-		}
-
-		if (_Everything_IsUnicodeQuery)
-		{
-			len = _Everything_CopyAFromW(buf,bufsize,len,EVERYTHING_IPC_ITEMFILENAMEW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[nIndex]));
-		}
-		else
-		{
-			len = _Everything_CopyA(buf,bufsize,len,EVERYTHING_IPC_ITEMFILENAMEA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[nIndex]));
 		}
 	}
 	else
@@ -1766,14 +2112,12 @@ DWORD EVERYTHINGAPI Everything_GetResultFullPathNameA(DWORD nIndex,LPSTR buf,DWO
 		len = _Everything_CopyA(buf,bufsize,0,"");
 	}
 
-exit:
-
 	_Everything_Unlock();
 
 	return len;
 }
 
-BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lParam,DWORD nId)
+BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lParam,DWORD dwId)
 {
 	if (message == WM_COPYDATA)
 	{
@@ -1781,17 +2125,17 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
 
 		if (cds)
 		{
-			if (cds->dwData == _Everything_ReplyID)
+			if ((cds->dwData == _Everything_ReplyID) && (cds->dwData == dwId))
 			{
-				if (_Everything_IsUnicodeQuery)
+				if (_Everything_QueryVersion == 2)
 				{
-					if (_Everything_List) HeapFree(GetProcessHeap(),0,_Everything_List);
+					_Everything_FreeLists();
 
-					_Everything_List = (EVERYTHING_IPC_LISTW *)HeapAlloc(GetProcessHeap(),0,cds->cbData);
+					_Everything_List2 = _Everything_Alloc(cds->cbData);
 
-					if (_Everything_List)
+					if (_Everything_List2)
 					{
-						CopyMemory(_Everything_List,cds->lpData,cds->cbData);
+						CopyMemory(_Everything_List2,cds->lpData,cds->cbData);
 					}
 					else
 					{
@@ -1801,21 +2145,42 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
 					return TRUE;
 				}
 				else
+				if (_Everything_QueryVersion == 1)
 				{
-					if (_Everything_List) HeapFree(GetProcessHeap(),0,_Everything_List);
-
-					_Everything_List = (EVERYTHING_IPC_LISTW *)HeapAlloc(GetProcessHeap(),0,cds->cbData);
-
-					if (_Everything_List)
+					if (_Everything_IsUnicodeQuery)
 					{
-						CopyMemory(_Everything_List,cds->lpData,cds->cbData);
+						_Everything_FreeLists();
+
+						_Everything_List = _Everything_Alloc(cds->cbData);
+
+						if (_Everything_List)
+						{
+							CopyMemory(_Everything_List,cds->lpData,cds->cbData);
+						}
+						else
+						{
+							_Everything_LastError = EVERYTHING_ERROR_MEMORY;
+						}
+
+						return TRUE;
 					}
 					else
 					{
-						_Everything_LastError = EVERYTHING_ERROR_MEMORY;
-					}
+						_Everything_FreeLists();
 
-					return TRUE;
+						_Everything_List = _Everything_Alloc(cds->cbData);
+
+						if (_Everything_List)
+						{
+							CopyMemory(_Everything_List,cds->lpData,cds->cbData);
+						}
+						else
+						{
+							_Everything_LastError = EVERYTHING_ERROR_MEMORY;
+						}
+
+						return TRUE;
+					}
 				}
 			}
 		}
@@ -1824,23 +2189,18 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
 	return FALSE;
 }
 
-VOID EVERYTHINGAPI Everything_Reset(VOID)
+void EVERYTHINGAPI Everything_Reset(void)
 {
 	_Everything_Lock();
 
 	if (_Everything_Search)
 	{
-		HeapFree(GetProcessHeap(),0,_Everything_Search);
+		_Everything_Free(_Everything_Search);
 
 		_Everything_Search = 0;
 	}
 
-	if (_Everything_List)
-	{
-		HeapFree(GetProcessHeap(),0,_Everything_List);
-
-		_Everything_List = 0;
-	}
+	_Everything_FreeLists();
 
 	// reset state
 	_Everything_MatchPath = FALSE;
@@ -1850,8 +2210,921 @@ VOID EVERYTHINGAPI Everything_Reset(VOID)
 	_Everything_LastError = FALSE;
 	_Everything_Max = EVERYTHING_IPC_ALLRESULTS;
 	_Everything_Offset = 0;
+	_Everything_Sort = EVERYTHING_SORT_NAME_ASCENDING;
+	_Everything_RequestFlags = EVERYTHING_REQUEST_PATH | EVERYTHING_REQUEST_FILE_NAME;
 	_Everything_IsUnicodeQuery = FALSE;
 	_Everything_IsUnicodeSearch = FALSE;
 
 	_Everything_Unlock();
 }
+
+void EVERYTHINGAPI Everything_CleanUp(void)
+{
+	Everything_Reset();
+}
+
+static void *_Everything_Alloc(DWORD size)
+{
+	return HeapAlloc(GetProcessHeap(),0,size);
+}
+
+static void _Everything_Free(void *ptr)
+{
+	HeapFree(GetProcessHeap(),0,ptr);
+}
+
+EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_GetResultListSort(void)
+{
+	DWORD dwSort;
+
+	_Everything_Lock();
+
+	dwSort = EVERYTHING_SORT_NAME_ASCENDING;
+
+	if (_Everything_List2)
+	{
+		dwSort = _Everything_List2->sort_type;
+	}
+
+	_Everything_Unlock();
+
+	return dwSort;
+}
+
+EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_GetResultListRequestFlags(void)
+{
+	DWORD dwRequestFlags;
+
+	_Everything_Lock();
+
+	dwRequestFlags = EVERYTHING_REQUEST_PATH | EVERYTHING_REQUEST_FILE_NAME;
+
+	if (_Everything_List2)
+	{
+		dwRequestFlags = _Everything_List2->request_flags;
+	}
+
+	_Everything_Unlock();
+
+	return dwRequestFlags;
+}
+
+static void _Everything_FreeLists(void)
+{
+	if (_Everything_List)
+	{
+		_Everything_Free(_Everything_List);
+
+		_Everything_List = 0;
+	}
+
+	if (_Everything_List2)
+	{
+		_Everything_Free(_Everything_List2);
+
+		_Everything_List2 = 0;
+	}
+}
+
+static BOOL _Everything_IsValidResultIndex(DWORD dwIndex)
+{
+	if (dwIndex < 0)
+	{
+		return FALSE;
+	}
+
+	if (dwIndex >= Everything_GetNumResults())
+	{
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+// assumes _Everything_List2 and dwIndex are valid.
+static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType)
+{
+	char *p;
+	EVERYTHING_IPC_ITEM2 *items;
+
+	items = (EVERYTHING_IPC_ITEM2 *)(_Everything_List2 + 1);
+
+	p = ((char *)_Everything_List2) + items[dwIndex].data_offset;
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_FILE_NAME)
+	{
+		DWORD len;
+
+		if (dwRequestType == EVERYTHING_REQUEST_FILE_NAME)
+		{
+			return p;
+		}
+
+		len = *(DWORD *)p;
+		p += sizeof(DWORD);
+
+		if (_Everything_IsUnicodeQuery)
+		{
+			p += (len + 1) * sizeof(WCHAR);
+		}
+		else
+		{
+			p += (len + 1) * sizeof(CHAR);
+		}
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_PATH)
+	{
+		DWORD len;
+
+		if (dwRequestType == EVERYTHING_REQUEST_PATH)
+		{
+			return p;
+		}
+
+		len = *(DWORD *)p;
+		p += sizeof(DWORD);
+
+		if (_Everything_IsUnicodeQuery)
+		{
+			p += (len + 1) * sizeof(WCHAR);
+		}
+		else
+		{
+			p += (len + 1) * sizeof(CHAR);
+		}
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_FULL_PATH_AND_FILE_NAME)
+	{
+		DWORD len;
+
+		if (dwRequestType == EVERYTHING_REQUEST_FULL_PATH_AND_FILE_NAME)
+		{
+			return p;
+		}
+
+		len = *(DWORD *)p;
+		p += sizeof(DWORD);
+
+		if (_Everything_IsUnicodeQuery)
+		{
+			p += (len + 1) * sizeof(WCHAR);
+		}
+		else
+		{
+			p += (len + 1) * sizeof(CHAR);
+		}
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_EXTENSION)
+	{
+		DWORD len;
+
+		if (dwRequestType == EVERYTHING_REQUEST_EXTENSION)
+		{
+			return p;
+		}
+
+		len = *(DWORD *)p;
+		p += sizeof(DWORD);
+
+		if (_Everything_IsUnicodeQuery)
+		{
+			p += (len + 1) * sizeof(WCHAR);
+		}
+		else
+		{
+			p += (len + 1) * sizeof(CHAR);
+		}
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_SIZE)
+	{
+		if (dwRequestType == EVERYTHING_REQUEST_SIZE)
+		{
+			return p;
+		}
+
+		p += sizeof(LARGE_INTEGER);
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_DATE_CREATED)
+	{
+		if (dwRequestType == EVERYTHING_REQUEST_DATE_CREATED)
+		{
+			return p;
+		}
+
+		p += sizeof(FILETIME);
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_DATE_MODIFIED)
+	{
+		if (dwRequestType == EVERYTHING_REQUEST_DATE_MODIFIED)
+		{
+			return p;
+		}
+
+		p += sizeof(FILETIME);
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_DATE_ACCESSED)
+	{
+		if (dwRequestType == EVERYTHING_REQUEST_DATE_ACCESSED)
+		{
+			return p;
+		}
+
+		p += sizeof(FILETIME);
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_ATTRIBUTES)
+	{
+		if (dwRequestType == EVERYTHING_REQUEST_ATTRIBUTES)
+		{
+			return p;
+		}
+
+		p += sizeof(DWORD);
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_FILE_LIST_FILE_NAME)
+	{
+		DWORD len;
+
+		if (dwRequestType == EVERYTHING_REQUEST_FILE_LIST_FILE_NAME)
+		{
+			return p;
+		}
+
+		len = *(DWORD *)p;
+		p += sizeof(DWORD);
+
+		if (_Everything_IsUnicodeQuery)
+		{
+			p += (len + 1) * sizeof(WCHAR);
+		}
+		else
+		{
+			p += (len + 1) * sizeof(CHAR);
+		}
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_RUN_COUNT)
+	{
+		if (dwRequestType == EVERYTHING_REQUEST_RUN_COUNT)
+		{
+			return p;
+		}
+
+		p += sizeof(DWORD);
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_DATE_RUN)
+	{
+		if (dwRequestType == EVERYTHING_REQUEST_DATE_RUN)
+		{
+			return p;
+		}
+
+		p += sizeof(FILETIME);
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_DATE_RECENTLY_CHANGED)
+	{
+		if (dwRequestType == EVERYTHING_REQUEST_DATE_RECENTLY_CHANGED)
+		{
+			return p;
+		}
+
+		p += sizeof(FILETIME);
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_HIGHLIGHTED_FILE_NAME)
+	{
+		DWORD len;
+
+		if (dwRequestType == EVERYTHING_REQUEST_HIGHLIGHTED_FILE_NAME)
+		{
+			return p;
+		}
+
+		len = *(DWORD *)p;
+		p += sizeof(DWORD);
+
+		if (_Everything_IsUnicodeQuery)
+		{
+			p += (len + 1) * sizeof(WCHAR);
+		}
+		else
+		{
+			p += (len + 1) * sizeof(CHAR);
+		}
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_HIGHLIGHTED_PATH)
+	{
+		DWORD len;
+
+		if (dwRequestType == EVERYTHING_REQUEST_HIGHLIGHTED_PATH)
+		{
+			return p;
+		}
+
+		len = *(DWORD *)p;
+		p += sizeof(DWORD);
+
+		if (_Everything_IsUnicodeQuery)
+		{
+			p += (len + 1) * sizeof(WCHAR);
+		}
+		else
+		{
+			p += (len + 1) * sizeof(CHAR);
+		}
+	}
+
+	if (_Everything_List2->request_flags & EVERYTHING_REQUEST_HIGHLIGHTED_FULL_PATH_AND_FILE_NAME)
+	{
+		DWORD len;
+
+		if (dwRequestType == EVERYTHING_REQUEST_HIGHLIGHTED_FULL_PATH_AND_FILE_NAME)
+		{
+			return p;
+		}
+
+		len = *(DWORD *)p;
+		p += sizeof(DWORD);
+
+		if (_Everything_IsUnicodeQuery)
+		{
+			p += (len + 1) * sizeof(WCHAR);
+		}
+		else
+		{
+			p += (len + 1) * sizeof(CHAR);
+		}
+	}
+
+	return NULL;
+}
+
+static BOOL _Everything_IsSchemeNameW(LPCWSTR s)
+{
+	LPCWSTR p;
+
+	p = s;
+
+	while(*p)
+	{
+		if (*p == ':')
+		{
+			p++;
+
+			if ((p[0] == '/') && (p[1] == '/'))
+			{
+				return TRUE;
+			}
+
+			break;
+		}
+
+		p++;
+	}
+
+	return FALSE;
+}
+
+static BOOL _Everything_IsSchemeNameA(LPCSTR s)
+{
+	LPCSTR p;
+
+	p = s;
+
+	while(*p)
+	{
+		if (*p == ':')
+		{
+			p++;
+
+			if ((p[0] == '/') && (p[1] == '/'))
+			{
+				return TRUE;
+			}
+
+			break;
+		}
+
+		p++;
+	}
+
+	return FALSE;
+}
+
+static void _Everything_ChangeWindowMessageFilter(HWND hwnd)
+{
+	if (!_Everything_GotChangeWindowMessageFilterEx)
+	{
+		// allow the everything window to send a reply.
+		_Everything_user32_hdll = LoadLibraryW(L"user32.dll");
+
+		if (_Everything_user32_hdll)
+		{
+			_Everything_pChangeWindowMessageFilterEx = (BOOL (WINAPI *)(HWND hWnd,UINT message,DWORD action,_EVERYTHING_PCHANGEFILTERSTRUCT pChangeFilterStruct))GetProcAddress(_Everything_user32_hdll,"ChangeWindowMessageFilterEx");
+		}
+
+		_Everything_GotChangeWindowMessageFilterEx = 1;
+	}
+
+	if (_Everything_GotChangeWindowMessageFilterEx)
+	{
+		if (_Everything_pChangeWindowMessageFilterEx)
+		{
+			_Everything_pChangeWindowMessageFilterEx(hwnd,WM_COPYDATA,_EVERYTHING_MSGFLT_ALLOW,0);
+		}
+	}
+}
+
+static LPCWSTR _Everything_GetResultRequestStringW(DWORD dwIndex,DWORD dwRequestType)
+{
+	LPCWSTR str;
+
+	_Everything_Lock();
+
+	if ((_Everything_List2) && (_Everything_IsUnicodeQuery))
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			str = _Everything_GetRequestData(dwIndex,dwRequestType);
+			if (str)
+			{
+				// skip length in characters.
+				str = (LPCWSTR)(((char *)str) + sizeof(DWORD));
+			}
+			else
+			{
+				_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+			}
+		}
+		else
+		{
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
+
+			str = NULL;
+		}
+	}
+	else
+	{
+		_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
+
+		str = NULL;
+	}
+
+	_Everything_Unlock();
+
+	return str;
+}
+
+static LPCSTR _Everything_GetResultRequestStringA(DWORD dwIndex,DWORD dwRequestType)
+{
+	LPCSTR str;
+
+	_Everything_Lock();
+
+	if ((_Everything_List2) && (!_Everything_IsUnicodeQuery))
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			str = _Everything_GetRequestData(dwIndex,dwRequestType);
+			if (str)
+			{
+				// skip length in characters.
+				str = (LPCSTR)(((char *)str) + sizeof(DWORD));
+			}
+			else
+			{
+				_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+			}
+		}
+		else
+		{
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
+
+			str = NULL;
+		}
+	}
+	else
+	{
+		_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
+
+		str = NULL;
+	}
+
+	_Everything_Unlock();
+
+	return str;
+}
+
+static BOOL _Everything_GetResultRequestData(DWORD dwIndex,DWORD dwRequestType,void *data,int size)
+{
+	BOOL ret;
+
+	_Everything_Lock();
+
+	if (_Everything_List2)
+	{
+		if (_Everything_IsValidResultIndex(dwIndex))
+		{
+			void *request_data;
+
+			request_data = _Everything_GetRequestData(dwIndex,dwRequestType);
+			if (request_data)
+			{
+				CopyMemory(data,request_data,size);
+
+				ret = TRUE;
+			}
+			else
+			{
+				_Everything_LastError = EVERYTHING_ERROR_INVALIDREQUEST;
+
+				ret = FALSE;
+			}
+		}
+		else
+		{
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDINDEX;
+
+			ret = FALSE;
+		}
+	}
+	else
+	{
+		_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
+
+		ret = FALSE;
+	}
+
+	_Everything_Unlock();
+
+	return ret;
+}
+
+LPCWSTR EVERYTHINGAPI Everything_GetResultExtensionW(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringW(dwIndex,EVERYTHING_REQUEST_EXTENSION);
+}
+
+LPCSTR EVERYTHINGAPI Everything_GetResultExtensionA(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringA(dwIndex,EVERYTHING_REQUEST_EXTENSION);
+}
+
+BOOL EVERYTHINGAPI Everything_GetResultSize(DWORD dwIndex,LARGE_INTEGER *lpSize)
+{
+	return _Everything_GetResultRequestData(dwIndex,EVERYTHING_REQUEST_SIZE,lpSize,sizeof(LARGE_INTEGER));
+}
+
+BOOL EVERYTHINGAPI Everything_GetResultDateCreated(DWORD dwIndex,FILETIME *lpDateCreated)
+{
+	return _Everything_GetResultRequestData(dwIndex,EVERYTHING_REQUEST_DATE_CREATED,lpDateCreated,sizeof(FILETIME));
+}
+
+BOOL EVERYTHINGAPI Everything_GetResultDateModified(DWORD dwIndex,FILETIME *lpDateModified)
+{
+	return _Everything_GetResultRequestData(dwIndex,EVERYTHING_REQUEST_DATE_MODIFIED,lpDateModified,sizeof(FILETIME));
+}
+
+BOOL EVERYTHINGAPI Everything_GetResultDateAccessed(DWORD dwIndex,FILETIME *lpDateAccessed)
+{
+	return _Everything_GetResultRequestData(dwIndex,EVERYTHING_REQUEST_DATE_ACCESSED,lpDateAccessed,sizeof(FILETIME));
+}
+
+DWORD EVERYTHINGAPI Everything_GetResultAttributes(DWORD dwIndex)
+{
+	DWORD dwAttributes;
+
+	if (_Everything_GetResultRequestData(dwIndex,EVERYTHING_REQUEST_ATTRIBUTES,&dwAttributes,sizeof(DWORD)))
+	{
+		return dwAttributes;
+	}
+
+	return INVALID_FILE_ATTRIBUTES;
+}
+
+LPCWSTR EVERYTHINGAPI Everything_GetResultFileListFileNameW(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringW(dwIndex,EVERYTHING_REQUEST_FILE_LIST_FILE_NAME);
+}
+
+LPCSTR EVERYTHINGAPI Everything_GetResultFileListFileNameA(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringA(dwIndex,EVERYTHING_REQUEST_FILE_LIST_FILE_NAME);
+}
+
+DWORD EVERYTHINGAPI Everything_GetResultRunCount(DWORD dwIndex)
+{
+	DWORD dwRunCount;
+
+	if (_Everything_GetResultRequestData(dwIndex,EVERYTHING_REQUEST_RUN_COUNT,&dwRunCount,sizeof(DWORD)))
+	{
+		return dwRunCount;
+	}
+
+	return 0;
+}
+
+BOOL EVERYTHINGAPI Everything_GetResultDateRun(DWORD dwIndex,FILETIME *lpDateRun)
+{
+	return _Everything_GetResultRequestData(dwIndex,EVERYTHING_REQUEST_DATE_RUN,lpDateRun,sizeof(FILETIME));
+}
+
+BOOL EVERYTHINGAPI Everything_GetResultDateRecentlyChanged(DWORD dwIndex,FILETIME *lpDateRecentlyChanged)
+{
+	return _Everything_GetResultRequestData(dwIndex,EVERYTHING_REQUEST_DATE_RECENTLY_CHANGED,lpDateRecentlyChanged,sizeof(FILETIME));
+}
+
+LPCWSTR EVERYTHINGAPI Everything_GetResultHighlightedFileNameW(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringW(dwIndex,EVERYTHING_REQUEST_HIGHLIGHTED_FILE_NAME);
+}
+
+LPCSTR EVERYTHINGAPI Everything_GetResultHighlightedFileNameA(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringA(dwIndex,EVERYTHING_REQUEST_HIGHLIGHTED_FILE_NAME);
+}
+
+LPCWSTR EVERYTHINGAPI Everything_GetResultHighlightedPathW(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringW(dwIndex,EVERYTHING_REQUEST_HIGHLIGHTED_PATH);
+}
+
+LPCSTR EVERYTHINGAPI Everything_GetResultHighlightedPathA(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringA(dwIndex,EVERYTHING_REQUEST_HIGHLIGHTED_PATH);
+}
+
+LPCWSTR EVERYTHINGAPI Everything_GetResultHighlightedFullPathAndFileNameW(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringW(dwIndex,EVERYTHING_REQUEST_HIGHLIGHTED_FULL_PATH_AND_FILE_NAME);
+}
+
+LPCSTR EVERYTHINGAPI Everything_GetResultHighlightedFullPathAndFileNameA(DWORD dwIndex)
+{
+	return _Everything_GetResultRequestStringA(dwIndex,EVERYTHING_REQUEST_HIGHLIGHTED_FULL_PATH_AND_FILE_NAME);
+}
+
+static BOOL _Everything_SendAPIBoolCommand(int command,LPARAM lParam)
+{
+	HWND everything_hwnd;
+
+	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+	if (everything_hwnd)
+	{
+		_Everything_LastError = 0;
+
+		if (SendMessage(everything_hwnd,EVERYTHING_WM_IPC,command,lParam))
+		{
+			return TRUE;
+		}
+		else
+		{
+			return FALSE;
+		}
+	}
+	else
+	{
+		// the everything window was not found.
+		// we can optionally RegisterWindowMessage("EVERYTHING_IPC_CREATED") and
+		// wait for Everything to post this message to all top level windows when its up and running.
+		_Everything_LastError = EVERYTHING_ERROR_IPC;
+
+		return FALSE;
+	}
+}
+
+static DWORD _Everything_SendAPIDwordCommand(int command,LPARAM lParam)
+{
+	HWND everything_hwnd;
+
+	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+	if (everything_hwnd)
+	{
+		_Everything_LastError = 0;
+
+		return (DWORD)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,command,lParam);
+	}
+	else
+	{
+		// the everything window was not found.
+		// we can optionally RegisterWindowMessage("EVERYTHING_IPC_CREATED") and
+		// wait for Everything to post this message to all top level windows when its up and running.
+		_Everything_LastError = EVERYTHING_ERROR_IPC;
+
+		return 0;
+	}
+}
+
+BOOL EVERYTHINGAPI Everything_IsDBLoaded(void)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_IS_DB_LOADED,0);
+}
+
+BOOL EVERYTHINGAPI Everything_IsAdmin(void)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_IS_ADMIN,0);
+}
+
+BOOL EVERYTHINGAPI Everything_IsAppData(void)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_IS_APPDATA,0);
+}
+
+BOOL EVERYTHINGAPI Everything_RebuildDB(void)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_REBUILD_DB,0);
+}
+
+BOOL EVERYTHINGAPI Everything_UpdateAllFolderIndexes(void)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_UPDATE_ALL_FOLDER_INDEXES,0);
+}
+
+BOOL EVERYTHINGAPI Everything_SaveDB(void)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_SAVE_DB,0);
+}
+
+BOOL EVERYTHINGAPI Everything_SaveRunHistory(void)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_SAVE_RUN_HISTORY,0);
+}
+
+BOOL EVERYTHINGAPI Everything_DeleteRunHistory(void)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_DELETE_RUN_HISTORY,0);
+}
+
+DWORD EVERYTHINGAPI Everything_GetMajorVersion(void)
+{
+	return _Everything_SendAPIDwordCommand(EVERYTHING_IPC_GET_MAJOR_VERSION,0);
+}
+
+DWORD EVERYTHINGAPI Everything_GetMinorVersion(void)
+{
+	return _Everything_SendAPIDwordCommand(EVERYTHING_IPC_GET_MINOR_VERSION,0);
+}
+
+DWORD EVERYTHINGAPI Everything_GetRevision(void)
+{
+	return _Everything_SendAPIDwordCommand(EVERYTHING_IPC_GET_REVISION,0);
+}
+
+DWORD EVERYTHINGAPI Everything_GetBuildNumber(void)
+{
+	return _Everything_SendAPIDwordCommand(EVERYTHING_IPC_GET_BUILD_NUMBER,0);
+}
+
+DWORD EVERYTHINGAPI Everything_GetTargetMachine(void)
+{
+	return _Everything_SendAPIDwordCommand(EVERYTHING_IPC_GET_TARGET_MACHINE,0);
+}
+
+BOOL EVERYTHINGAPI Everything_Exit(void)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_EXIT,0);
+}
+
+BOOL EVERYTHINGAPI Everything_IsFastSort(DWORD sortType)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_IS_FAST_SORT,(LPARAM)sortType);
+}
+
+BOOL EVERYTHINGAPI Everything_IsFileInfoIndexed(DWORD fileInfoType)
+{
+	return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_IS_FILE_INFO_INDEXED,(LPARAM)fileInfoType);
+}
+
+static LRESULT _Everything_SendCopyData(int command,const void *data,int size)
+{
+	HWND everything_hwnd;
+
+	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+	if (everything_hwnd)
+	{
+		COPYDATASTRUCT cds;
+
+		cds.cbData = size;
+		cds.dwData = command;
+		cds.lpData = (void *)data;
+
+		return SendMessage(everything_hwnd,WM_COPYDATA,0,(LPARAM)&cds);
+	}
+	else
+	{
+		// the everything window was not found.
+		// we can optionally RegisterWindowMessage("EVERYTHING_IPC_CREATED") and
+		// wait for Everything to post this message to all top level windows when its up and running.
+		_Everything_LastError = EVERYTHING_ERROR_IPC;
+
+		return FALSE;
+	}
+}
+
+DWORD EVERYTHINGAPI Everything_GetRunCountFromFileNameW(LPCWSTR lpFileName)
+{
+	return (DWORD)_Everything_SendCopyData(EVERYTHING_IPC_COPYDATA_GET_RUN_COUNTW,lpFileName,(_Everything_StringLengthW(lpFileName) + 1) * sizeof(WCHAR));
+}
+
+DWORD EVERYTHINGAPI Everything_GetRunCountFromFileNameA(LPCSTR lpFileName)
+{
+	return (DWORD)_Everything_SendCopyData(EVERYTHING_IPC_COPYDATA_GET_RUN_COUNTA,lpFileName,_Everything_StringLengthA(lpFileName) + 1);
+}
+
+BOOL EVERYTHINGAPI Everything_SetRunCountFromFileNameW(LPCWSTR lpFileName,DWORD dwRunCount)
+{
+	EVERYTHING_IPC_RUN_HISTORY *run_history;
+	DWORD len;
+	BOOL ret;
+
+	len = _Everything_StringLengthW(lpFileName);
+
+	run_history = _Everything_Alloc(sizeof(EVERYTHING_IPC_RUN_HISTORY) + ((len + 1) * sizeof(WCHAR)));
+
+	if (run_history)
+	{
+		run_history->run_count = dwRunCount;
+		CopyMemory(run_history + 1,lpFileName,((len + 1) * sizeof(WCHAR)));
+
+		if (_Everything_SendCopyData(EVERYTHING_IPC_COPYDATA_SET_RUN_COUNTW,run_history,sizeof(EVERYTHING_IPC_RUN_HISTORY) + ((len + 1) * sizeof(WCHAR))))
+		{
+			ret = TRUE;
+		}
+		else
+		{
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
+
+			ret = FALSE;
+		}
+
+		_Everything_Free(run_history);
+	}
+	else
+	{
+		_Everything_LastError = EVERYTHING_ERROR_MEMORY;
+
+		ret = FALSE;
+	}
+
+	return ret;
+}
+
+BOOL EVERYTHINGAPI Everything_SetRunCountFromFileNameA(LPCSTR lpFileName,DWORD dwRunCount)
+{
+	EVERYTHING_IPC_RUN_HISTORY *run_history;
+	DWORD len;
+	BOOL ret;
+
+	len = _Everything_StringLengthA(lpFileName);
+
+	run_history = _Everything_Alloc(sizeof(EVERYTHING_IPC_RUN_HISTORY) + (len + 1));
+
+	if (run_history)
+	{
+		run_history->run_count = dwRunCount;
+		CopyMemory(run_history + 1,lpFileName,(len + 1));
+
+		if (_Everything_SendCopyData(EVERYTHING_IPC_COPYDATA_SET_RUN_COUNTA,run_history,sizeof(EVERYTHING_IPC_RUN_HISTORY) + (len + 1)))
+		{
+			ret = TRUE;
+		}
+		else
+		{
+			_Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
+
+			ret = FALSE;
+		}
+
+		_Everything_Free(run_history);
+	}
+	else
+	{
+		_Everything_LastError = EVERYTHING_ERROR_MEMORY;
+
+		ret = FALSE;
+	}
+
+	return ret;
+}
+
+DWORD EVERYTHINGAPI Everything_IncRunCountFromFileNameW(LPCWSTR lpFileName)
+{
+	return (DWORD)_Everything_SendCopyData(EVERYTHING_IPC_COPYDATA_INC_RUN_COUNTW,lpFileName,(_Everything_StringLengthW(lpFileName) + 1) * sizeof(WCHAR));
+}
+
+DWORD EVERYTHINGAPI Everything_IncRunCountFromFileNameA(LPCSTR lpFileName)
+{
+	return (DWORD)_Everything_SendCopyData(EVERYTHING_IPC_COPYDATA_INC_RUN_COUNTA,lpFileName,_Everything_StringLengthA(lpFileName) + 1);
+}
+
