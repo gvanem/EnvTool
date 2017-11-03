@@ -1,26 +1,26 @@
 
 //
 // Copyright (C) 2016 David Carpenter
-// 
-// Permission is hereby granted, free of charge, 
-// to any person obtaining a copy of this software 
-// and associated documentation files (the "Software"), 
-// to deal in the Software without restriction, 
-// including without limitation the rights to use, 
-// copy, modify, merge, publish, distribute, sublicense, 
-// and/or sell copies of the Software, and to permit 
-// persons to whom the Software is furnished to do so, 
+//
+// Permission is hereby granted, free of charge,
+// to any person obtaining a copy of this software
+// and associated documentation files (the "Software"),
+// to deal in the Software without restriction,
+// including without limitation the rights to use,
+// copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so,
 // subject to the following conditions:
-// 
-// The above copyright notice and this permission notice shall be 
+//
+// The above copyright notice and this permission notice shall be
 // included in all copies or substantial portions of the Software.
-// 
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, 
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES 
-// OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
-// IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
-// TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+// OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+// IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+// TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 // SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
@@ -35,64 +35,64 @@
 extern "C" {
 #endif
 
-#define EVERYTHING_OK						0 // no error detected
-#define EVERYTHING_ERROR_MEMORY				1 // out of memory.
-#define EVERYTHING_ERROR_IPC				2 // Everything search client is not running
-#define EVERYTHING_ERROR_REGISTERCLASSEX	3 // unable to register window class.
-#define EVERYTHING_ERROR_CREATEWINDOW		4 // unable to create listening window
-#define EVERYTHING_ERROR_CREATETHREAD		5 // unable to create listening thread
-#define EVERYTHING_ERROR_INVALIDINDEX		6 // invalid index
-#define EVERYTHING_ERROR_INVALIDCALL		7 // invalid call
-#define EVERYTHING_ERROR_INVALIDREQUEST		8 // invalid request data, request data first.
-#define EVERYTHING_ERROR_INVALIDPARAMETER	9 // bad parameter.
+#define EVERYTHING_OK                       0 // no error detected
+#define EVERYTHING_ERROR_MEMORY             1 // out of memory.
+#define EVERYTHING_ERROR_IPC                2 // Everything search client is not running
+#define EVERYTHING_ERROR_REGISTERCLASSEX    3 // unable to register window class.
+#define EVERYTHING_ERROR_CREATEWINDOW       4 // unable to create listening window
+#define EVERYTHING_ERROR_CREATETHREAD       5 // unable to create listening thread
+#define EVERYTHING_ERROR_INVALIDINDEX       6 // invalid index
+#define EVERYTHING_ERROR_INVALIDCALL        7 // invalid call
+#define EVERYTHING_ERROR_INVALIDREQUEST     8 // invalid request data, request data first.
+#define EVERYTHING_ERROR_INVALIDPARAMETER   9 // bad parameter.
 
-#define EVERYTHING_SORT_NAME_ASCENDING						1
-#define EVERYTHING_SORT_NAME_DESCENDING						2
-#define EVERYTHING_SORT_PATH_ASCENDING						3
-#define EVERYTHING_SORT_PATH_DESCENDING						4
-#define EVERYTHING_SORT_SIZE_ASCENDING						5
-#define EVERYTHING_SORT_SIZE_DESCENDING						6
-#define EVERYTHING_SORT_EXTENSION_ASCENDING					7
-#define EVERYTHING_SORT_EXTENSION_DESCENDING				8
-#define EVERYTHING_SORT_TYPE_NAME_ASCENDING					9
-#define EVERYTHING_SORT_TYPE_NAME_DESCENDING				10
-#define EVERYTHING_SORT_DATE_CREATED_ASCENDING				11
-#define EVERYTHING_SORT_DATE_CREATED_DESCENDING				12
-#define EVERYTHING_SORT_DATE_MODIFIED_ASCENDING				13
-#define EVERYTHING_SORT_DATE_MODIFIED_DESCENDING			14
-#define EVERYTHING_SORT_ATTRIBUTES_ASCENDING				15
-#define EVERYTHING_SORT_ATTRIBUTES_DESCENDING				16
-#define EVERYTHING_SORT_FILE_LIST_FILENAME_ASCENDING		17
-#define EVERYTHING_SORT_FILE_LIST_FILENAME_DESCENDING		18
-#define EVERYTHING_SORT_RUN_COUNT_ASCENDING					19
-#define EVERYTHING_SORT_RUN_COUNT_DESCENDING				20
-#define EVERYTHING_SORT_DATE_RECENTLY_CHANGED_ASCENDING		21
-#define EVERYTHING_SORT_DATE_RECENTLY_CHANGED_DESCENDING	22
-#define EVERYTHING_SORT_DATE_ACCESSED_ASCENDING				23
-#define EVERYTHING_SORT_DATE_ACCESSED_DESCENDING			24
-#define EVERYTHING_SORT_DATE_RUN_ASCENDING					25
-#define EVERYTHING_SORT_DATE_RUN_DESCENDING					26
+#define EVERYTHING_SORT_NAME_ASCENDING                      1
+#define EVERYTHING_SORT_NAME_DESCENDING                     2
+#define EVERYTHING_SORT_PATH_ASCENDING                      3
+#define EVERYTHING_SORT_PATH_DESCENDING                     4
+#define EVERYTHING_SORT_SIZE_ASCENDING                      5
+#define EVERYTHING_SORT_SIZE_DESCENDING                     6
+#define EVERYTHING_SORT_EXTENSION_ASCENDING                 7
+#define EVERYTHING_SORT_EXTENSION_DESCENDING                8
+#define EVERYTHING_SORT_TYPE_NAME_ASCENDING                 9
+#define EVERYTHING_SORT_TYPE_NAME_DESCENDING                10
+#define EVERYTHING_SORT_DATE_CREATED_ASCENDING              11
+#define EVERYTHING_SORT_DATE_CREATED_DESCENDING             12
+#define EVERYTHING_SORT_DATE_MODIFIED_ASCENDING             13
+#define EVERYTHING_SORT_DATE_MODIFIED_DESCENDING            14
+#define EVERYTHING_SORT_ATTRIBUTES_ASCENDING                15
+#define EVERYTHING_SORT_ATTRIBUTES_DESCENDING               16
+#define EVERYTHING_SORT_FILE_LIST_FILENAME_ASCENDING        17
+#define EVERYTHING_SORT_FILE_LIST_FILENAME_DESCENDING       18
+#define EVERYTHING_SORT_RUN_COUNT_ASCENDING                 19
+#define EVERYTHING_SORT_RUN_COUNT_DESCENDING                20
+#define EVERYTHING_SORT_DATE_RECENTLY_CHANGED_ASCENDING     21
+#define EVERYTHING_SORT_DATE_RECENTLY_CHANGED_DESCENDING    22
+#define EVERYTHING_SORT_DATE_ACCESSED_ASCENDING             23
+#define EVERYTHING_SORT_DATE_ACCESSED_DESCENDING            24
+#define EVERYTHING_SORT_DATE_RUN_ASCENDING                  25
+#define EVERYTHING_SORT_DATE_RUN_DESCENDING                 26
 
-#define EVERYTHING_REQUEST_FILE_NAME						0x00000001
-#define EVERYTHING_REQUEST_PATH								0x00000002
-#define EVERYTHING_REQUEST_FULL_PATH_AND_FILE_NAME			0x00000004
-#define EVERYTHING_REQUEST_EXTENSION						0x00000008
-#define EVERYTHING_REQUEST_SIZE								0x00000010
-#define EVERYTHING_REQUEST_DATE_CREATED						0x00000020
-#define EVERYTHING_REQUEST_DATE_MODIFIED					0x00000040
-#define EVERYTHING_REQUEST_DATE_ACCESSED					0x00000080
-#define EVERYTHING_REQUEST_ATTRIBUTES						0x00000100
-#define EVERYTHING_REQUEST_FILE_LIST_FILE_NAME				0x00000200
-#define EVERYTHING_REQUEST_RUN_COUNT						0x00000400
-#define EVERYTHING_REQUEST_DATE_RUN							0x00000800
-#define EVERYTHING_REQUEST_DATE_RECENTLY_CHANGED			0x00001000
-#define EVERYTHING_REQUEST_HIGHLIGHTED_FILE_NAME			0x00002000
-#define EVERYTHING_REQUEST_HIGHLIGHTED_PATH					0x00004000
-#define EVERYTHING_REQUEST_HIGHLIGHTED_FULL_PATH_AND_FILE_NAME	0x00008000
+#define EVERYTHING_REQUEST_FILE_NAME                        0x00000001
+#define EVERYTHING_REQUEST_PATH                             0x00000002
+#define EVERYTHING_REQUEST_FULL_PATH_AND_FILE_NAME          0x00000004
+#define EVERYTHING_REQUEST_EXTENSION                        0x00000008
+#define EVERYTHING_REQUEST_SIZE                             0x00000010
+#define EVERYTHING_REQUEST_DATE_CREATED                     0x00000020
+#define EVERYTHING_REQUEST_DATE_MODIFIED                    0x00000040
+#define EVERYTHING_REQUEST_DATE_ACCESSED                    0x00000080
+#define EVERYTHING_REQUEST_ATTRIBUTES                       0x00000100
+#define EVERYTHING_REQUEST_FILE_LIST_FILE_NAME              0x00000200
+#define EVERYTHING_REQUEST_RUN_COUNT                        0x00000400
+#define EVERYTHING_REQUEST_DATE_RUN                         0x00000800
+#define EVERYTHING_REQUEST_DATE_RECENTLY_CHANGED            0x00001000
+#define EVERYTHING_REQUEST_HIGHLIGHTED_FILE_NAME            0x00002000
+#define EVERYTHING_REQUEST_HIGHLIGHTED_PATH                 0x00004000
+#define EVERYTHING_REQUEST_HIGHLIGHTED_FULL_PATH_AND_FILE_NAME  0x00008000
 
-#define EVERYTHING_TARGET_MACHINE_X86						1
-#define EVERYTHING_TARGET_MACHINE_X64						2
-#define EVERYTHING_TARGET_MACHINE_ARM						3
+#define EVERYTHING_TARGET_MACHINE_X86                       1
+#define EVERYTHING_TARGET_MACHINE_X64                       2
+#define EVERYTHING_TARGET_MACHINE_ARM                       3
 
 #ifndef EVERYTHINGAPI
 #define EVERYTHINGAPI __stdcall
