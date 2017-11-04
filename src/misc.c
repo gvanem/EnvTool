@@ -241,7 +241,8 @@ const char *check_if_shebang (const char *fname)
     if (p)
        *p = '\0';
   }
-  DEBUGF (1, "shebang: \"%s\"\n", shebang);
+  if (okay)
+     DEBUGF (2, "shebang: \"%s\"\n", shebang+ofs);
   return (okay ? shebang+ofs : NULL);
 }
 
