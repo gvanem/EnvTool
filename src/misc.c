@@ -222,6 +222,13 @@ const char *check_if_shebang (const char *fname)
     p = strchr (shebang, '\r');
     if (p)
        *p = '\0';
+    p = strchr (shebang, ' ');
+
+    /* Also drop any space; this is usually arguments for this
+     * specific interpreter.
+     */
+    if (p)
+       *p = '\0';
   }
   DEBUGF (1, "shebang: \"%s\"\n", shebang);
   return (okay ? shebang+2 : NULL);
