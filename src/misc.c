@@ -1171,6 +1171,19 @@ const char *get_file_ext (const char *file)
 }
 
 /*
+ * Returns TRUE if 'file' is a directory.
+ */
+BOOL is_directory (const char *file)
+{
+  struct stat st;
+
+  memset (&st, '\0', sizeof(st));
+  if (stat(file, &st) == 0)
+     return (_S_ISDIR(st.st_mode));
+  return (FALSE);
+}
+
+/*
  * Create a %TEMP-file and return it's allocated name.
  */
 char *create_temp_file (void)

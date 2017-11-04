@@ -4064,21 +4064,19 @@ static void test_fix_path (void)
   };
   const char *f;
   char *rc1;
-  int   i, rc2, rc3;
+  int   i, rc2;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   for (i = 0; i < DIM(files); i++)
   {
-    struct stat st;
-    char   buf [_MAX_PATH], *cyg_result = "";
-    BOOL   is_dir;
+    char buf [_MAX_PATH], *cyg_result = "";
+    BOOL is_dir;
 
     f = files [i];
     rc1 = _fix_path (f, buf);
     rc2 = FILE_EXISTS (buf);
-    rc3 = (stat(rc1, &st) == 0);
-    is_dir = (rc3 && _S_ISDIR(st.st_mode));
+    is_dir = is_directory (rc1);
 
     if (opt.show_unix_paths)
        rc1 = slashify (buf, '/');
