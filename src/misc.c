@@ -500,7 +500,7 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
 }
 
 /*
- * get the Domain and account name for a file.
+ * Get the Domain and account name for a file.
  *
  * Adapted from:
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa446629(v=vs.85).aspx
@@ -615,6 +615,88 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
     free (*account_name);
   }
   return (rc2);
+}
+
+/*
+ * Return TRUE if directory is truly readable.
+ */
+BOOL is_directory_readable (const char *path)
+{
+  if (!is_directory(path))
+     return (FALSE);
+  return is_directory_accessible (path, GENERIC_READ);
+}
+
+/*
+ * Return TRUE if directory is truly writeable.
+ */
+BOOL is_directory_writable (const char *path)
+{
+  if (!is_directory(path))
+     return (FALSE);
+  return is_directory_accessible (path, GENERIC_WRITE);
+}
+
+/*
+ * Based on http://blog.aaronballman.com/2011/08/how-to-check-access-rights/
+ */
+BOOL is_directory_accessible (const char *path, DWORD access)
+{
+  BOOL   answer = FALSE;
+  DWORD  length = 0;
+  HANDLE hToken = NULL;
+  DWORD  access_flg;
+  SECURITY_INFORMATION sec_info;
+  SECURITY_DESCRIPTOR *security = NULL;
+
+  /* Figure out buffer size. GetFileSecurity() should not succeed.
+   */
+  sec_info = OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION;
+  if (GetFileSecurity(path, sec_info, NULL, 0, &length))
+     return (answer);
+
+  if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+     return (answer);
+
+  security = CALLOC (1, length);
+  if (!security)
+     return (answer);
+
+  /* GetFileSecurity() should succeed.
+   */
+  if (!GetFileSecurity(path, sec_info, security, length, &length))
+     return (answer);
+
+  access_flg = TOKEN_IMPERSONATE | TOKEN_QUERY | TOKEN_DUPLICATE | STANDARD_RIGHTS_READ;
+
+  if (OpenProcessToken(GetCurrentProcess(), access_flg, &hToken))
+  {
+    HANDLE impersonated_token = NULL;
+
+    if (DuplicateToken(hToken, SecurityImpersonation, &impersonated_token))
+    {
+      GENERIC_MAPPING mapping;
+      PRIVILEGE_SET   privileges         = { 0 };
+      DWORD           grantedAccess      = 0;
+      DWORD           privilegesLength   = sizeof(privileges);
+      BOOL            result             = FALSE;
+      DWORD           genericAccessRights = access;
+
+      mapping.GenericRead    = FILE_GENERIC_READ;
+      mapping.GenericWrite   = FILE_GENERIC_WRITE;
+      mapping.GenericExecute = FILE_GENERIC_EXECUTE;
+      mapping.GenericAll     = FILE_ALL_ACCESS;
+
+      MapGenericMask (&genericAccessRights, &mapping);
+      if (AccessCheck(security, impersonated_token, genericAccessRights, &mapping,
+                      &privileges, &privilegesLength, &grantedAccess, &result))
+         answer = result;
+      CloseHandle (impersonated_token);
+    }
+    CloseHandle (hToken);
+  }
+  FREE (security);
+  return (answer);
 }
 
 /*

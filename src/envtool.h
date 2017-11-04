@@ -389,7 +389,14 @@ extern char       *translate_shell_pattern (const char *pattern);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
 extern BOOL        get_module_filename_ex (HANDLE proc, char *filename);
-extern BOOL        get_file_owner (const char *file, char **domain_name, char **account_name);
+
+/* Windows security related functions for files/directories:
+ */
+extern BOOL get_file_owner (const char *file, char **domain_name, char **account_name);
+extern BOOL is_directory_accessible (const char *path, DWORD access);
+extern BOOL is_directory_readable (const char *path);
+extern BOOL is_directory_writable (const char *path);
+
 
 /* Functions for handling Reparse Points:
  * (Junctions and Symlinks).
