@@ -223,21 +223,21 @@ const char *check_if_shebang (const char *fname)
 
   if (okay)
   {
+    /* Drop any space; this is usually arguments for this
+     * specific interpreter.
+     */
+    p = strchr (shebang+ofs, ' ');
+    if (p)
+       *p = '\0';
+
     /* If it's a Unix file with 2 "\r\r" in the 'shebang[]' buffer,
      * we cannot use 'strip_nl()'. That will only remove the last
      * '\r'. Look for the 1st '\n' or '\r' and remove them.
      */
     p = strchr (shebang+ofs, '\n');
     if (p)
-      *p = '\0';
-    p = strchr (shebang+ofs, '\r');
-    if (p)
        *p = '\0';
-    p = strchr (shebang+ofs, ' ');
-
-    /* Also drop any space; this is usually arguments for this
-     * specific interpreter.
-     */
+    p = strchr (shebang+ofs, '\r');
     if (p)
        *p = '\0';
   }
