@@ -154,6 +154,7 @@ static enum Bitness evry_bitness = bit_unknown;
 static void get_evry_bitness (HWND wnd);
 
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
+static int   do_check (void);
 static int   do_tests (void);
 static void  searchpath_all_cc (void);
 static void  print_build_cflags (void);
@@ -488,6 +489,7 @@ static int show_help (void)
             "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
             "    ~6--pkg~0:          check and search in ~3%%PKG_CONFIG_PATH%%~0.\n"
             "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[1]~0\n"
+            "    ~6--check~0         check for missing directories in ~6all~0 supported environment variables.\n"
             "\n"
             "  ~6Options~0:\n"
             "    ~6--no-gcc~0:       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
@@ -3168,7 +3170,8 @@ static const struct option long_options[] = {
            { "nonblock-io", no_argument,       NULL, 0 },
            { "no-watcom",   no_argument,       NULL, 0 },    /* 33 */
            { "owner",       no_argument,       NULL, 0 },
-           { NULL,          no_argument,       NULL, 0 }     /* 35 */
+           { "check",       no_argument,       NULL, 0 },    /* 35 */
+           { NULL,          no_argument,       NULL, 0 }
          };
 
 static int *values_tab[] = {
@@ -3207,6 +3210,7 @@ static int *values_tab[] = {
             &opt.use_nonblock_io,
             &opt.no_watcom,       /* 33 */
             &opt.show_owner,
+            &opt.do_check,        /* 35 */
           };
 
 /*
@@ -3626,6 +3630,9 @@ int main (int argc, char **argv)
 
   if (opt.do_python)
      py_init();
+
+  if (opt.do_check)
+     return do_check();
 
   if (opt.do_tests)
      return do_tests();
@@ -4513,6 +4520,53 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
   if (i == 0)
        C_puts ("None\n");
   else C_puts ("~0\n");
+}
+
+static const char *check_env_val (const char *env, int *num)
+{
+  smartlist_t *list;
+  int          i, max;
+  char        *value =  getenv_expand (env);
+  static char status [50];
+
+  status[0] = '\0';
+  list = split_env_var (env, value);
+  max = list ? smartlist_len (list) : 0;
+  *num = max;
+  for (i = 0; i < max; i++)
+  {
+    const struct directory_array *arr = smartlist_get (list, i);
+    if (!arr->exist)
+       snprintf (status, sizeof(status), "Missing dir: \"%s\"", arr->dir);
+  }
+
+  if (max == 0)
+     strcpy (status, "Does not exists");
+  else if (!status[0])
+     strcpy (status, "OK");
+
+  FREE (value);
+  free_dir_array();
+  return (status);
+}
+
+static int do_check (void)
+{
+  static const char *envs[] = {
+                    "PATH", "LIB", "LIBRARY_PATH", "INCLUDE", "C_INCLUDE_PATH",
+                    "CPLUS_INCLUDE_PATH", "MANPATH", "PKG_CONFIG_PATH",
+                    "CMAKE_MODULE_PATH", "FOO",
+                   };
+  const char *status, *env;
+  int   i, num, indent;
+
+  for (i = 0, env = envs[0]; i < DIM(envs); env = envs[++i])
+  {
+    status = check_env_val (env, &num);
+    indent = sizeof("CPLUS_INCLUDE_PATH") - strlen(env);
+    C_printf ("Checking in ~6%%%s%%~0:%*c%2d elements, %s\n", env, indent, ' ', num, status);
+  }
+  return (0);
 }
 
 static int do_tests (void)
