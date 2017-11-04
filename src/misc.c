@@ -186,13 +186,14 @@ void init_misc (void)
 
 /*
  * Open a fname and check if there's a she-bang line on 1st line.
- * "#!/xx".
+ * Accepts "#!/xx" or "#! /xx".
  */
 const char *check_if_shebang (const char *fname)
 {
   static char shebang [30];
   const char *ext = get_file_ext (fname);
-  BOOL   okay;
+  BOOL   okay = FALSE;
+  int    ofs;
   char  *p;
   FILE  *f;
 
@@ -209,20 +210,30 @@ const char *check_if_shebang (const char *fname)
     fclose (f);
   }
 
-  okay = (strncmp(shebang, "#!/", 3) == 0);
+  if (!strncmp(shebang, "#!/", 3))
+  {
+    okay = TRUE;
+    ofs = 2;
+  }
+  else if (!strncmp(shebang, "#! /", 4))
+  {
+    okay = TRUE;
+    ofs = 3;
+  }
+
   if (okay)
   {
     /* If it's a Unix file with 2 "\r\r" in the 'shebang[]' buffer,
      * we cannot use 'strip_nl()'. That will only remove the last
      * '\r'. Look for the 1st '\n' or '\r' and remove them.
      */
-    p = strchr (shebang, '\n');
+    p = strchr (shebang+ofs, '\n');
     if (p)
       *p = '\0';
-    p = strchr (shebang, '\r');
+    p = strchr (shebang+ofs, '\r');
     if (p)
        *p = '\0';
-    p = strchr (shebang, ' ');
+    p = strchr (shebang+ofs, ' ');
 
     /* Also drop any space; this is usually arguments for this
      * specific interpreter.
@@ -231,7 +242,7 @@ const char *check_if_shebang (const char *fname)
        *p = '\0';
   }
   DEBUGF (1, "shebang: \"%s\"\n", shebang);
-  return (okay ? shebang+2 : NULL);
+  return (okay ? shebang+ofs : NULL);
 }
 
 /*
