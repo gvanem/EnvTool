@@ -1107,10 +1107,9 @@ UINT64 get_directory_size (const char *dir)
  * to align up more nicely.
  * Not ideal since we don't know the length of all files we need to report.
  */
-static int longest_file_so_far = 0;
-
 static int get_trailing_indent (const char *file)
 {
+  static int longest_file_so_far = 0;
   static int indent = 0;
   int    len = (int) strlen (file);
 
