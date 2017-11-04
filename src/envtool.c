@@ -119,7 +119,6 @@ static int      num_verified = 0;
 static unsigned num_evry_dups = 0;
 static BOOL     have_sys_native_dir = FALSE;
 static BOOL     have_sys_wow64_dir  = FALSE;
-static int      longest_file_so_far = 0;
 
 static char *who_am_I = (char*) "envtool";
 
@@ -1103,14 +1102,36 @@ UINT64 get_directory_size (const char *dir)
   return (size);
 }
 
+/*
+ * Return the indentation needed for the next 'she-bang' or 'man-file link'
+ * to align up more nicely.
+ * Not ideal since we don't know the length of all files we need to report.
+ */
+static int longest_file_so_far = 0;
+
+static int get_trailing_indent (const char *file)
+{
+  static int indent = 0;
+  int    len = (int) strlen (file);
+
+  if (longest_file_so_far == 0 || len > longest_file_so_far)
+     longest_file_so_far = len;
+
+  if (len <= longest_file_so_far)
+     indent = 1 + longest_file_so_far - len;
+
+  DEBUGF (2, "longest_file_so_far: %d, len: %d, indent: %d\n",
+          longest_file_so_far, len, indent);
+  return (indent);
+}
+
 int report_file (const char *file, time_t mtime, UINT64 fsize,
                  BOOL is_dir, BOOL is_junction, HKEY key)
 {
   const char *note    = NULL;
-  const char *shebang = NULL;
   const char *filler = "      ";
   char        size [40] = "?";
-  int         raw, len;
+  int         raw;
   BOOL        have_it = TRUE;
   BOOL        show_dir_size = TRUE;
 
@@ -1234,11 +1255,8 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   /* In case 'file' contains a "~" (SFN), we switch to raw mode.
    */
   raw = C_setraw (1);
-  len = C_puts (file);
+  C_puts (file);
   C_setraw (raw);
-
-  if (longest_file_so_far == 0 || len > longest_file_so_far)
-     longest_file_so_far = len;
 
   /* Add a slash to end of a directory.
    */
@@ -1256,21 +1274,14 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
     if (!link)
        link = get_gzip_link (file);
     if (link)
-       C_printf (" (%s)", link);
+       C_printf ("%*s(%s)", get_trailing_indent(file), " ", link);
   }
   else
   {
-    shebang = check_if_shebang (file);
+    const char *shebang = check_if_shebang (file);
+
     if (shebang)
-    {
-      static int indent;
-
-      if (len <= longest_file_so_far)
-         indent = 1 + longest_file_so_far - len;
-
-      DEBUGF (2, "longest_file_so_far: %d, len: %d, indent: %d\n", longest_file_so_far, len, indent);
-      C_printf ("%*s(#!%s)", indent, " ", shebang);
-    }
+       C_printf ("%*s(#!%s)", get_trailing_indent(file), " ", shebang);
   }
 
   C_putc ('\n');
