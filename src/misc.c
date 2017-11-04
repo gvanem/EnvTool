@@ -230,7 +230,7 @@ int check_if_gzip (const char *fname)
    */
   ext = get_file_ext (fname);
   is_gzip = (stricmp(ext,"gz") == 0);
-  is_tgz  = (stricmp(ext,"tgz") == 0);
+  is_tgz  = (stricmp(ext,"tgz") == 0 || stricmp(ext,"tar.gz") == 0);
 
   if (!is_gzip && !is_tgz)
   {
