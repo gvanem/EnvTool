@@ -185,7 +185,8 @@ void init_misc (void)
 }
 
 /*
- * Open a fname and check if there's a she-bang line on 1st line.
+ * If given a 'fname' without any extension, open the 'fname' and check if
+ * there's a she-bang line on 1st line.
  * Accepts "#!/xx" or "#! /xx".
  */
 const char *check_if_shebang (const char *fname)
@@ -197,7 +198,7 @@ const char *check_if_shebang (const char *fname)
   char  *p;
   FILE  *f;
 
-  /* Return NULL if no extension.
+  /* Return NULL if 'fname' have an extension.
    */
   if (*ext)
      return (NULL);
