@@ -1253,6 +1253,13 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
     if (link)
        C_printf (" (%s)", link);
   }
+  else if (opt.verbose)
+  {
+    const char *shebang = check_if_shebang (file);
+
+    if (shebang)
+       C_printf (" (-> %s)", shebang);
+  }
 
   C_putc ('\n');
   return (1);

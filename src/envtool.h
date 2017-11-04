@@ -447,6 +447,7 @@ extern char       *create_temp_file (void);
 extern int         get_PE_version_info (const char *file, struct ver_info *ver);
 extern char       *get_PE_version_info_buf (void);
 extern void        get_PE_version_info_free (void);
+extern const char *check_if_shebang (const char *fname);
 extern int         check_if_zip (const char *fname);
 extern int         check_if_gzip (const char *fname);
 extern const char *get_gzip_link (const char *file);

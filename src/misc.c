@@ -185,6 +185,49 @@ void init_misc (void)
 }
 
 /*
+ * Open a fname and check if there's a she-bang line on 1st line.
+ * "#!/xx".
+ */
+const char *check_if_shebang (const char *fname)
+{
+  static char shebang [30];
+  const char *ext = get_file_ext (fname);
+  BOOL   okay;
+  char  *p;
+  FILE  *f;
+
+  /* Return NULL if no extension.
+   */
+  if (*ext)
+     return (NULL);
+
+  memset (&shebang, '\0', sizeof(shebang));
+  f = fopen (fname, "rb");
+  if (f)
+  {
+    fread (&shebang, 1, sizeof(shebang), f);
+    fclose (f);
+  }
+
+  okay = (strncmp(shebang, "#!/", 3) == 0);
+  if (okay)
+  {
+    /* If it's a Unix file with 2 "\r\r" in the 'shebang[]' buffer,
+     * we cannot use 'strip_nl()'. That will only remove the last
+     * '\r'. Look for the 1st '\n' or '\r' and remove them.
+     */
+    p = strchr (shebang, '\n');
+    if (p)
+      *p = '\0';
+    p = strchr (shebang, '\r');
+    if (p)
+       *p = '\0';
+  }
+  DEBUGF (1, "shebang: \"%s\"\n", shebang);
+  return (okay ? shebang+2 : NULL);
+}
+
+/*
  * Open a fname and check if there's a "PK" signature in header.
  */
 int check_if_zip (const char *fname)
