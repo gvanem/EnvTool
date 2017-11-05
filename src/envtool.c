@@ -4522,6 +4522,10 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
   else C_puts ("~0\n");
 }
 
+/*
+ * Expand and check a single env-var for missing directories.
+ * And return the number of elements in '*num'.
+ */
 static const char *check_env_val (const char *env, int *num)
 {
   smartlist_t *list;
@@ -4537,19 +4541,22 @@ static const char *check_env_val (const char *env, int *num)
   {
     const struct directory_array *arr = smartlist_get (list, i);
     if (!arr->exist)
-       snprintf (status, sizeof(status), "Missing dir: \"%s\"", arr->dir);
+       snprintf (status, sizeof(status), "~5Missing dir~0: ~3\"%s\"~0", arr->dir);
   }
 
   if (max == 0)
-     strcpy (status, "Does not exists");
+     strcpy (status, "~5Does not exists~0");
   else if (!status[0])
-     strcpy (status, "OK");
+     strcpy (status, "~2OK~0");
 
   FREE (value);
   free_dir_array();
   return (status);
 }
 
+/*
+ * The handler for mode "--check".
+ */
 static int do_check (void)
 {
   static const char *envs[] = {
@@ -4564,11 +4571,15 @@ static int do_check (void)
   {
     status = check_env_val (env, &num);
     indent = sizeof("CPLUS_INCLUDE_PATH") - strlen(env);
-    C_printf ("Checking in ~6%%%s%%~0:%*c%2d elements, %s\n", env, indent, ' ', num, status);
+    C_printf ("Checking in ~6%%%s%%~0:%*c~6%2d~0 elements, %s\n", env, indent, ' ', num, status);
   }
+
   return (0);
 }
 
+/*
+ * The handler for option "-t" / "--test".
+ */
 static int do_tests (void)
 {
   int save;
