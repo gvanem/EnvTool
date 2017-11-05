@@ -15,11 +15,7 @@ handles these environment variables:
 | `--python` | `%PYTHONPATH%` and `sys.path[]` |
 | `--evry` | [EveryThing](http://www.voidtools.com/support/everything) file database. |
 | `--evry=host` | Remote search in a EveryThing database on `host`. |
-| `--check` | check for missing directories in *all* supported environment variables and the Registry keys:
-```
-  HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths
-  HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths
-``` |
+| `--check` | check for missing directories in *all* supported environment variables and some Registry keys. |
 
 It also checks for missing directories along the above env-variables.
 
