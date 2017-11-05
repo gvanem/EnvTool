@@ -558,13 +558,13 @@ static int show_help (void)
             "Usage: %s ~6[options] <--mode>~0 ~6<file-spec>~0\n"
             "  ~6<--mode>~0 can be at least one of these:\n"
             "    ~6--cmake~0:        check and search in ~3%%CMAKE_MODULE_PATH%%~0 and it's built-in module-path.\n"
-            "    ~6--evry[=~3host~0]~0:  check and search in the ~6EveryThing database~0.     ~2[3]~0\n"
+            "    ~6--evry[=~3host~0]~0:  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
             "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0.                   ~2[2]~0\n"
             "    ~6--lib~0:          check and search in ~3%%LIB%%~0 and ~3%%LIBRARY_PATH%%~0.    ~2[2]~0\n"
             "    ~6--man~0:          check and search in ~3%%MANPATH%%~0.\n"
             "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
             "    ~6--pkg~0:          check and search in ~3%%PKG_CONFIG_PATH%%~0.\n"
-            "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[1]~0\n"
+            "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[3]~0\n"
             "    ~6--check~0         check for missing directories in ~6all~0 supported environment variables.\n"
             "\n"
             "  ~6Options~0:\n"
@@ -601,9 +601,21 @@ static int show_help (void)
             "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
             "    ~6-v~0:             increase verbose level (currently only used in ~6--pe~0).\n"
             "    ~6-V~0:             show program version information. ~6-VV~0 and ~6-VVV~0  prints more info.\n"
-            "    ~6-h~0, ~6-?~0:         show this help.\n"
+            "    ~6-h~0, ~6-?~0:         show this help.\n");
+
+  C_printf ("             otherwise use only first Python found on PATH (i.e. the default).\n"
             "\n"
-            "  ~2[1]~0 The ~6--python~0 option can be detailed further with ~3=X~0:\n");
+            "  ~2[1]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
+            "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
+            "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
+            "      should be specified in your ~6%%APPDATA%%/.netrc~0 or ~6%%APPDATA%%/.authinfo~0 files or\n"
+            "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
+            "\n"
+            "  ~2[2]~0 Unless ~6--no-prefix~0 is used, the ~3%%C_INCLUDE_PATH%%~0, ~3%%CPLUS_INCLUDE_PATH%%~0 and\n"
+            "      ~3%%LIBRARY_PATH%%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
+            "      These ~4<prefix>~0-es are built-in: { ~6x86_64-w64-mingw32~0 | ~6i386-mingw32~0 | ~6i686-w64-mingw32~0 | ~6avr~0 }.\n"
+            "\n"
+            "  ~2[3]~0 The ~6--python~0 option can be detailed further with ~3=X~0:\n");
 
   for (; *py; py++)
   {
@@ -614,18 +626,7 @@ static int show_help (void)
     else C_printf ("      ~6%-6s~0 use a %s program only.\n", *py, py_variant_name(v));
   }
 
-  C_printf ("             otherwise use only first Python found on PATH (i.e. the default).\n"
-            "\n"
-            "  ~2[2]~0 Unless ~6--no-prefix~0 is used, the ~3%%C_INCLUDE_PATH%%~0, ~3%%CPLUS_INCLUDE_PATH%%~0 and\n"
-            "      ~3%%LIBRARY_PATH%%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
-            "      These ~4<prefix>~0-es are built-in: { ~6x86_64-w64-mingw32~0 | ~6i386-mingw32~0 | ~6i686-w64-mingw32~0 | ~6avr~0 }.\n"
-            "\n"
-            "  ~2[3]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
-            "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
-            "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
-            "      should be specified in your ~6%%APPDATA%%/.netrc~0 or ~6%%APPDATA%%/.authinfo~0 files or\n"
-            "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
-            "\n"
+  C_printf ("\n"
             "Notes:\n"
             "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
             "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0 or ~6--dir~0 is used, only\n"
