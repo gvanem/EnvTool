@@ -18,5 +18,8 @@ build_script:
     - echo Testing ETP-searches (should fail)
     - envtool --test --evry:ftp.github.com
 
+    - echo Testing check output
+    - envtool --check
+
   # - echo Testing win_glob
   # - win_glob -fr "c:\Program Files (x86)\CMake"
