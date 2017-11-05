@@ -14,7 +14,8 @@ handles these environment variables:
 | `--pkg` | `%PKG_CONFIG_PATH%` |
 | `--python` | `%PYTHONPATH%` and `sys.path[]` |
 | `--evry` | [EveryThing](http://www.voidtools.com/support/everything) file database. |
-| `--evry=host` | Remote search in a EveryThing database on `host` |
+| `--evry=host` | Remote search in a EveryThing database on `host`. |
+| `--check` | check for missing directories in *all* supported environment variables. |
 
 It also checks for missing directories along the above env-variables.
 
@@ -52,10 +53,10 @@ Other examples:
  all the locations of `notepad*.exe`. On my box the result is:
 
 ```
-Thu Jul 21 16:02:20 2011 : f:\windows\system32\notepad-orig.exe
-Mon Nov 18 19:26:40 2002 : f:\windows\system32\notepad.exe
-Thu Jul 21 16:13:11 2011 : f:\windows\system32\notepad2.exe
-Mon Nov 18 19:26:40 2002 : f:\windows\notepad.exe
+Thu Jul 21 16:02:20 2011: f:\windows\system32\notepad-orig.exe
+Mon Nov 18 19:26:40 2002: f:\windows\system32\notepad.exe
+Thu Jul 21 16:13:11 2011: f:\windows\system32\notepad2.exe
+Mon Nov 18 19:26:40 2002: f:\windows\notepad.exe
 ```
 
 **E.g. 2**: `envtool --inc afxwin*` first checks the `%INCLUDE%` env-var
@@ -63,12 +64,12 @@ for consistency (reports missing directories in `%INCLUDE`) and prints
 all the locations of `afxwin*`. On my box the result is:
 
 ```
-Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN.H
-Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN1.INL
-Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN2.INL
-Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN.H
-Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN1.INL
-Thu Apr 14 18:54:46 2005 : g:\vc_2010\VC\AtlMfc\include\AFXWIN2.INL
+Thu Apr 14 18:54:46 2005: g:\vc_2010\VC\AtlMfc\include\AFXWIN.H
+Thu Apr 14 18:54:46 2005: g:\vc_2010\VC\AtlMfc\include\AFXWIN1.INL
+Thu Apr 14 18:54:46 2005: g:\vc_2010\VC\AtlMfc\include\AFXWIN2.INL
+Thu Apr 14 18:54:46 2005: g:\vc_2010\VC\AtlMfc\include\AFXWIN.H
+Thu Apr 14 18:54:46 2005: g:\vc_2010\VC\AtlMfc\include\AFXWIN1.INL
+Thu Apr 14 18:54:46 2005: g:\vc_2010\VC\AtlMfc\include\AFXWIN2.INL
 ```
 
 **E.g. 3**: If an _App Paths_ registry key has an alias for a command, the target
@@ -89,10 +90,10 @@ Fri Oct 11 09:10:00 2002: f:\PROGRA~1\WINZIP\winzip32.exe !
 `envtool --path *-?++.exe`:
 
 ```
-Tue Nov 19 12:01:38 2002 : f:\Mingw32\bin\mingw32-c++.exe
-Tue Nov 19 12:01:38 2002 : f:\Mingw32\bin\mingw32-g++.exe
-Wed Mar 09 14:39:05 2011 : f:\CygWin\bin\i686-pc-cygwin-c++.exe
-Wed Mar 09 14:39:05 2011 : f:\CygWin\bin\i686-pc-cygwin-g++.exe
+Tue Nov 19 12:01:38 2002: f:\Mingw32\bin\mingw32-c++.exe
+Tue Nov 19 12:01:38 2002: f:\Mingw32\bin\mingw32-g++.exe
+Wed Mar 09 14:39:05 2011: f:\CygWin\bin\i686-pc-cygwin-c++.exe
+Wed Mar 09 14:39:05 2011: f:\CygWin\bin\i686-pc-cygwin-g++.exe
 ```
 
 Although not as powerful as "POSIX-style file matching" which is also built-in
@@ -229,6 +230,13 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
 
   1.0:  Added option "--pkg" to search in pkg-config's searcch-path specified by
         %PKG_CONFIG_PATH%.
+
+  1.1:  Added option "--check" to check for missing directories in all supported
+        environment variables.
+        Added reading of an config-file; "%APPDATA%\envtool.cfg" is read at startup
+        to support files to ignore. Copy the included "envtool.cfg" to your "%APPDATA"
+        folder if needed.
+
 ```
 
 PS. This file is written with the aid of [GitBookEditor](https://www.gitbook.com/editor).
