@@ -1,4 +1,4 @@
-# EnvTool v1.0:
+# EnvTool v1.1:
 
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/gvanem/envtool?branch=master&svg=true)](https://ci.appveyor.com/project/gvanem/envtool)
 
@@ -15,7 +15,13 @@ handles these environment variables:
 | `--python` | `%PYTHONPATH%` and `sys.path[]` |
 | `--evry` | [EveryThing](http://www.voidtools.com/support/everything) file database. |
 | `--evry=host` | Remote search in a EveryThing database on `host`. |
-| `--check` | check for missing directories in *all* supported environment variables. |
+| `--check` | check for missing directories in *all* supported environment variables
+  and the Registry keys:
+  ```
+  HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths
+  HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths
+  ```
+|
 
 It also checks for missing directories along the above env-variables.
 
