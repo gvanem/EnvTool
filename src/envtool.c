@@ -105,7 +105,7 @@ struct registry_array {
        HKEY    key;
      };
 
-static smartlist_t *dir_array, *reg_array;
+static smartlist_t *dir_array, *reg_array, *ignore_list;
 
 struct prog_options opt;
 
@@ -192,10 +192,85 @@ static int   get_cmake_info (char **exe, struct ver_info *ver);
  *        Also check their Wintrust signature status and version information.
  */
 
-#define MAX_INDEXED  ('Z' - 'A' + 1)
+/*
+ * Free the memory allocated in the 'ignore_list' smartlist.
+ * Called from 'cleanup()' below.
+ */
+static void cfg_exit (void)
+{
+  int i, max;
 
+  if (!ignore_list)
+     return;
+
+  max = smartlist_len (ignore_list);
+  for (i = 0; i < max; i++)
+  {
+    char *ignore = smartlist_get (ignore_list, i);
+
+    DEBUGF (2, "%d: ignore: '%s'\n", i, ignore);
+    FREE (ignore);
+  }
+  smartlist_free (ignore_list);
+}
+
+/*
+ * Callback for 'smartlist_read_file()':
+ * Accepts only strings like "ignore = xx" from the
+ * config-file. Will be added to 'ignore_list'.
+ */
+static void cfg_parse (smartlist_t *sl, char *line)
+{
+  char  ignore [256];
+  const char *p, *fmt = "ignore = %256s";
+  int   num;
+
+  strip_nl (line);
+  p = str_trim (line);
+  num = sscanf (p, fmt, ignore);
+  if (num == 1)
+     smartlist_add (sl, STRDUP(ignore));
+  DEBUGF (2, "num: %d, p: '%s'\n", num, p);
+}
+
+/*
+ * Try to open and parse a config-file.
+ */
+static int cfg_init (const char *fname)
+{
+  char *file = getenv_expand (fname);
+
+  DEBUGF (3, "file: %s\n", file);
+  if (file)
+  {
+    ignore_list = smartlist_read_file (file, (smartlist_parse_func)cfg_parse);
+    FREE (file);
+  }
+  return (ignore_list != NULL);
+}
+
+/*
+ * Lookup an 'ignore_value' to test for the 'ignore_value'.
+ * Return 1 if found in 'ignore_list'.
+ */
+static int cfg_ignore_lookup (const char *ignore_value)
+{
+  int i, max = ignore_list ? smartlist_len (ignore_list) : 0;
+
+  for (i = 0; i < max; i++)
+      if (!stricmp(ignore_value, smartlist_get(ignore_list,i)))
+          return (1);
+  return (0);
+}
+
+/*
+ * Show some version details for the EveryThing program.
+ * Called on 'FindWindow ("EVERYTHING_TASKBAR_NOTIFICATION")' success.
+ */
 static void show_evry_version (HWND wnd, const struct ver_info *ver)
 {
+  #define MAX_INDEXED  ('Z' - 'A' + 1)
+
   char buf [3*MAX_INDEXED+2], *p = buf, *bits = "";
   int  d, num;
 
@@ -226,9 +301,10 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
   C_printf ("  These drives are indexed: ~3%s~0\n", buf);
 }
 
-/*
+/**
  * The SendMessage() calls could hang if EveryThing is busy updating itself or
  * stuck for some reason.
+ *
  * \todo: This should be done in a thread.
  */
 static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
@@ -1326,15 +1402,14 @@ static void final_report (int found)
       C_puts ("~3 (6): EveryThing database is not up-to-date.~0\n");
 
   if (do_warn)
-    C_printf ("\n"
-              "  ~5The search found matches outside the default environment (PATH etc.).\n"
-              "  Hence running an application from the Start-Button may result in different .EXE/.DLL\n"
-              "  to be loaded than from the command-line. Revise the above registry-keys.\n\n~0");
+     C_printf ("\n"
+               "  ~5The search found matches outside the default environment (PATH etc.).\n"
+               "  Hence running an application from the Start-Button may result in different .EXE/.DLL\n"
+               "  to be loaded than from the command-line. Revise the above registry-keys.\n\n~0");
 
   if (num_evry_dups)
      snprintf (duplicates, sizeof(duplicates), " (%u duplicated)", num_evry_dups);
-  else
-  if (ETP_num_evry_dups)
+  else if (ETP_num_evry_dups)
      snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)",
                (unsigned long)ETP_num_evry_dups);
 
@@ -3506,6 +3581,7 @@ static void cleanup (void)
   if (halt_flag > 0)
      C_puts ("~5Quitting.\n~0");
 
+  cfg_exit();
   C_reset();
   crtdbug_exit();
 }
@@ -3613,6 +3689,7 @@ int main (int argc, char **argv)
 
   parse_cmdline (argc, argv, &opt.file_spec);
 
+  cfg_init ("%APPDATA%\\envtool.cfg");
   check_sys_dirs();
 
   /* Sometimes the IPC connection to the EveryThing Database will hang.
@@ -4526,12 +4603,12 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
  * Expand and check a single env-var for missing directories.
  * And return the number of elements in '*num'.
  */
-static const char *check_env_val (const char *env, int *num)
+static void check_env_val (const char *env, int *num, char *status, size_t status_sz)
 {
-  smartlist_t *list;
-  int          i, max;
-  char        *value =  getenv_expand (env);
-  static char status [50];
+  smartlist_t                  *list;
+  int                           i, max;
+  char                         *value =  getenv_expand (env);
+  const struct directory_array *arr;
 
   status[0] = '\0';
   list = split_env_var (env, value);
@@ -4539,41 +4616,101 @@ static const char *check_env_val (const char *env, int *num)
   *num = max;
   for (i = 0; i < max; i++)
   {
-    const struct directory_array *arr = smartlist_get (list, i);
+    arr = smartlist_get (list, i);
     if (!arr->exist)
-       snprintf (status, sizeof(status), "~5Missing dir~0: ~3\"%s\"~0", arr->dir);
+    {
+      snprintf (status, status_sz, "~5Missing dir~0: ~3\"%s\"~0", arr->dir);
+      break;
+    }
   }
 
   if (max == 0)
-     strcpy (status, "~5Does not exists~0");
+     _strlcpy (status, "~5Does not exists~0", status_sz);
   else if (!status[0])
-     strcpy (status, "~2OK~0");
+     _strlcpy (status, "~2OK~0", status_sz);
 
   FREE (value);
   free_dir_array();
-  return (status);
+}
+
+/*
+ * Check a single Registry-key for missing files and directories.
+ * Either:
+ *   "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
+ * or
+ *   "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
+ *
+ * Print results here since there can be so many missing files/directories.
+ */
+static void check_reg_key (HKEY top_key, const char *reg_key)
+{
+  int i, errors, max, indent = sizeof("Checking in");
+
+  build_reg_array_app_path (top_key);
+  sort_reg_array();
+
+  max  = smartlist_len (reg_array);
+  for (i = errors = 0; i < max; i++)
+  {
+    const struct registry_array *arr = smartlist_get (reg_array, i);
+    char  fqfn [_MAX_PATH];
+
+    if (!is_directory(arr->path) && !cfg_ignore_lookup(arr->path))
+    {
+      C_printf ("%*c~5Missing dir~0: ~3%s~0\n", indent, ' ', arr->path);
+      errors++;
+      continue;
+    }
+    snprintf (fqfn, sizeof(fqfn), "%s\\%s", arr->path, arr->fname);
+    if (!arr->exist && !cfg_ignore_lookup(fqfn))
+    {
+      C_printf ("%*c~5Missing file~0: ~3%s~0\n", indent, ' ', fqfn);
+      errors++;
+    }
+  }
+
+  C_printf ("%*c", indent, ' ');
+  if (max == 0)
+     C_puts ("~5Does not exists~0,");  /* Impossible */
+  else if (errors == 0)
+     C_puts ("~2OK~0,             ");
+  else
+     C_puts ("~5Error~0,          ");
+
+  C_printf ("~6%2d~0 elements\n", max);
+  free_reg_array();
 }
 
 /*
  * The handler for mode "--check".
+ * Check the Registry keys even if 'opt.no_app_path' is set.
  */
 static int do_check (void)
 {
   static const char *envs[] = {
-                    "PATH", "LIB", "LIBRARY_PATH", "INCLUDE", "C_INCLUDE_PATH",
-                    "CPLUS_INCLUDE_PATH", "MANPATH", "PKG_CONFIG_PATH",
+                    "PATH", "LIB", "LIBRARY_PATH",
+                    "INCLUDE", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH",
+                    "MANPATH", "PKG_CONFIG_PATH",
                     "CMAKE_MODULE_PATH", "FOO",
                    };
-  const char *status, *env;
-  int   i, num, indent;
+  const char *env;
+  int   i;
 
   for (i = 0, env = envs[0]; i < DIM(envs); env = envs[++i])
   {
-    status = check_env_val (env, &num);
-    indent = sizeof("CPLUS_INCLUDE_PATH") - strlen(env);
+    int  num, indent = sizeof("CPLUS_INCLUDE_PATH") - strlen(env);
+    char status [100+_MAX_PATH];
+
+    check_env_val (env, &num, status, sizeof(status));
     C_printf ("Checking in ~6%%%s%%~0:%*c~6%2d~0 elements, %s\n", env, indent, ' ', num, status);
   }
 
+  C_putc ('\n');
+  C_printf ("Checking in ~6HKCU\\%s~0:\n", REG_APP_PATH);
+  check_reg_key (HKEY_CURRENT_USER, REG_APP_PATH);
+
+  C_printf ("Checking in ~6HKLM\\%s~0:\n", REG_APP_PATH);
+  check_reg_key (HKEY_LOCAL_MACHINE, REG_APP_PATH);
   return (0);
 }
 
