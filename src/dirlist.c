@@ -84,7 +84,6 @@ static int reverse_sort (int rc)
   return (rc);
 }
 
-
 /*
  * Prevent an ugly "disk not ready" dialogue from Windows before
  * we call 'stat()' or 'FindFirstFile()'.
@@ -115,16 +114,28 @@ static BOOL safe_to_access (const char *file)
 static int ATTR_UNUSED() make_dir_spec (const char *arg, char *dir, char *spec)
 {
   struct stat st;
-  const char *p, *end, *_arg;
-  char *p2;
-  BOOL  unc = (strncmp(arg,"\\\\",2) == 0);
-  BOOL  safe = safe_to_access (arg);
+  const char *p, *_arg;
+  char *end, *p2, *a_copy;
+  BOOL  unc, safe;
+
+  /* First, remove any enclosing '"' given in 'arg'.
+   */
+  a_copy = p2 = STRDUP (arg);
+  if (*a_copy == '"')
+     a_copy++;
+  end = strchr (a_copy, '\0');
+  if (end > a_copy && end[-1] == '"')
+     end[-1] = '\0';
+  DEBUGF (3, "a_copy: '%s'\n", a_copy);
+
+  unc  = (strncmp(a_copy,"\\\\",2) == 0);
+  safe = safe_to_access (a_copy);
 
   /* Check if 'arg' is simply a directory.
    */
-  if (!unc && safe && stat(arg, &st) >= 0 && (st.st_mode & S_IFMT) == S_IFDIR)
+  if (!unc && safe && stat(a_copy, &st) >= 0 && (st.st_mode & S_IFMT) == S_IFDIR)
   {
-    strcpy (dir, arg);
+    strcpy (dir, a_copy);
     strcpy (spec, "*");
     DEBUGF (2, "stat() okay:\n");
     goto quit;
@@ -135,16 +146,16 @@ static int ATTR_UNUSED() make_dir_spec (const char *arg, char *dir, char *spec)
   else strcpy (dir, ".");   /* set default values */
 
   strcpy (spec, "*");
-  end = strchr (arg, '\0');
-  _arg = arg;
+  end = strchr (a_copy, '\0');
+  _arg = a_copy;
 
   /* Step over drive/dir part
    */
   while ((p = strpbrk(_arg, ":/\\")) != NULL)
         _arg = p + 1;
 
-  if (_arg - arg > 0)
-     _strlcpy (dir, arg, _arg - arg + 1);
+  if (_arg - a_copy > 0)
+     _strlcpy (dir, a_copy, _arg - a_copy + 1);
 
   if (end - _arg > 0)
      _strlcpy (spec, _arg, end - _arg + 1);
@@ -154,6 +165,7 @@ static int ATTR_UNUSED() make_dir_spec (const char *arg, char *dir, char *spec)
      p2[-1] = '\0';
 
 quit:
+  FREE (a_copy);
   DEBUGF (2, "dir: '%s', spec: '%s'\n", dir, spec);
   return (1);
 }
