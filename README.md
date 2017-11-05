@@ -4,7 +4,9 @@
 
 A tool to search along various environment variables for files (or a wildcard). The following modes
 handles these environment variables:
+[![screenshot](envtool-help.png?raw=true)](envtool-help.png.png?raw=true)
 
+<!--
 | `--path` | `%PATH%` |
 | :--- | :--- |
 | `--inc` | `%INCLUDE%`, `%C_INCLUDE_PATH%` and `%CPLUS_INCLUDE_PATH%` |
@@ -16,6 +18,7 @@ handles these environment variables:
 | `--evry` | [EveryThing](http://www.voidtools.com/support/everything) file database. |
 | `--evry=host` | Remote search in a EveryThing database on `host`. |
 | `--check` | check for missing directories in *all* supported environment variables and some Registry keys. |
+-->
 
 It also checks for missing directories along the above env-variables.
 
