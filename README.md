@@ -126,13 +126,13 @@ all directories with Unix man-pages, you can do this:
 `envtool.exe --evry -r "man[1-9]$"`:
 
 ```
-<DIR> 03 Jun 2014 - 17:50:36: f:\CygWin\lib\perl5\5.14\Parse-Yapp-1.05\blib\man1\
-<DIR> 03 Jun 2014 - 17:54:06: f:\CygWin\usr\man\man1\
 <DIR> 03 Jun 2014 - 17:56:08: f:\CygWin\usr\share\man\man1\
-<DIR> 03 Jun 2014 - 17:55:58: f:\CygWin\usr\share\man\bg\man1\
+<DIR> 03 Jun 2014 - 17:56:08: f:\CygWin\usr\share\man\man3\
+<DIR> 03 Jun 2014 - 17:56:08: f:\CygWin\usr\share\man\man5\
+<DIR> 03 Jun 2014 - 17:56:08: f:\CygWin\usr\share\man\man7\
+<DIR> 03 Jun 2014 - 17:56:08: f:\CygWin\usr\share\man\man8\
 ```
-
-Which is probably a lot more directories than you have in you `%MANPATH%`.
+(assuming you have only 1 set of man-pages from a CygWin install)
 
 Or to find only `foo*.bar` files under directory-branch(es) `misc`, you can do:
 
