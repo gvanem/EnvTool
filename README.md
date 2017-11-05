@@ -4,7 +4,7 @@
 
 A tool to search along various environment variables for files (or a wildcard). The following modes
 handles these environment variables:
-[![screenshot](envtool-help.png?raw=true)](envtool-help.png.png?raw=true)
+[![screenshot](envtool-help.png?raw=true)](envtool-help.png?raw=true)
 
 <!--
 | `--path` | `%PATH%` |
