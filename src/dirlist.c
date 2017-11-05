@@ -198,7 +198,7 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   DEBUGF (3, "CALLOC (%u) -> %p\n", (unsigned)max_size, dirp->dd_contents);
 
  /*
-  * If we're called from 'scandir2()', we have no pattern; we macth all files.
+  * If we're called from 'scandir2()', we have no pattern; we match all files.
   * If we're called from 'opendir2x()', maybe use "*" as pattern if 'opts->recursive == 1'?
   * And filter later on.
   */
