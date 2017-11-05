@@ -1,9 +1,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "1.0"
+#define VER_STRING  "1.1"
 #define MAJOR_VER   1
-#define MINOR_VER   0
+#define MINOR_VER   1
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 #define GITHUB_STR    "https://github.com/gvanem/EnvTool"
