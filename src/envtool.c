@@ -3577,13 +3577,14 @@ static void cleanup (void)
   for (i = 0; i < new_argc && i < DIM(new_argv)-1; i++)
       FREE (new_argv[i]);
 
+  cfg_exit();
+
   if (halt_flag == 0 && opt.debug > 0)
      mem_report();
 
   if (halt_flag > 0)
      C_puts ("~5Quitting.\n~0");
 
-  cfg_exit();
   C_reset();
   crtdbug_exit();
 }
