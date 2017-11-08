@@ -146,7 +146,8 @@ static int longest_py_version = 0;  /* set in py_init() */
   static HANDLE ex_hnd = NULL;
 #endif
 
-static int get_python_version (const char *exe_name);
+static char *fprintf_py (const char *fmt, ...);
+static int   get_python_version (const char *exe_name);
 
 /**
  * The list Pythons from the PATH and from 'HKLM\Software\Python\PythonCore\xx\InstallPath'
@@ -712,9 +713,17 @@ static char *call_python_func (struct python_info *py, const char *py_prog)
   char     *str = NULL;
   int       rc;
 
-  DEBUGF (3, "py_prog:\n"
-             "----------------------\n%s\n"
-             "----------------------\n", py_prog);
+  if (opt.debug >= 3)
+  {
+    int line;
+    char *chunk, *prog = STRDUP (py_prog);
+
+    debug_printf ("py_prog:\n----------------------\n");
+    for (line = 1, chunk = strtok(prog,"\n"); chunk; chunk = strtok(NULL,"\n"), line++)
+        debug_printf ("%2d: %s\n", line, chunk);
+    FREE (prog);
+    debug_printf ("----------------------\n");
+  }
 
   rc  = (*PyRun_SimpleString) (py_prog);
   obj = (*PyObject_GetAttrString) (py->catcher, "value");
@@ -771,6 +780,141 @@ static BOOL test_python_funcs (struct python_info *py)
 }
 
 /**
+ * Another embedded test; print the modules
+ */
+#ifdef NOT_USED_YET
+static int get_modules_output (char *str, int index)
+{
+  DEBUGF (2, "str (index: %d): \"%s\"\n", index, str);
+  ASSERT (index >= 0);
+  return (1);
+}
+#endif
+
+#define PY_LIST_MODULES                                                              \
+        "import os, sys, re, pip, imp\n"                                             \
+        "def is_zipfile (path):\n"                                                   \
+        "  try:\n"                                                                   \
+        "    import zipfile\n"                                                       \
+        "    return zipfile.is_zipfile (path)\n"                                     \
+        "  except ImportError:\n"                                                    \
+        "    return False\n"                                                         \
+        "\n"                                                                         \
+        "pyhome_lib = os.getenv (\"PYTHONHOME\")\n"                                  \
+        "\n"                                                                         \
+        "def get_rel_path (path):\n"                                                 \
+        "  if not pyhome_lib:\n"                                                     \
+        "    return path\n"                                                          \
+        "  return \"$PYTHONHOME\\\\\" + os.path.relpath (path, pyhome_lib)\n"        \
+        "\n"                                                                         \
+        "def main (pattern = None):\n"                                               \
+        "  packages = pip.get_installed_distributions (local_only=False, skip=())\n" \
+        "  package_list = []\n"                                                      \
+        "  for p in packages:\n"                                                     \
+        "    if pattern and not pattern.match(p.key):\n"                             \
+        "      continue\n"                                                           \
+        "    if os.path.isdir (p.location):\n"                                       \
+        "      loc = get_rel_path (p.location) + \'\\\\\'\n"                         \
+        "    elif is_zipfile (p.location):\n"                                        \
+        "      loc = get_rel_path (p.location) + \' (ZIP)\'\n"                       \
+        "    elif not os.path.exists (p.location):\n"                                \
+        "      loc = p.location + \' !\'\n"                                          \
+        "    else:\n"                                                                \
+        "      loc = get_rel_path (p.location)\n"                                    \
+        "\n"                                                                         \
+        "    ver =  \"v.%.6s\" % p.version\n"                                        \
+        "    package_list.append (\"%-20s %-10s -> %s\" % (p.key, ver, loc))\n"      \
+        "\n"                                                                         \
+        "  for p in sorted (package_list):\n"                                        \
+        "    print (p)\n"                                                            \
+        "    try:\n"                                                                 \
+        "      info = imp.find_module (p)\n"                                         \
+        "    except ImportError:\n"                                                  \
+        "      pass\n"                                                               \
+        "\n"                                                                         \
+        "def translate (pat):\n"                                                     \
+        "  # Translate a shell PATTERN to a regular expression.\n"                   \
+        "  i, n = 0, len(pat)\n"                                                     \
+        "  res = \'\'\n"                                                             \
+        "  while i < n:\n"                                                           \
+        "    c = pat[i]\n"                                                           \
+        "    i += 1\n"                                                               \
+        "    if c == \'*\':\n"                                                       \
+        "      res = res + \'.*\'\n"                                                 \
+        "    elif c == \'?\':\n"                                                     \
+        "      res = res + \'.\'\n"                                                  \
+        "    elif c == \'[\':\n"                                                     \
+        "      j = i\n"                                                              \
+        "      if j < n and pat[j] == \'!\':\n"                                      \
+        "        j += 1\n"                                                           \
+        "      if j < n and pat[j] == \']\':\n"                                      \
+        "        j += 1\n"                                                           \
+        "      while j < n and pat[j] != \']\':\n"                                   \
+        "        j += 1\n"                                                           \
+        "      if j >= n:\n"                                                         \
+        "        res += \'\\\\[\'\n"                                                 \
+        "      else:\n"                                                              \
+        "        stuff = pat[i:j].replace(\'\\\\\',\'\\\\\\\\\')\n"                  \
+        "        i = j+1\n"                                                          \
+        "        if stuff[0] == \'!\':\n"                                            \
+        "          stuff = \'^\' + stuff[1:]\n"                                      \
+        "        elif stuff[0] == \'^\':\n"                                          \
+        "          stuff = '\\\\' + stuff\n"                                         \
+        "        res = \'%s[%s]\' % (res, stuff)\n"                                  \
+        "    else:\n"                                                                \
+        "      res = res + re.escape(c)\n"                                           \
+        "  return res # + ''\\Z(?ms)\'\n"                                            \
+        "\n"                                                                         \
+        "p = translate (\"*\")\n"                                                    \
+        "main (re.compile(p))\n"
+
+int py_print_modules (void)
+{
+  char  cmd [2000];
+  char *line, *str = NULL;
+  int   found = 0;
+
+  if (sizeof(cmd) < sizeof(PY_LIST_MODULES))
+     FATAL ("cmd[] buffer too small. %u needed.\n", sizeof(PY_LIST_MODULES));
+
+  C_printf ("~6List of modules for %s:~0\n", g_py->exe_name);
+  if (!g_py->is_embeddable)
+  {
+    C_printf (" ~5<None>~0 since it's not embeddable\n");
+    return (0);
+  }
+
+  /* Reenable the catcher as "sys.stdout = old_stdout" was called above.
+   */
+  g_py->catcher = setup_stdout_catcher();
+  if (!g_py->catcher)
+  {
+    C_printf (" ~5Failed to setup py_catcher.~0\n");
+    return (0);
+  }
+
+  if (g_py->is_embeddable)
+  {
+    strcpy (cmd, PY_LIST_MODULES);
+    set_error_mode (0);
+    str = call_python_func (g_py, cmd);
+    set_error_mode (1);
+    DEBUGF (2, "cmd-len: %d, Python output: \"%s\"\n", strlen(cmd), str);
+  }
+
+  if (str)
+  {
+    for (found = 1, line = strtok(str,"\n"); line; line = strtok(NULL,"\n"), found++)
+        C_printf ("~6%3d: ~0%s\n", found, line);
+    FREE (str);
+  }
+
+  C_printf ("   ~6Found %d modules~0.\n", found);
+  return (found);
+}
+
+
+/**
  * Check if a Python .DLL has the correct bitness for LoadLibrary().
  */
 static BOOL check_bitness (struct python_info *pi, char **needed_bits)
@@ -794,8 +938,10 @@ static BOOL check_bitness (struct python_info *pi, char **needed_bits)
 
 /**
  * Create a %TEMP%-file and write a .py-script to it.
- * The file-name 'tmp' is allocated in misc.c. Caller should call 'unlink(tmp)' and
- * MUST call 'FREE(tmp)' on this ret-value.
+ * The file-name 'tmp' is allocated in misc.c.
+ *
+ * Caller should call 'unlink(tmp)' and MUST call
+ * 'FREE(tmp)' on this ret-value.
  */
 static char *fprintf_py (const char *fmt, ...)
 {
@@ -927,6 +1073,25 @@ static int get_zip_output (char *str, int index)
 }
 
 /**
+ * 'trace(s)' to print to standard error.
+ */
+#if 0
+  #define PY_TRACE()                                     \
+          "def trace (s):\n"  /* trace to stderr (2) */  \
+          "  if PY3:\n"                                  \
+          "    os.write (2, bytes(s,\"UTF-8\"))\n"       \
+          "  else:\n"                                    \
+          "    os.write (2, s)\n"
+#else
+  #define PY_TRACE()                                     \
+          "def trace (s):\n"  /* trace to stderr (2) */  \
+          "  if PY3:\n"                                  \
+          "    sys.stderr.write (bytes(s,\"UTF-8\"))\n"  \
+          "  else:\n"                                    \
+          "    sys.stderr.write (s)\n"
+#endif
+
+/**
  * List a ZIP/EGG-file (file) for a matching file_spec.
  *
  * Note:
@@ -942,11 +1107,7 @@ static int get_zip_output (char *str, int index)
           "import os, sys, fnmatch, zipfile\n"                                        \
           "PY3 = (sys.version_info[0] == 3)\n"                                        \
           "\n"                                                                        \
-          "def trace (s):\n"  /* trace to stderr (2) */                               \
-          "  if PY3:\n"                                                               \
-          "    os.write (2, bytes(s,\"UTF-8\"))\n"                                    \
-          "  else:\n"                                                                 \
-          "    os.write (2, s)\n"                                                     \
+          PY_TRACE()                                                                  \
           "\n"                                                                        \
           "def print_zline (f, debug):\n"                                             \
           "  base = os.path.basename (f.filename)\n"                                  \
@@ -1396,8 +1557,11 @@ int py_test (void)
       g_py = pi;
       get_sys_path (pi);
       print_sys_path (pi, 0);
+
       if (pi->is_embeddable && !test_python_funcs(pi))
          C_puts ("Embedding failed.");
+
+      py_print_modules();
       found++;
       C_putc ('\n');
     }
@@ -1568,12 +1732,7 @@ static void get_install_path (const char *key_name, const struct python_info *pi
  * Recursively walks the Registry branch under "HKLM\Software\Python\PythonCore".
  * Look for "InstallPath" keys and gather the REG_SZ "InstallPath" values.
  */
-#ifdef __GNUC__
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored  "-Wunused-function"
-#endif
-
-static void enum_python_in_registry (const char *key_name)
+void enum_python_in_registry (const char *key_name)
 {
   static struct python_info pi;   /* filled in sscanf() below */
   static int rec_level = 0;       /* recursion level */
@@ -1618,10 +1777,6 @@ static void enum_python_in_registry (const char *key_name)
   if (key)
      RegCloseKey (key);
 }
-
-#ifdef __GNUC__
-  #pragma GCC diagnostic warning  "-Wunused-function"
-#endif
 
 /**
  * Main initialiser function for this module;
