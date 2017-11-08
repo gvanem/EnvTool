@@ -58,66 +58,66 @@
 #define TOUPPER(c)    toupper ((int)(c))
 #define TOLOWER(c)    tolower ((int)(c))
 
-struct mem_head {
-       unsigned long    marker;
-       size_t           size;
-       char             file [20];  /* allocated at file/line */
-       unsigned         line;
-       struct mem_head *next;       /* 36 bytes = 24h */
-     };
-
-static struct mem_head *mem_list = NULL;
-
 #if !defined(_CRTDBG_MAP_ALLOC)
+  struct mem_head {
+         unsigned long    marker;
+         size_t           size;
+         char             file [20];  /* allocated at file/line */
+         unsigned         line;
+         struct mem_head *next;       /* 36 bytes = 24h */
+       };
+
+  static struct mem_head *mem_list = NULL;
+
   static size_t mem_reallocs = 0;  /* # of realloc() */
-#endif
 
-static DWORD  mem_max         = 0;  /* Max bytes allocated at one time */
-static DWORD  mem_allocated   = 0;  /* Total bytes allocated */
-static DWORD  mem_deallocated = 0;  /* Bytes deallocated */
-static size_t mem_allocs      = 0;  /* # of allocations */
-static size_t mem_frees       = 0;  /* # of mem-frees */
+  static DWORD  mem_max         = 0;  /* Max bytes allocated at one time */
+  static DWORD  mem_allocated   = 0;  /* Total bytes allocated */
+  static DWORD  mem_deallocated = 0;  /* Bytes deallocated */
+  static size_t mem_allocs      = 0;  /* # of allocations */
+  static size_t mem_frees       = 0;  /* # of mem-frees */
 
-static void add_to_mem_list (struct mem_head *m, const char *file, unsigned line)
-{
-  m->next = mem_list;
-  m->line = line;
-  _strlcpy (m->file, file, sizeof(m->file));
-  mem_list = m;
-  mem_allocated += (DWORD) m->size;
-  if (mem_allocated > mem_max)
-     mem_max = mem_allocated;
-  mem_allocs++;
-}
-
-#define IS_MARKER(m) ( ( (m)->marker == MEM_MARKER) || ( (m)->marker == MEM_FREED) )
-
-static void del_from_mem_list (const struct mem_head *m, unsigned line)
-{
-  struct mem_head *m1, *prev;
-  unsigned i, max_loops = (unsigned) (mem_allocs - mem_frees);
-
-  ASSERT (max_loops > 0);
-
-  for (m1 = prev = mem_list, i = 1; m1 && i <= max_loops; m1 = m1->next, i++)
+  static void add_to_mem_list (struct mem_head *m, const char *file, unsigned line)
   {
-    if (!IS_MARKER(m1))
-       FATAL ("m->marker: 0x%08lX munged from line %u!?\n", m1->marker, line);
-
-    if (m1 != m)
-       continue;
-
-    if (m == mem_list)
-         mem_list   = m1->next;
-    else prev->next = m1->next;
-    mem_deallocated += (DWORD) m->size;
-    mem_allocated   -= (DWORD) m->size;
-    break;
+    m->next = mem_list;
+    m->line = line;
+    _strlcpy (m->file, file, sizeof(m->file));
+    mem_list = m;
+    mem_allocated += (DWORD) m->size;
+    if (mem_allocated > mem_max)
+       mem_max = mem_allocated;
+    mem_allocs++;
   }
-  if (i > max_loops)
-     FATAL ("max-loops (%u) exceeded. mem_list munged from line %u!?\n",
-            max_loops, line);
-}
+
+  #define IS_MARKER(m) ( ( (m)->marker == MEM_MARKER) || ( (m)->marker == MEM_FREED) )
+
+  static void del_from_mem_list (const struct mem_head *m, unsigned line)
+  {
+    struct mem_head *m1, *prev;
+    unsigned i, max_loops = (unsigned) (mem_allocs - mem_frees);
+
+    ASSERT (max_loops > 0);
+
+    for (m1 = prev = mem_list, i = 1; m1 && i <= max_loops; m1 = m1->next, i++)
+    {
+      if (!IS_MARKER(m1))
+         FATAL ("m->marker: 0x%08lX munged from line %u!?\n", m1->marker, line);
+
+      if (m1 != m)
+         continue;
+
+      if (m == mem_list)
+           mem_list   = m1->next;
+      else prev->next = m1->next;
+      mem_deallocated += (DWORD) m->size;
+      mem_allocated   -= (DWORD) m->size;
+      break;
+    }
+    if (i > max_loops)
+       FATAL ("max-loops (%u) exceeded. mem_list munged from line %u!?\n",
+              max_loops, line);
+  }
+#endif  /* _CRTDBG_MAP_ALLOC */
 
 #ifdef NOT_USED
 static struct mem_head *mem_list_get_head (void *ptr)
@@ -1910,7 +1910,6 @@ char *win_strerror (unsigned long err)
 }
 
 #if !defined(_CRTDBG_MAP_ALLOC)
-
 /*
  * A strdup() that fails if no memory. It's pretty hopeless to continue
  * this program if strdup() fails.
