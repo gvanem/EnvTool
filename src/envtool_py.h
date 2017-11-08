@@ -26,6 +26,7 @@ extern int          py_get_info      (const char **exe, const char **dll, struct
 extern const char **py_get_variants  (void);
 extern const char  *py_variant_name  (enum python_variants v);
 extern int          py_variant_value (const char *short_name, const char *full_name);
+extern int          py_print_modules (void);
 struct python_info *py_select        (enum python_variants which);
 
 #endif  /* _ENVTOOL_PY_H */
