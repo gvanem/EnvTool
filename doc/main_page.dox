@@ -1,127 +1,147 @@
-/*! \mainpage libusbK Home
+/* Defines all the groups here: */
 
-<IMG src="ftv2folderclosed.png" style="display: none" />
-<IMG src="ftv2folderopen.png" style="display: none" />
-<IMG src="ftv2mnode.png" style="display: none" />
-<IMG src="ftv2pnode.png" style="display: none" />
-<IMG src="ftv2mlastnode.png" style="display: none" />
-<IMG src="ftv2plastnode.png" style="display: none" />
-<IMG src="ftv2vertline.png" style="display: none" />
-<IMG src="ftv2node.png" style="display: none" />
-<IMG src="ftv2blank.png" style="display: none" />
+/**\addtogroup Authentication
+ *  @{
+ */
+/** @} */
 
-\par What is it?
-libusbK is a complete driver/library solution for vendor class usb device interfaces.
-If you are a usb developers or usb device manufacturer seeking a driver
-solution for a new USB widget then libusbK could be for you.
-\par
-libusbK encompasses a 100% WinUSB compatible api/funtion set.  All WinUSB power/pipe polices
-are fully supported by the libusbK driver.  In Addition, libusbK has full support for isochronous
-endpoints and an extensive set of additional modules to simplify development.
+/**\addtogroup Color
+ *  @{
+ */
+/** @} */
 
-\attention
-libusbK is not an end-user component.
-IE. If your googling for a usb driver because windows can't seem to find one, this is not the solution.
+/**\addtogroup Envtool
+ *  @{
+ */
+/** @} */
 
-\par Licensing
-LibusbK is dual license under GPL and modified BSD.
-For redistribution purposes, libusbK can be licensed under either agreement.
-See the \b license folder which accompanies each libusbK package for license details.
+/**\addtogroup Envtool_PY
+ *  @{
+ */
+/** @} */
 
-\par Bindings for other languages
-The main libusbK library is written in standard C, but official bindings for the libusbK
-standard C library are provided for the folllowing languages:
--# C#
--# VB.NET
--# Pascal (Compliments of Ekkehard Domning) 
--# BOO (http://boo.codehaus.org/)
-\note See the \b bindings folder in the source package.
-
-
-<H1>libusbK USB Library and Driver Documentation</H1>
-- \subpage usbk_about
-  <BR>Explanation of the libusbK project, the user mode library, and its \ref usbk_drivers.
-  <HR>
-- \subpage usbk_comparisons
-  <BR>libusbK.sys compared to other USB kernel drivers.
-  <HR>
-- \subpage usbk_installing
-  <BR>Methods for installing the libusbK binaries and drivers.
-  <HR>
-- \subpage usbk_usage
-  <BR>Where to begin and how to get started writing your new libusbK based application.
-  <HR>
-- \subpage usbk_building
-  <BR>Methods for building the libusbK user mode library and driver from source code.
-  <HR>
-- \subpage usbk_installers
-  <BR>Creating client installers for end-users with InfWizard.
-  <HR>
-- \subpage usbk_mailing_list
-  <BR>All libusbK related questions and issues.
-  <HR>
-
-
-<H3>Other Features</H3>
-- \subpage usbk_power_management
-   <BR>
-   Use power management to make a USB widget "green". Developers can suspend/resume
-   manually or at a specfied amount of inactivity.  Devices always awake automatically when
-   IO is requested. 
-- \subpage usbk_pipe_management
-   <BR>
-   Use pipe polices to customize pipe transfers and operations.
-
-*/
-
-
-/*! \addtogroup libk USB General
-* \brief General libusbK library functions, defines, and structures.
+/**\addtogroup EveryThing
 *  @{
 */
+/** @} */
 
-/*! @} */
+/**\addtogroup EveryThing_ETP
+ *  @{
+ */
+/** @} */
 
-/*! \addtogroup usbk USB Core
-* \brief Module for core UsbK device functions.
-*  @{
+/**\addtogroup Misc
+ *  @{
+ */
+/** @} */
+
+
+/** \mainpage Envtool
+    \ingroup  Envtool
+
+<!--
+  <img src="ftv2folderclosed.png" style="display: none" />
+  <img src="ftv2folderopen.png" style="display: none" />
+  <img src="ftv2mnode.png" style="display: none" />
+  <img src="ftv2pnode.png" style="display: none" />
+  <img src="ftv2mlastnode.png" style="display: none" />
+  <img src="ftv2plastnode.png" style="display: none" />
+  <img src="ftv2vertline.png" style="display: none" />
+  <img src="ftv2node.png" style="display: none" />
+  <img src="ftv2blank.png" style="display: none" />
+-->
+
+<h2>Introduction</h2>
+
+Envtool is a tool to search along various environment variables for files (or a wildcard).
+The following modes handles these environment variables:
+
+<table>
+  <tr><td width="20%">\c --cmake <td>Check and search in \c \%CMAKE_MODULE_PATH\%
+                                     and it's built-in module-path.
+  <tr><td>\c --evry[\em=host]    <td>Check and search in the [EveryThing](https://www.voidtools.com/) database.
+  <tr><td>\c --inc               <td>Check and search in \c \%INCLUDE\%.
+  <tr><td>\c --lib               <td>Check and search in \c \%LIB\% and \c \%LIBRARY_PATH\%.
+  <tr><td>\c --man               <td>Check and search in \c \%MANPATH\%.
+  <tr><td>\c --path              <td>Check and search in \c \%PATH\%.
+  <tr><td>\c --pkg               <td>Check and search in \c \%PKG_CONFIG_PATH\%.
+  <tr><td>\c --python[\em =X]    <td>Check and search in \c \%PYTHONPATH\% and \c sys.path[].\n
+                                     The \em X selects a specific Python (if found). Can be one of these:\n
+                                     <table>
+                                       <tr><td>\c all    <td>Use all Python programs found on \c \%PATH\%.
+                                                             This is the default.
+                                       <tr><td>\c ipy2   <td>Use an IronPython program only.
+                                       <tr><td>\c jython <td>Use a Jython program only.
+                                       <tr><td>\c py2    <td>Use a Python2 program only.
+                                       <tr><td>\c py3    <td>Use a Python3 program only.
+                                       <tr><td>\c pypy   <td>Use a PyPy program only.
+                                     </table>
+                                     Otherwise use only first Python found on PATH (i.e. the default).
+  <tr><td>\c --check             <td>Check for missing directories in all supported environment variables
+                                     and missing files in these Registry keys:
+                                     \verbatim HKCU\Microsoft\Windows\CurrentVersion\App Paths \endverbatim
+                                     \verbatim HKLM\Microsoft\Windows\CurrentVersion\App Paths \endverbatim
+</table>
+
+<h2>Options</h2>
+
+Envtool contains a lot of options. These are:
+<table>
+  <tr><td width="25%">
+          \c --no-gcc       <td> Don't spawn \c prefix -gcc prior to checking.      [2].
+  <tr><td>\c --no-g++       <td> Don't spawn \c prefix -g++ prior to checking.      [2]
+  <tr><td>\c --no-prefix    <td> Don't check any \c prefix -ed gcc/g++ programs     [2].
+  <tr><td>\c --no-sys       <td> Don't scan \c HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session \c Manager\\Environment.
+  <tr><td>\c --no-usr       <td> Don't scan \c HKCU\\Environment.
+  <tr><td>\c --no-app       <td> Don't scan \code
+                                 HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths
+                                 HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths
+                                 \endcode
+  <tr><td>\c --no-colour    <td> Don't print using colours.
+  <tr><td>\c --no-watcom    <td> Don't check for Watcom in \c --include or \c --lib mode
+  <tr><td>\c --owner        <td> Shown owner of the file.
+  <tr><td>\c --pe           <td> Print checksum and version-info for PE-files.
+  <tr><td>\c --32           <td> Tell \c prefix -gcc to return only 32-bit libs in \c --lib mode.\n
+                                 Report only 32-bit PE-files with \c --pe option.
+  <tr><td>\c --64           <td> Tell \c prefix -gcc to return only 64-bit libs in \c --lib mode.\n
+                                 Report only 64-bit PE-files with \c --pe option.
+  <tr><td>\c -c             <td> Don't add current directory to search-lists.
+  <tr><td>\c -C             <td> Be case-sensitive.
+  <tr><td>\c -d, \c --debug <td> Set debug level (\c -dd sets \c PYTHONVERBOSE=1 in \c --python mode).
+  <tr><td>\c -D, \c --dir   <td> Looks only for directories matching \c \<file-spec\>.
+  <tr><td>\c -H, \c --host  <td> Hostname/IPv4-address for remote FTP \c --evry searches.
+                                 Can be used multiple times. Alternative syntax is \c --evry:host\[:port].
+  <tr><td>\c -r, \c --regex <td> Enable Regular Expressions in all \c --mode searches.
+  <tr><td>\c -s, \c --size  <td> Show size of file(s) found. With \c --dir option, recursively show
+                                 The size of all files under directories matching \c \<file-spec\>.
+  <tr><td>\c -q, \c --quiet <td> Disable warnings.
+  <tr><td>\c -t             <td> Do some internal tests.
+  <tr><td>\c -T             <td> Show file times in sortable decimal format. E.g. \c "20121107.180658".
+  <tr><td>\c -u             <td> Show all paths on Unix format. E.g. \c c:/ProgramFiles/.
+  <tr><td>\c -v             <td> Increase verbose level (currently only used in \c --pe).
+  <tr><td>\c -V             <td> Show basic program version information.\n
+                                 \c -VV and \c -VVV  prints much more information.
+  <tr><td>\c -h, \c -?      <td> Show this help.
+</table>
+
+The \c prefix es are:
+- \c  x86_64-w64-mingw32
+- \c  i386-mingw32
+- \c  i686-w64-mingw32
+- \c  avr
+
+
+To avoid specifying one every time you run Envtool, those can also be specified in an
+envionment variable \c ENVTOOL_OPTIONS.\n
+For example:
+\verbatim
+  set ENVTOOL_OPTIONS=--no-app
+\endverbatim
+
+will use the option \c --no-app every time Envool is invoked.
+
+<h2>Other Features</h2>
+
+
 */
-
-/*! @} */
-
-/*! \addtogroup lstk Device List
-* \brief Module for USB device discovery and enumeration.
-*  @{
-*/
-
-/*! @} */
-
-/*! \addtogroup ovlk Overlapped I/O
-* \brief Module for USB pipe specific async I/O.
-*  @{
-*/
-
-/*! @} */
-
-/*! \addtogroup hotk Hotplug Event Notifier
-* \brief Module for USB device notification.
-*  @{
-*/
-
-/*! @} */
-
-
-/*! \addtogroup stmk Pipe Stream
-* \brief Module for thread assisted USB pipe streaming transfers.
-*  @{
-*/
-
-/*! @} */
-
-/*! \addtogroup isok Advanced ISO
-* \brief Module for advanced isochronous transfers.
-*  @{
-*/
-
-/*! @} */
 
