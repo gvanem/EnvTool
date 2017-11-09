@@ -16,5 +16,5 @@ envtool.chm: envtool.Doxyfile main_page.dox envtool.css
 clean:
 	rm -f $(OUTPUT_GENERATED)
 	rm -f $(DOC_GENERATED)
-	rmdir --parents output
-	echo '"clean" done.'
+	-rmdir output
+	@echo '"clean" done.'
