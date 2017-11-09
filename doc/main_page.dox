@@ -1,0 +1,127 @@
+/*! \mainpage libusbK Home
+
+<IMG src="ftv2folderclosed.png" style="display: none" />
+<IMG src="ftv2folderopen.png" style="display: none" />
+<IMG src="ftv2mnode.png" style="display: none" />
+<IMG src="ftv2pnode.png" style="display: none" />
+<IMG src="ftv2mlastnode.png" style="display: none" />
+<IMG src="ftv2plastnode.png" style="display: none" />
+<IMG src="ftv2vertline.png" style="display: none" />
+<IMG src="ftv2node.png" style="display: none" />
+<IMG src="ftv2blank.png" style="display: none" />
+
+\par What is it?
+libusbK is a complete driver/library solution for vendor class usb device interfaces.
+If you are a usb developers or usb device manufacturer seeking a driver
+solution for a new USB widget then libusbK could be for you.
+\par
+libusbK encompasses a 100% WinUSB compatible api/funtion set.  All WinUSB power/pipe polices
+are fully supported by the libusbK driver.  In Addition, libusbK has full support for isochronous
+endpoints and an extensive set of additional modules to simplify development.
+
+\attention
+libusbK is not an end-user component.
+IE. If your googling for a usb driver because windows can't seem to find one, this is not the solution.
+
+\par Licensing
+LibusbK is dual license under GPL and modified BSD.
+For redistribution purposes, libusbK can be licensed under either agreement.
+See the \b license folder which accompanies each libusbK package for license details.
+
+\par Bindings for other languages
+The main libusbK library is written in standard C, but official bindings for the libusbK
+standard C library are provided for the folllowing languages:
+-# C#
+-# VB.NET
+-# Pascal (Compliments of Ekkehard Domning) 
+-# BOO (http://boo.codehaus.org/)
+\note See the \b bindings folder in the source package.
+
+
+<H1>libusbK USB Library and Driver Documentation</H1>
+- \subpage usbk_about
+  <BR>Explanation of the libusbK project, the user mode library, and its \ref usbk_drivers.
+  <HR>
+- \subpage usbk_comparisons
+  <BR>libusbK.sys compared to other USB kernel drivers.
+  <HR>
+- \subpage usbk_installing
+  <BR>Methods for installing the libusbK binaries and drivers.
+  <HR>
+- \subpage usbk_usage
+  <BR>Where to begin and how to get started writing your new libusbK based application.
+  <HR>
+- \subpage usbk_building
+  <BR>Methods for building the libusbK user mode library and driver from source code.
+  <HR>
+- \subpage usbk_installers
+  <BR>Creating client installers for end-users with InfWizard.
+  <HR>
+- \subpage usbk_mailing_list
+  <BR>All libusbK related questions and issues.
+  <HR>
+
+
+<H3>Other Features</H3>
+- \subpage usbk_power_management
+   <BR>
+   Use power management to make a USB widget "green". Developers can suspend/resume
+   manually or at a specfied amount of inactivity.  Devices always awake automatically when
+   IO is requested. 
+- \subpage usbk_pipe_management
+   <BR>
+   Use pipe polices to customize pipe transfers and operations.
+
+*/
+
+
+/*! \addtogroup libk USB General
+* \brief General libusbK library functions, defines, and structures.
+*  @{
+*/
+
+/*! @} */
+
+/*! \addtogroup usbk USB Core
+* \brief Module for core UsbK device functions.
+*  @{
+*/
+
+/*! @} */
+
+/*! \addtogroup lstk Device List
+* \brief Module for USB device discovery and enumeration.
+*  @{
+*/
+
+/*! @} */
+
+/*! \addtogroup ovlk Overlapped I/O
+* \brief Module for USB pipe specific async I/O.
+*  @{
+*/
+
+/*! @} */
+
+/*! \addtogroup hotk Hotplug Event Notifier
+* \brief Module for USB device notification.
+*  @{
+*/
+
+/*! @} */
+
+
+/*! \addtogroup stmk Pipe Stream
+* \brief Module for thread assisted USB pipe streaming transfers.
+*  @{
+*/
+
+/*! @} */
+
+/*! \addtogroup isok Advanced ISO
+* \brief Module for advanced isochronous transfers.
+*  @{
+*/
+
+/*! @} */
+
