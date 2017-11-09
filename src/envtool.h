@@ -1,3 +1,5 @@
+/** \file envtool.h
+ */
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 

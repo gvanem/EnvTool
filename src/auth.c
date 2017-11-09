@@ -1,4 +1,6 @@
-/*
+/** \file auth.c
+ *
+ * \brief
  * Functions for parsing and lookup of host/user records in
  *   '%APPDATA%/.netrc' and
  *   '%APPDATA%/.authinfo'.

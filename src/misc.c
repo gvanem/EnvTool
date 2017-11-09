@@ -1,5 +1,6 @@
-
-/*
+/** \file misc.c
+ *  \ingroup misc
+ *
  * Various support functions for EnvTool.
  * fnmatch(), basename() and dirname() are taken from djgpp and modified.
  */
@@ -59,24 +60,39 @@
 #define TOLOWER(c)    tolower ((int)(c))
 
 #if !defined(_CRTDBG_MAP_ALLOC)
+  /**
+   * \ingroup mem_tracker
+   *
+   * Internal memory-leak tracker that is \b only enabled in
+   * \c _RELEASE builds.
+   * Since \c _DEBUG builds (on MSVC at least), should be good enough.
+   *
+   * All these allocations starts with this header.
+   *
+   * \struct mem_head
+   */
   struct mem_head {
-         unsigned long    marker;
-         size_t           size;
-         char             file [20];  /* allocated at file/line */
-         unsigned         line;
-         struct mem_head *next;       /* 36 bytes = 24h */
+         unsigned long    marker;     /** Magic marker. Equals MEM_MARKER or MEM_FREED */
+         size_t           size;       /** length of allocation including the size of this header */
+         char             file [20];  /** allocation happened in file */
+         unsigned         line;       /** and at line */
+         struct mem_head *next;       /** size is 36 bytes = 24h */
        };
 
-  static struct mem_head *mem_list = NULL;
+  static struct mem_head *mem_list = NULL; /** The linked list of our allocations */
+  static size_t mem_reallocs = 0;          /** # of realloc() */
+  static DWORD  mem_max         = 0;       /** Max bytes allocated at one time */
+  static DWORD  mem_allocated   = 0;       /** Total bytes allocated */
+  static DWORD  mem_deallocated = 0;       /** Bytes deallocated */
+  static size_t mem_allocs      = 0;       /** # of allocations */
+  static size_t mem_frees       = 0;       /** # of mem-frees */
 
-  static size_t mem_reallocs = 0;  /* # of realloc() */
-
-  static DWORD  mem_max         = 0;  /* Max bytes allocated at one time */
-  static DWORD  mem_allocated   = 0;  /* Total bytes allocated */
-  static DWORD  mem_deallocated = 0;  /* Bytes deallocated */
-  static size_t mem_allocs      = 0;  /* # of allocations */
-  static size_t mem_frees       = 0;  /* # of mem-frees */
-
+  /**
+   * Add this memory block to the \c mem_list.
+   * \param[in] m    the block to add.
+   * \param[in] file the file where the allocation occured.
+   * \param[in] line the line of the file where the allocation occured.
+   */
   static void add_to_mem_list (struct mem_head *m, const char *file, unsigned line)
   {
     m->next = mem_list;
@@ -89,8 +105,18 @@
     mem_allocs++;
   }
 
+  /**
+   *\def IS_MARKER(m)
+   * Verify that the memory block \c m is valid; either marked as used (\b MEM_MARKER) or
+   * as freed (\b MEM_FREED).
+   */
   #define IS_MARKER(m) ( ( (m)->marker == MEM_MARKER) || ( (m)->marker == MEM_FREED) )
 
+  /**
+   * Delete this memory block from the \c mem_list.
+   * \param[in] m    the block to delete.
+   * \param[in] line the line where this function was called.
+   */
   static void del_from_mem_list (const struct mem_head *m, unsigned line)
   {
     struct mem_head *m1, *prev;
@@ -120,6 +146,12 @@
 #endif  /* _CRTDBG_MAP_ALLOC */
 
 #ifdef NOT_USED
+/**
+ * Returns a pointer to the \c mem_head for this \c ptr.
+ *
+ * \param[in] ptr  the pointer to get the \c mem_head for.
+ * \return The \c mem_head
+ */
 static struct mem_head *mem_list_get_head (void *ptr)
 {
   struct mem_head *m;
@@ -131,16 +163,18 @@ static struct mem_head *mem_list_get_head (void *ptr)
 }
 #endif
 
-/*
+/**
  * We need to use "K32GetModuleFileNameExA", "IsWow64Process" and
  * "SetThreadErrorMode" dynamically (since these are not available on Win-XP).
  * Try to load them from "kernel32.dll" only once.
+ *
+ * \typedef func_GetModuleFileNameEx
  */
 typedef BOOL (WINAPI *func_GetModuleFileNameEx) (HANDLE proc, DWORD flags, char *fname, DWORD size);
 typedef BOOL (WINAPI *func_SetThreadErrorMode) (DWORD new_mode, DWORD *old_mode);
 typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
 
-/*
+/**
  * Window Vista's+ 'SearchPath()' (in Kernel32.dll) uses this function while
  * searching for .EXEs.
  * \todo: Could be used in 'searchpath_internal()'?
@@ -155,6 +189,9 @@ static func_SetThreadErrorMode              p_SetThreadErrorMode;
 static func_IsWow64Process                  p_IsWow64Process;
 static func_NeedCurrentDirectoryForExePathA p_NeedCurrentDirectoryForExePathA;
 
+/**
+ * Initialise once the above function pointers.
+ */
 void init_misc (void)
 {
   static BOOL   done = FALSE;
@@ -184,7 +221,7 @@ void init_misc (void)
   done = TRUE;
 }
 
-/*
+/**
  * If given a 'fname' without any extension, open the 'fname' and check if
  * there's a she-bang line on 1st line.
  * Accepts "#!/xx" or "#! /xx".
@@ -247,7 +284,7 @@ const char *check_if_shebang (const char *fname)
   return (okay ? shebang+ofs : NULL);
 }
 
-/*
+/**
  * Open a fname and check if there's a "PK" signature in header.
  */
 int check_if_zip (const char *fname)
@@ -276,7 +313,7 @@ int check_if_zip (const char *fname)
   return (rc);
 }
 
-/*
+/**
  * Open a fname and check if there's a "GZIP" or "TAR.GZ" signature in header.
  */
 int check_if_gzip (const char *fname)
@@ -315,7 +352,7 @@ int check_if_gzip (const char *fname)
   return (rc);
 }
 
-/*
+/**
  * Open a GZIP-file and extract first line to check if it contains a
  * ".so real-file-name". This is typical for CygWin man-pages.
  * Return result as "<dir_name>/real-file-name". Which is just an
@@ -373,7 +410,7 @@ const char *get_gzip_link (const char *file)
   return (NULL);
 }
 
-/*
+/**
  * Open a raw MAN-file and check if first line contains a
  * ".so real-file-name". This is typical for CygWin man-pages.
  * Return result as "<dir_name>/real-file-name". Which is just an
@@ -408,7 +445,7 @@ const char *get_man_link (const char *file)
   return (NULL);
 }
 
-/*
+/**
  * Open a fname, read the optional header in PE-header.
  *  - For verifying it's signature.
  *  - Showing the version information (if any) in it's resources.
@@ -491,7 +528,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   return (is_exe && is_pe);
 }
 
-/*
+/**
  * Verify the checksum of last opened file above.
  * if 'CheckSum == 0' is set to 0, it meants "don't care"
  * (similar to in UDP).
@@ -523,7 +560,7 @@ int verify_PE_checksum (const char *fname)
   return (file_sum == 0 || header_sum == calc_chk_sum);
 }
 
-/*
+/**
  * Check if running under WOW64; "Windows 32-bit on Windows 64-bit".
  * Ref:
  *   http://en.wikipedia.org/wiki/WoW64
@@ -546,12 +583,16 @@ BOOL is_wow64_active (void)
   return (rc);
 }
 
-/*
+/**
  * Dynamic use of "K32GetModuleFileNameExA".
  * Win-XP does not have this function. Hence load it dynamicallay similar
  * to above.
  *
- * 'filename' is assumed to hold 'MAX_PATH' characters.
+ * \param[in] proc     The handle of the process to get the filname for.
+ *                     Or NULL if our own process.
+ * \param[in] filename Assumed to hold \c MAX_PATH characters.
+ * \return    FALSE is this function is not available.
+ * \return    the return value from \c (*p_GetModuleFileNameEx)().
  */
 BOOL get_module_filename_ex (HANDLE proc, char *filename)
 {
@@ -562,9 +603,18 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
   return (FALSE);
 }
 
-/*
- * Get the Domain and account name for a file.
+/**
+ * Get the Domain and Account name for a file.
  *
+ * \param[in]     file        the file to get the domain and account-name for.
+ *
+ * \param[in,out] domain_name on input a caller-supplied 'char **' pointer.
+ *                            on output (if success), set to the domain-name of the owner.
+ *                            Must be freed by the caller if set to non-NULL here.
+ *
+ * \param[in,out] account_name on input a caller-supplied 'char **' pointer.
+ *                             on output (if success), set to the account-name of the owner.
+ *                             Must be freed by the caller if set to non-NULL here.
  * Adapted from:
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa446629(v=vs.85).aspx
  */
@@ -680,7 +730,7 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
   return (rc2);
 }
 
-/*
+/**
  * Return TRUE if directory is truly readable.
  */
 BOOL is_directory_readable (const char *path)
@@ -690,7 +740,7 @@ BOOL is_directory_readable (const char *path)
   return is_directory_accessible (path, GENERIC_READ);
 }
 
-/*
+/**
  * Return TRUE if directory is truly writeable.
  */
 BOOL is_directory_writable (const char *path)
@@ -700,7 +750,7 @@ BOOL is_directory_writable (const char *path)
   return is_directory_accessible (path, GENERIC_WRITE);
 }
 
-/*
+/**
  * Based on http://blog.aaronballman.com/2011/08/how-to-check-access-rights/
  */
 BOOL is_directory_accessible (const char *path, DWORD access)
@@ -762,7 +812,7 @@ BOOL is_directory_accessible (const char *path, DWORD access)
   return (answer);
 }
 
-/*
+/**
  * Helper functions for Registry access.
  */
 REGSAM reg_read_access (void)
@@ -821,7 +871,7 @@ const char *reg_access_name (REGSAM acc)
   return flags_decode (acc, access, DIM(access));
 }
 
-/*
+/**
  * Swap bytes in a 32-bit value.
  */
 DWORD reg_swap_long (DWORD val)
@@ -832,7 +882,7 @@ DWORD reg_swap_long (DWORD val)
          ((val & 0xFF000000U) >> 24);
 }
 
-/*
+/**
  * Removes end-of-line termination from a string.
  */
 char *strip_nl (char *s)
@@ -844,7 +894,7 @@ char *strip_nl (char *s)
   return (s);
 }
 
-/*
+/**
  * Trim leading blanks (space/tab) from a string.
  */
 char *str_ltrim (char *s)
@@ -856,7 +906,7 @@ char *str_ltrim (char *s)
   return (s);
 }
 
-/*
+/**
  * Trim trailing blanks (space/tab) from a string.
  */
 char *str_rtrim (char *s)
@@ -874,7 +924,7 @@ char *str_rtrim (char *s)
   return (s);
 }
 
-/*
+/**
  * Trim leading and trailing blanks (space/tab) from a string.
  */
 char *str_trim (char *s)
@@ -882,7 +932,7 @@ char *str_trim (char *s)
   return str_rtrim (str_ltrim(s));
 }
 
-/*
+/**
  * Comparisions of file-names:
  * Use 'strnicmp()' or 'strncmp()' depending on 'opt.case_sensitive'.
  */
@@ -893,7 +943,7 @@ int str_equal_n (const char *s1, const char *s2, size_t len)
   return strnicmp (s1, s2, len);
 }
 
-/*
+/**
  * Ditto for 'strcmp()' and 'stricmp()'.
  */
 int str_equal (const char *s1, const char *s2)
@@ -903,9 +953,9 @@ int str_equal (const char *s1, const char *s2)
   return stricmp (s1, s2);
 }
 
-/*
+/**
  * Return the left-trimmed place where paths 'p1' and 'p2' are similar.
- * Not case sensitive. Treats '/' and '\\' equally.
+ * Not case sensitive. Treats `/` and `\\` equally.
  */
 char *path_ltrim (const char *p1, const char *p2)
 {
@@ -920,8 +970,10 @@ char *path_ltrim (const char *p1, const char *p2)
 }
 
 /**
- * Return nicely formatted string "xx,xxx,xxx"
- * with thousand separators (left adjusted).
+ * Return nicely formatted string `"xx,xxx,xxx"` for `val`.
+ * With thousand separators (left adjusted).
+ *
+ * \param[in] val an 64-bit unsigned value.
  */
 const char *qword_str (UINT64 val)
 {
@@ -941,11 +993,21 @@ const char *qword_str (UINT64 val)
   return (p+1);
 }
 
+/**
+ * Return nicely formatted string `xx,xxx,xxx` for `val`.
+ * With thousand separators (left adjusted).
+ *
+ * \param[in] val an 32-bit unsigned value.
+ */
 const char *dword_str (DWORD val)
 {
   return qword_str ((UINT64)val);
 }
 
+/**
+ * Find the first slash in a file-name.
+ * \param[in] s the file-name to search in.
+ */
 static const char *find_slash (const char *s)
 {
   while (*s)
@@ -1098,7 +1160,7 @@ char *fnmatch_res (int rc)
           rc == FNM_NOMATCH ? "FNM_NOMATCH" : "??");
 }
 
-/*
+/**
  * Strip drive-letter, directory and suffix from a filename.
  */
 char *basename (const char *fname)
@@ -1122,7 +1184,7 @@ char *basename (const char *fname)
   return (char*) base;
 }
 
-/*
+/**
  * Return the malloc'ed directory part of a filename.
  */
 char *dirname (const char *fname)
@@ -2023,7 +2085,7 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
   {
     ptr = malloc_at (size, file, line);
     size = p->size - sizeof(*p);
-    memmove (ptr, p+1, size);        /* Since memory could be overlapping */
+    memmove (ptr, p+1, size);        /* since memory could be overlapping */
     del_from_mem_list (p, __LINE__);
     mem_reallocs++;
     free (p);

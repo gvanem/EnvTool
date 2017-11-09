@@ -1,10 +1,12 @@
-/*!\file color.c
- *
+/**\file color.c
+ * \brief
  * Print to console using embedded colour-codes inside the string-format.
  *
- * E.g. C_printf ("~4Hello ~2world~0.\n");
- *      will print to stdout with 'Hello' mapped to colour 4 (see below)
- *      and 'world' mapped to colour 2.
+ * E.g. \code{.cpp}
+ *        C_printf ("~4Hello ~2world~0.\n");
+ *      \endcode
+ *      will print to stdout with \c Hello mapped to colour 4 (see below)
+ *      and \c world mapped to colour 2.
  *
  * by G. Vanem <gvanem@yahoo.no> 2011.
  */

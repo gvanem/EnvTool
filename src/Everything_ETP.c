@@ -1,8 +1,12 @@
-/*
- * Functions for remote queries using EveryThing's ETP protocol.
- * Ref:
- *   http://www.voidtools.com/support/everything/etp/
- *   https://www.voidtools.com/forum/viewtopic.php?t=1790
+/** \file Everything_ETP.c
+ *  \defgroup EveryThing_ETP Remote EveryThing search
+ * @{
+ *
+ * \brief
+ *   Functions for remote queries using EveryThing's ETP protocol.
+ *
+ *   ref: http://www.voidtools.com/support/everything/etp/     \n
+ *   ref: https://www.voidtools.com/forum/viewtopic.php?t=1790 \n
  *
  * This file is part of envtool.
  *
@@ -22,7 +26,7 @@
   #define CYGWIN_POSIX
 #else
 
-  /* Suppress warning for 'inet_addr()' and 'gethostbyname()'
+  /** Suppress warning for 'inet_addr()' and 'gethostbyname()'
    */
   #define _WINSOCK_DEPRECATED_NO_WARNINGS
   #include <winsock2.h>
@@ -35,14 +39,17 @@
 #include "Everything_ETP.h"
 
 #ifndef CONN_TIMEOUT
+/**\def CONN_TIMEOUT the connect() timeout for a non-blocking connection. */
 #define CONN_TIMEOUT 3000   /* 3 sec */
 #endif
 
 #ifndef RECV_TIMEOUT
+/**\def RECV_TIMEOUT the SO_RCVTIMEO used in setsockopt() */
 #define RECV_TIMEOUT 2000   /* 2 sec */
 #endif
 
 #ifndef MAX_RECV_BUF
+/**\def MAX_RECV_BUF size of receiver buffer */
 #define MAX_RECV_BUF (16*1024)
 #endif
 
@@ -63,11 +70,14 @@ DWORD ETP_num_evry_dups;
  */
 struct state_CTX;
 
-/* All state-functions must match this function-type.
+/**
+ * \typedef ETP_state
+ * All state-functions must match this function-type.
  */
 typedef BOOL (*ETP_state) (struct state_CTX *ctx);
 
-/* Buffered I/O stream
+/** \struct IO_buf
+ * Buffered I/O stream
  */
 struct IO_buf {
        char   buffer [MAX_RECV_BUF]; /* the input buffer */
@@ -77,29 +87,31 @@ struct IO_buf {
        int    buffer_read;           /* used by rbuf_read_char() */
      };
 
-/* The context used throughout the ETP transfer.
+/**
+ * \struct state_CTX
+ * The context used throughout the ETP transfer.
  * Keeping this together should make the ETP transfer
  * fully reentrant.
  */
 struct state_CTX {
-       ETP_state          state;
-       struct sockaddr_in sa;      /* Used in 'state_resolve()' and 'state_xx_connect()' */
-       SOCKET             sock;    /* Set in 'state_xx_connect()' */
-       int                port;
-       char              *raw_url;
-       char               hostname [200];
-       char               username [30];
-       char               password [30];
-       BOOL               use_netrc;
-       BOOL               use_authinfo;
+       ETP_state          state;            /** Current state function */
+       struct sockaddr_in sa;               /** Used in 'state_resolve()' and 'state_xx_connect()' */
+       SOCKET             sock;             /** Set in 'state_xx_connect()' */
+       int                port;             /** The server destination port to use */
+       char              *raw_url;          /** URL on raw form given in ddo_check_evry_ept() */
+       char               hostname [200];   /** Name of host to connect to */
+       char               username [30];    /** Name of user */
+       char               password [30];    /** And his password (if any) */
+       BOOL               use_netrc;        /** Use the '%APPDATA/.netrc' file */
+       BOOL               use_authinfo;     /** Use the '%APPDATA/.authinfo' file */
        DWORD              timeout;
        int                retries;
-       int                ws_err;
-       unsigned           results_expected;
-       unsigned           results_got;
-       unsigned           results_ignore;
-       struct IO_buf      recv;
-       struct IO_buf      trace;
+       int                ws_err;           /** Last WSAGetError() */
+       unsigned           results_expected; /** The number of matches we're expecting */
+       unsigned           results_got;      /** The number of matches we got */
+       unsigned           results_ignore;   /** The number of matches we ignored */
+       struct IO_buf      recv;             /** The IO_buf for reception */
+       struct IO_buf      trace;            /** The IO_buf for tracing the protocol */
 
        /* These are set in state_PATH()
         */
@@ -108,6 +120,9 @@ struct state_CTX {
        char               path [_MAX_PATH];
      };
 
+/**
+ * Local functions; prototypes.
+ */
 static int    parse_host_spec      (struct state_CTX *ctx, const char *pattern, ...);
 static void   connect_common_init  (struct state_CTX *ctx, const char *which_state);
 static void   connect_common_final (struct state_CTX *ctx, int err);
@@ -136,10 +151,26 @@ static BOOL state_blocking_connect     (struct state_CTX *ctx);
 static BOOL state_non_blocking_connect (struct state_CTX *ctx);
 
 /*
+ * Do a remote EveryThing search.
+ * Connect to a remote ETP-server, login, send the SEARCH and parameters.
+ * The protocol goes something like this (1st attempt of MSC in Doxygen)
+ *
+ * \msc "ETP Protocol" width=10cm height=20cm
+ *   arcgradient = 8;
+ *   a[label="Client"], b[label="Server"], c[label="Server error", URL="\ref state_closing"];
+ *   a => b [label="USER xx"];
+ *   a <= b [label="230.."];
+ *   c <= b [label="!230.."];
+ *   a => b [label="EVERYTHING SEARCH"];
+ * \endmsc
+ */
+
+/**
  * Do a remote EveryThing search:
  *   Connect to a remote ETP-server, login, send the SEARCH and parameters.
  *
  * The protocol goes something like this:
+ * \verbatim
  *    C -> USER anonymous (or <none>)
  *    C -> EVERYTHING SEARCH <spec>
  *    C -> EVERYTHING PATH_COLUMN 1
@@ -151,9 +182,11 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx);
  *    S ->  RESULT_COUNT 3
  *    ...
  *    S -> 200 End.
+ * \endverbatim
  *
  * Which can be accomplished with a .bat-file and a plain ftp client:
  *
+ * \verbatim
  *  @echo off
  *  echo USER                                     > etp-commands
  *  echo QUOTE EVERYTHING SEARCH notepad.exe     >> etp-commands
@@ -192,9 +225,11 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx);
  *  200 End.
  *  ftp> BYE
  *  221 Goodbye.
+ *
+ * \endverbatim
  */
 
-/*
+/**
  * Receive a response with timeout.
  * Stop when we get an '\r\n' terminated ASCII-line.
  *
@@ -252,7 +287,7 @@ static char *recv_line (struct state_CTX *ctx, char *out_buf, size_t out_len)
   return (start);
 }
 
-/*
+/**
  * Send a single-line command to the server side.
  * Do not use a "\r\n" termination; it will be added here.
  */
@@ -274,7 +309,7 @@ static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
   return (rc < 0 ? -1 : 0);
 }
 
-/*
+/**
  * Print the resulting match:
  *  'name' is either a file-name within a 'ctx->path' (is_dir=FALSE).
  *  Or a folder-name within a 'ctx->path'             (is_dir=TRUE).
@@ -300,7 +335,7 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
   ctx->results_got++;
 }
 
-/*
+/**
  * Print a warning for a failed login or a non-existant.
  * And optionally what action to take next.
  */
@@ -333,7 +368,7 @@ static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
   FREE (file);
 }
 
-/*
+/**
  * PATH state: gooble up the results.
  * Expect 'results_expected' results set in 'RESULT_COUNT_state()'.
  * When "200 End" is received, enter 'state_closing'.
@@ -396,7 +431,7 @@ static BOOL state_PATH (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * RESULT_COUNT state: get the "RESULT_COUNT n\r\n" string.
  * Goto 'state_PATH()'.
  */
@@ -419,7 +454,7 @@ static BOOL state_RESULT_COUNT (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * State entered after commands was sent:
  *   Swallow received lines until "200-xx\r\n" is received.
  *   Then enter 'state_RESULT_COUNT()'.
@@ -438,7 +473,7 @@ static BOOL state_200 (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * Close the socket and goto 'state_exit'.
  */
 static BOOL state_closing (struct state_CTX *ctx)
@@ -455,7 +490,7 @@ static BOOL state_closing (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * Send the search parameters and the QUERY command.
  * If the 'send()' call fail, enter 'state_closing'.
  * Otherwise, enter 'state_200'.
@@ -485,7 +520,7 @@ static BOOL state_send_query (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * Send the USER name and optionally the 'ctx->password'.
  * "USER" can be empty if the remote Everything.ini has a
  * setting like:
@@ -527,7 +562,7 @@ static BOOL state_send_login (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * We sent the USER/PASS commands.
  * Await the "230 Logged on" message and enter 'state_send_query'.
  * If server replies with a "530" message ("Login or password incorrect"),
@@ -554,7 +589,7 @@ static BOOL state_await_login (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * We're prepared to send a password. But if server replies with
  * "230 Logged on", we know it ignores passwords (dangerous!).
  * So proceed to 'state_send_query' state.
@@ -571,7 +606,7 @@ static BOOL state_send_pass (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * Check if 'ctx->hostname' is simply an IPv4-address.
  * If TRUE
  *   Enter 'state_blocking_connect' or 'state_non_blocking_connect'.
@@ -633,17 +668,19 @@ fail:
   return (TRUE);
 }
 
-/*
+/**
  * When the IPv4-address is known, perform the non-blocking 'connect()'.
  * The 'ctx->sock' is already in non-block state.
  * Loop here until 'WSAWOULDBLOCK' is no longer a result in 'select()'.
  * If successful, enter 'state_send_login'.
  *
- * select() timeout for each try (in usec)
+ * \def SELECT_TIME_USEC
+ *      select() timeout for each try (in usec)
  */
 #define SELECT_TIME_USEC (500*1000)
 
-/* Max retries is the result of CONN_TIMEOUT (in msec)
+/** \def MAX_RETRIES
+ *       Max retries is the result of CONN_TIMEOUT (in msec)
  */
 #define MAX_RETRIES (1000 * CONN_TIMEOUT / SELECT_TIME_USEC)
 
@@ -693,7 +730,7 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * When the IPv4-address is known, perform the blocking 'connect()'.
  * If successful, enter 'state_send_login'.
  */
@@ -707,7 +744,7 @@ static BOOL state_blocking_connect (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * Lookup the USER/PASSWORD for 'ctx->hostname' in the '~/.netrc' file.
  * Enter 'state_send_login' even if USER/PASSWORD are not found.
  */
@@ -744,7 +781,7 @@ static BOOL state_netrc_lookup (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * Lookup the USER/PASSWORD for 'ctx->hostname' in the '~/.authinfo' file.
  * Enter 'state_send_login' even if USER/PASSWORD are not found.
  */
@@ -785,7 +822,7 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * Check if 'ctx->raw_url' matches one of these formats:
  *   "user:passwd@host_or_IP-address<:port>".    Both user-name and password (+ port).
  *   "user@host_or_IP-address<:port>".           Only user-name (+ port).
@@ -833,7 +870,7 @@ static BOOL state_parse_url (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * The first state-machine function we enter.
  * Initialise Winsock and create the socket.
  */
@@ -874,7 +911,7 @@ static BOOL state_init (struct state_CTX *ctx)
   return (TRUE);
 }
 
-/*
+/**
  * The last state-machine function we enter.
  */
 static BOOL state_exit (struct state_CTX *ctx)
@@ -888,7 +925,7 @@ static BOOL state_exit (struct state_CTX *ctx)
   return (FALSE);
 }
 
-/*
+/**
  * Run the state-machine until a state-function returns FALSE.
  */
 static void run_state_machine (struct state_CTX *ctx)
@@ -920,7 +957,7 @@ static void run_state_machine (struct state_CTX *ctx)
   }
 }
 
-/*
+/**
  * Common stuff done before both a blocking and non-blocking 'connect()'.
  */
 static void connect_common_init (struct state_CTX *ctx, const char *which_state)
@@ -945,7 +982,7 @@ static void connect_common_init (struct state_CTX *ctx, const char *which_state)
   C_flush();
 }
 
-/*
+/**
  * Common stuff done after both 'state_blocking_connect()' and
  * 'state_non_blocking_connect()'.
  */
@@ -969,7 +1006,7 @@ static void connect_common_final (struct state_CTX *ctx, int err)
   }
 }
 
-/*
+/**
  * Set socket blocking state.
  */
 static void set_nonblock (SOCKET sock, DWORD non_block)
@@ -982,7 +1019,7 @@ static void set_nonblock (SOCKET sock, DWORD non_block)
 #endif
 }
 
-/*
+/**
  * Save a piece of trace-information into the context.
  * Retrieve it when 'fmt == NULL'.
  */
@@ -1020,7 +1057,7 @@ static const char *ETP_tracef (struct state_CTX *ctx, const char *fmt, ...)
   return (NULL);
 }
 
-/*
+/**
  * Return the name of a state-function. Handy for tracing.
  */
 static const char *ETP_state_name (ETP_state f)
@@ -1046,7 +1083,7 @@ static const char *ETP_state_name (ETP_state f)
   return ("?");
 }
 
-/*
+/**
  * Return a 'time_t' for a file in the 'DATE_MODIFIED' response.
  * The 'ft' is in UTC zone.
  */
@@ -1070,7 +1107,7 @@ static time_t FILETIME_to_time_t (const FILETIME *ft)
   return mktime (&tm);
 }
 
-/*
+/**
  * Called from envtool.c:
  *   if the 'opt.evry_host' smartlist is not empty, this function gets called
  *   for each ETP-host in the smartlist.
@@ -1100,7 +1137,7 @@ int do_check_evry_ept (const char *host)
   return (ctx.results_got - ctx.results_ignore);
 }
 
-/*
+/**
  * _MSC_VER <= 1700 (Visual Studio 2012 or older) is lacking 'vsscanf()'.
  * Create our own using 'sscanf()'. Scraped from:
  *   https://stackoverflow.com/questions/2457331/replacement-for-vsscanf-on-msvc
@@ -1142,7 +1179,7 @@ static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...)
   return (n);
 }
 
-/*
+/**
  * Read at most 'sizeof(ctx->recv.buffer)' bytes from 'ctx->sock',
  * storing them to 'ctx->recv.buffer'. This uses select() to timeout
  * the stale connections
@@ -1172,7 +1209,7 @@ static int rbuf_read_sock (struct state_CTX *ctx)
   return recv (ctx->sock, ctx->recv.buffer, sizeof(ctx->recv.buffer), 0);
 }
 
-/*
+/**
  * Read a character from 'ctx->recv.buffer'.
  *
  * If there is something in the buffer, the character is returned from
@@ -1201,4 +1238,5 @@ static int rbuf_read_char (struct state_CTX *ctx, char *store)
   return (1);
 }
 
+/** @} */
 

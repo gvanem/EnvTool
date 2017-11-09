@@ -1,8 +1,10 @@
-/*
- * The Python functions for the envtool program.
+/** \file envtool_py.c
+ *  \defgroup Envtool_PY Python interface
+ * @{
+ *
+ * \brief The Python functions for the envtool program.
  *
  * By Gisle Vanem <gvanem@yahoo.no> August 2011.
- *
  */
 
 #include <stddef.h>
@@ -23,74 +25,85 @@
 #define PyThreadState void
 #define Py_ssize_t    long
 
+/**\struct python_path
+ */
 struct python_path {
-       char dir [_MAX_PATH];  /* Fully qualified directory of this entry */
-       int  exist;            /* does it exist? */
-       int  is_dir;           /* and is it a dir; _S_ISDIR() */
-       int  is_zip;           /* or is it a zip; an .EGG or .zip-file. */
+       char dir [_MAX_PATH];  /** Fully qualified directory of this entry */
+       int  exist;            /** does it exist? */
+       int  is_dir;           /** and is it a dir; _S_ISDIR() */
+       int  is_zip;           /** or is it a zip; an .EGG or .zip-file. */
      };
 
+/**\enum python_variants
+ * The type of Python we're currently using.
+ * \ref g_py
+ * \ref bitness
+ */
 enum python_variants py_which = DEFAULT_PYTHON;
 
+/** \struct python_info
+ * All important data for each Python we support.
+ */
 struct python_info {
 
-  /* The basename of the specific Python interpreter.
+  /** The basename of the specific Python interpreter.
    */
   char program [20];
 
-  /* Which variant is this?
+  /** Which variant is this?
    */
   enum python_variants variant;
 
-  /* Only a CPython program can be embeddable from a C-program.
+  /** Only a CPython program can be embeddable from a C-program.
    */
   BOOL is_embeddable;
 
-  /* The list of expected .DLLs for this specific Python.
-   * Tested for existance in either %SystemDir% and/or directory
-   * of '*exe_name'
+  /** The list of expected .DLLs for this specific Python.
+   *  Tested for existance in either %SystemDir% and/or directory
+   *  of '*exe_name'
    */
   const char *libraries [3];
 
-  /* The FQFN of 'program'.
+  /** The FQFN of 'program'.
    */
   char *exe_name;
 
-  /* The FQFN of the .dll that matches the first 'libraries[]' format above.
-   * If this Python 'is_embeddable', use this 'dll_name' in 'LoadLibrary()'
-   * during 'py_init_embedding()'.
+  /** The FQFN of the .dll that matches the first 'libraries[]' format above.
+   *  If this Python 'is_embeddable', use this 'dll_name' in 'LoadLibrary()'
+   *  during 'py_init_embedding()'.
    */
   char *dll_name;
 
-  /* The directory of above 'exe_name'.
+  /** The directory of above 'exe_name'.
    */
   char dir [_MAX_PATH];
 
-  /* The 'sys.path[]' array of above 'exe_name'.
+  /** The 'sys.path[]' array of above 'exe_name'.
    */
   smartlist_t *sys_path;
 
-  /* The version info.
+  /** The version info.
    */
   int ver_major, ver_minor, ver_micro;
 
-  /* Bitness of 'dll_name'.
+  /** Bitness of 'dll_name'.
+   *\anchor bitness
    */
   enum Bitness bitness;
 
-  /* Embedding requires bitness of CPython is the same as this program.
+  /** Embedding requires bitness of CPython is the same as this program.
    */
   BOOL bitness_ok;
 
-  /* This is the only default; i.e. the first 'program' in the $PATH.
+  /** This is the only default; i.e. the first 'program' in the $PATH.
    */
   BOOL is_default;
 
-  /* Is this a CygWin Python?
+  /** Is this a CygWin Python?
    */
   BOOL is_cygwin;
 
-  /* It's 'sys.prefix' used in Py_SetPythonHome().
+  /** It's 'sys.prefix' used in Py_SetPythonHome().
    */
   char    *home_a;
   wchar_t *home_w;  /* for Python 3.x */
@@ -100,19 +113,19 @@ struct python_info {
   char    *prog_a;
   wchar_t *prog_w;  /* for Python 3.x */
 
-  /* Warn once if the above is not set
+  /** Warn once if the above is not set
    */
   BOOL     do_warn;
 
-  /* Only if 'is_embeddable == TRUE':
-   *   the stdout catcher object and
-   *   the handle from LoadLibrary().
+  /** Only if 'is_embeddable == TRUE':
+   *  - the stdout catcher object and
+   *  - the handle from LoadLibrary().
    */
   PyObject *catcher;
   HANDLE    dll_hnd;
 };
 
-/*
+/**
  * List of all Pythons we care about. Ignore the console-less 'pythonw.exe'
  * programs.
  */
@@ -133,10 +146,18 @@ static struct python_info all_py_programs[] = {
     { "jython.exe", JYTHON_PYTHON, FALSE, { "~\\jpython.dll", NULL }, }
   };
 
-/* The global Python instance data.
+/** The global Python instance data.
+ * \anchor g_py
  */
 static struct python_info *g_py;
-static enum Bitness        our_bitness;
+
+/**
+ * The bitness (32/64-bit) of our running program.
+ * To interact directly between the C-world and the Python-world, the
+ * first priority is that these are the same.
+ * \ref #::g_py
+ */
+static enum Bitness  our_bitness;
 
 static int tmp_ver_major, tmp_ver_minor, tmp_ver_micro;
 static int longest_py_program = 0;  /* set in py_init() */
@@ -1832,3 +1853,5 @@ void py_init (void)
             pi->is_default ? " (Default)" : "");
   }
 }
+
+/** @} */

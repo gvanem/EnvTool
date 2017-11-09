@@ -1,25 +1,26 @@
 /**
- *\file envtool.c
+ * \file envtool.c
+ * \defgroup Envtool Main Functions
+ * @{
  *
  * EnvTool:
  *  a simple tool to search and check various environment variables
  *  for correctness and check where a specific file is in corresponding
  *  environment variable.
  *
- * E.g. 1: "envtool --path notepad.exe" first checks the %PATH% env-var
- *         for consistency (reports missing directories in %PATH%) and prints
- *         all the locations of "notepad.exe".
+ *  E.g. 1: "envtool --path notepad.exe" first checks the %PATH% env-var
+ *          for consistency (reports missing directories in %PATH%) and prints
+ *          all the locations of "notepad.exe".
  *
- * E.g. 2: "envtool --inc afxwin.h" first checks the %INCLUDE% env-var
- *         for consistency (reports missing directories in %INCLUDE) and prints
- *         all the locations of "afxwin.h".
+ *  E.g. 2: "envtool --inc afxwin.h" first checks the %INCLUDE% env-var
+ *          for consistency (reports missing directories in %INCLUDE) and prints
+ *          all the locations of "afxwin.h".
  *
- * By Gisle Vanem <gvanem@yahoo.no> August 2011.
+ * By Gisle Vanem <gvanem@yahoo.no> August 2011 - 2017.
  *
  * Functions fnmatch() and searchpath() taken from djgpp and modified:
  *   Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details
  */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -46,6 +47,12 @@
 #include "regex.h"
 #include "envtool.h"
 #include "envtool_py.h"
+
+/**
+ * <!-- \includedoc  README.md ->
+ * \image html  envtool-help.png "List of modes" width=10cm
+ * \image latex envtool-help.png "List of modes" width=10cm
+ */
 
 #ifdef __MINGW32__
   /**
@@ -1319,7 +1326,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
    */
   if (key != HKEY_EVERYTHING_ETP && opt.show_owner)
   {
-    char *account_name, *domain_name;
+    char *domain_name, *account_name;
 
     if (get_file_owner(file, &domain_name, &account_name))
     {
@@ -4420,6 +4427,8 @@ static void test_auth (void)
 
 /*
  * Test PE-file WinTrust crypto signature verification.
+ * Optionally calling 'get_file_owner()' for each file is
+ * option "--owner" was used on command-line.
  */
 static void test_PE_wintrust (void)
 {
@@ -4825,4 +4834,5 @@ static void print_build_ldflags (void)
 #endif
 }
 
+/** @} */
 
