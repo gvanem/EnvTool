@@ -10,6 +10,11 @@ which can be view by the command `start envtool.chm`. Or loaded in the
 excellent **[KchmViewer](http://www.ulduzsoft.com/linux/kchmviewer/getting-kchmviewer/)**.
 
 The commands can be either:
-|==|==|
-|`make all`   | should produce `envtool.chm` in this directory.|
-|`make clean` | should delete all generated files.|
+```
+make all   - should produce `envtool.chm` in this directory.
+make clean - should delete all generated files.
+```
+
+PS. This file is written with the aid of the **[Atom](https://atom.io/)**
+editor and it's **[Markdown-Preview](https://atom.io/packages/markdown-preview)**.
+A real time-saver.
