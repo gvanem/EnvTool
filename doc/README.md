@@ -5,8 +5,9 @@ via the `envtool.Doxyfile` config-file.
 
 Running the command `doxygen envtool.Doxyfile`, requires `hhc.exe`.
 This is part of the **[Microsoft HTML Workshop](https://www.microsoft.com/en-us/download/details.aspx?id=21138)**.
-This will generate a compressed HTML-file of the generated documentation `envtool.chm`
-which can be view by the command `start envtool.chm`. Or loaded in the
+This will generate a compressed HTML-file of the generated documentation:
+
+`envtool.chm` which can be view by the command `start envtool.chm`. Or loaded in the
 excellent **[KchmViewer](http://www.ulduzsoft.com/linux/kchmviewer/getting-kchmviewer/)**.
 
 The commands can be either:
@@ -15,6 +16,6 @@ make all   - should produce envtool.chm in this directory.
 make clean - should delete all generated files.
 ```
 
-PS. This file is written with the aid of the **[Atom](https://atom.io/)**
+*PS*. This file is written with the aid of the **[Atom](https://atom.io/)**
 editor and it's **[Markdown-Preview](https://atom.io/packages/markdown-preview)**.
 A real time-saver.
