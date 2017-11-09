@@ -6,7 +6,7 @@ OUTPUT_GENERATED = $(addprefix ./output/, \
                     *.css *.html *.js *.png *.map *.md5 index.{hhc,hhk,hhp} )
 all: envtool.chm
 
-envtool.chm: envtool.Doxyfile
+envtool.chm: envtool.Doxyfile main_page.dox envtool.css
 	doxygen envtool.Doxyfile > doxygen.log ; \
 	cd output                              ; \
 	hhc index.hhp                          ; \
