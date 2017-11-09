@@ -765,7 +765,7 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT = main_page.h             \
+INPUT = main_page.dox           \
         ../src/auth.c           \
         ../src/envtool.c        \
         ../src/envtool_py.c     \
@@ -923,7 +923,7 @@ FILTER_SOURCE_PATTERNS =
 # (index.html). This can be useful if you have a project on for instance GitHub
 # and want to reuse the introduction page also for the doxygen output.
 
-USE_MDFILE_AS_MAINPAGE = main_page.h
+USE_MDFILE_AS_MAINPAGE = main_page.dox
 
 #---------------------------------------------------------------------------
 # Configuration options related to source browsing
