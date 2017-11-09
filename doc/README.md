@@ -11,7 +11,7 @@ excellent **[KchmViewer](http://www.ulduzsoft.com/linux/kchmviewer/getting-kchmv
 
 The commands can be either:
 ```
-make all   - should produce `envtool.chm` in this directory.
+make all   - should produce envtool.chm in this directory.
 make clean - should delete all generated files.
 ```
 
