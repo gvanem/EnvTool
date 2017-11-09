@@ -1,6 +1,7 @@
-/**\file color.c
+/**\file    color.c
+ * \ingroup Color
  * \brief
- * Print to console using embedded colour-codes inside the string-format.
+ *   Print to console using embedded colour-codes inside the string-format.
  *
  * E.g. \code{.cpp}
  *        C_printf ("~4Hello ~2world~0.\n");

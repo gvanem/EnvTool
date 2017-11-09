@@ -1,3 +1,9 @@
+/** \file    searchpath.c
+ *  \ingroup Misc
+ *  \brief
+ *    Find file along an envirnment variable. (Usually the \c \%PATH\%).
+ */
+
 /* Copyright (C) 2001 DJ Delorie, see COPYING.DJ for details */
 /* Copyright (C) 1999 DJ Delorie, see COPYING.DJ for details */
 /* Copyright (C) 1996 DJ Delorie, see COPYING.DJ for details */
@@ -15,7 +21,7 @@
 
 static int last_pos = -1;
 
-/*
+/**
  * Return the last position in 'env_var' for last successfull
  * 'searchpath()' call.
  */
@@ -24,7 +30,7 @@ int searchpath_pos (void)
   return (last_pos);
 }
 
-/*
+/**
  * Search '%env_var' for the first 'file' (not a 'file_spec').
  * If successful, store the full pathname in static buffer and return a
  * pointer to it. If not sucessful, return NULL.

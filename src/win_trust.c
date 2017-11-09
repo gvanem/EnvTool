@@ -1,5 +1,10 @@
-/*
- * Adapted from:
+/**\file    win_trust.c
+ * \ingroup Misc
+ * \brief
+ *   Verifies the digital signature of a file.
+ */
+
+/* Adapted from:
  *  https://msdn.microsoft.com/en-us/library/windows/desktop/aa382384(v=vs.85).aspx
  *
  * And extended with the help of:

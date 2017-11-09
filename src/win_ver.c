@@ -1,11 +1,8 @@
-/*
- * Gets the OS version from various sources.
- *
- * Build:
- *  gcc -Wall  -DWIN_VER_TEST -o win_ver.exe win_ver.c misc.c color.c
- *  cl -nologo -DWIN_VER_TEST -Fe./win_ver.exe win_ver.c misc.c color.c
+/**\file    win_ver.c
+ * \ingroup Misc
+ * \brief
+ *   Gets the OS version from various sources.
  */
-
 #define BUILD_WINDOWS      /* Because of "'GetVersionExW': was declared deprecated" */
 #define USE_RTDLL_VERSION
 

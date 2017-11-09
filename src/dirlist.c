@@ -1,17 +1,22 @@
-/*
- *  A public domain implementation of BSD directory routines for
- *  MS-DOS.  Written by Michael Rendell ({uunet,utai}michael@garfield),
- *  August 1987
+/**\file    dirlist.c
+ * \ingroup Misc
+ * \brief
+ *   A public domain implementation of BSD directory routines
+ *   getdirent(), opendir() etc.
+ */
+
+/* Written by Michael Rendell ({uunet,utai}michael@garfield),
+ * August 1987
  *
- *  Enhanced and ported to OS/2 by Kai Uwe Rommel; added scandir() prototype
- *  December 1989, February 1990
- *  Change of MAXPATHLEN for HPFS, October 1990
+ * Enhanced and ported to OS/2 by Kai Uwe Rommel; added scandir() prototype
+ * December 1989, February 1990
+ * Change of MAXPATHLEN for HPFS, October 1990
  *
- *  Cleanup, other hackery, Summer '92, Brian Moran , brianmo@microsoft.com
+ * Cleanup, other hackery, Summer '92, Brian Moran , brianmo@microsoft.com
  *
- *  Changes for EnvTool:
- *    Added code for a main() test; 'DDIRLIST_TEST'.
- *    Added 'make_dir_spec()' function.
+ * Changes for EnvTool:
+ *   Added code for a main() test; 'DDIRLIST_TEST'.
+ *   Added 'make_dir_spec()' function.
  */
 
 #include <windows.h>

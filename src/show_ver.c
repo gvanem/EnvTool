@@ -1,3 +1,9 @@
+/** \file    show_ver.c
+ *  \ingroup Misc
+ *  \brief
+ *    Interface for GetFileVersionInfo(); Retrieves VERSIONINFO from PE-files.
+ */
+
 /*
  * File: show_ver.c
  * Version: 1.0,  2002-6-4

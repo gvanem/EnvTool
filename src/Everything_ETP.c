@@ -1,9 +1,7 @@
-/** \file Everything_ETP.c
- *  \defgroup EveryThing_ETP Remote EveryThing search
- * @{
- *
- * \brief
- *   Functions for remote queries using EveryThing's ETP protocol.
+/** \file    Everything_ETP.c
+ *  \ingroup EveryThing_ETP
+ *  \brief
+ *    Functions for remote queries using EveryThing's ETP protocol.
  *
  *   ref: http://www.voidtools.com/support/everything/etp/     \n
  *   ref: https://www.voidtools.com/forum/viewtopic.php?t=1790 \n
@@ -1237,6 +1235,4 @@ static int rbuf_read_char (struct state_CTX *ctx, char *store)
   ctx->recv.buffer_left--;
   return (1);
 }
-
-/** @} */
 

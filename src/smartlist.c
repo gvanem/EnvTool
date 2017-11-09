@@ -1,10 +1,12 @@
-/*
- * 'smartlist' functions for the envtool program.
+/**\file    smartlist.c
+ * \ingroup Misc
+ * \brief
+ *   Functions for dynamic arrays.
  */
 #include "envtool.h"
 #include "smartlist.h"
 
-/*
+/**
  * From Tor's src/common/container.h:
  *
  * A resizeable list of pointers, with associated helpful functionality.

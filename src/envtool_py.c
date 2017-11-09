@@ -1,8 +1,6 @@
-/** \file envtool_py.c
- *  \defgroup Envtool_PY Python interface
- * @{
- *
- * \brief The Python functions for the envtool program.
+/** \file    envtool_py.c
+ *  \ingroup Envtool_PY
+ *  \brief The Python functions for the envtool program.
  *
  * By Gisle Vanem <gvanem@yahoo.no> August 2011.
  */
@@ -1854,4 +1852,3 @@ void py_init (void)
   }
 }
 
-/** @} */

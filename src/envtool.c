@@ -1,12 +1,10 @@
 /**
- * \file envtool.c
- * \defgroup Envtool Main Functions
- * @{
- *
- * EnvTool:
- *  a simple tool to search and check various environment variables
- *  for correctness and check where a specific file is in corresponding
- *  environment variable.
+ * \file    envtool.c
+ * \ingroup Envtool
+ * \brief
+ *   A tool to search and check various environment variables
+ *   for correctness and check where a specific file is in corresponding
+ *   environment variable.
  *
  *  E.g. 1: "envtool --path notepad.exe" first checks the %PATH% env-var
  *          for consistency (reports missing directories in %PATH%) and prints
@@ -611,7 +609,7 @@ static int show_help (void)
             "    ~6-V~0:             show program version information. ~6-VV~0 and ~6-VVV~0  prints more info.\n"
             "    ~6-h~0, ~6-?~0:         show this help.\n");
 
-  C_printf ("             otherwise use only first Python found on PATH (i.e. the default).\n"
+  C_printf (
             "\n"
             "  ~2[1]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
             "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
@@ -634,7 +632,8 @@ static int show_help (void)
     else C_printf ("      ~6%-6s~0 use a %s program only.\n", *py, py_variant_name(v));
   }
 
-  C_printf ("\n"
+  C_printf ("             otherwise use only first Python found on PATH (i.e. the default).\n"
+            "\n"
             "Notes:\n"
             "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
             "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0 or ~6--dir~0 is used, only\n"
@@ -4833,6 +4832,4 @@ static void print_build_ldflags (void)
   C_puts ("\n     Unknown\n");
 #endif
 }
-
-/** @} */
 

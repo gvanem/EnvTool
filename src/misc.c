@@ -1,8 +1,8 @@
-/** \file misc.c
- *  \ingroup misc
- *
- * Various support functions for EnvTool.
- * fnmatch(), basename() and dirname() are taken from djgpp and modified.
+/**\file    misc.c
+ * \ingroup Misc
+ * \brief
+ *   Various support functions for EnvTool.
+ * \note fnmatch(), basename() and dirname() are taken from djgpp and modified.
  */
 
 /*

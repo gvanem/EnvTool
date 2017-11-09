@@ -1,5 +1,10 @@
+/** \file    regex.c
+ *  \ingroup Misc
+ *  \brief
+ *    Extended regular expression matching and search library.
+ */
+
 /*
- * Extended regular expression matching and search library,
  * version 0.12.
  * (Implements POSIX draft P1003.2/D11.2, except for some of the
  * internationalization features.)
