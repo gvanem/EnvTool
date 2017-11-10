@@ -4657,7 +4657,7 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
  */
 static void check_reg_key (HKEY top_key, const char *reg_key)
 {
-  int i, errors, max, indent = sizeof("Checking in");
+  int i, errors, max, indent = sizeof("Checking");
 
   build_reg_array_app_path (top_key);
   sort_reg_array();
@@ -4704,7 +4704,9 @@ static int do_check (void)
                     "PATH", "LIB", "LIBRARY_PATH",
                     "INCLUDE", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH",
                     "MANPATH", "PKG_CONFIG_PATH",
-                    "CMAKE_MODULE_PATH", "FOO",
+                    "CMAKE_MODULE_PATH",
+                    "CLASSPATH",  /* No Java support (yet). Do this just for kicks */
+                    "FOO",        /* Check that non-existing env-vars are also checked */
                    };
   const char *env;
   int   i;
@@ -4715,14 +4717,14 @@ static int do_check (void)
     char status [100+_MAX_PATH];
 
     check_env_val (env, &num, status, sizeof(status));
-    C_printf ("Checking in ~6%%%s%%~0:%*c~6%2d~0 elements, %s\n", env, indent, ' ', num, status);
+    C_printf ("Checking ~6%%%s%%~0:%*c~6%2d~0 elements, %s\n", env, indent, ' ', num, status);
   }
 
   C_putc ('\n');
-  C_printf ("Checking in ~6HKCU\\%s~0:\n", REG_APP_PATH);
+  C_printf ("Checking ~6HKCU\\%s~0:\n", REG_APP_PATH);
   check_reg_key (HKEY_CURRENT_USER, REG_APP_PATH);
 
-  C_printf ("Checking in ~6HKLM\\%s~0:\n", REG_APP_PATH);
+  C_printf ("Checking ~6HKLM\\%s~0:\n", REG_APP_PATH);
   check_reg_key (HKEY_LOCAL_MACHINE, REG_APP_PATH);
   return (0);
 }
