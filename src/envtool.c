@@ -2199,7 +2199,9 @@ static int do_check_evry (void)
        snprintf (query, sizeof(query), "regex:%s\\\\%s", dir, base);
   else snprintf (query, sizeof(query), "regex:^%s$", translate_shell_pattern(opt.file_spec));
 
-  DEBUGF (1, "Everything_SetSearch (\"%s\").\n", query);
+  DEBUGF (1, "Everything_SetSearch (\"%s\").\n"
+             "\t\t Everything_SetMatchCase (%d).\n",
+             query, opt.case_sensitive);
 
   Everything_SetSearchA (query);
   Everything_SetMatchCase (opt.case_sensitive);
