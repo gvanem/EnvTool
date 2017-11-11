@@ -1131,6 +1131,15 @@ DWORD EVERYTHINGAPI Everything_GetLastError(void)
     return ret;
 }
 
+void EVERYTHINGAPI Everything_SetLastError(DWORD err)
+{
+    _Everything_Lock();
+
+    _Everything_LastError = err;
+
+    _Everything_Unlock();
+}
+
 DWORD EVERYTHINGAPI Everything_GetNumFileResults(void)
 {
     DWORD ret;
