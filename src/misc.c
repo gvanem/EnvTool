@@ -579,7 +579,7 @@ BOOL is_wow64_active (void)
  * Return a 'time_t' for a file in the 'DATE_MODIFIED' response.
  * The 'ft' is in UTC zone.
  */
-static time_t FILETIME_to_time_t (const FILETIME *ft)
+time_t FILETIME_to_time_t (const FILETIME *ft)
 {
   SYSTEMTIME st, lt;
   struct tm  tm;
