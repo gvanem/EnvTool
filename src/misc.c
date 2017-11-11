@@ -230,8 +230,6 @@ const char *check_if_shebang (const char *fname)
 {
   static char shebang [30];
   const char *ext = get_file_ext (fname);
-  BOOL   okay = FALSE;
-  int    ofs;
   char  *p;
   FILE  *f;
 
@@ -244,44 +242,38 @@ const char *check_if_shebang (const char *fname)
   f = fopen (fname, "rb");
   if (f)
   {
-    fread (&shebang, 1, sizeof(shebang), f);
+    shebang[0] = fgetc (f);
+    shebang[1] = fgetc (f);
+    shebang[2] = fgetc (f);
+    if (shebang[2] == ' ')
+       shebang[2] = fgetc (f);
+    fread (shebang+3, 1, sizeof(shebang)-3, f);
     fclose (f);
   }
 
-  if (!strncmp(shebang, "#!/", 3))
-  {
-    okay = TRUE;
-    ofs = 2;
-  }
-  else if (!strncmp(shebang, "#! /", 4))
-  {
-    okay = TRUE;
-    ofs = 3;
-  }
+  if (strncmp(shebang, "#!/", 3))
+     return (FALSE);
 
-  if (okay)
-  {
-    /* Drop any space; this is usually arguments for this
-     * specific interpreter.
-     */
-    p = strchr (shebang+ofs, ' ');
-    if (p)
-       *p = '\0';
+  /* If it's a Unix file with 2 "\r\r" in the 'shebang[]' buffer,
+   * we cannot use 'strip_nl()'. That will only remove the last
+   * '\r'. Look for the 1st '\n' or '\r' and remove them.
+   */
+  p = strchr (shebang, '\n');
+  if (p)
+     *p = '\0';
+  p = strchr (shebang, '\r');
+  if (p)
+     *p = '\0';
 
-    /* If it's a Unix file with 2 "\r\r" in the 'shebang[]' buffer,
-     * we cannot use 'strip_nl()'. That will only remove the last
-     * '\r'. Look for the 1st '\n' or '\r' and remove them.
-     */
-    p = strchr (shebang+ofs, '\n');
-    if (p)
-       *p = '\0';
-    p = strchr (shebang+ofs, '\r');
-    if (p)
-       *p = '\0';
-  }
-  if (okay)
-     DEBUGF (2, "shebang: \"%s\"\n", shebang+ofs);
-  return (okay ? shebang+ofs : NULL);
+  /* Drop any space; this is usually arguments for this
+   * specific interpreter.
+   */
+  p = strchr (shebang, ' ');
+  if (strncmp(shebang, "#!/usr/bin/env ",15) && p)
+     *p = '\0';
+
+  DEBUGF (1, "shebang: \"%s\"\n", shebang);
+  return (shebang);
 }
 
 /**
@@ -581,6 +573,30 @@ BOOL is_wow64_active (void)
 
   DEBUGF (2, "IsWow64Process(): rc: %d, wow64: %d.\n", rc, wow64);
   return (rc);
+}
+
+/**
+ * Return a 'time_t' for a file in the 'DATE_MODIFIED' response.
+ * The 'ft' is in UTC zone.
+ */
+static time_t FILETIME_to_time_t (const FILETIME *ft)
+{
+  SYSTEMTIME st, lt;
+  struct tm  tm;
+
+  if (!FileTimeToSystemTime(ft,&st) ||
+      !SystemTimeToTzSpecificLocalTime(NULL,&st,&lt))
+     return (0);
+
+  memset (&tm, '\0', sizeof(tm));
+  tm.tm_year  = lt.wYear - 1900;
+  tm.tm_mon   = lt.wMonth - 1;
+  tm.tm_mday  = lt.wDay;
+  tm.tm_hour  = lt.wHour;
+  tm.tm_min   = lt.wMinute;
+  tm.tm_sec   = lt.wSecond;
+  tm.tm_isdst = -1;
+  return mktime (&tm);
 }
 
 /**

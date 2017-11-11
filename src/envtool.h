@@ -392,6 +392,7 @@ extern char       *translate_shell_pattern (const char *pattern);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
 extern BOOL        get_module_filename_ex (HANDLE proc, char *filename);
+extern time_t      FILETIME_to_time_t (const FILETIME *ft);
 
 /* Windows security related functions for files/directories:
  */

@@ -124,7 +124,6 @@ struct state_CTX {
 static int    parse_host_spec      (struct state_CTX *ctx, const char *pattern, ...);
 static void   connect_common_init  (struct state_CTX *ctx, const char *which_state);
 static void   connect_common_final (struct state_CTX *ctx, int err);
-static time_t FILETIME_to_time_t   (const FILETIME *ft);
 static void   set_nonblock         (SOCKET sock, DWORD non_block);
 
 static int         rbuf_read_char  (struct state_CTX *ctx, char *store);
@@ -1079,30 +1078,6 @@ static const char *ETP_state_name (ETP_state f)
   IF_VALUE (state_closing);
   IF_VALUE (state_exit);
   return ("?");
-}
-
-/**
- * Return a 'time_t' for a file in the 'DATE_MODIFIED' response.
- * The 'ft' is in UTC zone.
- */
-static time_t FILETIME_to_time_t (const FILETIME *ft)
-{
-  SYSTEMTIME st, lt;
-  struct tm  tm;
-
-  if (!FileTimeToSystemTime(ft,&st) ||
-      !SystemTimeToTzSpecificLocalTime(NULL,&st,&lt))
-     return (0);
-
-  memset (&tm, '\0', sizeof(tm));
-  tm.tm_year  = lt.wYear - 1900;
-  tm.tm_mon   = lt.wMonth - 1;
-  tm.tm_mday  = lt.wDay;
-  tm.tm_hour  = lt.wHour;
-  tm.tm_min   = lt.wMinute;
-  tm.tm_sec   = lt.wSecond;
-  tm.tm_isdst = -1;
-  return mktime (&tm);
 }
 
 /**
