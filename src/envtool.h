@@ -374,6 +374,7 @@ extern int    disk_ready            (int disk);
 extern BOOL   chk_disk_ready        (int disk);
 extern BOOL  _has_drive             (const char *path);
 extern BOOL   is_directory          (const char *file);
+extern int    safe_stat             (const char *file, struct stat *st, DWORD *win_err);
 
 extern char       *make_cyg_path (const char *path, char *result);
 extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);

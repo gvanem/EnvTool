@@ -1400,10 +1400,77 @@ BOOL is_directory (const char *file)
 {
   struct stat st;
 
-  memset (&st, '\0', sizeof(st));
-  if (stat(file, &st) == 0)
+  if (safe_stat(file, &st, NULL) == 0)
      return (_S_ISDIR(st.st_mode));
   return (FALSE);
+}
+
+/**
+ * A bit safer 'stat()'.
+ * If given a hidden / system file (like 'c:\pagefile.sys'), some
+ * 'stat()' implementations can crash.
+ *
+ * Return any 'GetLastError()' in '*win_err'.
+ * \return the same as 'stat()':
+ *         0:  okay
+ *         -1: fail. 'errno' set.
+ *
+ * \note directories are passed directly to 'stat()'.
+ */
+int safe_stat (const char *file, struct stat *st, DWORD *win_err)
+{
+  DWORD err = 0;
+  DWORD attr;
+  BOOL  is_dir;
+
+  if (win_err)
+     *win_err = 0;
+
+#if defined(__CYGWIN__)
+  /*
+   * Cannot use 'GetFileAttributes()' in case file is on Posix form.
+   * E.g. "/cygdrive/c/foo"
+   */
+  if (!strncmp(file,"/cygdrive/",10) || !strncmp(file,"/usr",4))
+     attr = 0;   /* Pass on to Cygwin's stat() */
+#else
+  attr = GetFileAttributes (file);
+#endif
+
+  memset (st, '\0', sizeof(*st));
+  st->st_size = (__int64)-1;    /* signal if stat() fails */
+
+  is_dir = (attr != (DWORD)-1 && (attr & FILE_ATTRIBUTE_DIRECTORY));
+  if (is_dir)
+     return stat (file, st);
+
+  if (attr != (DWORD)-1 && !(attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
+     return stat (file, st);
+
+  err = GetLastError();
+  if (win_err)
+     *win_err = err;
+  DEBUGF (1, "file: %s, attr: 0x%08lX, err: %s\n", file, attr, win_strerror(err));
+
+#if 1   /* \todo: Need to check for Hidden/System files here */
+  if (attr == FILE_ATTRIBUTE_HIDDEN || attr == FILE_ATTRIBUTE_SYSTEM)
+  {
+    time_t   mtime = 0;
+    FILETIME ft;
+    HANDLE   hnd = CreateFile (file, GENERIC_READ, FILE_SHARE_READ,
+                               NULL, OPEN_EXISTING, attr, NULL);
+
+    if (hnd != INVALID_HANDLE_VALUE && GetFileTime(hnd,&ft,NULL,NULL))
+         mtime = FILETIME_to_time_t (&ft);
+    else err = GetLastError();
+    DEBUGF (1, "hnd: %p, mtime: %" U64_FMT "\n", hnd, (UINT64)mtime);
+    if (win_err)
+       *win_err = err;
+  }
+#endif
+
+  errno = ENOENT;
+  return (-1);
 }
 
 /*
@@ -1666,7 +1733,7 @@ quit:
 }
 
 /*
- * Return a cached status for disks ready: A: to Z:.
+ * Return a cached status for disk ready: A: to Z:.
  */
 BOOL chk_disk_ready (int disk)
 {
@@ -1714,7 +1781,7 @@ BOOL chk_disk_ready (int disk)
   int _file_exists (const char *file)
   {
     struct stat st;
-    return (stat(file,&st) == 0);
+    return (safe_stat(file,&st) == 0);
   }
 #else
   int _file_exists (const char *file)
@@ -2237,9 +2304,10 @@ const char *empty_time (void)
 }
 
 /*
- * strftime() under MSVC sometimes crashes mysteriously. Use this
- * home-grown version. Also tests on 'time_t == 0' which often
- * is returned on a 'stat()' of a protected .sys-file.
+ * strftime() under MSVC sometimes crashes mysteriously. So use this
+ * home-grown version.
+ * Tests for 'time_t == 0' which is returned from 'safe_stat()'
+ * of a protected .sys-file.
  */
 #define USE_STRFTIME 0
 
