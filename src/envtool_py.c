@@ -894,7 +894,7 @@ int py_print_modules (void)
   int   found = 0;
 
   if (sizeof(cmd) < sizeof(PY_LIST_MODULES))
-     FATAL ("cmd[] buffer too small. %u needed.\n", sizeof(PY_LIST_MODULES));
+     FATAL ("cmd[] buffer too small. %u needed.\n", (unsigned)sizeof(PY_LIST_MODULES));
 
   C_printf ("~6List of modules for %s:~0\n", g_py->exe_name);
   if (!g_py->is_embeddable)
@@ -918,7 +918,7 @@ int py_print_modules (void)
     set_error_mode (0);
     str = call_python_func (g_py, cmd);
     set_error_mode (1);
-    DEBUGF (2, "cmd-len: %d, Python output: \"%s\"\n", strlen(cmd), str);
+    DEBUGF (2, "cmd-len: %u, Python output: \"%s\"\n", (unsigned)strlen(cmd), str);
   }
 
   if (str)
@@ -932,7 +932,6 @@ int py_print_modules (void)
   return (found);
 }
 
-
 /**
  * Check if a Python .DLL has the correct bitness for LoadLibrary().
  */
@@ -944,7 +943,7 @@ static BOOL check_bitness (struct python_info *pi, char **needed_bits)
      our_bitness = bit_64;
 
   if (pi->bitness == bit_unknown)
-    pi->bitness_ok = (pi->dll_name && check_if_PE(pi->dll_name, &pi->bitness));
+     pi->bitness_ok = (pi->dll_name && check_if_PE(pi->dll_name, &pi->bitness));
 
   if (pi->bitness_ok && pi->bitness != our_bitness)
      pi->bitness_ok = FALSE;
@@ -1661,7 +1660,7 @@ void py_searchpaths (void)
               fname[0] ? fname : "Not found");
 
     if (pi->is_embeddable && !check_bitness(pi,&bitness))
-       C_printf (" (embeddable, but not %s bits)", bitness);
+       C_printf (" (embeddable, but not %s-bit)", bitness);
     else if (pi->dll_name)
        C_printf (" (%sembeddable)", pi->is_embeddable ? "": "not ");
     C_putc ('\n');
