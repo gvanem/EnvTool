@@ -39,6 +39,7 @@
 
 #if defined(__CYGWIN__)
   #include <cygwin/version.h>
+  #include <pwd.h>
 #endif
 
 #include "color.h"
@@ -621,6 +622,9 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
 
 /**
  * Get the Domain and Account name for a file.
+ * Does \em not work on directories.
+ * Except for Cygwin where I try to emulate what 'ls -la' does.
+ * But it doesn't quite show the same owner information.
  *
  * \param[in]     file        the file to get the domain and account-name for.
  *
@@ -645,6 +649,22 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
   HANDLE       hFile;
   PSECURITY_DESCRIPTOR pSD  = NULL;
   const char   *system_name = NULL;
+
+#if defined(__CYGWIN__)
+  struct stat    st;
+  struct passwd *pw;
+
+  if (stat(file, &st) == 0 && _S_ISDIR(st.st_mode) && st.st_uid != -1)
+  {
+    pw = getpwuid (st.st_uid);
+    *domain_name = NULL;
+    if (pw)
+    {
+      *account_name = STRDUP (pw->pw_name);
+      return (TRUE);
+    }
+  }
+#endif
 
   *domain_name = *account_name = NULL;
 
@@ -714,7 +734,7 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
 
   *account_name = CALLOC (account_name_sz, 1);
   if (*account_name == NULL)
-    return (FALSE);
+     return (FALSE);
 
   *domain_name = CALLOC (domain_name_sz, 1);
   if (*domain_name == NULL)
@@ -1258,7 +1278,7 @@ char *dirname (const char *fname)
   return (dirpart);
 }
 
-/*
+/**
  * Create a full MS-DOS path name from the components.
  */
 void make_path (char *path, const char *drive, const char *dir, const char *filename, const char *ext)
@@ -1269,8 +1289,9 @@ void make_path (char *path, const char *drive, const char *dir, const char *file
 }
 
 #if !defined(__CYGWIN__)
-/*
+/**
  * Create a CygWin compatible path name from a Windows path.
+ * ASCII-version.
  */
 char *make_cyg_path (const char *path, char *result)
 {
@@ -1288,8 +1309,9 @@ char *make_cyg_path (const char *path, char *result)
   return (result);
 }
 
-/*
- * The wide version of the above.
+/**
+ * Create a CygWin compatible path name from a Windows path.
+ * UNICODE-version.
  */
 wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
 {
@@ -1308,7 +1330,7 @@ wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
 }
 #endif
 
-/*
+/**
  * Canonize file and paths names. E.g. convert this:
  *   g:\mingw32\bin\../lib/gcc/x86_64-w64-mingw32/4.8.1/include
  * into something more readable:
@@ -1354,7 +1376,7 @@ char *_fix_path (const char *path, char *result)
   return _fix_drive (result);
 }
 
-/*
+/**
  * For consistency, report drive-letter in lower case.
  */
 char *_fix_drive (char *path)
@@ -1366,6 +1388,9 @@ char *_fix_drive (char *path)
   return (path);
 }
 
+/**
+ * Return TRUE if \c path starts with a drive-letter (A: - Z:).
+ */
 BOOL _has_drive (const char *path)
 {
   int disk = TOUPPER (path[0]);
@@ -1376,7 +1401,7 @@ BOOL _has_drive (const char *path)
   return (FALSE);
 }
 
-/*
+/**
  * Returns ptr to 1st character in file's extension.
  * Returns ptr to '\0' if no extension.
  */
@@ -1393,29 +1418,47 @@ const char *get_file_ext (const char *file)
   return ((dot > file) ? dot+1 : end);
 }
 
-/*
- * Returns TRUE if 'file' is a directory.
+/**
+ * Returns TRUE if \c file is a directory.
+ * CygWin MUST have a trailing '/' for directories.
  */
 BOOL is_directory (const char *file)
 {
   struct stat st;
 
+#if defined(__CYGWIN__)
+  char  *p, buf [_MAX_PATH];
+
+  strlcpy (buf, file, sizeof(buf));
+  p = strchr (buf, '\0');
+  if (!IS_SLASH(p[-1]))
+  {
+    *p++ = '/';
+    *p = '\0';
+  }
+  file = buf;
+#endif
+
   if (safe_stat(file, &st, NULL) == 0)
      return (_S_ISDIR(st.st_mode));
+
+#if defined(__CYGWIN__)
+  DEBUGF (2, "safe_stat (\"%s\") fail, errno: %d\n", file, errno);
+#endif
   return (FALSE);
 }
 
 /**
- * A bit safer 'stat()'.
- * If given a hidden / system file (like 'c:\pagefile.sys'), some
- * 'stat()' implementations can crash.
+ * A bit safer \c stat().
+ * If given a hidden / system file (like \c c:\\pagefile.sys), some
+ * \c stat() implementations can crash. MSVC would be one case.
  *
- * Return any 'GetLastError()' in '*win_err'.
- * \return the same as 'stat()':
+ * \return any \c GetLastError() is set in \c *win_err.
+ * \return the same as \c stat():
  *         0:  okay
- *         -1: fail. 'errno' set.
+ *         -1: fail. \c errno set.
  *
- * \note directories are passed directly to 'stat()'.
+ * \note directories are passed directly to \c stat().
  */
 int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 {
@@ -1427,11 +1470,12 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
      *win_err = 0;
 
 #if defined(__CYGWIN__)
-  /*
-   * Cannot use 'GetFileAttributes()' in case file is on Posix form.
-   * E.g. "/cygdrive/c/foo"
+  /**
+   * Cannot use \c GetFileAttributes() in case \c file is on Posix form.
+   * \eg "/cygdrive/c/foo"
    */
-  if (!strncmp(file,"/cygdrive/",10) || !strncmp(file,"/usr",4))
+  if (!strncmp(file,"/cygdrive/",10) || !strncmp(file,"/usr",4) ||
+      !strncmp(file,"/etc",4) || !strncmp(file,"~/",2))
      attr = 0;   /* Pass on to Cygwin's stat() */
 #else
   attr = GetFileAttributes (file);
@@ -1450,9 +1494,10 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
   err = GetLastError();
   if (win_err)
      *win_err = err;
-  DEBUGF (1, "file: %s, attr: 0x%08lX, err: %s\n", file, attr, win_strerror(err));
+  DEBUGF (1, "file: %s, attr: 0x%08lX, err: %s\n",
+          file, (unsigned long)attr, win_strerror(err));
 
-#if 1   /* \todo: Need to check for Hidden/System files here */
+#if 0   /* \todo: Need to check for Hidden/System files here */
   if (attr == FILE_ATTRIBUTE_HIDDEN || attr == FILE_ATTRIBUTE_SYSTEM)
   {
     time_t   mtime = 0;
@@ -1473,8 +1518,10 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
   return (-1);
 }
 
-/*
- * Create a %TEMP-file and return it's allocated name.
+/**
+ * Create a \c \%TEMP-file.
+ * \return The allocated name.
+ *         Caller must call \c FREE() on it.
  */
 char *create_temp_file (void)
 {
@@ -1496,12 +1543,13 @@ char *create_temp_file (void)
   return (NULL);
 }
 
-/*
+/**
  * Turn off default error-mode. E.g. if a CD-ROM isn't ready, we'll get a GUI
  * popping up to notify us. Turn that off and handle such errors ourself.
  *
- * SetErrorMode()       is per process.
- * SetThreadErrorMode() is per thread on Win-7+.
+ * \c SetErrorMode()       is per process.
+ * \c SetThreadErrorMode() is per thread on Win-7+.
+ * \return Nothing
  */
 void set_error_mode (int restore)
 {
@@ -1531,9 +1579,10 @@ void set_error_mode (int restore)
   }
 }
 
-/*
- * Get a cached 'cluster_size' for 'disk' A: to Z:.
- * Only works on local disks; 'disk-type == DRIVE_FIXED'.
+/**
+ * Get a cached \c cluster_size for \c disk. (<tt>A: - Z:</tt>).
+ * Only works on local disks; I.e. <tt>disk-type == DRIVE_FIXED</tt>.
+ * \return TRUE on success.
  */
 BOOL get_disk_cluster_size (int disk, DWORD *size)
 {
@@ -1586,7 +1635,7 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
   return (rc);
 }
 
-/*
+/**
  * Get the allocation size of a file.
  * This uses cached information from the above 'get_disk_cluster_size()'.
  * Currently only works on local disks; 'disk-type == DRIVE_FIXED'.
@@ -1617,7 +1666,7 @@ UINT64 get_file_alloc_size (const char *file, UINT64 size)
   return (num_clusters * cluster_size);
 }
 
-/*
+/**
  * Return the type of 'disk'.
  */
 UINT get_disk_type (int disk)
@@ -1642,7 +1691,7 @@ UINT get_disk_type (int disk)
   return (type);
 }
 
-/*
+/**
  * Get the volume mount point where the specified disk is mounted.
  */
 BOOL get_volume_path (int disk, char **mount)
@@ -1653,7 +1702,7 @@ BOOL get_volume_path (int disk, char **mount)
   static char res [2*_MAX_PATH];
 
   root[0] = disk;
-  if (!GetVolumePathName (root, res, sizeof(res)))
+  if (!GetVolumePathName(root, res, sizeof(res)))
        err = win_strerror (GetLastError());
   else rc = TRUE;
 
@@ -1664,7 +1713,7 @@ BOOL get_volume_path (int disk, char **mount)
   return (rc);
 }
 
-/*
+/**
  * Check if a disk is ready. disk is ['A'..'Z'].
  */
 int disk_ready (int disk)
@@ -1732,7 +1781,7 @@ quit:
   return (rc1 | rc2);
 }
 
-/*
+/**
  * Return a cached status for disk ready: A: to Z:.
  */
 BOOL chk_disk_ready (int disk)
@@ -1770,18 +1819,18 @@ BOOL chk_disk_ready (int disk)
   return (status[i] >= 1);
 }
 
-/*
+/**
  * This used to be a macro in envtool.h.
  */
 #if defined(__CYGWIN__)
-  /*
+  /**
    * Cannot use 'GetFileAttributes()' in case file is on Posix form.
    * E.g. "/cygdrive/c/foo"
    */
   int _file_exists (const char *file)
   {
     struct stat st;
-    return (safe_stat(file,&st) == 0);
+    return (safe_stat(file,&st,NULL) == 0);
   }
 #else
   int _file_exists (const char *file)
@@ -1792,7 +1841,7 @@ BOOL chk_disk_ready (int disk)
   }
 #endif
 
-/*
+/**
  * Return TRUE if this program is executed as an 'elevated' process.
  * Taken from Python 3.5's "src/PC/bdist_wininst/install.c".
  */
@@ -1818,7 +1867,7 @@ BOOL is_user_admin (void)
   return (rc);
 }
 
-/*
+/**
  * Return name of logged-in user.
  * First try GetUserNameEx() available in Win-2000 Pro.
  * Then fall-back to a GetUserName() if not present in Secur32.dll.
@@ -2936,12 +2985,12 @@ BOOL wchar_to_mbchar (size_t len, const wchar_t *buf, char *result)
   return (TRUE);
 }
 
-/*
+/**
  * The 'DeviceIoControl()' returns sensible information for a
  * remote 'dir'. But the returned drive-letter is wrong!
  *
- * So it's maybe not a good idea to call this function before checking
- * if 'get_disk_type(dir[0]) == DRIVE_FIXED)' first.
+ * So it is a good idea to call 'get_disk_type(dir[0])' and verify
+ * that it returns 'DRIVE_FIXED' first.
  */
 BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 {
