@@ -771,10 +771,10 @@ BOOL is_directory_writable (const char *path)
  */
 BOOL is_directory_accessible (const char *path, DWORD access)
 {
-  BOOL   answer = FALSE;
-  DWORD  length = 0;
-  HANDLE hToken = NULL;
-  DWORD  access_flg;
+  BOOL     answer = FALSE;
+  DWORD    length = 0;
+  HANDLE   token  = NULL;
+  DWORD    access_flg;
   SECURITY_INFORMATION sec_info;
   SECURITY_DESCRIPTOR *security = NULL;
 
@@ -782,33 +782,33 @@ BOOL is_directory_accessible (const char *path, DWORD access)
    */
   sec_info = OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION;
   if (GetFileSecurity(path, sec_info, NULL, 0, &length))
-     return (answer);
+     return (FALSE);
 
   if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
-     return (answer);
+     return (FALSE);
 
   security = CALLOC (1, length);
   if (!security)
-     return (answer);
+     return (FALSE);
 
   /* GetFileSecurity() should succeed.
    */
   if (!GetFileSecurity(path, sec_info, security, length, &length))
-     return (answer);
+     return (FALSE);
 
   access_flg = TOKEN_IMPERSONATE | TOKEN_QUERY | TOKEN_DUPLICATE | STANDARD_RIGHTS_READ;
 
-  if (OpenProcessToken(GetCurrentProcess(), access_flg, &hToken))
+  if (OpenProcessToken(GetCurrentProcess(), access_flg, &token))
   {
     HANDLE impersonated_token = NULL;
 
-    if (DuplicateToken(hToken, SecurityImpersonation, &impersonated_token))
+    if (DuplicateToken(token, SecurityImpersonation, &impersonated_token))
     {
       GENERIC_MAPPING mapping;
-      PRIVILEGE_SET   privileges         = { 0 };
-      DWORD           grantedAccess      = 0;
-      DWORD           privilegesLength   = sizeof(privileges);
-      BOOL            result             = FALSE;
+      PRIVILEGE_SET   privileges          = { 0 };
+      DWORD           grantedAccess       = 0;
+      DWORD           privilegesLength    = sizeof(privileges);
+      BOOL            result              = FALSE;
       DWORD           genericAccessRights = access;
 
       mapping.GenericRead    = FILE_GENERIC_READ;
@@ -822,7 +822,7 @@ BOOL is_directory_accessible (const char *path, DWORD access)
          answer = result;
       CloseHandle (impersonated_token);
     }
-    CloseHandle (hToken);
+    CloseHandle (token);
   }
   FREE (security);
   return (answer);
@@ -1438,7 +1438,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 #endif
 
   memset (st, '\0', sizeof(*st));
-  st->st_size = (__int64)-1;    /* signal if stat() fails */
+  st->st_size = (off_t)-1;     /* signal if stat() fails */
 
   is_dir = (attr != (DWORD)-1 && (attr & FILE_ATTRIBUTE_DIRECTORY));
   if (is_dir)
@@ -2277,7 +2277,7 @@ const char *get_file_size_str (UINT64 size)
   double m;
 
   if (size == (__int64)-1)
-     return strcpy (buf, "   ?  ");
+     return strcpy (buf, "   ?   ");
 
   while (size >= 1024ULL)
   {
