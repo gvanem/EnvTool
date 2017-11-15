@@ -1,7 +1,7 @@
 /** \file    searchpath.c
  *  \ingroup Misc
  *  \brief
- *    Find file along an envirnment variable. (Usually the \c \%PATH\%).
+ *    Find a file along an envirnment variable. (Usually the \c \%PATH\%).
  */
 
 /* Copyright (C) 2001 DJ Delorie, see COPYING.DJ for details */
@@ -31,15 +31,17 @@ int searchpath_pos (void)
 }
 
 /**
- * Search '%env_var' for the first 'file' (not a 'file_spec').
+ * Search \c %env_var for the first 'file' (not a \c file_spec).
  * If successful, store the full pathname in static buffer and return a
  * pointer to it. If not sucessful, return NULL.
- * This is what the Borland searchpath() library function does.
+ * This is what the Borland \c searchpath() library function does.
  *
- * \note: if 'env_var' is just a dirname, the 'file' is just tested for
- *        presence in current directory and that dirname. E.g.
- *        searchpath ("SWAPFILE.SYS", "c:\\") would simply return
- *        "C:\SWAPFILE.SYS".
+ * \note: if \c env_var is just a dirname, the \c file is just tested for
+ *        presence in current directory and that dirname.
+ *        \eg
+ *        \code{c}
+ *          searchpath ("SWAPFILE.SYS", "c:\\")
+ *        \endcode would simply return \c \"C:\\SWAPFILE.SYS\".
  */
 static char *searchpath_internal (const char *file, const char *env_var, char *found)
 {
@@ -94,6 +96,8 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
    */
   path[0] = '.';
 
+  /* If the env-var has a value, search along ".;%env_val".
+   */
   if (p)
   {
     char *s, *name_start = 0;
@@ -144,12 +148,14 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
         ((file[0] == '.' && IS_SLASH(file[1])) ||
          (file[1] == '.' && IS_SLASH(file[2]))) )
     {
-      /* Either absolute file name or it begins with a "./".  */
+      /* Either absolute file name or it begins with a "./".
+       */
       strcpy (found, file);
     }
     else
     {
-      /* Relative file name: add ".\\".  */
+      /* Relative file name: add ".\\".
+       */
       strcpy (found, ".\\");
       strcat (found, file);
     }
@@ -190,7 +196,7 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
       return (found);
     }
 
-    if (*dp == 0)
+    if (*dp == 0)   /* We have reached the end of "%env_val" */
        break;
     test_dir = dp + 1;
     last_pos++;
@@ -211,7 +217,8 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
 
 char *searchpath (const char *file, const char *env_var)
 {
-  char found [_MAX_PATH], *s = searchpath_internal (file, env_var, found);
+  char found [_MAX_PATH];
+  char *s = searchpath_internal (file, env_var, found);
 
   if (s)
      return slashify (s, opt.show_unix_paths ? '/' : '\\');
