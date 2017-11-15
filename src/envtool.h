@@ -72,9 +72,9 @@
    * Enable GNU LibSSP; "Stack Smashing Protector".
    *   Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
    */
-  #if (_FORTIFY_SOURCE == 1) && defined(INSIDE_ENVOOL_C)
+  #if (_FORTIFY_SOURCE == 1) && defined(INSIDE_ENVTOOL_C)
     #pragma message ("Using _FORTIFY_SOURCE=1")
-  #elif (_FORTIFY_SOURCE == 2) && defined(INSIDE_ENVOOL_C)
+  #elif (_FORTIFY_SOURCE == 2) && defined(INSIDE_ENVTOOL_C)
     #pragma message ("Using _FORTIFY_SOURCE=2")
   #endif
   #include <ssp/stdio.h>
@@ -497,9 +497,11 @@ extern const char *os_bits (void);
 #define TRUST_E_SUBJECT_FORM_UNKNOWN (HRESULT) 0x800B0003
 #endif
 
-extern char       *wintrust_subject;
+extern char       *wintrust_signer_subject,    *wintrust_signer_issuer;
+extern char       *wintrust_timestamp_subject, *wintrust_timestamp_issuer;
 extern DWORD       wintrust_check (const char *pe_file, BOOL details, BOOL revoke_check);
 extern const char *wintrust_check_result (DWORD rc);
+extern void        wintrust_cleanup (void);
 
 
 /* Simple debug-malloc functions:

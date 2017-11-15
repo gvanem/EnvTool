@@ -29,11 +29,13 @@
 #endif
 
 #if defined(WIN_TRUST_TEST)
-  #define PRINTF(args)      printf args
+  #define PRINTF(fmt, ...)  printf (fmt, ##__VA_ARGS__)
+  #define NEWLINE()         putchar ('\n')
   #undef  ERROR
   #define ERROR(s)          printf ("%s() failed: %s\n", s, win_strerror(GetLastError()))
 #else
-  #define PRINTF(args)      ((void)0)
+  #define PRINTF(fmt, ...)  ((void)0)
+  #define NEWLINE()         ((void)0)
   #undef  ERROR
   #define ERROR(s)          last_err = GetLastError()
 #endif
@@ -47,7 +49,8 @@ struct SPROG_PUBLISHERINFO {
        wchar_t *more_info_link;
      };
 
-char *wintrust_subject;
+char *wintrust_signer_subject, *wintrust_timestamp_subject;
+char *wintrust_signer_issuer,  *wintrust_timestamp_issuer;
 
 static DWORD last_err;
 
@@ -186,6 +189,14 @@ int main (int argc, char **argv)
 }
 #endif  /* WIN_TRUST_TEST */
 
+void wintrust_cleanup (void)
+{
+  FREE (wintrust_signer_subject);
+  FREE (wintrust_timestamp_subject);
+  FREE (wintrust_signer_issuer);
+  FREE (wintrust_timestamp_issuer);
+}
+
 DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check)
 {
   void              *p;
@@ -198,6 +209,8 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
 #else
                        WINTRUST_ACTION_TRUSTPROVIDER_TEST;
 #endif
+
+  wintrust_cleanup();
 
   if (!pe_file || !FILE_EXISTS(pe_file))
   {
@@ -231,7 +244,7 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
 
   if (check_details)
   {
-    PRINTF (("\nDetails for crypt_check_file (\"%s\").\n", pe_file));
+    PRINTF ("\nDetails for crypt_check_file (\"%s\").\n", pe_file);
     crypt_check_file (pe_file);
   }
   return (rc);
@@ -265,20 +278,21 @@ const char *wintrust_check_result (DWORD rc)
   }
 }
 
-static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context)
+static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context, char **subject, char **issuer)
 {
   char  *name = NULL;
   DWORD  data, n;
   BOOL   res = FALSE;
 
-  PRINTF (("Serial Number: "));
+  PRINTF ("Serial Number: ");
   data = cert_context->pCertInfo->SerialNumber.cbData;
 
 #if 1
   for (n = 0; n < data; n++)
-      PRINTF (("%02x ", cert_context->pCertInfo->SerialNumber.pbData[data-n+1]));
-  PRINTF (("\n"));
+      PRINTF ("%02X ", cert_context->pCertInfo->SerialNumber.pbData[data-n+1]);
+  NEWLINE();
 #else
+  NEWLINE();
   hex_dump (&cert_context->pCertInfo->SerialNumber.pbData[data+1], data);
 #endif
 
@@ -297,14 +311,15 @@ static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context)
 
   /* Get 'Issuer name'
    */
-  if (!CertGetNameString (cert_context, CERT_NAME_SIMPLE_DISPLAY_TYPE,
-                          CERT_NAME_ISSUER_FLAG, NULL, name, data))
+  if (!CertGetNameString(cert_context, CERT_NAME_SIMPLE_DISPLAY_TYPE,
+                         CERT_NAME_ISSUER_FLAG, NULL, name, data))
   {
     ERROR ("CertGetNameString");
     QUIT (FALSE);
   }
 
-  PRINTF (("Issuer Name:   %s\n", name));
+  *issuer = STRDUP (name);
+  PRINTF ("Issuer Name:   %s\n", name);
 
   /* Get 'Subject Name'
    */
@@ -324,21 +339,17 @@ static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context)
     QUIT (FALSE);
   }
 
-  PRINTF (("Subject Name:  %s\n", name));
+  PRINTF ("Subject Name:  %s\n", name);
 
-#if !defined(WIN_TRUST_TEST)
-  FREE (wintrust_subject);
-  wintrust_subject = STRDUP (name);
-#endif
-
+  *subject = STRDUP (name);
   res = TRUE;
 
 quit:
-  return res;
+  return (res);
 }
 
-static BOOL GetProgAndPublisherInfo (const CMSG_SIGNER_INFO     *signer_info __IN,
-                                     struct SPROG_PUBLISHERINFO *info        __OUT)
+static BOOL GetProgAndPublisherInfo (__IN  const CMSG_SIGNER_INFO     *signer_info,
+                                     __OUT struct SPROG_PUBLISHERINFO *info)
 {
   SPC_SP_OPUS_INFO *opus_info;
   DWORD             data, n;
@@ -379,11 +390,13 @@ static BOOL GetProgAndPublisherInfo (const CMSG_SIGNER_INFO     *signer_info __I
       QUIT (FALSE);
     }
 
-    /* Fill in Program Name if present */
+    /* Fill in Program Name if present
+     */
     if (opus_info->pwszProgramName)
        info->program_name = WCSDUP (opus_info->pwszProgramName);
 
-    /* Fill in Publisher Information if present */
+    /* Fill in Publisher Information if present
+     */
     if (opus_info->pPublisherInfo)
     {
       switch (opus_info->pPublisherInfo->dwLinkChoice)
@@ -399,7 +412,8 @@ static BOOL GetProgAndPublisherInfo (const CMSG_SIGNER_INFO     *signer_info __I
       }
     }
 
-    /* Fill in More Info if present */
+    /* Fill in More Info if present
+     */
     if (opus_info->pMoreInfo)
     {
       switch (opus_info->pMoreInfo->dwLinkChoice)
@@ -434,7 +448,8 @@ BOOL GetDateOfTimeStamp (CMSG_SIGNER_INFO *signer_info, SYSTEMTIME *st)
     if (lstrcmpA(szOID_RSA_signingTime, signer_info->AuthAttrs.rgAttr[n].pszObjId))
        continue;
 
-    /* Decode and get FILETIME structure */
+    /* Decode and get FILETIME structure
+     */
     data = sizeof(ft);
     res = CryptDecodeObject (ASN_ENCODING,
                              szOID_RSA_signingTime,
@@ -447,7 +462,8 @@ BOOL GetDateOfTimeStamp (CMSG_SIGNER_INFO *signer_info, SYSTEMTIME *st)
       break;
     }
 
-    /* Convert to local time */
+    /* Convert to local time
+     */
     FileTimeToLocalFileTime (&ft, &lft);
     FileTimeToSystemTime (&lft, st);
     break;
@@ -455,8 +471,8 @@ BOOL GetDateOfTimeStamp (CMSG_SIGNER_INFO *signer_info, SYSTEMTIME *st)
   return (res);
 }
 
-BOOL GetTimeStampSignerInfo (CMSG_SIGNER_INFO  *signer_info         __IN,
-                             CMSG_SIGNER_INFO **counter_signer_info  __OUT)
+BOOL GetTimeStampSignerInfo (__IN  CMSG_SIGNER_INFO  *signer_info,
+                             __OUT CMSG_SIGNER_INFO **counter_signer_info)
 {
   BOOL   res = FALSE;
   DWORD  size, n;
@@ -487,7 +503,7 @@ BOOL GetTimeStampSignerInfo (CMSG_SIGNER_INFO  *signer_info         __IN,
     *counter_signer_info = CALLOC (size,1);
     if (*counter_signer_info == NULL)
     {
-      PRINTF (("Unable to allocate memory for timestamp info.\n"));
+      PRINTF ("Unable to allocate memory for timestamp info.\n");
       QUIT (FALSE);
     }
 
@@ -528,11 +544,11 @@ static int crypt_check_file (const char *fname)
 
   struct SPROG_PUBLISHERINFO publisher_info;
 
-  memset (&publisher_info, 0, sizeof(publisher_info));
+  memset (&publisher_info, '\0', sizeof(publisher_info));
 
   if (mbstowcs(file_name, fname, DIM(file_name)) == -1)
   {
-    PRINTF (("Unable to convert to unicode.\n"));
+    PRINTF ("Unable to convert to unicode.\n");
     QUIT (-1);
   }
 
@@ -577,16 +593,16 @@ static int crypt_check_file (const char *fname)
   if (GetProgAndPublisherInfo(signer_info, &publisher_info))
   {
     if (publisher_info.program_name)
-       PRINTF (("Program Name:   %" WIDESTR_FMT "\n", publisher_info.program_name));
+       PRINTF ("Program Name:   %" WIDESTR_FMT "\n", publisher_info.program_name);
 
     if (publisher_info.publisher_link)
-       PRINTF (("Publisher Link: %" WIDESTR_FMT "\n", publisher_info.publisher_link));
+       PRINTF ("Publisher Link: %" WIDESTR_FMT "\n", publisher_info.publisher_link);
 
     if (publisher_info.more_info_link)
-       PRINTF (("MoreInfo Link:  %" WIDESTR_FMT "\n", publisher_info.more_info_link));
+       PRINTF ("MoreInfo Link:  %" WIDESTR_FMT "\n", publisher_info.more_info_link);
   }
 
-  PRINTF (("\n"));
+  NEWLINE();
 
   /* Search for the signer certificate in the temporary certificate store
    */
@@ -603,9 +619,9 @@ static int crypt_check_file (const char *fname)
 
   /* Print Signer certificate information
    */
-  PRINTF (("Signer Certificate:\n\n"));
-  PrintCertificateInfo (cert_context);
-  PRINTF (("\n"));
+  PRINTF ("Signer Certificate:\n\n");
+  PrintCertificateInfo (cert_context, &wintrust_signer_subject, &wintrust_signer_issuer);
+  NEWLINE();
 
   /* Get the timestamp certificate signerinfo structure
    */
@@ -624,14 +640,14 @@ static int crypt_check_file (const char *fname)
       QUIT (-1);
     }
 
-    PRINTF (("TimeStamp Certificate:\n\n"));
-    PrintCertificateInfo (cert_context);
+    PRINTF ("TimeStamp Certificate:\n\n");
+    PrintCertificateInfo (cert_context, &wintrust_timestamp_subject, &wintrust_timestamp_issuer);
 
-    PRINTF (("\nTimeStamp: "));
+    PRINTF ("\nTimeStamp: ");
     if (GetDateOfTimeStamp (counter_signer_info, &st))
-         PRINTF (("%02d/%02d/%04d %02d:%02d\n",
-                  st.wMonth, st.wDay, st.wYear, st.wHour, st.wMinute));
-    else PRINTF (("<None>\n"));
+         PRINTF ("%02d/%02d/%04d %02d:%02d\n",
+                 st.wMonth, st.wDay, st.wYear, st.wHour, st.wMinute);
+    else PRINTF ("<None>\n");
   }
 
 quit:
