@@ -150,8 +150,9 @@
 /**
  * Returns a pointer to the \c mem_head for this \c ptr.
  *
- * \param[in] ptr  the pointer to get the \c mem_head for.
- * \return The \c mem_head
+ * \param[in] ptr the pointer to get the \c mem_head for.
+ * \return
+ *   The \c mem_head
  */
 static struct mem_head *mem_list_get_head (void *ptr)
 {
@@ -555,8 +556,9 @@ int verify_PE_checksum (const char *fname)
 
 /**
  * Check if running under WOW64; "Windows 32-bit on Windows 64-bit".
+ *
  * Ref:
- *   http://en.wikipedia.org/wiki/WoW64
+ *   http://en.wikipedia.org/wiki/WoW64    \n
  *   http://everything.explained.today/WoW64/
  */
 BOOL is_wow64_active (void)
@@ -635,6 +637,7 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
  * \param[in,out] account_name on input a caller-supplied 'char **' pointer.
  *                             on output (if success), set to the account-name of the owner.
  *                             Must be freed by the caller if set to non-NULL here.
+ *
  * Adapted from:
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa446629(v=vs.85).aspx
  */
@@ -765,6 +768,25 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
   }
   return (rc2);
 }
+
+#if defined(NOT_USED_YET)
+/*
+ * Get a list of hidden Windows accounts:
+ * Ref: https://superuser.com/questions/248315/list-of-hidden-virtual-windows-user-accounts/638376
+ *
+ * c:\>powershell "get-wmiobject -class win32_account -namespace 'root\cimv2' | sort caption | format-table caption, __CLASS, FullName"
+ *
+ *  caption                                     __CLASS             FullName
+ *  -------                                     -------             --------
+ *  INTEL-I7\Administrator                      Win32_UserAccount
+ *  INTEL-I7\Administratorer                    Win32_Group
+ *  INTEL-I7\Alle                               Win32_SystemAccount
+ *
+ * Or:
+ *  c:\> powershell "get-wmiobject -class win32_account -namespace 'root\cimv2' | sort caption"
+ * for more details.
+ */
+#endif
 
 /**
  * Return TRUE if directory is truly readable.
@@ -1090,7 +1112,7 @@ static const char *range_match (const char *pattern, char test, int nocase)
 int fnmatch_case (int flags)
 {
   if (opt.case_sensitive == 0)
-     return (flags | FNM_FLAG_NOCASE);
+     flags |= FNM_FLAG_NOCASE;
   return (flags);
 }
 
@@ -1332,14 +1354,18 @@ wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
 
 /**
  * Canonize file and paths names. E.g. convert this:
- *   g:\mingw32\bin\../lib/gcc/x86_64-w64-mingw32/4.8.1/include
+ * \code
+ *   f:\mingw32\bin\../lib/gcc/x86_64-w64-mingw32/4.8.1/include
+ * \endcode
  * into something more readable:
- *   g:\mingw32\lib\gcc\x86_64-w64-mingw32\4.8.1\include
+ * \code
+ *   f:\mingw32\lib\gcc\x86_64-w64-mingw32\4.8.1\include
+ * \endcode
  *
  * I.e. turns 'path' into a fully-qualified path.
  *
- * Note: the 'path' doesn't have to exist.
- *       assumes 'result' is at least '_MAX_PATH' characters long (if non-NULL).
+ * \note the \c path doesn't have to exist.
+ *       assumes \c result is at least \c _MAX_PATH characters long (if non-NULL).
  */
 char *_fix_path (const char *path, char *result)
 {
@@ -1472,7 +1498,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 #if defined(__CYGWIN__)
   /**
    * Cannot use \c GetFileAttributes() in case \c file is on Posix form.
-   * \eg "/cygdrive/c/foo"
+   * E.g. "/cygdrive/c/foo"
    */
   if (!strncmp(file,"/cygdrive/",10) || !strncmp(file,"/usr",4) ||
       !strncmp(file,"/etc",4) || !strncmp(file,"~/",2))
@@ -1889,23 +1915,23 @@ const char *get_user_name (void)
   /* This function isn't guaranteed to be available (and it can't hurt
    * to leave the library loaded)
    */
-  if (!secur32 || secur32 == INVALID_HANDLE_VALUE)
-     goto quit;
+  if (secur32 && secur32 != INVALID_HANDLE_VALUE)
+  {
+    ulen = sizeof(user);
+    p_GetUserNameEx = (func_GetUserNameEx) GetProcAddress (secur32, "GetUserNameExA");
+    if (p_GetUserNameEx)
+         (*p_GetUserNameEx) (NameSamCompatible, user, &ulen);
+    else GetUserName (user, &ulen);
+  }
 
-  ulen = sizeof(user);
-  p_GetUserNameEx = (func_GetUserNameEx) GetProcAddress (secur32, "GetUserNameExA");
-  if (p_GetUserNameEx)
-       (*p_GetUserNameEx) (NameSamCompatible, user, &ulen);
-  else GetUserName (user, &ulen);
-
-quit:
   if (secur32 && secur32 != INVALID_HANDLE_VALUE)
      FreeLibrary (secur32);
   return (user);
 }
 
-/*
+/**
  * Similar to strncpy(), but always returns 'dst' with 0-termination.
+ * Does *not* return a 'size_t' as Posix 'strlcpy()' does.
  */
 char *_strlcpy (char *dst, const char *src, size_t len)
 {
@@ -1924,7 +1950,7 @@ char *_strlcpy (char *dst, const char *src, size_t len)
   return (dst);
 }
 
-/*
+/**
  * Return a string with 'ch' repeated 'num' times.
  * Limited to 200 characters.
  */
@@ -1941,7 +1967,7 @@ char *_strrepeat (int ch, size_t num)
   return (buf);
 }
 
-/*
+/**
  * Get next token from string *stringp, where tokens are possibly-empty
  * strings separated by characters from delim.
  *
@@ -1982,9 +2008,9 @@ char *_strsep (char **stringp, const char *delim)
   /* NOTREACHED */
 }
 
-/*
+/**
  * "string allocate and concatinate".
- * Assumes 's1' is allocated. Thus 'free(s1)' after concat is done.
+ * Assumes 's1' is allocated. Thus 'free(s1)' after '_stracat()' is done.
  */
 char *_stracat (char *s1, const char *s2)
 {
@@ -1993,15 +2019,15 @@ char *_stracat (char *s1, const char *s2)
   char  *start = s;
 
   sz = strlen (s1);
-  memcpy (s, s1, sz);
+  memcpy (s, s1, sz);   /* copy 's1' into new space for both 's1' and 's2' */
   FREE (s1);
-  s += sz;
+  s += sz;              /* advance to end of 's' */
   sz = strlen (s2) + 1;
-  memcpy (s, s2, sz);
+  memcpy (s, s2, sz);   /* copy 's2' after 's1' */
   return (start);
 }
 
-/*
+/**
  * For consistency and nice looks, replace (single or multiple) '\\'
  * with single '/' if use == '/'. And vice-versa.
  * All (?) Windows core functions functions should handle
@@ -2030,7 +2056,7 @@ char *slashify (const char *path, char use)
   return _fix_drive (buf);
 }
 
-/*
+/**
  * Heuristic alert!
  *
  * Return 1 if file A is newer than file B.
@@ -2049,7 +2075,7 @@ int compare_file_time_ver (time_t mtime_a, time_t mtime_b,
   return (0);  /* \todo */
 }
 
-/*
+/**
  * Return error-string for 'err' from kernel32.dll.
  */
 static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
@@ -2066,7 +2092,7 @@ static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
   return (rc);
 }
 
-/*
+/**
  * Return err-number+string for 'err'. Use only with GetLastError().
  * Does not handle libc errno's. Remove trailing [\r\n.]
  */
@@ -2104,7 +2130,7 @@ char *win_strerror (unsigned long err)
 }
 
 #if !defined(_CRTDBG_MAP_ALLOC)
-/*
+/**
  * A strdup() that fails if no memory. It's pretty hopeless to continue
  * this program if strdup() fails.
  */
@@ -2125,7 +2151,7 @@ char *strdup_at (const char *str, const char *file, unsigned line)
   return (char*) (head+1);
 }
 
-/*
+/**
  * Similar to wcsdup()
  */
 wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
@@ -2146,7 +2172,7 @@ wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
   return (wchar_t*) (head+1);
 }
 
-/*
+/**
  * A malloc() that fails if no memory. It's pretty hopeless to continue
  * this program if strdup() fails.
  */
@@ -2168,7 +2194,7 @@ void *malloc_at (size_t size, const char *file, unsigned line)
   return (head+1);
 }
 
-/*
+/**
  * A calloc() that fails if no memory. It's pretty hopeless to continue
  * this program if calloc() fails.
  */
@@ -2190,7 +2216,7 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
   return (head+1);
 }
 
-/*
+/**
  * A realloc() that fails if no memory. It's pretty hopeless to continue
  * this program if realloc() fails.
  */
@@ -2225,7 +2251,7 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
   return (ptr);
 }
 
-/*
+/**
  * A free() that checks the 'ptr' and decrements the 'mem_frees' value.
  */
 void free_at (void *ptr, const char *file, unsigned line)
@@ -2246,6 +2272,9 @@ void free_at (void *ptr, const char *file, unsigned line)
 }
 #endif  /* !_CRTDBG_MAP_ALLOC */
 
+/**
+ * Print a report of memory-counters and warn on any unfreed memory blocks.
+ */
 void mem_report (void)
 {
 #if !defined(_CRTDBG_MAP_ALLOC)
@@ -2273,6 +2302,14 @@ void mem_report (void)
 #endif
 }
 
+/**
+ * In _DEBUG-mode, remember the 'last_state' as the CRT-memory start-up state.
+ *
+ * \note
+ *   Enable this for MSVC and clang-cl only.
+ *   The mem-checker in PellesC (it defines '__POCC__' and '_MSC_VER') is somewhat
+ *   buggy last time I checked. So leave that off.
+ */
 #if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
 static _CrtMemState last_state;
 
@@ -2318,12 +2355,21 @@ void crtdbug_exit (void)
   DWORD __ullongfix;
 #endif
 
+/**
+ * Return a nicely formatted string for a file-size
+ * given as an 'UINT64'.
+ *
+ * \note
+ *   Uses the SI-unit post-fixes. \n
+ *   A Yottabyte (2^80) is too large for an 'UINT64'. \n
+ *   A 'size == -1' is used as indication of an unknown size.
+ */
 const char *get_file_size_str (UINT64 size)
 {
-  static const char *suffixes[] = { "B ", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
+  static const char *suffixes[] = { "B ", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
   static char buf [10];
   int    i = 0;
-  double m;
+  double sz;
 
   if (size == (__int64)-1)
      return strcpy (buf, "   ?   ");
@@ -2336,15 +2382,15 @@ const char *get_file_size_str (UINT64 size)
 
   /* Round up
    */
-  m = floor ((double)size);
-  if (size >= m + 0.5)
-     m++;
+  sz = floor ((double)size);
+  if (size >= sz + 0.5)
+     sz++;
 
-  snprintf (buf, sizeof(buf), "%4.0f %s", m, suffixes[i]);
+  snprintf (buf, sizeof(buf), "%4.0f %s", sz, suffixes[i]);
   return (buf);
 }
 
-/*
+/**
  * Return a time-string for 'time_t==0' (non-time).
  */
 const char *empty_time (void)
@@ -2352,18 +2398,18 @@ const char *empty_time (void)
   return (opt.decimal_timestamp ? "00000000.000000" : "01 Jan 1970 - 00:00:00");
 }
 
-/*
+/**
+ * Return a nicely formatted string for a 'time_t'.
+ *
  * strftime() under MSVC sometimes crashes mysteriously. So use this
  * home-grown version.
  * Tests for 'time_t == 0' which is returned from 'safe_stat()'
- * of a protected .sys-file.
+ * of e.g. a protected .sys-file.
  */
-#define USE_STRFTIME 0
-
 const char *get_time_str (time_t t)
 {
+  static char  res [50];
   const struct tm *tm;
-  static char      res [50];
 
   if (t == 0)
      return empty_time();
@@ -2372,34 +2418,27 @@ const char *get_time_str (time_t t)
   if (!tm)
      return empty_time();
 
-#if (USE_STRFTIME)
   if (opt.decimal_timestamp)
-       strftime (res, sizeof(res), "%Y%m%d.%H%M%S", tm);
-  else strftime (res, sizeof(res), "%d %b %Y - %H:%M:%S", tm);
-#else
+     snprintf (res, sizeof(res), "%04d%02d%02d.%02d%02d%02d",
+               1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+  else
   {
-    const  char *_month;
     static const char *months [12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
                                      };
-    if (opt.decimal_timestamp)
-       snprintf (res, sizeof(res), "%04d%02d%02d.%02d%02d%02d",
-                 1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
-    else
-    {
-      if (tm->tm_mon >= 0 && tm->tm_mon < DIM(months))
-           _month = months [tm->tm_mon];
-      else _month = "???";
-      snprintf (res, sizeof(res), "%02d %s %04d - %02d:%02d:%02d",
-                tm->tm_mday, _month, 1900+tm->tm_year, tm->tm_hour, tm->tm_min, tm->tm_sec);
-    }
+    const  char *_month;
+
+    if (tm->tm_mon >= 0 && tm->tm_mon < DIM(months))
+         _month = months [tm->tm_mon];
+    else _month = "???";
+    snprintf (res, sizeof(res), "%02d %s %04d - %02d:%02d:%02d",
+              tm->tm_mday, _month, 1900+tm->tm_year, tm->tm_hour, tm->tm_min, tm->tm_sec);
   }
-#endif
   return (res);
 }
 
-#if defined(NOT_NEEDED)
-/*
+#if defined(NOT_USED_YET)
+/**
  * Function that prints the line argument while limiting it
  * to at most 'MAX_CHARS_PER_LINE'. An appropriate number
  * of spaces are added on subsequent lines.
@@ -2464,9 +2503,23 @@ void print_long_line (const char *line, size_t indent)
   }
   C_putc ('\n');
 }
-#endif
 
-/*
+/**
+ * Create another console window for debugging.
+ */
+void create_console (void)
+{
+  if (AllocConsole())
+  {
+    WORD color = FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED;
+    freopen ("CONOUT$", "wt", stdout);
+    SetConsoleTitle ("Debug Console");
+    SetConsoleTextAttribute (GetStdHandle(STD_OUTPUT_HANDLE), color);
+  }
+}
+#endif  /* NOT_USED_YET */
+
+/**
  * Search 'list' for 'value' and return it's name.
  */
 const char *list_lookup_name (unsigned value, const struct search_list *list, int num)
@@ -2483,7 +2536,7 @@ const char *list_lookup_name (unsigned value, const struct search_list *list, in
   return _itoa (value,buf,10);
 }
 
-/*
+/**
  * Search 'list' for 'name' and return it's 'value'.
  */
 unsigned list_lookup_value (const char *name, const struct search_list *list, int num)
@@ -2521,20 +2574,6 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
   return (buf);
 }
 
-/*
- * Not used.
- */
-void create_console (void)
-{
-  if (AllocConsole())
-  {
-    WORD color = FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_RED;
-    freopen ("CONOUT$", "wt", stdout);
-    SetConsoleTitle ("Debug Console");
-    SetConsoleTextAttribute (GetStdHandle(STD_OUTPUT_HANDLE), color);
-  }
-}
-
 int debug_printf (const char *format, ...)
 {
   int     raw, rc;
@@ -2548,7 +2587,7 @@ int debug_printf (const char *format, ...)
   return (rc);
 }
 
-/*
+/**
  * Duplicate memory and fix the 'cmd' before calling 'popen()'.
  */
 static char *popen_setup (const char *cmd)
@@ -2608,14 +2647,16 @@ static char *popen_setup (const char *cmd)
   return (cmd2);
 }
 
-/*
+/**
  * A wrapper for popen().
- *  'cmd':      the program + args to run.
- *  'callback': function to call for each line from popen().
- *              This function should return number of matches.
- *              The callback is allowed to modify the given 'buf'.
  *
- * Returns total number of matches from 'callback'.
+ * \param[in] cmd       the program + args to run.
+ * \param[in] callback  function to call for each line from \c popen().
+ *
+ * This function should return number of matches.
+ *  The \c callback is allowed to modify the \c buf given to it.
+ *
+ * \return total number of matches from \c callback.
  */
 int popen_run (popen_callback callback, const char *cmd)
 {
@@ -2657,7 +2698,7 @@ quit:
   return (j);
 }
 
-/*
+/**
  * A var-arg version of 'popen_run()'.
  */
 int popen_runf (popen_callback callback, const char *fmt, ...)
@@ -2671,15 +2712,15 @@ int popen_runf (popen_callback callback, const char *fmt, ...)
   return popen_run (callback, cmd);
 }
 
-/*
+/**
  * Returns the expanded version of an environment variable.
  * Stolen from curl. But I wrote the Win32 part of it...
  *
- * E.g. If "INCLUDE=c:\VC\include;%C_INCLUDE_PATH%" and
- * "C_INCLUDE_PATH=c:\MinGW\include", the expansion returns
- * "c:\VC\include;c:\MinGW\include".
+ * \eg{} If "INCLUDE=c:\VC\include;%C_INCLUDE_PATH%" and
+ *       "C_INCLUDE_PATH=c:\MinGW\include", the expansion returns
+ *       "c:\VC\include;c:\MinGW\include".
  *
- * Note: Windows (cmd only?) requires a trailing '%' in
+ * \note Windows (cmd only?) requires a trailing '%' in
  *       "%C_INCLUDE_PATH".
  */
 char *getenv_expand (const char *variable)
@@ -2713,7 +2754,7 @@ char *getenv_expand (const char *variable)
   return (rc);
 }
 
-/*
+/**
  * Translate a shell-pattern to a regular expression.
  * From:
  *   https://mail.python.org/pipermail/python-list/2003-August/244415.html
@@ -2768,6 +2809,13 @@ char *translate_shell_pattern (const char *pattern)
   return (res);
 }
 
+/**
+ * Dump a block of data as hex chars.
+ * Starts with printing the data-length and offset.
+ *
+ * \eg{} 19: 0000: 00 00 00 00 03 AC B5 02-00 00 00 00 18 00 00 00 .....zz.........
+ *           0010: A1 D3 BC                                        í++
+ */
 void hex_dump (const void *data_p, size_t datalen)
 {
   const BYTE *data = (const BYTE*) data_p;
