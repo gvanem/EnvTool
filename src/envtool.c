@@ -1435,12 +1435,15 @@ static void final_report (int found)
      C_printf (" Totalling %s (%s bytes). ",
                str_trim((char*)get_file_size_str(total_size)), qword_str(total_size));
 
-  if (opt.PE_check)
-     C_printf (" %d have PE-version info. %d are verified.", num_version_ok, num_verified);
-
-  if (opt.evry_host && opt.debug >= 1 && ETP_total_rcv)
-     C_printf ("\n%s bytes received from ETP-host(s).", dword_str(ETP_total_rcv));
-
+  if (opt.evry_host)
+  {
+    if (opt.debug >= 1 && ETP_total_rcv)
+       C_printf ("\n%s bytes received from ETP-host(s).", dword_str(ETP_total_rcv));
+  }
+  else if (opt.PE_check)
+  {
+    C_printf (" %d have PE-version info. %d are verified.", num_version_ok, num_verified);
+  }
   C_putc ('\n');
 }
 
