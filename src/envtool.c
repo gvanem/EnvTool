@@ -6,13 +6,13 @@
  *   for correctness and check where a specific file is in corresponding
  *   environment variable.
  *
- *  E.g. 1: "envtool --path notepad.exe" first checks the %PATH% env-var
- *          for consistency (reports missing directories in %PATH%) and prints
- *          all the locations of "notepad.exe".
+ *  \eg{1} \c "envtool --path notepad.exe" first checks the \c \%PATH\% env-var
+ *          for consistency (reports missing directories in \c \%PATH\%) and \n
+ *          prints all the locations of \c "notepad.exe".
  *
- *  E.g. 2: "envtool --inc afxwin.h" first checks the %INCLUDE% env-var
- *          for consistency (reports missing directories in %INCLUDE) and prints
- *          all the locations of "afxwin.h".
+ *  \eg{2} \c "envtool --inc afxwin.h" first checks the \c \%INCLUDE\% env-var
+ *          for consistency (reports missing directories in \c \%INCLUDE\%) and \n
+ *          prints all the locations of \c "afxwin.h".
  *
  * By Gisle Vanem <gvanem@yahoo.no> August 2011 - 2017.
  *
@@ -31,7 +31,7 @@
 #include <shlobj.h>
 #include <psapi.h>
 
-#define INSIDE_ENVOOL_C
+#define INSIDE_ENVTOOL_C
 
 #include "getopt_long.h"
 #include "Everything.h"
@@ -153,7 +153,7 @@ static int        re_alloc;       /* the above 're_hnd' was allocated */
 
 volatile int halt_flag;
 
-/* Get the bitness (32/64-bit) of the EveryThing program.
+/** Get the bitness (32/64-bit) of the EveryThing program.
  */
 static enum Bitness evry_bitness = bit_unknown;
 static void get_evry_bitness (HWND wnd);
@@ -197,7 +197,7 @@ static int   get_cmake_info (char **exe, struct ver_info *ver);
  *        Also check their Wintrust signature status and version information.
  */
 
-/*
+/**
  * Free the memory allocated in the 'ignore_list' smartlist.
  * Called from 'cleanup()' below.
  */
@@ -213,13 +213,13 @@ static void cfg_exit (void)
   {
     char *ignore = smartlist_get (ignore_list, i);
 
-    DEBUGF (2, "%d: ignore: '%s'\n", i, ignore);
+    DEBUGF (3, "%d: ignore: '%s'\n", i, ignore);
     FREE (ignore);
   }
   smartlist_free (ignore_list);
 }
 
-/*
+/**
  * Callback for 'smartlist_read_file()':
  * Accepts only strings like "ignore = xx" from the
  * config-file. Will be added to 'ignore_list'.
@@ -232,13 +232,14 @@ static void cfg_parse (smartlist_t *sl, char *line)
 
   strip_nl (line);
   p = str_trim (line);
+  ignore[0] = '\0';
   num = sscanf (p, fmt, ignore);
   if (num == 1)
      smartlist_add (sl, STRDUP(ignore));
-  DEBUGF (2, "num: %d, p: '%s'\n", num, p);
+  DEBUGF (3, "num: %d, ignore: '%s'\n", num, ignore[0] ? ignore : "<none>");
 }
 
-/*
+/**
  * Try to open and parse a config-file.
  */
 static int cfg_init (const char *fname)
@@ -254,7 +255,7 @@ static int cfg_init (const char *fname)
   return (ignore_list != NULL);
 }
 
-/*
+/**
  * Lookup an 'ignore_value' to test for the 'ignore_value'.
  * Return 1 if found in 'ignore_list'.
  */
@@ -652,20 +653,13 @@ static int show_help (void)
 void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
 {
   struct directory_array *d = CALLOC (1, sizeof(*d));
+  struct stat st;
   int    max, i, exp_ok = (dir && *dir != '%');
   BOOL   exists = FALSE;
   BOOL   is_dir = FALSE;
 
-#if defined(__CYGWIN__)
-  struct stat st;
-
-  if (stat(dir,&st) == 0)
-     is_dir = exists = S_ISDIR (st.st_mode);
-#else
-  exists = FILE_EXISTS (dir);
-  if (exists)
-     is_dir = (GetFileAttributes(dir) & FILE_ATTRIBUTE_DIRECTORY);
-#endif
+  if (safe_stat(dir, &st, NULL) == 0)
+     is_dir = exists = _S_ISDIR (st.st_mode);
 
   d->cyg_dir = NULL;
   d->dir     = STRDUP (dir);
@@ -799,7 +793,7 @@ static int make_unique_dir_array (const char *where)
 
 /**
  * Add elements to the 'reg_array' smartlist:
- *  - 'top_key': the key the entry came from: HKEY_CURRENT_USER or HKEY_LOCAL_MACHINE.
+ *  - 'key':     the key the entry came from: HKEY_CURRENT_USER or HKEY_LOCAL_MACHINE.
  *  - 'fname':   the result from 'RegEnumKeyEx()'; name of each key.
  *  - 'fqdn':    the result from 'enum_sub_values()'. This value includes the full path.
  *
@@ -823,9 +817,7 @@ static void add_to_reg_array (HKEY key, const char *fname, const char *fqdn)
   reg = CALLOC (1, sizeof(*reg));
   smartlist_add (reg_array, reg);
 
-  memset (&st, '\0', sizeof(st));
-  st.st_size = (__int64)-1;    /* signal if stat() fails */
-  rc = stat (fqdn, &st);
+  rc = safe_stat (fqdn, &st, NULL);
   reg->mtime      = st.st_mtime;
   reg->fsize      = st.st_size;
   reg->fname      = STRDUP (fname);
@@ -1056,41 +1048,38 @@ show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionW
 
  */
 
-#define WINTRUST_CHECK_DETAILS 0
-#define WINTRUST_REVOKE_CHECK  0
-
 static void print_PE_info (const char *file, BOOL chksum_ok,
                            const struct ver_info *ver, enum Bitness bits)
 {
   const char *filler = "      ";
   char       *ver_trace, *line, *bitness;
-  char        trust_buf [70], *p = trust_buf;
+  char        trust_buf [200], *p = trust_buf;
+  size_t      left = sizeof(trust_buf);
   int         raw;
-  DWORD       rc = wintrust_check (file, WINTRUST_CHECK_DETAILS, WINTRUST_REVOKE_CHECK);
+  DWORD       rc = wintrust_check (file, (opt.debug || opt.verbose) ? TRUE : FALSE, FALSE);
 
   switch (rc)
   {
     case ERROR_SUCCESS:
-         p += snprintf (trust_buf, sizeof(trust_buf), ", ~2(Verified");
+         p    += snprintf (trust_buf, sizeof(trust_buf), ", ~2(Verified");
+         left -= p - trust_buf;
          num_verified++;
          break;
     case TRUST_E_NOSIGNATURE:
     case TRUST_E_SUBJECT_FORM_UNKNOWN:
     case TRUST_E_PROVIDER_UNKNOWN:
-         p += snprintf (trust_buf, sizeof(trust_buf), ", ~5(Not signed");
+         p    += snprintf (trust_buf, sizeof(trust_buf), ", ~5(Not signed");
+         left -= p - trust_buf;
          break;
     case TRUST_E_SUBJECT_NOT_TRUSTED:
-         p += snprintf (trust_buf, sizeof(trust_buf), ", ~5(Not trusted");
+         p    += snprintf (trust_buf, sizeof(trust_buf), ", ~5(Not trusted");
+         left -= p - trust_buf;
          break;
   }
 
-  if (wintrust_subject)
-  {
-    snprintf (p, trust_buf+sizeof(trust_buf)-p, ", %s)~0.", wintrust_subject);
-    FREE (wintrust_subject);
-  }
-  else
-    strcat (p, ")~0.");
+  if (wintrust_signer_subject)
+       snprintf (p, left, ", %s)~0.", wintrust_signer_subject);
+  else snprintf (p, left, ")~0.");
 
   bitness = (bits == bit_32) ? "~232" :
             (bits == bit_64) ? "~364" : "~5?";
@@ -1188,7 +1177,7 @@ UINT64 get_directory_size (const char *dir)
   return (size);
 }
 
-/*
+/**
  * Return the indentation needed for the next 'she-bang' or 'man-file link'
  * to align up more nicely.
  * Not ideal since we don't know the length of all files we need to report.
@@ -1210,6 +1199,13 @@ static int get_trailing_indent (const char *file)
   return (indent);
 }
 
+/**
+ * This is the main printer for a file/dir.
+ * Prints any notes, time-stamp, size, file/dir name.
+ * Also any she-bang statements, links for a gzipped man-page,
+ * PE-information like resource version or trust information
+ * and file-owner.
+ */
 int report_file (const char *file, time_t mtime, UINT64 fsize,
                  BOOL is_dir, BOOL is_junction, HKEY key)
 {
@@ -1366,7 +1362,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
     const char *shebang = check_if_shebang (file);
 
     if (shebang)
-       C_printf ("%*s(#!%s)", get_trailing_indent(file), " ", shebang);
+       C_printf ("%*s(%s)", get_trailing_indent(file), " ", shebang);
   }
 
   C_putc ('\n');
@@ -1767,8 +1763,11 @@ static int scan_user_env (void)
   return (found);
 }
 
-/************************************************************************************************/
-
+/**
+ * Report matches from Registry under
+ *   "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths" or
+ *   "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths"
+ */
 static int report_registry (const char *reg_key)
 {
   int i, found, max = smartlist_len (reg_array);
@@ -1776,25 +1775,26 @@ static int report_registry (const char *reg_key)
   for (i = found = 0; i < max; i++)
   {
     const struct registry_array *arr = smartlist_get (reg_array, i);
-    char  fqdn [_MAX_PATH];
+    char  fqfn [_MAX_PATH];
     int   match = FNM_NOMATCH;
-
-    snprintf (fqdn, sizeof(fqdn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
 
     DEBUGF (1, "i=%2d: exist=%d, match=%d, key=%s, fname=%s, path=%s\n",
             i, arr->exist, match, reg_top_key_name(arr->key), arr->fname, arr->path);
 
     if (!arr->exist)
     {
-      WARN ("\"%s\\%s\" points to\n  '%s\\%s'. But this file does not exist.\n\n",
-            reg_top_key_name(arr->key), reg_key, arr->path, arr->fname);
+      snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
+      if (!cfg_ignore_lookup(fqfn))
+         WARN ("\"%s\\%s\" points to\n  '%s'. But this file does not exist.\n\n",
+               reg_top_key_name(arr->key), reg_key, fqfn);
     }
     else
     {
       match = fnmatch (opt.file_spec, arr->fname, fnmatch_case(0));
       if (match == FNM_MATCH)
       {
-        if (report_file(fqdn, arr->mtime, arr->fsize, FALSE, FALSE, arr->key))
+        snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
+        if (report_file(fqfn, arr->mtime, arr->fsize, FALSE, FALSE, arr->key))
            found++;
       }
     }
@@ -1961,7 +1961,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
 
     if (opt.use_regex)
     {
-      if (regex_match(fqfn) && stat(fqfn, &st) == 0)
+      if (regex_match(fqfn) && safe_stat(fqfn, &st, NULL) == 0)
       {
         if (report_file(fqfn, st.st_mtime, st.st_size, is_dir, is_junction, key))
         {
@@ -1999,7 +1999,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     DEBUGF (1, "Testing \"%s\". is_dir: %d, is_junction: %d, %s\n",
             file, is_dir, is_junction, fnmatch_res(match));
 
-    if (match == FNM_MATCH && stat(file, &st) == 0)
+    if (match == FNM_MATCH && safe_stat(file, &st, NULL) == 0)
     {
       if (report_file(file, st.st_mtime, st.st_size, is_dir, is_junction, key))
          found++;
@@ -2034,6 +2034,10 @@ static const char *evry_strerror (DWORD err)
          return ("Invalid index given");
     case EVERYTHING_ERROR_INVALIDCALL:
          return ("Invalid call");
+    case EVERYTHING_ERROR_INVALIDREQUEST:
+         return ("Invalid request data");
+    case EVERYTHING_ERROR_INVALIDPARAMETER:
+         return ("Bad parameter");
   }
   snprintf (buf, sizeof(buf), "Unknown error %lu", (u_long)err);
   return (buf);
@@ -2068,33 +2072,19 @@ static void check_sys_dirs (void)
  * Figure out if 'file' can have a shadow in '%WinDir%\sysnative'.
  * Makes no sense on Win64.
  */
-static const char *get_sysnative_file (const char *file, time_t *mtime_p, UINT64 *fsize_p)
+static const char *get_sysnative_file (const char *file, struct stat *st)
 {
 #if (IS_WIN64 == 0)
   if (!str_equal_n(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
   {
     static char shadow [_MAX_PATH];
-    struct stat st;
-    time_t      mtime;
-    UINT64      fsize;
 
     snprintf (shadow, sizeof(shadow), "%s\\%s", sys_native_dir, file+strlen(sys_dir)+1);
-    if (stat(shadow, &st) == 0)
-    {
-      mtime = st.st_mtime;
-      fsize = st.st_size;
-    }
-    else
-    {
-      mtime = 0;
-      fsize = 0;
-    }
-    if (mtime_p)
-       *mtime_p = mtime;
-    if (fsize_p)
-       *fsize_p = fsize;
+    safe_stat (shadow, st, NULL);
     return (shadow);
   }
+#else
+  ARGSUSED (st);
 #endif
   return (file);
 }
@@ -2124,28 +2114,32 @@ static const char *get_sysnative_file (const char *file, time_t *mtime_p, UINT64
  *  ^^
  *   where to get this state?
  */
-static int report_evry_file (const char *file)
+static int report_evry_file (const char *file, time_t mtime, UINT64 fsize)
 {
   struct stat st;
-  time_t mtime = 0;
-  UINT64 fsize = 0;
-  int    is_dir = 0;
+  int         is_dir = 0;
+  const char *file2;
 
-  if (stat(file, &st) == 0)
-  {
-    mtime  = st.st_mtime;
-    fsize  = st.st_size;
-    is_dir = _S_ISDIR (st.st_mode);
-  }
+  if (safe_stat(file, &st, NULL) == 0)
+     is_dir = _S_ISDIR (st.st_mode);
+
   else if (errno == ENOENT)
   {
-    const char *file2 = get_sysnative_file (file, &mtime, &fsize);
-
+    file2 = get_sysnative_file (file, &st);
     if (file2 != file)
        DEBUGF (1, "shadow: '%s' -> '%s'\n", file, file2);
     file = file2;
   }
-  return report_file (file, mtime, fsize, is_dir, FALSE, HKEY_EVERYTHING);
+
+  /* If EveryThing older than 1.4.1 was used, these are not set.
+   */
+  if (mtime == 0)
+     mtime = st.st_mtime;
+  if (fsize == (__int64)-1)
+     fsize = st.st_size;
+
+  return report_file (file, mtime, is_dir ? (__int64)-1 : fsize,
+                      is_dir, FALSE, HKEY_EVERYTHING);
 }
 
 /*
@@ -2167,11 +2161,11 @@ static BOOL evry_IsDBLoaded (HWND wnd)
 
 static int do_check_evry (void)
 {
-  DWORD err, num, len, i;
+  DWORD err, num, request_flags, version, i;
   char  query [_MAX_PATH+8];
   char *dir   = NULL;
   char *base  = NULL;
-  int   found = 0;
+  int   len, found = 0;
   HWND  wnd;
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
@@ -2179,6 +2173,16 @@ static int do_check_evry (void)
 
   if (evry_bitness == bit_unknown)
      get_evry_bitness (wnd);
+
+  version = (Everything_GetMajorVersion() << 16) +
+            (Everything_GetMinorVersion() << 8)  +
+            Everything_GetRevision();
+
+  DEBUGF (1, "version %lu.%lu.%lu, build: %lu\n",
+          (unsigned long)(version >> 16),
+          (unsigned long)((version >> 8) & 255),
+          (unsigned long)(version & 255),
+          (unsigned long)Everything_GetBuildNumber());
 
   /* EveryThing seems not to support '\\'. Must split the 'opt.file_spec'
    * into a 'dir' and 'base' part.
@@ -2194,20 +2198,40 @@ static int do_check_evry (void)
    * E.g. "ez_*.py" -> "^ez_.*\.py$"
    */
   if (opt.use_regex)
-       snprintf (query, sizeof(query), "regex:%s", opt.file_spec);
+       len = snprintf (query, sizeof(query), "regex:%s", opt.file_spec);
   else if (dir)
-       snprintf (query, sizeof(query), "regex:%s\\\\%s", dir, base);
-  else snprintf (query, sizeof(query), "regex:^%s$", translate_shell_pattern(opt.file_spec));
+       len = snprintf (query, sizeof(query), "regex:%s\\\\%s", dir, base);
+  else len = snprintf (query, sizeof(query), "regex:^%s$", translate_shell_pattern(opt.file_spec));
+
+#if 0   /* \todo Query contents with option "--grep" */
+  if (opt.evry_grep && len > 0)
+     snprintf (query+len, sizeof(query)-len, "content: %s", opt.evry_grep);
+#endif
+
+  FREE (dir);
+
+  Everything_SetMatchCase (opt.case_sensitive);
 
   DEBUGF (1, "Everything_SetSearch (\"%s\").\n"
              "\t\t Everything_SetMatchCase (%d).\n",
              query, opt.case_sensitive);
 
-  Everything_SetSearchA (query);
-  Everything_SetMatchCase (opt.case_sensitive);
-  Everything_QueryA (TRUE);
+  request_flags = Everything_GetRequestFlags();
 
-  FREE (dir);
+  /* The request flags: EVERYTHING_REQUEST_SIZE and/or EVERYTHING_REQUEST_DATE_MODIFIED
+   * needs v. 1.4.1 or later.
+   * Ref:
+   *   http://www.voidtools.com/support/everything/sdk/everything_setrequestflags/
+   */
+  if (version >= 0x010401)
+  {
+    request_flags |= EVERYTHING_REQUEST_SIZE | EVERYTHING_REQUEST_DATE_MODIFIED;
+    Everything_SetRequestFlags (request_flags);
+    request_flags = Everything_GetRequestFlags();  /* should be the same as set above */
+  }
+
+  Everything_SetSearchA (query);
+  Everything_QueryA (TRUE);
 
   err = Everything_GetLastError();
   DEBUGF (1, "Everything_Query: %s\n", evry_strerror(err));
@@ -2243,13 +2267,25 @@ static int do_check_evry (void)
   }
 
   /* Sort results by path (ignore case).
+   * This will fail if 'request_flags' has either 'EVERYTHING_REQUEST_SIZE'
+   * or 'EVERYTHING_REQUEST_DATE_MODIFIED' since version 2 of the query protocol
+   * is used.
+   * Ref: The comment in Everything.c; "//TODO: sort list2"
    */
   Everything_SortResultsByPath();
+  err = Everything_GetLastError();
+  if (err != EVERYTHING_OK)
+  {
+    DEBUGF (2, "Everything_SortResultsByPath(), err: %s\n", evry_strerror(err));
+    Everything_SetLastError (EVERYTHING_OK);
+  }
 
   for (i = 0; i < num; i++)
   {
     static char prev [_MAX_PATH];
     char   file [_MAX_PATH];
+    UINT64 fsize = (__int64)-1;  /* since 0-byte file are leagal */
+    time_t mtime = 0;
 
     if (halt_flag > 0)
        break;
@@ -2258,16 +2294,59 @@ static int do_check_evry (void)
     err = Everything_GetLastError();
     if (len == 0 || err != EVERYTHING_OK)
     {
-      DEBUGF (1, "Everything_GetResultFullPathName(), err: %s\n",
+      DEBUGF (2, "Everything_GetResultFullPathName(), err: %s\n",
               evry_strerror(err));
+      len = 0;
       break;
     }
 
-    if (!opt.dir_mode && prev[0] && !strcmp(prev, file))
-       num_evry_dups++;
-    else if (report_evry_file(file))
-       found++;
-    _strlcpy (prev, file, sizeof(prev));
+    if (request_flags & EVERYTHING_REQUEST_DATE_MODIFIED)
+    {
+      FILETIME ft;
+
+      if (Everything_GetResultDateModified(i,&ft))
+      {
+        mtime = FILETIME_to_time_t (&ft);
+        DEBUGF (2, "Everything_GetResultDateModified(), mtime: %.24s\n",
+                mtime ? ctime(&mtime) : "<N/A>");
+      }
+      else
+      {
+        err = Everything_GetLastError();
+        DEBUGF (2, "Everything_GetResultDateModified(), err: %s\n",
+                evry_strerror(err));
+      }
+    }
+    if (request_flags & EVERYTHING_REQUEST_SIZE)
+    {
+      LARGE_INTEGER fs;
+
+      if (Everything_GetResultSize(i,&fs))
+      {
+        fsize = ((UINT64)fs.u.HighPart << 32) + fs.u.LowPart;
+        DEBUGF (2, "Everything_GetResultSize(), %s\n", get_file_size_str(fsize));
+      }
+      else
+      {
+        err = Everything_GetLastError();
+        DEBUGF (2, "Everything_GetResultSize(), err: %s\n",
+                evry_strerror(err));
+      }
+    }
+
+    /* Clear any error so the next Everything_XX() won't
+     * trigger an error.
+     */
+    Everything_SetLastError (EVERYTHING_OK);
+
+    if (len > 0)
+    {
+      if (!opt.dir_mode && prev[0] && !strcmp(prev, file))
+         num_evry_dups++;
+      else if (report_evry_file(file, mtime, fsize))
+         found++;
+      _strlcpy (prev, file, sizeof(prev));
+    }
   }
   return (found);
 }
@@ -3550,6 +3629,7 @@ static void cleanup (void)
   if (halt_flag == 0)
      py_exit();
 
+  wintrust_cleanup();
   free_dir_array();
 
   FREE (who_am_I);
@@ -3929,7 +4009,13 @@ void test_split_env_cygwin (const char *env)
   C_printf ("~3%s():~0 ", __FUNCTION__);
   C_printf (" testing 'split_env_var (\"%s\",\"%%%s\")':\n", env, env);
 
-  value  = getenv_expand (env);
+  value = getenv_expand (env);
+  if (!value)
+  {
+    i = 0;
+    goto fail;  /* Should not happen */
+  }
+
   needed = cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, NULL, 0);
   cyg_value = alloca (needed+1);
   DEBUGF (2, "cygwin_conv_path_list(): needed %d\n", needed);
@@ -3968,6 +4054,7 @@ void test_split_env_cygwin (const char *env)
   FREE (value);
 
   path_separator = ';';
+fail:
   opt.conv_cygdrive = save;
   C_printf ("~0  %d elements\n\n", i);
 }
@@ -3995,7 +4082,7 @@ void test_posix_to_win_cygwin (void)
   for (i = 0; i < DIM(cyg_paths); i++)
   {
     const char *file, *dir = cyg_paths[i];
-    char result [_MAX_PATH];
+    char  result [_MAX_PATH];
 
     rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, dir, result, sizeof(result));
     DEBUGF (2, "cygwin_conv_path(CCP_POSIX_TO_WIN_A): rc: %d, '%s'\n", rc, result);
@@ -4037,14 +4124,14 @@ static const struct test_table1 tab1[] = {
                   { "stdio.h",           "INCLUDE" },
                   { "../os.py",          "PYTHONPATH" },
 
-                  /* test if _fix_path() works for Short File Names
+                  /* test if searchpath() works for Short File Names
                    * (%WinDir\systems32\PresentationHost.exe).
                    * SFN seems not to be available on Win-7+.
                    * "PRESEN~~1.EXE" = "PRESEN~1.EXE" since C_printf() is used.
                    */
                   { "PRESEN~~1.EXE",      "PATH" },
 
-                  /* test if _fix_path() works with "%WinDir%\sysnative" on Win-7+.
+                  /* test if searchpath() works with "%WinDir%\sysnative" on Win-7+.
                    */
 #if (IS_WIN64)
                   { "NDIS.SYS",          "%WinDir%\\system32\\drivers" },
@@ -4167,7 +4254,7 @@ static void test_slashify (void)
   C_putc ('\n');
 }
 
-/*
+/**
  * Tests for _fix_path().
  * Canonize the horrendous pathnames reported from "gcc -v".
  * It doesn't matter if these paths or files exists or not. _fix_path()
@@ -4220,12 +4307,11 @@ static void test_fix_path (void)
     }
 #endif
 
-    C_printf ("  _fix_path (\"%s\")\n     -> \"%s\" ", f, rc1);
+    C_printf ("  _fix_path (\"%s\")\n"
+              "   -> \"%s\" ", f, rc1);
     if (!rc2)
-         C_printf ("~5exists 0, is_dir %d~0%s", is_dir, cyg_result);
-    else C_printf ("exists 1, is_dir %d~0%s", is_dir, cyg_result);
-
-    C_putc ('\n');
+         C_printf ("~5exists 0, is_dir %d~0%s\n", is_dir, cyg_result);
+    else C_printf ("exists 1, is_dir %d~0%s\n", is_dir, cyg_result);
   }
   C_putc ('\n');
 }
@@ -4612,21 +4698,37 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
   else C_puts ("~0\n");
 }
 
-/*
+/**
  * Expand and check a single env-var for missing directories.
  * And return the number of elements in '*num'.
  */
 static void check_env_val (const char *env, int *num, char *status, size_t status_sz)
 {
   smartlist_t                  *list;
-  int                           i, max;
+  int                           i, max = 0;
+  int                           save = opt.conv_cygdrive;
   char                         *value =  getenv_expand (env);
   const struct directory_array *arr;
 
   status[0] = '\0';
-  list = split_env_var (env, value);
-  max = list ? smartlist_len (list) : 0;
-  *num = max;
+
+  if (value)
+  {
+#ifdef __CYGWIN__
+    int   needed = cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, NULL, 0);
+    char *cyg_value = alloca (needed+1);
+
+    cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, cyg_value, needed+1);
+    opt.conv_cygdrive = 0;
+    path_separator = ':';
+    FREE (value);
+    value = cyg_value;
+#endif
+
+    list = split_env_var (env, value);
+    *num = max = smartlist_len (list);
+  }
+
   for (i = 0; i < max; i++)
   {
     arr = smartlist_get (list, i);
@@ -4642,8 +4744,12 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
   else if (!status[0])
      _strlcpy (status, "~2OK~0", status_sz);
 
+#ifndef __CYGWIN__
   FREE (value);
+#endif
   free_dir_array();
+  opt.conv_cygdrive = save;
+  path_separator = ';';
 }
 
 /*
@@ -4701,17 +4807,23 @@ static void check_reg_key (HKEY top_key, const char *reg_key)
 static int do_check (void)
 {
   static const char *envs[] = {
-                    "PATH", "LIB", "LIBRARY_PATH",
-                    "INCLUDE", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH",
-                    "MANPATH", "PKG_CONFIG_PATH",
+                    "PATH", "LIB",
+                    "LIBRARY_PATH",
+                    "INCLUDE",
+                    "C_INCLUDE_PATH",
+                    "CPLUS_INCLUDE_PATH",
+                    "MANPATH",
+                    "PKG_CONFIG_PATH",
+                    "PYTHONPATH",
                     "CMAKE_MODULE_PATH",
-                    "CLASSPATH",  /* No Java support (yet). Do this just for kicks */
+                    "CLASSPATH", "GOPATH",  /* No support for these. But do it anyway. */
                     "FOO",        /* Check that non-existing env-vars are also checked */
+                    NULL
                    };
   const char *env;
   int   i;
 
-  for (i = 0, env = envs[0]; i < DIM(envs); env = envs[++i])
+  for (i = 0, env = envs[0]; i < DIM(envs) && env; env = envs[++i])
   {
     int  num, indent = sizeof("CPLUS_INCLUDE_PATH") - strlen(env);
     char status [100+_MAX_PATH];
