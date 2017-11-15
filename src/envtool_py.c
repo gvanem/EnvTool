@@ -826,7 +826,7 @@ static int get_modules_output (char *str, int index)
         "    return path\n"                                                          \
         "  return \"$PYTHONHOME\\\\\" + os.path.relpath (path, pyhome_lib)\n"        \
         "\n"                                                                         \
-        "def main (pattern = None):\n"                                               \
+        "def list_modules (pattern = None):\n"                                       \
         "  packages = pip.get_installed_distributions (local_only=False, skip=())\n" \
         "  package_list = []\n"                                                      \
         "  for p in packages:\n"                                                     \
@@ -885,7 +885,7 @@ static int get_modules_output (char *str, int index)
         "  return res # + ''\\Z(?ms)\'\n"                                            \
         "\n"                                                                         \
         "p = translate (\"*\")\n"                                                    \
-        "main (re.compile(p))\n"
+        "list_modules (re.compile(p))\n"
 
 int py_print_modules (void)
 {
@@ -899,7 +899,7 @@ int py_print_modules (void)
   C_printf ("~6List of modules for %s:~0\n", g_py->exe_name);
   if (!g_py->is_embeddable)
   {
-    C_printf (" ~5<None>~0 since it's not embeddable\n");
+    C_printf ("~5<None>~0 since it's not embeddable\n");
     return (0);
   }
 
@@ -928,7 +928,7 @@ int py_print_modules (void)
     FREE (str);
   }
 
-  C_printf ("   ~6Found %d modules~0.\n", found);
+  C_printf ("~6Found %d modules~0.\n", found);
   return (found);
 }
 
@@ -1574,6 +1574,7 @@ int py_test (void)
     {
       g_py = pi;
       get_sys_path (pi);
+      C_puts ("Python paths:\n");
       print_sys_path (pi, 0);
 
       if (pi->is_embeddable && !test_python_funcs(pi))
