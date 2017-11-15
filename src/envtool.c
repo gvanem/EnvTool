@@ -371,43 +371,54 @@ static void show_ext_versions (void)
                                          "  Cmake ~5not~0 found.\n",
                                          "  pkg-config ~5not~0 found.\n"
                                        };
-  char           found [3][100];
-  int            _len, len [3] = { 0,0,0 };
+  #define FOUND_SZ 100
+
+  char           found [3][FOUND_SZ];
+  int            pad_len, len [3] = { 0,0,0 };
   const char     *py_exe = NULL, *pkg_config_exe = NULL;
   char           *cmake_exe = NULL;
   struct ver_info py_ver, cmake_ver, pkg_config_ver;
 
+  memset (&found, '\0', sizeof(found));
   memset (&py_ver, '\0', sizeof(py_ver));
   memset (&cmake_ver, '\0', sizeof(cmake_ver));
   memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
 
+  pad_len = sizeof("  pkg-config 9.99 detected");
+
   if (py_get_info(&py_exe, NULL, &py_ver))
-     len[0] = snprintf (found[0], sizeof(found[0]), found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
+  {
+    len[0] = snprintf (found[0], FOUND_SZ, found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
+    pad_len = len[0];
+  }
 
   if (get_cmake_info(&cmake_exe, &cmake_ver))
   {
    /* Because searchpath() returns a static buffer
     */
     cmake_exe = STRDUP (cmake_exe);
-    len[1] = snprintf (found[1], sizeof(found[1]), found_fmt[1], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
+    len[1] = snprintf (found[1], FOUND_SZ, found_fmt[1], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
+    if (len[1] > pad_len)
+        pad_len = len[1];
   }
 
   if (get_pkg_config_info(&pkg_config_exe, &pkg_config_ver))
-     len[2] = snprintf (found[2], sizeof(found[2]), found_fmt[2], pkg_config_ver.val_1, pkg_config_ver.val_2);
-
-  _len = max (len[0], len[1]);
-  _len = max (len[1], len[2]);
+  {
+    len[2] = snprintf (found[2], FOUND_SZ, found_fmt[2], pkg_config_ver.val_1, pkg_config_ver.val_2);
+    if (len[2] > pad_len)
+        pad_len = len[2];
+  }
 
   if (py_exe)
-       C_printf ("%-*s -> ~6%s~0\n", _len, found[0], py_exe);
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[0], py_exe);
   else C_printf (not_found_fmt[0]);
 
   if (cmake_exe)
-       C_printf ("%-*s -> ~6%s~0\n", _len, found[1], cmake_exe);
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[1], cmake_exe);
   else C_printf (not_found_fmt[1]);
 
   if (pkg_config_exe)
-       C_printf ("%-*s -> ~6%s~0\n", _len, found[2], pkg_config_exe);
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[2], pkg_config_exe);
   else C_printf (not_found_fmt[2]);
 
   FREE (cmake_exe);
@@ -4706,8 +4717,8 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
 {
   smartlist_t                  *list;
   int                           i, max = 0;
-  int                           save = opt.conv_cygdrive;
-  char                         *value =  getenv_expand (env);
+  int                           save  = opt.conv_cygdrive;
+  char                         *value = getenv_expand (env);
   const struct directory_array *arr;
 
   status[0] = '\0';
