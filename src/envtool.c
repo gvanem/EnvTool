@@ -2514,6 +2514,8 @@ static int get_pkg_config_info (const char **exe, struct ver_info *ver)
     ver->val_2 = pkg_config_minor;
     return (1);
   }
+  else
+    *exe = NULL;
   return (0);
 }
 
