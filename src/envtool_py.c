@@ -80,6 +80,14 @@ struct python_info {
    */
   smartlist_t *sys_path;
 
+  /** The user's 'site-packages' path (if any).
+   */
+  char *user_site_path;
+
+  /** Warn once if the above is not set
+   */
+  BOOL do_warn_user_site;
+
   /** The version info.
    */
   int ver_major, ver_minor, ver_micro;
@@ -113,7 +121,7 @@ struct python_info {
 
   /** Warn once if the above is not set
    */
-  BOOL     do_warn;
+  BOOL     do_warn_prog;
 
   /** Only if 'is_embeddable == TRUE':
    *  - the stdout catcher object and
@@ -157,9 +165,12 @@ static struct python_info *g_py;
  */
 static enum Bitness  our_bitness;
 
-static int tmp_ver_major, tmp_ver_minor, tmp_ver_micro;
+static int  tmp_ver_major, tmp_ver_minor, tmp_ver_micro;
+static char tmp_user_site [_MAX_PATH];
+
 static int longest_py_program = 0;  /* set in py_init() */
 static int longest_py_version = 0;  /* set in py_init() */
+static int global_indent = 0;
 
 #if !defined(_DEBUG)
   static HANDLE ex_hnd = NULL;
@@ -418,9 +429,33 @@ static void print_sys_path (const struct python_info *pi, int indent)
     const char         *dir = slashify (_fix_drive(pp->dir), opt.show_unix_paths ? '/' : '\\');
 
     if (indent)
-         C_printf ("%*s%s\n", indent+longest_py_program, "", dir);
-    else C_printf ("~6%3d: ~0%s\n", i, dir);
+    {
+      if (i == 0)
+           C_printf ("%*s %s\n", indent+global_indent, "~7sys.path[]:~0", dir);
+      else C_printf ("%*s %s\n", indent+global_indent-4, "", dir);
+    }
+    else
+      C_printf ("~6%3d: ~0%s\n", i, dir);
   }
+}
+
+static void print_home_path (const struct python_info *pi, int indent)
+{
+  C_printf ("%*s", indent+global_indent, "~7Home-path:~0");
+  if (pi->home_a)
+     C_printf (" %s\n", pi->home_a);
+  else if (pi->home_w)
+     C_printf (" %" WIDESTR_FMT "\n", pi->home_w);
+
+}
+
+static void print_user_site_path (const struct python_info *pi, int indent)
+{
+  C_printf ("%*s", indent+global_indent, "~7User-site:~0");
+  if (pi->user_site_path)
+       C_printf (" %s %s~0\n", pi->user_site_path,
+                 is_directory(pi->user_site_path) ? "~2OK" : "~5Does not exist");
+  else C_puts (" ~5<none>~0\n");
 }
 
 static char *get_prog_name_ascii (const struct python_info *py)
@@ -567,6 +602,8 @@ static void free_py_program (void *e)
   FREE (py->home_w);
   FREE (py->dll_name);
   FREE (py->exe_name);
+  FREE (py->user_site_path);
+
   if (py->is_embeddable)
      py_exit_embedding (py);
 
@@ -766,6 +803,74 @@ static char *call_python_func (struct python_info *py, const char *py_prog)
 }
 
 /**
+ * Figure out if 'where' and 'file' overlaps.
+ * And if it does, return "<prefix>\\<non-overlap>".
+ * Otherwise return NULL.
+ */
+static const char *relative_to_where (struct python_info *py,
+                                      const char         *file,
+                                      const char         *where,
+                                      const char         *prefix)
+{
+  static char  buf [_MAX_PATH+50];
+  const  char *p   = where ? path_ltrim(file, where) : file;
+  size_t       len = where ? strlen(where) : 0;
+
+  if (IS_SLASH(*p))  /* if 'py->home_a' doesn't end in a slash. */
+     p++;
+
+  DEBUGF (1, "p: '%s', where: '%s', file: '%s'\n", p, where, file);
+
+  if (p != file && !strnicmp(where,file,len))
+  {
+    snprintf (buf, sizeof(buf), "%s\\%s", prefix, p);
+    return (buf);
+  }
+  return (NULL);
+}
+
+static const char *relative_to_user_site (struct python_info *py, const char *file)
+{
+  const char *ret = relative_to_where (py, file, py->user_site_path, "<USER-SITE>");
+
+  if (py->do_warn_user_site)
+  {
+    DEBUGF (1, "py->user_site_path: %s\n", py->user_site_path);
+    if (py->home_a && !is_directory(py->user_site_path))
+       WARN ("%s points to non-existing directory: \"%s\".\n", "<USER-SITE>", py->user_site_path);
+    py->do_warn_user_site = FALSE;
+  }
+  return (ret);
+}
+
+static const char *relative_to_py_home (struct python_info *py, const char *file)
+{
+  const char *ret = relative_to_where (py, file, py->home_a, "$PYTHONHOME");
+
+  if (py->do_warn_prog)
+  {
+    DEBUGF (1, "py->home_a: %s\n", py->home_a);
+    if (py->home_a && !is_directory(py->home_a))
+       WARN ("%s points to non-existing directory: \"%s\".\n", "$PYTHONHOME", py->home_a);
+    py->do_warn_prog = FALSE;
+  }
+  return (ret);
+}
+
+/**
+ * Return a relative path (with prefix) to one of the above.
+ * Or simply 'file' if not relative to either.
+ */
+static const char *py_relative (struct python_info *py, const char *file)
+{
+  const char *rel = relative_to_py_home (py, file);
+
+  if (!rel)
+      rel = relative_to_user_site (py, file);
+  return (rel ? rel : file);
+}
+
+/**
  * A simple embedded test; capture the output from Python's 'print()' function.
  */
 static BOOL test_python_funcs (struct python_info *py)
@@ -811,45 +916,30 @@ static int get_modules_output (char *str, int index)
 #endif
 
 #define PY_LIST_MODULES                                                              \
-        "import os, sys, re, pip, imp\n"                                             \
+        "import os, sys, re, zipfile, pip, imp\n"                                    \
+        "\n"                                                                         \
         "def is_zipfile (path):\n"                                                   \
-        "  try:\n"                                                                   \
-        "    import zipfile\n"                                                       \
-        "    return zipfile.is_zipfile (path)\n"                                     \
-        "  except ImportError:\n"                                                    \
-        "    return False\n"                                                         \
+        "  return zipfile.is_zipfile (path)\n"                                       \
         "\n"                                                                         \
-        "pyhome_lib = os.getenv (\"PYTHONHOME\")\n"                                  \
-        "\n"                                                                         \
-        "def get_rel_path (path):\n"                                                 \
-        "  if not pyhome_lib:\n"                                                     \
-        "    return path\n"                                                          \
-        "  return \"$PYTHONHOME\\\\\" + os.path.relpath (path, pyhome_lib)\n"        \
-        "\n"                                                                         \
-        "def list_modules (pattern = None):\n"                                       \
+        "def list_modules (pattern):\n"                                              \
         "  packages = pip.get_installed_distributions (local_only=False, skip=())\n" \
         "  package_list = []\n"                                                      \
         "  for p in packages:\n"                                                     \
-        "    if pattern and not pattern.match(p.key):\n"                             \
+        "    if not pattern.match(p.key):\n"                                         \
         "      continue\n"                                                           \
         "    if os.path.isdir (p.location):\n"                                       \
-        "      loc = get_rel_path (p.location) + \'\\\\\'\n"                         \
+        "      loc = p.location + \'\\\\\'\n"                                        \
         "    elif is_zipfile (p.location):\n"                                        \
-        "      loc = get_rel_path (p.location) + \' (ZIP)\'\n"                       \
+        "      loc = p.location + \' (ZIP)\'\n"                                      \
         "    elif not os.path.exists (p.location):\n"                                \
         "      loc = p.location + \' !\'\n"                                          \
         "    else:\n"                                                                \
-        "      loc = get_rel_path (p.location)\n"                                    \
-        "\n"                                                                         \
-        "    ver =  \"v.%.6s\" % p.version\n"                                        \
+        "      loc = p.location\n"                                                   \
+        "    ver = \"v.%.6s\" % p.version\n"                                         \
         "    package_list.append (\"%-20s %-10s -> %s\" % (p.key, ver, loc))\n"      \
         "\n"                                                                         \
         "  for p in sorted (package_list):\n"                                        \
         "    print (p)\n"                                                            \
-        "    try:\n"                                                                 \
-        "      info = imp.find_module (p)\n"                                         \
-        "    except ImportError:\n"                                                  \
-        "      pass\n"                                                               \
         "\n"                                                                         \
         "def translate (pat):\n"                                                     \
         "  # Translate a shell PATTERN to a regular expression.\n"                   \
@@ -923,8 +1013,23 @@ int py_print_modules (void)
 
   if (str)
   {
-    for (found = 1, line = strtok(str,"\n"); line; line = strtok(NULL,"\n"), found++)
-        C_printf ("~6%3d: ~0%s\n", found, line);
+    for (found = 0, line = strtok(str,"\n"); line; line = strtok(NULL,"\n"))
+    {
+      /* The 'print()' statement from 'PY_LIST_MODULES' should look like this:
+       *   "cachetools           v.2.0.1    -> f:\programfiler\python36\lib\site-packages\"
+       *
+       * Split them into module, version and path before printing them.
+       */
+      char module  [40+1]  = { "?" };
+      char version [20+1]  = { "?" };
+      char path    [256+1] = { "?" };
+
+      if (sscanf(line,"%40s %20s -> %256s", module, version, path) == 3)
+      {
+        C_printf ("~6%3d:~0 %-25s %-10s -> %s\n", found+1, module, version, py_relative(g_py,path));
+        found++;
+      }
+    }
     FREE (str);
   }
 
@@ -992,11 +1097,10 @@ static char *fprintf_py (const char *fmt, ...)
  */
 static int report_zip_file (struct python_info *py, const char *zip_file, char *output)
 {
-  static char *sys_prefix = "$PYTHONHOME";
   struct tm    tm;
   const  char *space, *p, *file_within_zip;
   char   report [1024];
-  int    num, len;
+  int    num;
   time_t mtime;
   long   fsize;
 
@@ -1042,28 +1146,7 @@ static int report_zip_file (struct python_info *py, const char *zip_file, char *
     return (0);
   }
 
-  if (py->do_warn)
-  {
-    DEBUGF (1, "py->home_a: %s\n", py->home_a);
-    if (py->home_a && !FILE_EXISTS(py->home_a))
-       WARN ("%s points to non-existing directory: \"%s\".\n", sys_prefix, py->home_a);
-    py->do_warn = FALSE;
-  }
-
-  len = snprintf (report, sizeof(report), "%s  (", file_within_zip);
-
-  /* Figure out if and where 'py_home_a' and 'zip_file' overlaps.
-   */
-  p = py->home_a ? path_ltrim (zip_file, py->home_a) : zip_file;
-
-  if (IS_SLASH(*p))  /* if 'py_home_a' doesn't end in a slash. */
-     p++;
-
-  DEBUGF (1, "p: '%s', py->home_a: '%s', zip_file: '%s'\n", p, py->home_a, zip_file);
-
-  if (p != zip_file && !strnicmp(zip_file,py->home_a,strlen(py->home_a)))
-       snprintf (report+len, sizeof(report)-len, "%s\\%s)", sys_prefix, p);
-  else snprintf (report+len, sizeof(report)-len, "%s)", zip_file);
+  snprintf (report, sizeof(report), "%s  (%s)", file_within_zip, py_relative(py,zip_file));
 
   /* zipinfo always reports 'file_within_zip' with '/' slashes. But simply slashify the
    * complete 'report' to use either '\\' or '/'.
@@ -1136,7 +1219,8 @@ static int get_zip_output (char *str, int index)
           "  else:\n"                                                                 \
           "    match = fnmatch.fnmatch\n"                                             \
           "\n"                                                                        \
-          "  if match(base, '%s'):\n"               /* opt.file_spec */               \
+          "  file_spec = '%s'\n"                    /* opt.file_spec */               \
+          "  if match(f.filename, file_spec) or match(base, file_spec):\n"            \
           "    date = \"%%4d%%02d%%02d\"  %% (f.date_time[0:3])\n"                    \
           "    time = \"%%02d%%02d%%02d\" %% (f.date_time[3:6])\n"                    \
           "    str = \"%%d %%s.%%s %%s\"  %% (f.file_size, date, time, f.filename)\n" \
@@ -1166,7 +1250,7 @@ static int process_zip (struct python_info *py, const char *zfile)
   }
   else if ((tmp = fprintf_py(PY_ZIP_LIST, opt.file_spec, zfile, opt.debug)) != NULL)
   {
-    popen_runf (get_zip_output, "%s %s", py->exe_name, tmp);
+    popen_runf (get_zip_output, "%s %s 2>&1", py->exe_name, tmp);
     str = zip_output;
     zip_output = NULL;
     if (opt.debug == 0)
@@ -1235,9 +1319,12 @@ static int build_sys_path (char *str, int index)
 }
 
 /**
- * Run python with this on the cmd-line to get the version tripplet.
+ * Run python with this on the cmd-line to get the version triplet.
+ * Also in the same command, print the 'user-site' path.
  */
-#define PY_GET_VERSION  "import sys; print (sys.version_info)"
+#define PY_GET_VERSION  "import os, sys, sysconfig; " \
+                        "print (sys.version_info); "  \
+                        "print (sysconfig.get_path('purelib', '%s_user' % os.name))"
 
 /**
  * Run python, figure out the 'sys.path[]' array and search along that
@@ -1424,16 +1511,17 @@ static struct python_info *add_python (const char *exe, struct python_info *py)
   _strlcpy (py2->program, py->program, sizeof(py2->program));
   py2->exe_name = _fix_path (exe, NULL);
   py2->dll_hnd  = INVALID_HANDLE_VALUE;
-  py2->do_warn  = TRUE;
+  py2->do_warn_prog      = TRUE;
+  py2->do_warn_user_site = TRUE;
   py2->sys_path = smartlist_new();
-
-  tmp_ver_major = tmp_ver_minor = tmp_ver_micro = -1;
 
   if (get_python_version(exe) >= 1)
   {
     py2->ver_major = tmp_ver_major;
     py2->ver_minor = tmp_ver_minor;
     py2->ver_micro = tmp_ver_micro;
+    py2->user_site_path = tmp_user_site[0] ? STRDUP(tmp_user_site) : NULL;
+
     if (get_dll_name(py2, py->libraries))
     {
      /* If embeddable, test the bitness of the .DLL to check
@@ -1597,28 +1685,36 @@ int py_test (void)
  */
 static int report_py_version_cb (char *output, int line)
 {
-  const char *prefix = "sys.version_info";  /* 'pypy.exe -c "import sys; print(sys.version_info)"' doesn't print this */
-  int         num;
+ /* 'pypy.exe -c "import sys; print(sys.version_info)"' doesn't print this
+  */
+  const char *prefix = "sys.version_info";
+  int   num;
+
+  if (output && line == 1)
+  {
+    DEBUGF (1, "line: %d, output: '%s'\n", line, output);
+    _strlcpy (tmp_user_site, output, sizeof(tmp_user_site));
+    return (1);
+  }
 
   if (!strncmp(output,prefix,strlen(prefix)))
      output += strlen (prefix);
 
   num = sscanf (output, "(major=%d, minor=%d, micro=%d",
                 &tmp_ver_major, &tmp_ver_minor, &tmp_ver_micro);
-
   DEBUGF (1, "Python ver: %d.%d.%d\n", tmp_ver_major, tmp_ver_minor, tmp_ver_micro);
-  ARGSUSED (line);
   return  (num >= 2);
 }
 
 /**
- * Get the Python version by spawning the program and
+ * Get the Python version and 'user-site' path by spawning the program and
  * parsing the 'popen()' output.
  */
 static int get_python_version (const char *exe_name)
 {
   tmp_ver_major = tmp_ver_minor = tmp_ver_micro = -1;
-  return (popen_runf (report_py_version_cb, "%s -c \"%s\"", exe_name, PY_GET_VERSION) >= 1);
+  tmp_user_site[0] = '\0';
+  return (popen_runf(report_py_version_cb, "%s -c \"%s\"", exe_name, PY_GET_VERSION) >= 1);
 }
 
 /**
@@ -1672,8 +1768,10 @@ void py_searchpaths (void)
 
       opt.cache_ver_level = 3;
       g_py = pi;
+      print_home_path (g_py, 18);
+      print_user_site_path (g_py, 18);
       get_sys_path (g_py);
-      print_sys_path (g_py, 23);
+      print_sys_path (g_py, 18);
       opt.cache_ver_level = save;
     }
   }
@@ -1844,11 +1942,14 @@ void py_init (void)
 
     DEBUGF (1, "%u: %-*s -> \"%s\".  ver: %s\n"
                "%*sDLL:         -> \"%s\"\n"
+               "%*suser_site:   -> %s\n"
                "%*sVariant:     -> %s%s\n",
             i, 2+longest_py_program, pi->program, pi->exe_name, version,
             indent+longest_py_program, "", pi->dll_name,
+            indent+longest_py_program, "", pi->user_site_path ? pi->user_site_path : "<None>",
             indent+longest_py_program, "", py_variant_name(pi->variant),
             pi->is_default ? " (Default)" : "");
   }
+  global_indent = longest_py_version + longest_py_program;
 }
 
