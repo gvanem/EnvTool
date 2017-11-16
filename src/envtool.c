@@ -2219,7 +2219,7 @@ static int do_check_evry (void)
 
   /* With option '-D' / '--dir', match only folders.
    */
-  if (opt.dir_mode)
+  if (opt.dir_mode && !opt.use_regex)
      snprintf (query+len, sizeof(query)-len, " folder:");
 
 #if 0   /* \todo Query contents with option "--grep" */
@@ -2326,14 +2326,14 @@ static int do_check_evry (void)
       if (Everything_GetResultDateModified(i,&ft))
       {
         mtime = FILETIME_to_time_t (&ft);
-        DEBUGF (2, "Everything_GetResultDateModified(), mtime: %.24s\n",
-                mtime ? ctime(&mtime) : "<N/A>");
+        DEBUGF (2, "%3d: Everything_GetResultDateModified(), mtime: %.24s\n",
+                i, mtime ? ctime(&mtime) : "<N/A>");
       }
       else
       {
         err = Everything_GetLastError();
-        DEBUGF (2, "Everything_GetResultDateModified(), err: %s\n",
-                evry_strerror(err));
+        DEBUGF (2, "%3d: Everything_GetResultDateModified(), err: %s\n",
+                i, evry_strerror(err));
       }
     }
     if (request_flags & EVERYTHING_REQUEST_SIZE)
@@ -2343,13 +2343,14 @@ static int do_check_evry (void)
       if (Everything_GetResultSize(i,&fs))
       {
         fsize = ((UINT64)fs.u.HighPart << 32) + fs.u.LowPart;
-        DEBUGF (2, "Everything_GetResultSize(), %s\n", get_file_size_str(fsize));
+        DEBUGF (2, "%3d: Everything_GetResultSize(), %s\n",
+                i, get_file_size_str(fsize));
       }
       else
       {
         err = Everything_GetLastError();
-        DEBUGF (2, "Everything_GetResultSize(), err: %s\n",
-                evry_strerror(err));
+        DEBUGF (2, "%3d: Everything_GetResultSize(), err: %s\n",
+                i, evry_strerror(err));
       }
     }
 
