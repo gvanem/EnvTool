@@ -1865,7 +1865,7 @@ static BOOL dir_is_empty (const char *env_var, const char *dir)
   }
   while (num_entries == 0 && FindNextFile(handle, &ff_data));
 
-  DEBUGF (2, "%s(): at least %d entries in '%s'.\n", __FUNCTION__, num_entries, dir);
+  DEBUGF (3, "%s(): at least %d entries in '%s'.\n", __FUNCTION__, num_entries, dir);
   FindClose (handle);
   return (num_entries == 0);
 }
@@ -2217,6 +2217,11 @@ static int do_check_evry (void)
        len = snprintf (query, sizeof(query), "regex:%s\\\\%s", dir, base);
   else len = snprintf (query, sizeof(query), "regex:^%s$", translate_shell_pattern(opt.file_spec));
 
+  /* With option '-D' / '--dir', match only folders.
+   */
+  if (opt.dir_mode)
+     snprintf (query+len, sizeof(query)-len, " folder:");
+
 #if 0   /* \todo Query contents with option "--grep" */
   if (opt.evry_grep && len > 0)
      snprintf (query+len, sizeof(query)-len, "content: %s", opt.evry_grep);
@@ -2227,7 +2232,7 @@ static int do_check_evry (void)
   Everything_SetMatchCase (opt.case_sensitive);
 
   DEBUGF (1, "Everything_SetSearch (\"%s\").\n"
-             "\t\t Everything_SetMatchCase (%d).\n",
+             "                 Everything_SetMatchCase (%d).\n",
              query, opt.case_sensitive);
 
   request_flags = Everything_GetRequestFlags();
