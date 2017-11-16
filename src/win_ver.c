@@ -31,7 +31,7 @@ static BOOL is_home_os (const OSVERSIONINFOEXW *os)
            (os->wSuiteMask & VER_SUITE_PERSONAL) );
 }
 
-BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform)
+BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level)
 {
   typedef NET_API_STATUS (WINAPI *func_NetWkstaGetInfo) (
                           IN  LPWSTR  servername,
@@ -54,13 +54,39 @@ BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform)
   p_NetApiBufferFree = (func_NetApiBufferFree) GetProcAddress (hnd, "NetApiBufferFree");
 
   if (p_NetWkstaGetInfo && p_NetApiBufferFree &&
-      (*p_NetWkstaGetInfo)(NULL,100,&data) == NERR_Success)
+      (*p_NetWkstaGetInfo)(NULL,level,&data) == NERR_Success)
   {
-    const WKSTA_INFO_100 *info = (const WKSTA_INFO_100*) data;
+    if (level == 100)
+    {
+      const WKSTA_INFO_100 *info = (const WKSTA_INFO_100*) data;
 
-    *major    = info->wki100_ver_major;
-    *minor    = info->wki100_ver_minor;
-    *platform = info->wki100_platform_id;
+      *major    = info->wki100_ver_major;
+      *minor    = info->wki100_ver_minor;
+      *platform = info->wki100_platform_id;
+
+      DEBUGF (1, "  major:     0x%08lX\n", *(u_long*)major);
+      DEBUGF (1, "  minor:     0x%08lX\n", *(u_long*)minor);
+      DEBUGF (1, "  platform:  %lu\n", *(u_long*)platform);
+    }
+    else if (level == 102)
+    {
+      const WKSTA_INFO_102 *info = (const WKSTA_INFO_102*) data;
+
+      *major    = info->wki102_ver_major;
+      *minor    = info->wki102_ver_minor;
+      *platform = info->wki102_platform_id;
+
+      DEBUGF (1, "  major:     0x%08lX\n", *(u_long*)major);
+      DEBUGF (1, "  minor:     0x%08lX\n", *(u_long*)minor);
+      DEBUGF (1, "  platform:  %lu\n", *(u_long*)platform);
+      DEBUGF (1, "  comp-name: %S\n", info->wki102_computername);
+      DEBUGF (1, "  langroup:  %S\n", info->wki102_langroup);
+      DEBUGF (1, "  langroot:  %S\n", info->wki102_lanroot);
+      DEBUGF (1, "  users:     %lu\n", info->wki102_logged_on_users);
+    }
+    else
+      abort();
+
     (*p_NetApiBufferFree) (data);
     rc = TRUE;
   }
@@ -252,6 +278,27 @@ const char *os_bits (void)
   return ("32");
 }
 
+/*
+ * To get this 'ReleaseId', the only source seems to be here:
+ *   "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ReleaseId"
+ *
+ * And the 'Update Build Revison':
+ *   "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\UBR"
+ *
+ * The winver program shows the version-info like this:
+ *   Version  1709 (OS-build 16299.64)
+ *   ReleaseId^         Build^ UBR ^
+ */
+const char *os_release_id (void)
+{
+  return (NULL);
+}
+
+const char *os_update_build_rev (void)
+{
+  return (NULL);
+}
+
 #if defined(WIN_VER_TEST)
 
 struct prog_options opt;
@@ -264,16 +311,15 @@ int main (void)
 
   opt.debug = 1;
 
-  rc = get_wksta_version (&major, &minor, &platform);
-  DEBUGF (1, "Result from NetWkstaGetInfo():\n");
+  rc = get_wksta_version (&major, &minor, &platform, 100);
+  DEBUGF (1, "Result from NetWkstaGetInfo(), level 100:\n");
   if (!rc)
      DEBUGF (1, "  failed\n");
-  else
-  {
-    DEBUGF (1, "  major:    0x%08lX\n", (u_long)major);
-    DEBUGF (1, "  minor:    0x%08lX\n", (u_long)minor);
-    DEBUGF (1, "  platform: %lu\n", (u_long)platform);
-  }
+
+  rc = get_wksta_version (&major, &minor, &platform, 102);
+  DEBUGF (1, "Result from NetWkstaGetInfo(), level 102:\n");
+  if (!rc)
+     DEBUGF (1, "  failed\n");
 
   ver = os_name();
   DEBUGF (1, "Result from os_name(): %s\n", ver);
