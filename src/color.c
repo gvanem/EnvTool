@@ -105,7 +105,7 @@ static HANDLE console_hnd = INVALID_HANDLE_VALUE;
 /*
  * \todo: make this configurable from the calling side.
  */
-static WORD colour_map [7];
+static WORD colour_map [8];
 
 static char colour_map_ansi [DIM(colour_map)] [20];
 static void init_colour_map_ansi (void);
@@ -125,6 +125,7 @@ static void init_colour_map (void)
   colour_map[4] = (bg + 5) | FOREGROUND_INTENSITY;  /* bright magenta */
   colour_map[5] = (bg + 4) | FOREGROUND_INTENSITY;  /* bright red */
   colour_map[6] = (bg + 7) | FOREGROUND_INTENSITY;  /* bright white */
+  colour_map[7] = (bg + 3);                         /* dark cyan */
 }
 
 int C_setraw (int raw)
