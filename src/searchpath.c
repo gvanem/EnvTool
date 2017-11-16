@@ -215,6 +215,10 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
   return (NULL);
 }
 
+/**
+ * \note If 'file' is found, this function returns a static buffer
+ *       in 'slashify()'.
+ */
 char *searchpath (const char *file, const char *env_var)
 {
   char found [_MAX_PATH];
