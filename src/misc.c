@@ -151,8 +151,7 @@
  * Returns a pointer to the \c mem_head for this \c ptr.
  *
  * \param[in] ptr the pointer to get the \c mem_head for.
- * \return
- *   The \c mem_head
+ * \return the \c mem_head
  */
 static struct mem_head *mem_list_get_head (void *ptr)
 {
@@ -610,8 +609,8 @@ time_t FILETIME_to_time_t (const FILETIME *ft)
  * \param[in] proc     The handle of the process to get the filname for.
  *                     Or NULL if our own process.
  * \param[in] filename Assumed to hold \c MAX_PATH characters.
- * \return    FALSE is this function is not available.
- * \return    the return value from \c (*p_GetModuleFileNameEx)().
+ * \retval FALSE if this function is not available.
+ * \return the return value from \c (*p_GetModuleFileNameEx)().
  */
 BOOL get_module_filename_ex (HANDLE proc, char *filename)
 {
@@ -1480,9 +1479,8 @@ BOOL is_directory (const char *file)
  * \c stat() implementations can crash. MSVC would be one case.
  *
  * \return any \c GetLastError() is set in \c *win_err.
- * \return the same as \c stat():
- *         0:  okay
- *         -1: fail. \c errno set.
+ * \retval 0   okay (the same as \c stat()).
+ * \retval -1  fail. \c errno set (the same as \c stat()).
  *
  * \note directories are passed directly to \c stat().
  */
@@ -1546,8 +1544,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 
 /**
  * Create a \c \%TEMP-file.
- * \return The allocated name.
- *         Caller must call \c FREE() on it.
+ * \return The allocated name which caller must call \c FREE() on.
  */
 char *create_temp_file (void)
 {
@@ -1575,7 +1572,7 @@ char *create_temp_file (void)
  *
  * \c SetErrorMode()       is per process.
  * \c SetThreadErrorMode() is per thread on Win-7+.
- * \return Nothing
+ * \return void
  */
 void set_error_mode (int restore)
 {
@@ -1608,7 +1605,8 @@ void set_error_mode (int restore)
 /**
  * Get a cached \c cluster_size for \c disk. (<tt>A: - Z:</tt>).
  * Only works on local disks; I.e. <tt>disk-type == DRIVE_FIXED</tt>.
- * \return TRUE on success.
+ * \retval TRUE  on success.
+ * \retval FALSE if disk out of range or if \c GetDiskFreeSpace() fails.
  */
 BOOL get_disk_cluster_size (int disk, DWORD *size)
 {
@@ -2094,7 +2092,7 @@ static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
 
 /**
  * Return err-number+string for 'err'. Use only with GetLastError().
- * Does not handle libc errno's. Remove trailing [\r\n.]
+ * Does not handle libc errno's. Remove trailing \c [\\r\\n].
  */
 char *win_strerror (unsigned long err)
 {
@@ -2656,13 +2654,15 @@ static char *popen_setup (const char *cmd)
  * This function should return number of matches.
  *  The \c callback is allowed to modify the \c buf given to it.
  *
- * \return total number of matches from \c callback.
+ * \retval -1   if \c "/bin/sh" is not found for Cygwin.
+ * \retval -1   if \c cmd was not found or \c _popen() fails for some reason. \c errno should be set.
+ * \retval >=0  total number of matches from \c callback.
  */
 int popen_run (popen_callback callback, const char *cmd)
 {
   char  buf[1000];
   int   i = 0;
-  int   j = 0;
+  int   j = -1;
   FILE *f;
   char *cmd2 = popen_setup (cmd);
 
@@ -2678,6 +2678,7 @@ int popen_run (popen_callback callback, const char *cmd)
     goto quit;
   }
 
+  j = 0;
   while (fgets(buf,sizeof(buf)-1,f))
   {
     int rc;
@@ -2687,9 +2688,9 @@ int popen_run (popen_callback callback, const char *cmd)
     if (!buf[0] || !callback)
        continue;
     rc = (*callback) (buf, i++);
+    j += rc;
     if (rc < 0)
        break;
-    j += rc;
   }
   _pclose (f);
 
@@ -2716,9 +2717,9 @@ int popen_runf (popen_callback callback, const char *fmt, ...)
  * Returns the expanded version of an environment variable.
  * Stolen from curl. But I wrote the Win32 part of it...
  *
- * \eg{} If "INCLUDE=c:\VC\include;%C_INCLUDE_PATH%" and
- *       "C_INCLUDE_PATH=c:\MinGW\include", the expansion returns
- *       "c:\VC\include;c:\MinGW\include".
+ * \eg{.} If "INCLUDE=c:\VC\include;%C_INCLUDE_PATH%" and
+ *        "C_INCLUDE_PATH=c:\MinGW\include", the expansion returns
+ *        "c:\VC\include;c:\MinGW\include".
  *
  * \note Windows (cmd only?) requires a trailing '%' in
  *       "%C_INCLUDE_PATH".
@@ -2813,8 +2814,11 @@ char *translate_shell_pattern (const char *pattern)
  * Dump a block of data as hex chars.
  * Starts with printing the data-length and offset.
  *
- * \eg{} 19: 0000: 00 00 00 00 03 AC B5 02-00 00 00 00 18 00 00 00 .....zz.........
- *           0010: A1 D3 BC                                        í++
+ * \eg{.}
+ * \code
+ *   19: 0000: 00 00 00 00 03 AC B5 02-00 00 00 00 18 00 00 00 .....zz.........
+ *       0010: A1 D3 BC                                        í++
+ * \endcode
  */
 void hex_dump (const void *data_p, size_t datalen)
 {
