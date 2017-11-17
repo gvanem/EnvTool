@@ -85,7 +85,7 @@ BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level
       DEBUGF (1, "  users:     %lu\n", info->wki102_logged_on_users);
     }
     else
-      abort();
+      FATAL ("level must be 100 or 102.\n");
 
     (*p_NetApiBufferFree) (data);
     rc = TRUE;
