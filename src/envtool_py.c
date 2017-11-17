@@ -916,7 +916,7 @@ static int get_modules_output (char *str, int index)
 #endif
 
 #define PY_LIST_MODULES                                                              \
-        "import os, sys, re, zipfile, pip, imp\n"                                    \
+        "import os, sys, re, zipfile, pip\n"                                         \
         "\n"                                                                         \
         "def is_zipfile (path):\n"                                                   \
         "  return zipfile.is_zipfile (path)\n"                                       \
