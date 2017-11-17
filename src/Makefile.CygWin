@@ -3,8 +3,14 @@
 #
 FORTIFY_SOURCE ?= 0
 USE_DEBUG      ?= 0
-USE_64BIT      ?= 0
 USE_WS2_32     ?= 0
+
+#
+# This MUST match the Cygwin gcc you have on PATH.
+# I.e. if using CygWin64, this MUST be 1.
+#      if using CygWin32, this MUST be 0.
+#
+USE_64BIT ?= 0
 
 CC = gcc
 
