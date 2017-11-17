@@ -391,7 +391,7 @@ static void init_colour_map_ansi (void)
  * Set console colour using an ANSI sequence.
  * The corresponding WinCon colour set in \c colour_map[] is used as a lookup-value.
  */
-void C_set_ansi (WORD col)
+void C_set_ansi (unsigned short col)
 {
   int i, raw_save = c_raw;
 
