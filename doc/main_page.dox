@@ -39,18 +39,6 @@
 /** \mainpage Envtool
     \ingroup  Envtool
 
-<!--
-  <img src="ftv2folderclosed.png" style="display: none" />
-  <img src="ftv2folderopen.png" style="display: none" />
-  <img src="ftv2mnode.png" style="display: none" />
-  <img src="ftv2pnode.png" style="display: none" />
-  <img src="ftv2mlastnode.png" style="display: none" />
-  <img src="ftv2plastnode.png" style="display: none" />
-  <img src="ftv2vertline.png" style="display: none" />
-  <img src="ftv2node.png" style="display: none" />
-  <img src="ftv2blank.png" style="display: none" />
--->
-
 <h2>Introduction</h2>
 
 Envtool is a tool to search along various environment variables for files (or a wildcard).
@@ -59,7 +47,7 @@ The following modes handles these environment variables:
 <table>
   <tr><td width="20%">\c --cmake <td>Check and search in \c \%CMAKE_MODULE_PATH\%
                                      and it's built-in module-path.
-  <tr><td>\c --evry[\em=host]    <td>Check and search in the [EveryThing](https://www.voidtools.com/) database.
+  <tr><td>\c --evry[\em =host]   <td>Check and search in the [EveryThing](https://www.voidtools.com/) database.
   <tr><td>\c --inc               <td>Check and search in \c \%INCLUDE\%.
   <tr><td>\c --lib               <td>Check and search in \c \%LIB\% and \c \%LIBRARY_PATH\%.
   <tr><td>\c --man               <td>Check and search in \c \%MANPATH\%.
@@ -130,13 +118,12 @@ The \c prefix es are:
 - \c  i686-w64-mingw32
 - \c  avr
 
-
-To avoid specifying one every time you run Envtool, those can also be specified in an
-envionment variable \c ENVTOOL_OPTIONS.\n
+To avoid specifying an option every time you run Envtool, that can also be specified in an
+environment variable \c ENVTOOL_OPTIONS.\n
 For example:
-\verbatim
-  set ENVTOOL_OPTIONS=--no-app
-\endverbatim
+  \verbatim
+    set ENVTOOL_OPTIONS=--no-app
+  \endverbatim
 
 will use the option \c --no-app every time Envool is invoked.
 
