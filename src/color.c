@@ -1,13 +1,15 @@
 /**\file    color.c
  * \ingroup Color
- * \brief
- *   Print to console using embedded colour-codes inside the string-format.
  *
- * E.g. \code{.cpp}
- *        C_printf ("~4Hello ~2world~0.\n");
- *      \endcode
- *      will print to stdout with \c Hello mapped to colour 4 (see below)
- *      and \c world mapped to colour 2.
+ * Print to console using embedded colour-codes inside the string-format.
+ *
+ * \eg{.}
+ *   \code{.cpp}
+ *     C_printf ("~4Hello ~2world~0.\n");
+ *   \endcode
+ *   will print to stdout with \c Hello mapped to colour 4
+ *   and \c world mapped to colour 2.
+ *   See the \c color_map[] array below.
  *
  * by G. Vanem <gvanem@yahoo.no> 2011.
  */
@@ -19,6 +21,11 @@
 #include <io.h>
 #include <windows.h>
 
+/**
+ * \note
+ *   We do not depend on other local .h-files other than \c "color.h".
+ *   Thus it's easy to use this module in other projects.
+ */
 #include "color.h"
 
 #if defined(__CYGWIN__)
@@ -62,22 +69,26 @@
 #define STDOUT_FILENO  1
 #endif
 
-/* The program using color.c must set this to 1.
+/**
+ * The program using \c color.c must set this to 1.
  */
 int C_use_colours = 0;
 
-/* For CygWin or if we detect we're running under mintty.exe (or some other program lacking
- * WinCon support), this variable means we must use ANSI-sequences to set colours.
+/**
+ * For CygWin or if we detect we're running under \b mintty.exe (or some other program
+ * lacking WinCon support), this variable means we must use ANSI-sequences to set colours.
  */
 int C_use_ansi_colours = 0;
 
-/* Unless this is set. Then CygWin also uses WinCon API to set colours.
+/**
+ * Unless this is set. Then CygWin also uses WinCon API to set colours.
  */
 int C_no_ansi = 1;
 
-/* The program using color.c must set this to 1 if fwrite() shall
- * be used in 'C_flush()'. This can be needed to synchronize the output
- * with other calls (libraries?) that writes to stdout using fwrite().
+/**
+ * The program using color.c must set this to 1 if \c fwrite() shall
+ * be used in \c C_flush(). This can be needed to synchronize the output
+ * with other calls (libraries?) that writes to stdout using \c fwrite().
  */
 int C_use_fwrite = 0;
 
@@ -102,7 +113,7 @@ static HANDLE console_hnd = INVALID_HANDLE_VALUE;
   static int trace = 0;
 #endif
 
-/*
+/**
  * \todo: make this configurable from the calling side.
  */
 static WORD colour_map [8];
@@ -110,6 +121,11 @@ static WORD colour_map [8];
 static char colour_map_ansi [DIM(colour_map)] [20];
 static void init_colour_map_ansi (void);
 
+/**
+ * Initialise the \c color_map[] array with the fixed colours.
+ * \c color_map[0] is used to set default colour (active colour
+ * in effect when program started).
+ */
 static void init_colour_map (void)
 {
   int  i;
@@ -128,6 +144,12 @@ static void init_colour_map (void)
   colour_map[7] = (bg + 3);                         /* dark cyan */
 }
 
+/**
+ * Sets raw or normal output mode.
+ * \param[in] raw = 1 : do not interpret \c '~n' to set colour.
+ * \param[in] raw = 0 : do interpret \c '~n' as colour indices (\b default).
+ * \return the previous mode.
+ */
 int C_setraw (int raw)
 {
   int rc = c_raw;
@@ -136,6 +158,12 @@ int C_setraw (int raw)
   return (rc);
 }
 
+/**
+ * Sets binary or cooked output mode.
+ * \param[in] bin = 1 : do not convert \c '\\n' into \c '\\r\\n'.
+ * \param[in] bin = 0 : do convert \c '\\n' into \c '\\r\\n' (\b default).
+ * \return the previous mode.
+ */
 int C_setbin (int bin)
 {
   int rc = c_binmode;
@@ -144,6 +172,10 @@ int C_setbin (int bin)
   return (rc);
 }
 
+/**
+ * Our local \c atexit() function.
+ * Flushes the output buffer and deletes the critical section.
+ */
 static void C_exit (void)
 {
   if (c_out)
@@ -153,6 +185,19 @@ static void C_exit (void)
   DeleteCriticalSection (&crit);
 }
 
+/**
+ * Our local initialiser function. Called once to:
+ *
+ *  \li Set the trace-level from \c %COLOUR_TRACE.
+ *  \li Get the console-buffer information from WinCon.
+ *  \li If the console is not redirected:
+ *     1. get the screen height and width.
+ *     2. setup the \c colour_map[] array and optionally the
+ *        \c colour_map_ansi[] array if ANSI output is wanted.
+ *  \li Set \c c_out to default \c stdout and setup buffer head and tail.
+ *  \li Initialise the critical-section structure.
+ *  \li Hook \c C_exit() to be called at program exit.
+ */
 static void C_init (void)
 {
   if (!c_head || !c_out)
@@ -163,7 +208,7 @@ static void C_init (void)
 #if !defined(NDEBUG)
     env = getenv ("COLOUR_TRACE");
     if (env)
-      trace = *env - '0';
+       trace = *env - '0';
 #endif
 
     console_hnd = GetStdHandle (STD_OUTPUT_HANDLE);
@@ -210,7 +255,7 @@ static void C_init (void)
   }
 }
 
-/*
+/**
  * Set console foreground and optionally background color.
  * FG is in the low 4 bits.
  * BG is in the upper 4 bits of the BYTE.
@@ -250,30 +295,43 @@ static void C_set (WORD col)
   last_attr = attr;
 }
 
+/**
+ * Reset console foreground and background to what is was initially.
+ * \note not used anywhere.
+ */
 void C_reset (void)
 {
-  SetConsoleTextAttribute (console_hnd, console_info.wAttributes);
+  if (C_use_ansi_colours)
+     C_set_ansi (0);
+  else if (console_hnd != INVALID_HANDLE_VALUE)
+     SetConsoleTextAttribute (console_hnd, console_info.wAttributes);
 }
 
-/*
- * Figure out if the parent process is mintty.exe which does not
+/**
+ * Figure out if the parent process is \c mintty.exe which does not
  * support WinCon colors. Finding the name of parent can be used as
  * described here:
- *  http://www.codeproject.com/Articles/9893/Get-Parent-Process-PID
- *  http://www.scheibli.com/projects/getpids/index.html
- * or
+ *  http://www.codeproject.com/Articles/9893/Get-Parent-Process-PID \n
+ *  http://www.scheibli.com/projects/getpids/index.html             \n
+ * or \n
  *  https://github.com/git-for-windows/git/blob/27c08ea187462e56ffb514c8c997df419f004ce5/compat/winansi.c#L530-L569
- *  f:\gv\VC_project\Winsock-tracer\Escape-From-DLL-Hell\Common\Process.cpp
  */
 const char *get_parent_process_name (void)
 {
 #if !defined(NDEBUG)
-  if (trace > 0)
-     return ("mintty.exe");
+  extern int is_cygwin_tty (int fd);
+  if (trace > 0 || is_cygwin_tty(STDOUT_FILENO))
+     return ("mintty.exe");  /* Just for testing */
 #endif
   return (NULL);
 }
 
+/**
+ * Create an ANSI-sequence array.
+ *
+ * \param[in] col the Windows colour to map to a corresponding ANSI sequence.
+ * \return    the ANSI sequence.
+ */
 static const char *wincon_to_ansi (WORD col)
 {
   static char ret[20];  /* max: "\x1B[30;1;40;1m" == 12 */
@@ -309,6 +367,10 @@ static const char *wincon_to_ansi (WORD col)
   return (ret);
 }
 
+/**
+ * Fill the ANSI-sequence array by looping over all \c colour_map_ansi[].
+ * \note the size of both \c colour_map_ansi[] and \c colour_map[] \b must be equal.
+ */
 static void init_colour_map_ansi (void)
 {
   size_t i;
@@ -316,14 +378,20 @@ static void init_colour_map_ansi (void)
   for (i = 0; i < DIM(colour_map_ansi); i++)
   {
     const char *p = wincon_to_ansi (colour_map[i]);
-    extern const char *dump20 (const void *data_p, unsigned size);
 
+#if !defined(NDEBUG)
+    extern const char *dump20 (const void *data_p, unsigned size);
     TRACE (2, "colour_map_ansi[%u] -> %s\n", (unsigned)i, dump20(p,strlen(p)));
+#endif
     strncpy (colour_map_ansi[i], p, sizeof(colour_map_ansi[i]));
   }
 }
 
-static void C_set_ansi (WORD col)
+/**
+ * Set console colour using an ANSI sequence.
+ * The corresponding WinCon colour set in \c colour_map[] is used as a lookup-value.
+ */
+void C_set_ansi (WORD col)
 {
   int i, raw_save = c_raw;
 
@@ -337,7 +405,7 @@ static void C_set_ansi (WORD col)
   c_raw = raw_save;
 }
 
-/*
+/**
  * Write out the trace-buffer.
  */
 size_t C_flush (void)
@@ -367,6 +435,9 @@ size_t C_flush (void)
   return (len2);
 }
 
+/**
+ * An printf() style console print function.
+ */
 int C_printf (const char *fmt, ...)
 {
   int     len;
@@ -378,6 +449,9 @@ int C_printf (const char *fmt, ...)
   return (len);
 }
 
+/**
+ * A var-arg style console print function.
+ */
 int C_vprintf (const char *fmt, va_list args)
 {
   int len1, len2;
@@ -406,6 +480,10 @@ int C_vprintf (const char *fmt, va_list args)
   return (len1);
 }
 
+/**
+ * Put a single character to output buffer (at \c c_head).
+ * Interpret a "~n" sequence as output buffer gets filled.
+ */
 int C_putc (int ch)
 {
   static BOOL get_color = FALSE;
@@ -478,6 +556,10 @@ put_it:
   return (rc);
 }
 
+/**
+ * Put a single character to output buffer (at \c c_head).
+ * No interpretation of "~n" sequences.
+ */
 int C_putc_raw (int ch)
 {
   int rc, raw = c_raw;
@@ -488,6 +570,9 @@ int C_putc_raw (int ch)
   return (rc);
 }
 
+/**
+ * Put a 0-terminated string to output buffer.
+ */
 int C_puts (const char *str)
 {
   int ch, rc = 0;
@@ -497,6 +582,9 @@ int C_puts (const char *str)
   return (rc);
 }
 
+/**
+ * Put a string (or buffer) of maximum \c len bytes to output buffer.
+ */
 int C_putsn (const char *str, size_t len)
 {
   int    rc = 0;
@@ -507,6 +595,10 @@ int C_putsn (const char *str, size_t len)
   return (rc);
 }
 
+/**
+ * Put a long string to output buffer.
+ * Try to wrap nicely according to the screen-width.
+ */
 void C_puts_long_line (const char *start, size_t indent)
 {
   size_t      left = c_screen_width - indent;

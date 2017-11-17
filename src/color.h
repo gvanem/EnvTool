@@ -1,3 +1,6 @@
+/**\file    color.h
+ * \ingroup Color
+ */
 #ifndef _COLOR_H
 #define _COLOR_H
 
@@ -9,21 +12,25 @@
 extern "C" {
 #endif
 
-/* The app using color.c must set to 1 prior to
- * calling the below 'C_xx()' functions.
+/**
+ * The app using color.c must set to 1 prior to
+ * calling the below \c C_xx() functions.
  * For CygWin, if this is > 1, it means to use ANSI-sequences to set colours.
  */
 extern int C_use_colours;
 
-/* For CygWin, this variable means we must use ANSI-sequences to set colours.
+/**
+ * For CygWin, this variable means we must use ANSI-sequences to set colours.
  */
 extern int C_use_ansi_colours;
 
-/* Unless this is set. Then CygWin also uses WinCon API to set colours.
+/**
+ * Unless this is set. Then CygWin also uses WinCon API to set colours.
  */
 extern int C_no_ansi;
 
-/* Set this to 1 to use 'fwrite()' in 'C_flush()'.
+/**
+ * Set this to 1 to use \c fwrite() in \c C_flush().
  */
 extern int C_use_fwrite;
 
@@ -34,7 +41,8 @@ extern int C_use_fwrite;
 #define _Printf_format_string_
 #endif
 
-/* Count of unneeded 'C_flush()' calls. I.e. calls where length of buffer is 0.
+/**
+ * Count of unneeded \c C_flush() calls. I.e. calls where length of buffer is 0.
  */
 extern unsigned C_redundant_flush;
 
@@ -55,6 +63,7 @@ extern int    C_setraw   (int raw);
 extern int    C_setbin   (int bin);
 extern size_t C_flush    (void);
 extern void   C_reset    (void);
+extern void   C_set_ansi (WORD col);
 extern void   C_puts_long_line (const char *start, size_t indent);
 
 #ifdef __cplusplus
