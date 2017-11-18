@@ -69,8 +69,13 @@ static void cfg_parse (smartlist_t *sl, char *line)
   if (section && sscanf(p, "ignore = %256s", ignore) == 1 && ignore[0] != '\"')
     add_it = TRUE;
 
-  if (ignore[0] == '\"' &&  /* for "ignore with spaces" */
-     sscanf(p, "ignore = \"%256[-a-zA-Z0-9 :()\\/.^\"]\"", ignore) == 1)
+  /* For stuff to "ignore with spaces", use this quite complex
+   * sscanf() expression.
+   *
+   * Ref: https://msdn.microsoft.com/en-us/library/xdb9w69d.aspx
+   */
+  if (ignore[0] == '\"' &&
+     sscanf(p, "ignore = \"%256[-_ :()\\/.a-zA-Z0-9^\"]\"", ignore) == 1)
     add_it = TRUE;
 
   if (add_it)
@@ -79,7 +84,7 @@ static void cfg_parse (smartlist_t *sl, char *line)
     node->section = section;
     node->value   = STRDUP (ignore);
     smartlist_add (sl, node);
-    DEBUGF (1, "[%s]: '%s'.\n", section, ignore);
+    DEBUGF (3, "[%s]: '%s'.\n", section, ignore);
   }
 }
 
@@ -120,7 +125,10 @@ int cfg_ignore_lookup (const char *section, const char *value)
     if (section && stricmp(section, node->section))
        continue;
     if (!stricmp(value, node->value))
-       return (1);
+    {
+      DEBUGF (3, "Found '%s' in [%s].\n", value, section);
+      return (1);
+    }
   }
   return (0);
 }
@@ -141,7 +149,7 @@ void cfg_ignore_exit (void)
   {
     struct ignore_node *node = smartlist_get (ignore_list, i);
 
-    DEBUGF (1, "%d: ignore: '%s'\n", i, node->value);
+    DEBUGF (3, "%d: ignore: '%s'\n", i, node->value);
     FREE (node->value);
     FREE (node);
   }
