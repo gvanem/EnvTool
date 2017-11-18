@@ -154,44 +154,6 @@ static void do_printf (const char *fmt, ...)
   va_end (args);
 }
 
-static void hex_PE_dump (const void *data_p, size_t datalen)
-{
-  const BYTE *data = (const BYTE*) data_p;
-  UINT  ofs;
-
-  for (ofs = 0; ofs < datalen; ofs += 16)
-  {
-    UINT j;
-
-    if (ofs == 0)
-         do_printf ("%u:%s%04X: ", (unsigned int)datalen,
-                    datalen > 9999 ? " "    :
-                    datalen > 999  ? "  "   :
-                    datalen > 99   ? "   "  :
-                    datalen > 9    ? "    " :
-                                     "     ",
-                    ofs);
-    else do_printf ("       %04X: ", ofs);
-
-    for (j = 0; j < 16 && j+ofs < datalen; j++)
-        do_printf ("%02X%c", (unsigned)data[j+ofs],
-                   j == 7 && j+ofs < datalen-1 ? '-' : ' ');
-
-    for ( ; j < 16; j++)       /* pad line to 16 positions */
-        do_printf ("   ");
-
-    for (j = 0; j < 16 && j+ofs < datalen; j++)
-    {
-      int ch = data[j+ofs];
-
-      if (ch < ' ')            /* non-printable */
-           do_printf (".");
-      else do_printf ("%c", ch);
-    }
-    do_printf ("\n");
-  }
-}
-
 static const char *show_file_flags (DWORD dwFileFlags)
 {
   static char s[200];
@@ -614,12 +576,6 @@ int get_PE_version_info (const char *file, struct ver_info *ver)
     FREE (ver_data);
     return (0);
   }
-
-  print_it = (opt.verbose >= 3);
-
-  do_printf ("VERSIONINFO dump for file \"%s\":\n", file);
-  if (print_it)
-     hex_PE_dump (ver_data, size);
 
   print_it = (opt.verbose >= 1);
 
