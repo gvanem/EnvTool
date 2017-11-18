@@ -388,6 +388,9 @@ static void show_ext_versions (void)
 
   if (py_get_info(&py_exe, NULL, &py_ver))
   {
+    char py_copy [_MAX_PATH];
+
+    py_exe = slashify2 (py_copy, py_exe, opt.show_unix_paths ? '/' : '\\');
     len[0] = snprintf (found[0], FOUND_SZ, found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
     pad_len = len[0];
   }
@@ -1310,10 +1313,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
     char  buf [_MAX_PATH];
     char *p = _fix_path (file, NULL);  /* Has '\\' slashes */
 
-    if (opt.show_unix_paths)
-         strcpy (buf, slashify(p,'/'));
-    else strcpy (buf, p);
-    file = buf;
+    file = slashify2 (buf, p, opt.show_unix_paths ? '/' : '\\');
     FREE (p);
   }
 
@@ -1980,7 +1980,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
         if (report_file(fqfn, st.st_mtime, st.st_size, is_dir, is_junction, key))
         {
           found++;
-        // regex_print (&re_hnd, re_matches, fqfn);
+       // regex_print (&re_hnd, re_matches, fqfn);
         }
       }
       continue;
@@ -2326,13 +2326,13 @@ static int do_check_evry (void)
       if (Everything_GetResultDateModified(i,&ft))
       {
         mtime = FILETIME_to_time_t (&ft);
-        DEBUGF (2, "%3d: Everything_GetResultDateModified(), mtime: %.24s\n",
+        DEBUGF (2, "%3lu: Everything_GetResultDateModified(), mtime: %.24s\n",
                 i, mtime ? ctime(&mtime) : "<N/A>");
       }
       else
       {
         err = Everything_GetLastError();
-        DEBUGF (2, "%3d: Everything_GetResultDateModified(), err: %s\n",
+        DEBUGF (2, "%3lu: Everything_GetResultDateModified(), err: %s\n",
                 i, evry_strerror(err));
       }
     }
@@ -2343,13 +2343,13 @@ static int do_check_evry (void)
       if (Everything_GetResultSize(i,&fs))
       {
         fsize = ((UINT64)fs.u.HighPart << 32) + fs.u.LowPart;
-        DEBUGF (2, "%3d: Everything_GetResultSize(), %s\n",
+        DEBUGF (2, "%3lu: Everything_GetResultSize(), %s\n",
                 i, get_file_size_str(fsize));
       }
       else
       {
         err = Everything_GetLastError();
-        DEBUGF (2, "%3d: Everything_GetResultSize(), err: %s\n",
+        DEBUGF (2, "%3lu: Everything_GetResultSize(), err: %s\n",
                 i, evry_strerror(err));
       }
     }
@@ -2503,19 +2503,22 @@ static int find_pkg_config_version_cb (char *buf, int index)
 
 static int get_pkg_config_info (const char **exe, struct ver_info *ver)
 {
+  char exe_copy [_MAX_PATH];
+
   pkg_config_major = pkg_config_minor = -1;
   *exe = searchpath ("pkg-config.exe", "PATH");
   if (*exe == NULL)
      return (0);
 
-  if (popen_runf(find_pkg_config_version_cb, "\"%s\" --version", slashify(*exe,'\\')) > 0)
+  slashify2 (exe_copy, *exe, '\\');
+
+  if (popen_runf(find_pkg_config_version_cb, "\"%s\" --version", exe_copy) > 0)
   {
     ver->val_1 = pkg_config_major;
     ver->val_2 = pkg_config_minor;
     return (1);
   }
-  else
-    *exe = NULL;
+  *exe = NULL;
   return (0);
 }
 
@@ -2595,12 +2598,16 @@ static int find_cmake_version_cb (char *buf, int index)
 
 static int get_cmake_info (char **exe, struct ver_info *ver)
 {
+  char exe_copy [_MAX_PATH];
+
   cmake_major = cmake_minor = cmake_micro = -1;
   *exe = searchpath ("cmake.exe", "PATH");
   if (*exe == NULL)
      return (0);
 
-  if (popen_runf(find_cmake_version_cb, "\"%s\" -version", slashify(*exe,'\\')) > 0)
+  slashify2 (exe_copy, *exe, '\\');
+
+  if (popen_runf(find_cmake_version_cb, "\"%s\" -version", exe_copy) > 0)
   {
     ver->val_1 = cmake_major;
     ver->val_2 = cmake_minor;
@@ -2608,6 +2615,7 @@ static int get_cmake_info (char **exe, struct ver_info *ver)
     ver->val_4 = 0;
     return (1);
   }
+  *exe = NULL;
   return (0);
 }
 
@@ -2630,10 +2638,12 @@ static int do_check_cmake (void)
   if (cmake_bin)
   {
     char *cmake_root = dirname (cmake_bin);
+    char  cmake_copy [_MAX_PATH];
 
     DEBUGF (3, "cmake -> '%s', cmake_root: '%s'\n", cmake_bin, cmake_root);
+    slashify2 (cmake_copy, cmake_bin, '\\');
 
-    if (popen_runf(find_cmake_version_cb, "\"%s\" -version", slashify(cmake_bin,'\\')) > 0)
+    if (popen_runf(find_cmake_version_cb, "\"%s\" -version", cmake_copy) > 0)
     {
       char dir [_MAX_PATH];
 
@@ -2697,12 +2707,12 @@ static void check_if_cygwin (const char *path)
 }
 
 /*
- * In case the 'gcc' is a CygWin gcc, we need to figure out the root-directory.
- * Since 'gcc' reports 'C_INCLUDE_PATH' like "/usr/lib/gcc/i686-w64-mingw32/6.4.0/include", we
- * must prefix this as "<cygwin_root>/usr/lib/gcc/i686-w64-mingw32/6.4.0/include".
+ * In case the \c gcc is a CygWin gcc, we need to figure out the root-directory.
+ * Since \c gcc reports \c C_INCLUDE_PATH like \c "/usr/lib/gcc/i686-w64-mingw32/6.4.0/include",
+ * we must prefix this as \c "<cygwin_root>/usr/lib/gcc/i686-w64-mingw32/6.4.0/include".
  *
- * Otherwise 'FILE_EXISTS()' wont work for non-Cygwin targets.
- * An alternative would be to parse the "<cygwin_root>/etc/fstab" file.
+ * Otherwise \c FILE_EXISTS() wont work for non-Cygwin targets.
+ * An alternative would be to parse the \c "<cygwin_root>/etc/fstab" file!
  */
 static void setup_cygwin_root (const char *gcc)
 {
@@ -2715,7 +2725,7 @@ static void setup_cygwin_root (const char *gcc)
   {
     char *bin_dir;
 
-    _strlcpy (cygwin_fqfn, slashify(p,'/'), sizeof(cygwin_fqfn));
+    slashify2 (cygwin_fqfn, p, '/');
     bin_dir = strstr (cygwin_fqfn, "/bin");
     if (bin_dir)
     {
@@ -3018,7 +3028,7 @@ static void get_longest (const char **cc, size_t num)
   }
 }
 
-/*
+/**
  * Print the internal '*gcc' or '*g++' LIBRARY_PATH returned from 'setup_gcc_library_path()'.
  * I.e. only the directories NOT in %LIBRARY_PATH%.
  * If we have no %LIBRARY_PATH%, the 'copy[]' will contain only internal directories.
@@ -3028,8 +3038,8 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
   struct directory_array *arr;
   smartlist_t            *list;
   char                  **copy;
-  int                     i, j, max, ch = opt.show_unix_paths ? '/' : '\\';
-  static                  BOOL  done_note = FALSE;
+  int                     i, j, max, slash = opt.show_unix_paths ? '/' : '\\';
+  static BOOL done_note = FALSE;
 
   max = smartlist_len (dir_array);
   if (max == 0)
@@ -3039,7 +3049,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
   for (i = 0; i < max; i++)
   {
     arr = smartlist_get (dir_array, i);
-    copy[i] = STRDUP (slashify(arr->dir,ch));
+    copy[i] = STRDUP (slashify(arr->dir,slash));
   }
   copy[i] = NULL;
   DEBUGF (3, "Made a 'copy[]' of %d directories.\n", max);
@@ -3058,7 +3068,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
     for (j = 0; j < max; j++)
     {
       arr = smartlist_get (list, j);
-      dir = slashify (arr->dir, ch);
+      dir = slashify (arr->dir, slash);
       if (!stricmp(dir,copy[i]))
       {
         found = TRUE;
@@ -3482,6 +3492,9 @@ static void set_short_option (int o, const char *arg)
     case 'C':
          opt.case_sensitive = 1;
          break;
+    case 'k':
+         opt.keep_temp = 1;
+         break;
     case 'r':
          opt.use_regex = 1;
          break;
@@ -3607,7 +3620,7 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   while (1)
   {
     int opt_index = 0;
-    int c = getopt_long (argc, argv, "cChH:vVdDrstTuq", long_options, &opt_index);
+    int c = getopt_long (argc, argv, "cChH:vVdDkrstTuq", long_options, &opt_index);
 
     if (c == 0)
        set_long_option (opt_index, optarg);
@@ -4307,7 +4320,7 @@ static void test_fix_path (void)
     BOOL is_dir;
 
     f = files [i];
-    rc1 = _fix_path (f, buf);
+    rc1 = _fix_path (f, buf);    /* Only '\\' slashes */
     rc2 = FILE_EXISTS (buf);
     is_dir = is_directory (rc1);
 
@@ -4444,18 +4457,18 @@ static void test_SHGetFolderPath (void)
 
   for (i = 0; i < DIM(sh_folders); i++)
   {
-    char                      buf [_MAX_PATH], *p = buf;
+    char                      buf [_MAX_PATH];
     const struct search_list *folder   = sh_folders + i;
     const char               *flag_str = opt.verbose ? "SHGFP_TYPE_CURRENT" : "SHGFP_TYPE_DEFAULT";
     DWORD                     flag     = opt.verbose ?  SHGFP_TYPE_CURRENT  :  SHGFP_TYPE_DEFAULT;
     HRESULT                   rc       = SHGetFolderPath (NULL, folder->value, NULL, flag, buf);
 
     if (rc == S_OK)
-         p = slashify (buf, opt.show_unix_paths ? '/' : '\\');
+         slashify2 (buf, buf, opt.show_unix_paths ? '/' : '\\');
     else snprintf (buf, sizeof(buf), "~5Failed: %s", win_strerror(rc));
 
     C_printf ("  ~3SHGetFolderPath~0 (~6%s~0, ~6%s~0):\n    ~2%s~0\n",
-              folder->name, flag_str, p);
+              folder->name, flag_str, buf);
   }
   C_putc ('\n');
 }
