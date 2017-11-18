@@ -116,7 +116,7 @@ The \c prefix es are:
 - \c  x86_64-w64-mingw32
 - \c  i386-mingw32
 - \c  i686-w64-mingw32
-- \c  avr
+- \c  avr               for Arduino gcc development on Atmel processors
 
 To avoid specifying an option every time you run Envtool, that can also be specified in an
 environment variable \c ENVTOOL_OPTIONS.\n
