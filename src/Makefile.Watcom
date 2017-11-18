@@ -19,6 +19,7 @@ OBJECTS = auth.obj           &
           color.obj          &
           dirlist.obj        &
           getopt_long.obj    &
+          ignore.obj         &
           misc.obj           &
           regex.obj          &
           searchpath.obj     &

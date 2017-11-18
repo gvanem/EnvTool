@@ -43,6 +43,7 @@
 #include "color.h"
 #include "smartlist.h"
 #include "regex.h"
+#include "ignore.h"
 #include "envtool.h"
 #include "envtool_py.h"
 
@@ -110,7 +111,7 @@ struct registry_array {
        HKEY    key;
      };
 
-static smartlist_t *dir_array, *reg_array, *ignore_list;
+static smartlist_t *dir_array, *reg_array;
 
 struct prog_options opt;
 
@@ -196,78 +197,6 @@ static int   get_cmake_info (char **exe, struct ver_info *ver);
  *
  *        Also check their Wintrust signature status and version information.
  */
-
-/**
- * Free the memory allocated in the 'ignore_list' smartlist.
- * Called from 'cleanup()' below.
- */
-static void cfg_exit (void)
-{
-  int i, max;
-
-  if (!ignore_list)
-     return;
-
-  max = smartlist_len (ignore_list);
-  for (i = 0; i < max; i++)
-  {
-    char *ignore = smartlist_get (ignore_list, i);
-
-    DEBUGF (3, "%d: ignore: '%s'\n", i, ignore);
-    FREE (ignore);
-  }
-  smartlist_free (ignore_list);
-}
-
-/**
- * Callback for 'smartlist_read_file()':
- * Accepts only strings like "ignore = xx" from the
- * config-file. Will be added to 'ignore_list'.
- */
-static void cfg_parse (smartlist_t *sl, char *line)
-{
-  char  ignore [256];
-  const char *p, *fmt = "ignore = %256s";
-  int   num;
-
-  strip_nl (line);
-  p = str_trim (line);
-  ignore[0] = '\0';
-  num = sscanf (p, fmt, ignore);
-  if (num == 1)
-     smartlist_add (sl, STRDUP(ignore));
-  DEBUGF (3, "num: %d, ignore: '%s'\n", num, ignore[0] ? ignore : "<none>");
-}
-
-/**
- * Try to open and parse a config-file.
- */
-static int cfg_init (const char *fname)
-{
-  char *file = getenv_expand (fname);
-
-  DEBUGF (3, "file: %s\n", file);
-  if (file)
-  {
-    ignore_list = smartlist_read_file (file, (smartlist_parse_func)cfg_parse);
-    FREE (file);
-  }
-  return (ignore_list != NULL);
-}
-
-/**
- * Lookup an 'ignore_value' to test for the 'ignore_value'.
- * Return 1 if found in 'ignore_list'.
- */
-static int cfg_ignore_lookup (const char *ignore_value)
-{
-  int i, max = ignore_list ? smartlist_len (ignore_list) : 0;
-
-  for (i = 0; i < max; i++)
-      if (!stricmp(ignore_value, smartlist_get(ignore_list,i)))
-          return (1);
-  return (0);
-}
 
 /*
  * Show some version details for the EveryThing program.
@@ -1808,7 +1737,7 @@ static int report_registry (const char *reg_key)
     if (!arr->exist)
     {
       snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
-      if (!cfg_ignore_lookup(fqfn))
+      if (!cfg_ignore_lookup("Registry",fqfn))
          WARN ("\"%s\\%s\" points to\n  '%s'. But this file does not exist.\n\n",
                reg_top_key_name(arr->key), reg_key, fqfn);
     }
@@ -3711,7 +3640,7 @@ static void cleanup (void)
   for (i = 0; i < new_argc && i < DIM(new_argv)-1; i++)
       FREE (new_argv[i]);
 
-  cfg_exit();
+  cfg_ignore_exit();
 
   if (halt_flag == 0 && opt.debug > 0)
      mem_report();
@@ -3826,7 +3755,7 @@ int main (int argc, char **argv)
 
   parse_cmdline (argc, argv, &opt.file_spec);
 
-  cfg_init ("%APPDATA%\\envtool.cfg");
+  cfg_ignore_init ("%APPDATA%\\envtool.cfg");
   check_sys_dirs();
 
   /* Sometimes the IPC connection to the EveryThing Database will hang.
@@ -4819,14 +4748,14 @@ static void check_reg_key (HKEY top_key, const char *reg_key)
     const struct registry_array *arr = smartlist_get (reg_array, i);
     char  fqfn [_MAX_PATH];
 
-    if (!is_directory(arr->path) && !cfg_ignore_lookup(arr->path))
+    if (!is_directory(arr->path) && !cfg_ignore_lookup("Registry",arr->path))
     {
       C_printf ("%*c~5Missing dir~0: ~3%s~0\n", indent, ' ', arr->path);
       errors++;
       continue;
     }
     snprintf (fqfn, sizeof(fqfn), "%s\\%s", arr->path, arr->fname);
-    if (!arr->exist && !cfg_ignore_lookup(fqfn))
+    if (!arr->exist && !cfg_ignore_lookup("Registry",fqfn))
     {
       C_printf ("%*c~5Missing file~0: ~3%s~0\n", indent, ' ', fqfn);
       errors++;

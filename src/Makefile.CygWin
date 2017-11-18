@@ -63,7 +63,7 @@ ifeq ($(USE_WS2_32),1)
 endif
 
 SOURCES = auth.c dirlist.c envtool.c envtool_py.c Everything.c Everything_ETP.c \
-          color.c getopt_long.c misc.c regex.c searchpath.c show_ver.c \
+          color.c getopt_long.c ignore.c misc.c regex.c searchpath.c show_ver.c \
           smartlist.c win_trust.c win_ver.c
 
 OBJECTS  = $(notdir $(SOURCES:.c=.o))

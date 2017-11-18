@@ -774,6 +774,7 @@ INPUT = main_page.dox           \
         ../src/Everything_ETP.c \
         ../src/dirlist.c        \
         ../src/getopt_long.c    \
+        ../src/ignore.c         \
         ../src/misc.c           \
         ../src/regex.c          \
         ../src/searchpath.c     \
@@ -791,6 +792,7 @@ INPUT = main_page.dox           \
         ../src/Everything_ETP.h \
         ../src/Everything_IPC.h \
         ../src/getopt_long.h    \
+        ../src/ignore.h         \
         ../src/regex.h          \
         ../src/smartlist.h      \
         ../src/win_glob.h

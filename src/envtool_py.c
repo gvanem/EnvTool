@@ -12,6 +12,7 @@
 
 #include "color.h"
 #include "dirlist.h"
+#include "ignore.h"
 #include "envtool.h"
 #include "envtool_py.h"
 #include "smartlist.h"
@@ -1696,6 +1697,7 @@ static struct python_info *add_python (const char *exe, struct python_info *py)
 /**
  * For each \c dir in \c %PATH, try to match a Python from the ones in
  * \c all_py_programs[]. \n
+ * If it's found in the \c "ignore-list", do not add it.
  * Figure out it's version and .DLL-name (if embeddable).
  */
 static int match_python_exe (const char *dir)
@@ -1728,6 +1730,9 @@ static int match_python_exe (const char *dir)
     for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
     {
       if (stricmp(base,py->program))
+         continue;
+
+      if (cfg_ignore_lookup("Python",de->d_name))
          continue;
 
       found++;

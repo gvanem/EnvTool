@@ -118,13 +118,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="auth.c" />
+    <ClCompile Include="color.c" />
     <ClCompile Include="envtool.c" />
     <ClCompile Include="envtool_py.c" />
     <ClCompile Include="Everything.c" />
     <ClCompile Include="Everything_ETP.c" />
     <ClCompile Include="dirlist.c" />
     <ClCompile Include="getopt_long.c" />
-    <ClCompile Include="color.c" />
+    <ClCompile Include="ignore.c" />
     <ClCompile Include="misc.c" />
     <ClCompile Include="win_trust.c" />
     <ClCompile Include="win_ver.c" />
