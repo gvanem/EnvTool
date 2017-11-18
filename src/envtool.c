@@ -4679,19 +4679,17 @@ static void test_libssp (void)
 static void test_AppVeyor (void)
 {
   const char *cmake = searchpath ("cmake.exe", "PATH");
-  char  cmd [100];
   int   rc;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   if (!cmake)
+     C_printf ("cmake.exe not on %%PATH.\n");
+  else
   {
-    C_printf ("cmake.exe not on %%PATH.\n");
-    return;
+    rc = popen_runf (NULL, "\"%s\" -version > " DEV_NULL, cmake);
+    C_printf ("popen_run() reported %d: %s\n", rc, rc == 0 ? cmake : "cmake not found");
   }
-  snprintf (cmd, sizeof(cmd), "\"%s\" -version > " DEV_NULL, cmake);
-  rc = system (cmd);
-  C_printf ("system() reported %d.\n", rc);
 }
 
 /*
@@ -4746,6 +4744,7 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
   const struct directory_array *arr;
 
   status[0] = '\0';
+  *num = 0;
 
   if (value)
   {
