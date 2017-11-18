@@ -2,24 +2,24 @@ build_script:
     - cd src
     - msbuild -nologo -p:Configuration=Release envtool.sln
 
-    - set COLUMNS=120
-    - echo Testing version output
+    - @set COLUMNS=120
+    - echo Testing version output > NUL
     - envtool -VVV
 
-    - echo Testing test output
+    - echo Testing test output (show owner in test_PE_wintrust()) > NUL
     - envtool --test --owner
 
-    - echo Testing Python2 test output
+    - echo Testing Python2 test output > NUL
     - envtool --test --python=py2
 
-    - echo Testing Python3 test output
+    - echo Testing Python3 test output > NUL
     - envtool --test --python=py3
 
-    - echo Testing ETP-searches (should fail)
+    - echo Testing ETP-searches (should fail) > NUL
     - envtool --test --evry:ftp.github.com
 
-    - echo Testing check output
+    - echo Testing check output > NUL
     - envtool --check
 
-  # - echo Testing win_glob
+  # - echo Testing win_glob > NUL
   # - win_glob -fr "c:\Program Files (x86)\CMake"
