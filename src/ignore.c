@@ -28,11 +28,16 @@ static smartlist_t *ignore_list;
  *
  * Accepts only strings like "ignore = xx" from the config-file.
  * Add to \c ignore_list with the correct "section".
+ *
+ * \param[in] sl    the smartlist to add the string-value to.
+ * \param[in] line  the prepped string-value from the file opened in
+ *                  \c cfg_ignore_init().
  */
 static void cfg_parse (smartlist_t *sl, char *line)
 {
   char   ignore [256], *p;
   struct ignore_node *node = NULL;
+  BOOL   add_it = FALSE;
   static const char  *section;
 
   strip_nl (line);
@@ -55,23 +60,32 @@ static void cfg_parse (smartlist_t *sl, char *line)
   }
   if (*p == '[')
   {
-    WARN ("Ignoring unknown section: %s\n.", p);
+    WARN ("Ignoring unknown section: %s.\n", p);
     return;
   }
 
   ignore[0] = '\0';
-  if (section && sscanf(p, "ignore = %256s", ignore) == 1)
+
+  if (section && sscanf(p, "ignore = %256s", ignore) == 1 && ignore[0] != '\"')
+    add_it = TRUE;
+
+  if (ignore[0] == '\"' &&  /* for "ignore with spaces" */
+     sscanf(p, "ignore = \"%256[-a-zA-Z0-9 :()\\/.^\"]\"", ignore) == 1)
+    add_it = TRUE;
+
+  if (add_it)
   {
     node = MALLOC (sizeof(*node));
     node->section = section;
     node->value   = STRDUP (ignore);
     smartlist_add (sl, node);
-    DEBUGF (3, "[%s]: '%s'.\n", section, ignore);
+    DEBUGF (1, "[%s]: '%s'.\n", section, ignore);
   }
 }
 
 /**
  * Try to open and parse a config-file.
+ * \param[in] fname  the config-file.
  */
 int cfg_ignore_init (const char *fname)
 {
@@ -87,8 +101,13 @@ int cfg_ignore_init (const char *fname)
 }
 
 /**
- * Lookup an 'ignore_value' to test for the 'ignore_value'.
- * Return 1 if found in 'ignore_list'.
+ * Lookup a \c value to test for ignore. Compare the \c section too.
+ *
+ * \param[in] section  look for the \c value in this section.
+ * \param[in] value    the string-value to check.
+ *
+ * \retval 0 the \c section and \c value was not something to ignore.
+ * \retval 1 the \c section and \c value was found in the \c ignore_list.
  */
 int cfg_ignore_lookup (const char *section, const char *value)
 {
@@ -107,8 +126,8 @@ int cfg_ignore_lookup (const char *section, const char *value)
 }
 
 /**
- * Free the memory allocated in the 'ignore_list' smartlist.
- * Called from 'cleanup()' in envtool.c.
+ * Free the memory allocated in the \c ignore_list smartlist.
+ * Called from \c cleanup() in envtool.c.
  */
 void cfg_ignore_exit (void)
 {
@@ -122,7 +141,7 @@ void cfg_ignore_exit (void)
   {
     struct ignore_node *node = smartlist_get (ignore_list, i);
 
-    DEBUGF (3, "%d: ignore: '%s'\n", i, node->value);
+    DEBUGF (1, "%d: ignore: '%s'\n", i, node->value);
     FREE (node->value);
     FREE (node);
   }
