@@ -304,6 +304,7 @@ struct prog_options {
        int   conv_cygdrive;
        int   case_sensitive;
        int   cache_ver_level;
+       int   keep_temp;
        void *evry_host;     /* A smartlist_t */
        char *file_spec;
        char *file_spec_re;
@@ -342,8 +343,8 @@ extern int  process_dir (const char *path, int num_dup, BOOL exist, BOOL check_e
  */
 #define MAX_ENV_VAR  32767
 
-extern void  init_misc     (void);
-extern char *_strlcpy      (char *dst, const char *src, size_t len);
+extern void   init_misc    (void);
+extern char *_strlcpy      (char *dst, const char *src, size_t sz);
 extern char *_strrepeat    (int ch, size_t num);
 extern char *_strsep       (char **s, const char *delim);
 extern char *_stracat      (char *s1, const char *s2);
@@ -363,6 +364,7 @@ extern char *basename      (const char *fname);
 extern char *dirname       (const char *fname);
 extern int   _is_DOS83     (const char *fname);
 extern char *slashify      (const char *path, char use);
+extern char *slashify2     (char *buf, const char *path, char use);
 extern char *win_strerror  (unsigned long err);
 extern void  set_error_mode(int on_off);
 extern int  _file_exists   (const char *file);

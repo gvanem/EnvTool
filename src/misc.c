@@ -366,12 +366,13 @@ const char *get_gzip_link (const char *file)
   static char gzip [_MAX_PATH];
   static BOOL done = FALSE;
   const char *f = file;
+  const char *p;
 
   if (!done)
   {
-    const char *p = searchpath ("gzip.exe", "PATH");
+    p = searchpath ("gzip.exe", "PATH");
     if (p)
-      _strlcpy (gzip, slashify(p,'\\'), sizeof(gzip));
+       slashify2 (gzip, p, '\\');
     done = TRUE;
   }
 
@@ -397,7 +398,7 @@ const char *get_gzip_link (const char *file)
     snprintf (fqfn_name, sizeof(fqfn_name), "%s%c%s", dir_name, DIR_SEP, gzip_link_name);
     FREE (dir_name);
     if (opt.show_unix_paths)
-       return slashify (fqfn_name, '/');
+       return slashify2 (fqfn_name, fqfn_name, '/');
     return (fqfn_name);
   }
   return (NULL);
@@ -430,7 +431,7 @@ const char *get_man_link (const char *file)
     snprintf (fqfn_name, sizeof(fqfn_name), "%s%c%s", dir_name, DIR_SEP, base);
     FREE (dir_name);
     if (opt.show_unix_paths)
-       return slashify (fqfn_name, '/');
+       return slashify2 (fqfn_name, fqfn_name, '/');
     return (fqfn_name);
   }
 
@@ -1316,18 +1317,15 @@ void make_path (char *path, const char *drive, const char *dir, const char *file
  */
 char *make_cyg_path (const char *path, char *result)
 {
-  char *p = STRDUP (slashify(path, '/'));
   char  buf [_MAX_PATH+20];
+  char *p = slashify2 (buf, path, '/');
 
   if (strlen(p) > 2 && p[1] == ':' && IS_SLASH(p[2]))
   {
-    sprintf (buf, "/cygdrive/%c/%s", tolower(p[0]), p+3);
-    _strlcpy (result, buf, _MAX_PATH);
+    snprintf (result, _MAX_PATH, "/cygdrive/%c/%s", tolower(p[0]), p+3);
+    return (result);
   }
-  else
-    _strlcpy (result, p, _MAX_PATH);
-  FREE (p);
-  return (result);
+  return _strlcpy (result, p, _MAX_PATH);
 }
 
 /**
@@ -2048,7 +2046,27 @@ char *slashify (const char *path, char use)
     }
     else
       *s++ = *p;
-    ASSERT (s < buf + sizeof(buf));
+    ASSERT (s < buf+sizeof(buf)-1);
+  }
+  *s = '\0';
+  return _fix_drive (buf);
+}
+
+/**
+ * As above, but copy into \c buf.
+ * \note \c path and \c buf can point to same location.
+ */
+char *slashify2 (char *buf, const char *path, char use)
+{
+  const char *p, *end = strchr (path, '\0');
+  char       *s = buf;
+
+  for (p = path; p < end; p++)
+  {
+    if (IS_SLASH(*p))
+         *s++ = use;
+    else *s++ = *p;
+    ASSERT (s < buf+_MAX_PATH-1);
   }
   *s = '\0';
   return _fix_drive (buf);
@@ -2633,9 +2651,7 @@ static char *popen_setup (const char *cmd)
 
   len = strlen(setdos) + strlen(comspec) + strlen(cmd) + 1;
 
-  /*
-   * Use MALLOC() here because of gcc warning on 'alloca()' used previously:
-   *  'warning: stack protector not protecting local variables: variable length buffer [-Wstack-protector]'
+  /* Allocate an extended command-line for \c _popen().
    */
   cmd2 = MALLOC (len);
   strcpy (cmd2, setdos);
