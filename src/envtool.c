@@ -1447,15 +1447,15 @@ static void final_report (int found)
   C_putc ('\n');
 }
 
-/*
+/**
  * Check for suffix or trailing wildcards. If not found, add a
- * trailing "*".
+ * trailing \c "*".
  *
- * If 'opt.file_spec' starts with a subdir(s) part, return that in
- * '*sub_dir' with a trailing DIR_SEP. And return a 'fspec'
+ * If \c opt.file_spec starts with a subdir(s) part, return that in
+ * \c '*sub_dir' with a trailing \c DIR_SEP. And return a \c 'fspec'
  * without the sub-dir part.
  *
- * Not used in '--evry' search.
+ * Not used in \c "--evry" search.
  */
 static char *fix_filespec (char **sub_dir)
 {
@@ -1464,11 +1464,11 @@ static char *fix_filespec (char **sub_dir)
   char  *p, *fspec = _strlcpy (fname, opt.file_spec, sizeof(fname));
   char  *lbracket, *rbracket;
 
-  /*
-   * If we do e.g. "envtool --inc openssl/ssl.h", we must preserve
-   * the subdir part since FindFirstFile() doesn't give us this subdir part
-   * in 'ff_data.cFileName'. It just returns the matching file(s) *within*
-   * that subdir.
+  /**
+   * If we do e.g. \c "envtool --inc openssl/ssl.h", we must preserve
+   * the subdir part since \c FindFirstFile() doesn't give us this subdir
+   * part in \c ff_data.cFileName. It just returns the matching file(s)
+   * \b within that sub-directory.
    */
   *sub_dir = NULL;
   p = basename (fspec);
@@ -1480,13 +1480,13 @@ static char *fix_filespec (char **sub_dir)
     DEBUGF (2, "fspec: '%s', *sub_dir: '%s'\n", fspec, *sub_dir);
   }
 
- /*
+ /**
   * Since FindFirstFile() doesn't work with POSIX ranges, replace
-  * the range part in 'fspec' with a '*'. This could leave a '**' in
-  * 'fspec', but that doesn't hurt.
+  * the range part in \c fspec with a \c '*'. This could leave a
+  * \c '**' in \c 'fspec', but that doesn't hurt.
   *
-  * Note: we still must use 'opt.file_spec' in 'fnmatch()' for a POSIX
-  *       range to work below.
+  * \note We must still use \c opt.file_spec in \c fnmatch() for
+  *       a POSIX range to work below.
   */
   lbracket = strchr (fspec, '[');
   rbracket = strchr (fspec, ']');
@@ -1498,6 +1498,16 @@ static char *fix_filespec (char **sub_dir)
   }
 
   DEBUGF (1, "fspec: %s, *sub_dir: %s\n", fspec, *sub_dir);
+
+  if (*sub_dir && strpbrk(*sub_dir, "[]*?"))
+  {
+    /** \todo
+     * Check for POSIX ranges in the sub-dir part as we do above
+     * for the base \c fspec. The \c FindFirstFile() loop in
+     * \c process_dir() should then have another outer \b "directory-loop".
+     */
+    WARN ("Ignoring wildcards in sub-dir part: '%s%s'.\n", *sub_dir, fspec);
+  }
   return (fspec);
 }
 
@@ -1840,11 +1850,12 @@ static int do_check_registry (void)
   return (found);
 }
 
-/*
- * Check if directory is empty (no files or directories except "." and "..").
+/**
+ * Check if directory is empty (no files or directories except
+ * \c "." and \c "..").
  *
- * Note: It is quite normal that e.g. "%INCLUDE" contain a directory with
- *       no .h-files but at least 1 subdirectory with several .h-files.
+ * \note It is quite normal that e.g. \c "%INCLUDE" contain a directory with
+ *       no .h-files but at least 1 subdirectory with .h-files.
  */
 static BOOL dir_is_empty (const char *env_var, const char *dir)
 {
