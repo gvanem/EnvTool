@@ -1042,7 +1042,17 @@ static void print_PE_info (const char *file, BOOL chksum_ok,
       size_t      indent = strlen (filler);
 
       if (colon)
-         indent += (colon - line + 1);
+      {
+        if (colon && colon[1] == ' ')
+        {
+          char ignore [200];
+
+          _strlcpy (ignore, line, colon-line+1);
+          if (cfg_ignore_lookup("PE-resources",str_trim(ignore)))
+             continue;
+        }
+        indent += (colon - line + 1);
+      }
       C_puts (filler);
       C_puts_long_line (line, indent);
     }
