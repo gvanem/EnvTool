@@ -1048,7 +1048,7 @@ static void print_PE_info (const char *file, BOOL chksum_ok,
           char ignore [200];
 
           _strlcpy (ignore, line, colon-line+1);
-          if (cfg_ignore_lookup("PE-resources",str_trim(ignore)))
+          if (cfg_ignore_lookup("[PE-resources]",str_trim(ignore)))
              continue;
         }
         indent += (colon - line + 1);
@@ -1747,7 +1747,7 @@ static int report_registry (const char *reg_key)
     if (!arr->exist)
     {
       snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
-      if (!cfg_ignore_lookup("Registry",fqfn))
+      if (!cfg_ignore_lookup("[Registry]",fqfn))
          WARN ("\"%s\\%s\" points to\n  '%s'. But this file does not exist.\n\n",
                reg_top_key_name(arr->key), reg_key, fqfn);
     }
@@ -4758,14 +4758,14 @@ static void check_reg_key (HKEY top_key, const char *reg_key)
     const struct registry_array *arr = smartlist_get (reg_array, i);
     char  fqfn [_MAX_PATH];
 
-    if (!is_directory(arr->path) && !cfg_ignore_lookup("Registry",arr->path))
+    if (!is_directory(arr->path) && !cfg_ignore_lookup("[Registry]",arr->path))
     {
       C_printf ("%*c~5Missing dir~0: ~3%s~0\n", indent, ' ', arr->path);
       errors++;
       continue;
     }
     snprintf (fqfn, sizeof(fqfn), "%s\\%s", arr->path, arr->fname);
-    if (!arr->exist && !cfg_ignore_lookup("Registry",fqfn))
+    if (!arr->exist && !cfg_ignore_lookup("[Registry]",fqfn))
     {
       C_printf ("%*c~5Missing file~0: ~3%s~0\n", indent, ' ', fqfn);
       errors++;
