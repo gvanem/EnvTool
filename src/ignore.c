@@ -40,7 +40,7 @@ static smartlist_t *ignore_list;
  */
 static void cfg_parse (smartlist_t *sl, char *line)
 {
-  char   ignore [256], *p;
+  char   ignore [256], *p, *q;
   struct ignore_node *node = NULL;
   BOOL   add_it = FALSE;
   static const char *section = NULL;
@@ -61,21 +61,29 @@ static void cfg_parse (smartlist_t *sl, char *line)
   if (!section)
      return;
 
+  /* Remove trailing comments and spaces before that.
+   */
+  q = strchr (line, '#');
+  if (q)
+  {
+    *q-- = '\0';
+    while (*q == ' ' || *q == '\t')
+       *q-- = '\0';
+  }
+
   ignore[0] = '\0';
 
   if (sscanf(p, "ignore = %256s", ignore) == 1 && ignore[0] != '\"')
      add_it = TRUE;
 
-  /**
-   * For things to "ignore with spaces", the above \c sscanf() returned with
-   * \c "ignore[0] == '\"'" and \b not the full ignore string-value.
-   * Therefore use this quite complex \c sscanf() expression to get the whole
-   * string-value.
-   *   Ref: https://msdn.microsoft.com/en-us/library/xdb9w69d.aspx
-   */
-  if (ignore[0] == '\"' &&
-      sscanf(p, "ignore = \"%256[-_ :()\\/.a-zA-Z0-9^\"]\"", ignore) == 1)
-     add_it = TRUE;
+  p = strchr (line, '\0');
+  q = strchr (line, '\"');
+  if (ignore[0] == '\"' && p[-1] == '\"' && p - q >= 3 && p < line+sizeof(ignore))
+  {
+    p[-1] = '\0';
+    _strlcpy (ignore, q+1, sizeof(ignore));
+    add_it = TRUE;
+  }
 
   if (add_it)
   {
