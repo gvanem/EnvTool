@@ -1506,11 +1506,11 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
   memset (st, '\0', sizeof(*st));
   st->st_size = (off_t)-1;     /* signal if stat() fails */
 
-  is_dir = (attr != (DWORD)-1 && (attr & FILE_ATTRIBUTE_DIRECTORY));
+  is_dir = (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
   if (is_dir)
      return stat (file, st);
 
-  if (attr != (DWORD)-1 && !(attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
+  if (attr != INVALID_FILE_ATTRIBUTES && !(attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
      return stat (file, st);
 
   err = GetLastError();
