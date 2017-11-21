@@ -28,7 +28,7 @@ OBJECTS = auth.obj           &
           win_trust.obj      &
           win_ver.obj
 
-all: cflags_Watcom.h ldflags_Watcom.h envtool.exe
+all: cflags_Watcom.h ldflags_Watcom.h envtool.exe dirlist.exe win_trust.exe win_ver.exe
 
 .ERASE
 envtool.exe: $(OBJECTS) envtool.res
@@ -44,8 +44,15 @@ dirlist.exe: dirlist.c misc.obj color.obj getopt_long.obj searchpath.obj
 
 .ERASE
 win_trust.exe: win_trust.c misc.obj color.obj getopt_long.obj searchpath.obj
-	$(CC) $(CFLAGS) -DWINTRUST_TEST win_trust.c
+	$(CC) $(CFLAGS) -DWIN_TRUST_TEST win_trust.c
 	$(LINK) name $*.exe file { win_trust.obj misc.obj color.obj getopt_long.obj searchpath.obj } &
+	        library { $(EX_LIBS) }
+	rm win_trust.obj
+
+.ERASE
+win_ver.exe: win_ver.c misc.obj color.obj searchpath.obj
+	$(CC) $(CFLAGS) -DWIN_VER_TEST win_ver.c
+	$(LINK) name $*.exe file { win_ver.obj misc.obj color.obj searchpath.obj } &
 	        library { $(EX_LIBS) }
 	rm win_trust.obj
 
