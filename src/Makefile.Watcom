@@ -12,12 +12,12 @@ EX_LIBS = advapi32.lib imagehlp.lib version.lib shfolder.lib &
           psapi.lib ws2_32.lib wintrust.lib crypt32.lib user32.lib
 
 OBJECTS = auth.obj           &
+          color.obj          &
+          dirlist.obj        &
           envtool.obj        &
           envtool_py.obj     &
           Everything.obj     &
           Everything_ETP.obj &
-          color.obj          &
-          dirlist.obj        &
           getopt_long.obj    &
           ignore.obj         &
           misc.obj           &
@@ -54,7 +54,7 @@ win_ver.exe: win_ver.c misc.obj color.obj searchpath.obj
 	$(CC) $(CFLAGS) -DWIN_VER_TEST win_ver.c
 	$(LINK) name $*.exe file { win_ver.obj misc.obj color.obj searchpath.obj } &
 	        library { $(EX_LIBS) }
-	rm win_trust.obj
+	rm win_ver.obj
 
 .ERASE
 .c.obj:
