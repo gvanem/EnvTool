@@ -1941,7 +1941,7 @@ void py_searchpaths (void)
 
   if (num > 0)
        C_puts ("   ~3(1)~0 Default Python (first found on PATH).\n");
-  else C_puts (" <None>.\n");
+  else C_puts ("   <None>.\n");
 
   /* Show the Python that were ignored.
    */
@@ -1950,7 +1950,7 @@ void py_searchpaths (void)
        ignored = cfg_ignore_next("[Python]"), i++)
   {
     if (i == 0)
-       C_puts ("\n  Ignored Pythons:\n");
+       C_puts ("   Ignored:\n");
     C_printf ("       %s\n", ignored);
   }
 }
