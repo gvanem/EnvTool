@@ -184,12 +184,12 @@ not_found:
 }
 
 /**
- * Lookup the next ignored \c value.
+ * Lookup the next ignored \c value in the same \c section.
  */
 const char *cfg_ignore_next (const char *section)
 {
   const struct ignore_node *node;
-  int   i, max = smartlist_len (ignore_list);
+  int   i, max;
 
   /* cfg_ignore_first() not called or no ignorables found
    * by cfg_ignore_first().
@@ -197,10 +197,11 @@ const char *cfg_ignore_next (const char *section)
   if (next_idx == -1 || curr_sec == UINT_MAX)
      return (NULL);
 
+  max = ignore_list ? smartlist_len (ignore_list) : 0;
   for (i = next_idx; i < max; i++)
   {
     node = smartlist_get (ignore_list, i);
-    if (!stricmp(sections[curr_sec].name, section) &&
+    if (!stricmp(section,sections[curr_sec].name) &&
         !stricmp(section, node->section))
     {
       next_idx = i + 1;
@@ -212,7 +213,7 @@ const char *cfg_ignore_next (const char *section)
 }
 
 /**
- * Dump all ignored values in all sections.
+ * Dump number of ignored values in all sections.
  */
 void cfg_ignore_dump (void)
 {
@@ -222,11 +223,12 @@ void cfg_ignore_dump (void)
   {
     const char *ignored, *section = sections[i].name;
 
-    for (j = 0, ignored = cfg_ignore_first(section);
+    j = 0;
+    for (ignored = cfg_ignore_first(section);
          ignored;
          ignored = cfg_ignore_next(section), j++)
         ;
-        DEBUGF (2, "section: %-15s: num: %d.\n", section, j);
+    DEBUGF (3, "section: %-15s: num: %d.\n", section, j);
   }
 }
 
@@ -246,10 +248,68 @@ void cfg_ignore_exit (void)
   {
     struct ignore_node *node = smartlist_get (ignore_list, i);
 
-    DEBUGF (2, "%d: ignore: '%s'\n", i, node->value);
     FREE (node->value);
     FREE (node);
   }
   smartlist_free (ignore_list);
 }
 
+#if 0
+/*
+ * Thinking loud; future generic section lookup of
+ * a handler give a "[Section]" with a key and value.
+ */
+static const char *Compiler_handler (const char *key, const char *value)
+{
+  return (NULL);
+}
+
+static const char *Registry_handler (const char *key, const char *value)
+{
+  return (NULL);
+}
+
+static const char *Python_handler (const char *key, const char *value)
+{
+  return (NULL);
+}
+
+static const char *PE_resources_handler (const char *key, const char *value)
+{
+  return (NULL);
+}
+
+typedef const char * (*handler_t) (const char *key, const char *value);
+
+static const handler_t handler_tab [DIM(sections)] = {
+                       Compiler_handler,
+                       Registry_handler,
+                       Python_handler,
+                       PE_resources_handler
+                     };
+
+static handler_t cfg_lookup_handler (const char *section)
+{
+  unsigned idx = list_lookup_value (section, sections, DIM(sections));
+
+  if (idx < UINT_MAX && (int)sections[idx].value >= 0 && sections[idx].value < DIM(handler_tab))
+     return handler_tab [sections[idx].value];
+  return (NULL);
+}
+
+const char *cfg_Compiler_lookup (const char *key, const char *value)
+{
+  handler_t handler = cfg_lookup_handler ("[Compiler]");
+  if (handler)
+     return (*handler) (key, value);
+  return (NULL);
+}
+
+int cfg_ignore_lookup2 (const char *section, const char *value)
+{
+  handler_t handler = cfg_lookup_handler (section);
+  if (handler)
+     return (int) (*handler) ("ignore", value);
+  return (0);
+}
+#endif
