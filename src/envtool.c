@@ -115,7 +115,7 @@ static smartlist_t *dir_array, *reg_array;
 
 struct prog_options opt;
 
-char   sys_dir        [_MAX_PATH];
+char   sys_dir        [_MAX_PATH];  /* E.g. "c:\Windows\System32" */
 char   sys_native_dir [_MAX_PATH];  /* Not for WIN64 */
 char   sys_wow64_dir  [_MAX_PATH];  /* Not for WIN64 */
 
@@ -162,7 +162,7 @@ static void get_evry_bitness (HWND wnd);
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
 static int   do_check (void);
 static int   do_tests (void);
-static void  searchpath_all_cc (void);
+static void  searchpath_all_cc (BOOL print_info, BOOL print_lib_path);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 static int   get_pkg_config_info (const char **exe, struct ver_info *ver);
@@ -464,7 +464,7 @@ static int show_version (void)
     print_build_ldflags();
 
     C_printf ("\n  Compilers on ~3PATH~0:\n");
-    searchpath_all_cc();
+    searchpath_all_cc (TRUE, opt.do_version >= 3);
 
     C_printf ("\n  Pythons on ~3PATH~0:");
     py_searchpaths();
@@ -615,6 +615,18 @@ void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
   /* Can we have >1 native dirs?
    */
   d->is_native = (str_equal(dir,sys_native_dir) == 0);
+
+  /* Some issue with OpenWatcom's 'stat()' on a sys_native directory.
+   * Even though 'GetFileAttributes()' in 'safe_stat()' says it's a
+   * directory, 'stat()' doesn't report it as such. So just fake it.
+   */
+#if defined(__WATCOMC__)
+  if (d->is_native && !d->exist)
+  {
+    d->exist  = TRUE;
+    d->is_dir = TRUE;
+  }
+#endif
 
 #if (IS_WIN64)
   if (d->is_native && !d->exist)  /* No access to this directory from WIN64; ignore */
@@ -2627,19 +2639,110 @@ static int do_check_cmake (void)
   return (found);
 }
 
-/*
- * Having several gcc compilers installed makes it nearly impossible to
- * set C_INCLUDE_PATH to the desired compiler's include-dir. So EnvTool
- * simply asks *gcc.exe for what it think is the include search-path.
- * Do that by spawning the *gcc.exe and parsing the include paths.
- *
- * Same goes for the LIBRARY_PATH.
+/**
+ * Handling of GNU-compilers ('*gcc.exe', '*g++.exe'), MSVC and Watcom.
  */
-static BOOL  looks_like_cygwin = FALSE;
-static BOOL  found_search_line = FALSE;
-static char  cygwin_fqfn [_MAX_PATH];
-static char *cygwin_root = NULL;
+typedef enum compiler_type {
+             CC_UNKNOWN = 0,
+             CC_GNU_GCC,      /* Some sort of (prefixed) '*gcc.exe' */
+             CC_GNU_GPP,      /* Some sort of (prefixed) '*g++.exe' */
+             CC_MSVC,
+             CC_WATCOM
+           } compiler_type;
 
+typedef struct compiler_info {
+        char          *short_name;  /* the short name we're looking for on%PATH */
+        char          *full_name;   /* the full name if found %PATH */
+        compiler_type  type;        /* what type is it? */
+        BOOL           ignore;      /* shall we ignore it? */
+        BOOL           no_prefix;   /* shall we check gnu prefixed gcc/g++? */
+      } compiler_info;
+
+/* Info for all compiler is int this list; an array of 'compiler_info'
+ */
+static smartlist_t *all_cc = NULL;
+
+static size_t longest_cc = 0;
+static BOOL   ignore_all_gcc = FALSE;
+static BOOL   ignore_all_gpp = FALSE;
+static BOOL   looks_like_cygwin = FALSE;
+static BOOL   found_search_line = FALSE;
+static char  *cygwin_root       = NULL;
+static char   cygwin_fqfn [_MAX_PATH];
+static char  *watcom_dir[4];
+
+static void free_all_compilers (void)
+{
+  int i, max = all_cc ? smartlist_len (all_cc) : 0;
+
+  for (i = 0; i < max; i++)
+  {
+    compiler_info *cc = smartlist_get (all_cc, i);
+
+    FREE (cc->short_name);
+    FREE (cc->full_name);
+    FREE (cc);
+  }
+  smartlist_free (all_cc);
+}
+
+/**
+ * Check if we shall ignore this compiler.
+ *
+ * \li if \c cc->full_name is non-NULL (i.e. found), check the ignore-list for that.
+ * \li if \c cc->full_name is NULL, check the ignore-list for the \c cc->short_name.
+ *
+ * \eg{.} if the config-file contains a "ignore = i386-mingw32-gcc.exe", and
+ *        \c "i386-mingw32-gcc.exe" is not found, don't try to spawn it (since it
+ *        will fail).
+ */
+static void compiler_check_ignore (compiler_info *cc)
+{
+  BOOL ignore = FALSE;
+
+  /* "envtool --no-prefix .." given and this \c 'cc->short_name' is
+   * a prefixed \c '*-gcc.exe' or \c '*-g++.exe'.
+   */
+  if (cc->no_prefix)
+     ignore = TRUE;
+
+  /* "envtool --no-gcc .." given and this \c 'cc->type == CC_GNU_GCC'.
+   */
+  else if (cc->type == CC_GNU_GCC && opt.no_gcc)
+     ignore = TRUE;
+
+  /* "envtool --no-g++ .." given and this \c 'cc->type == CC_GNU_GPP'.
+   */
+  else if (cc->type == CC_GNU_GPP && opt.no_gpp)
+     ignore = TRUE;
+
+  /* "envtool --no-watcom .." given and this \c 'cc->type == CC_WATCOM'.
+   */
+  else if (cc->type == CC_WATCOM && opt.no_watcom)
+     ignore = TRUE;
+
+  else if (cc->full_name)
+    ignore = cfg_ignore_lookup ("[Compiler]", cc->full_name);
+
+  /* Last chance to check ignore.
+   */
+  if (!ignore)
+     ignore = cfg_ignore_lookup ("[Compiler]", cc->short_name);
+
+  DEBUGF (1, "Checking %s (%s), ignore: %d.\n",
+          cc->short_name, cc->full_name ? cc->full_name : "<not found>", ignore);
+
+  cc->ignore = ignore;
+}
+
+/**
+ * Having several gcc compilers installed makes it nearly impossible to
+ * set \c C_INCLUDE_PATH to the desired compiler's include-dir. So Envtool
+ * simply asks \c '*gcc.exe' for what it think is the include search-path.
+ * Do that by spawning the \c '*gcc.exe' and parsing the include paths.
+ *
+ * Same goes for the \c LIBRARY_PATH.
+ */
 static void check_if_cygwin (const char *path)
 {
   static const char cyg_usr[] = "/usr/";
@@ -2664,18 +2767,17 @@ static void check_if_cygwin (const char *path)
  * Otherwise \c FILE_EXISTS() wont work for non-Cygwin targets.
  * An alternative would be to parse the \c "<cygwin_root>/etc/fstab" file!
  */
-static void setup_cygwin_root (const char *gcc)
+static void setup_cygwin_root (const compiler_info *cc)
 {
-  char *p = searchpath (gcc, "PATH");
-
   looks_like_cygwin = FALSE;
   cygwin_root = NULL;
   cygwin_fqfn[0] = '\0';
-  if (p)
+
+  if (cc->full_name && !cc->ignore)
   {
     char *bin_dir;
 
-    slashify2 (cygwin_fqfn, p, '/');
+    slashify2 (cygwin_fqfn, cc->full_name, '/');
     bin_dir = strstr (cygwin_fqfn, "/bin");
     if (bin_dir)
     {
@@ -2803,7 +2905,6 @@ static int find_library_path_cb (char *buf, int index)
   return (i);
 }
 
-
 #if defined(__CYGWIN__)
   #define CLANG_DUMP_FMT "clang -v -dM -xc -c - < /dev/null 2>&1"
   #define GCC_DUMP_FMT   "%s %s -v -dM -xc -c - < /dev/null 2>&1"
@@ -2812,9 +2913,10 @@ static int find_library_path_cb (char *buf, int index)
   #define GCC_DUMP_FMT   "%s %s -o NUL -v -dM -xc -c - < NUL 2>&1"
 #endif             /* gcc ^, ^ '', '-m32' or '-m64' */
 
-static int setup_gcc_includes (const char *gcc)
+static int setup_gcc_includes (const compiler_info *cc)
 {
-  int found;
+  const char *gcc = cc->short_name;
+  int   found;
 
   free_dir_array();
 
@@ -2824,7 +2926,7 @@ static int setup_gcc_includes (const char *gcc)
    */
   found_search_line = FALSE;
 
-  setup_cygwin_root (gcc);
+  setup_cygwin_root (cc);
 
   found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
   if (found > 0)
@@ -2833,9 +2935,9 @@ static int setup_gcc_includes (const char *gcc)
   return (found);
 }
 
-static int setup_gcc_library_path (const char *gcc, BOOL warn)
+static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
 {
-  const char *m_cpu;
+  const char *m_cpu, *gcc = cc->short_name;
   int   found, duplicates;
 
   free_dir_array();
@@ -2855,7 +2957,7 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
    */
   found_search_line = FALSE;
 
-  setup_cygwin_root (gcc);
+  setup_cygwin_root (cc);
 
   found = popen_runf (find_library_path_cb, GCC_DUMP_FMT, gcc, m_cpu);
   if (found <= 0)
@@ -2894,94 +2996,161 @@ static int setup_gcc_library_path (const char *gcc, BOOL warn)
  */
 static int process_gcc_dirs (const char *gcc, int *num_dirs)
 {
-  int i, found = 0;
-  int max = smartlist_len (dir_array);
+  int i, found, max = smartlist_len (dir_array);
 
-  for (i = 0; i < max; i++)
+  for (i = found = 0; i < max; i++)
   {
     const struct directory_array *arr = smartlist_get (dir_array, i);
 
     DEBUGF (2, "dir: %s\n", arr->dir);
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
-                          arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE,
-                          FALSE);
+                          arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE, FALSE);
   }
   *num_dirs = max;
   free_dir_array();
   return (found);
 }
 
-
-static char **gcc = NULL;
-static char **gpp = NULL;
-
-static const char *cl[] = { "cl.exe"
-                          };
-
-static const char *wcc[] = { "wcc386.exe",
-                             "wpp386.exe",
-                             "wccaxp.exe",
-                             "wppaxp.exe"
-                          };
-
-static size_t longest_cc = 0;
-static size_t _num_gcc   = 0;
-static size_t _num_gpp   = 0;
-
-static void build_gnu_prefixes (void)
+/**
+ * Add all supported GNU gcc/g++ compilers to the \c 'all_cc' smartlist.
+ * But only add the first \c "*gcc.exe" / \c "*g++.exe"" found on PATH.
+ *
+ * The first pair added has no prefix (simply \c "gcc.exe" / \c "g++.exe").
+ * The others pairs use the prefixes in \c 'gnu_pfx[]'.
+ */
+static void add_gnu_compilers (void)
 {
-  static const char *pfx[] = { "x86_64-w64-mingw32",
-                               "i386-mingw32",
-                               "i686-w64-mingw32",
-                               "avr"
-                             };
-                             /* Add more gcc programs here?
-                              *
-                              * Maybe we should use 'searchpath("*gcc.exe", "PATH")'
-                              * to find all 'gcc.exe' programs?
-                              */
-  size_t i;
+  static const char *gnu_pfx[] = {
+                    "x86_64-w64-mingw32",
+                    "i386-mingw32",
+                    "i686-w64-mingw32",
+                    "avr"
+                  };
+                  /* \todo: add more prefixes from envtool.cfg here? */
 
-  if (_num_gcc + _num_gpp > 0)
-     return;
+  size_t i, num_gnu = 1 + DIM(gnu_pfx);
+  char   short_name[30];
 
-  _num_gcc  = _num_gpp = 1;
-  _num_gcc += DIM (pfx);
-  _num_gpp += DIM (pfx);
-
-  gcc = CALLOC (sizeof(char*) * _num_gcc, 1);
-  gpp = CALLOC (sizeof(char*) * _num_gpp, 1);
-
-  for (i = 0; i < _num_gcc; i++)
+  for (i = 0; i < num_gnu; i++)
   {
-    const char *val1 = i > 0 ? pfx[i-1] : "";
-    const char *val2 = i > 0 ? "-"      : "";
-    char str[30];
+    compiler_info *gcc = CALLOC (sizeof(*gcc), 1);
+    compiler_info *gpp = CALLOC (sizeof(*gpp), 1);
 
-    snprintf (str, sizeof(str)-1, "%s%sgcc.exe", val1, val2);
-    gcc[i] = STRDUP (str);
+    if (i == 0)
+    {
+      gcc->short_name = STRDUP ("gcc.exe");
+      gpp->short_name = STRDUP ("g++.exe");
+    }
+    else
+    {
+      snprintf (short_name, sizeof(short_name)-1, "%s-gcc.exe", gnu_pfx[i-1]);
+      gcc->short_name = STRDUP (short_name);
+      gcc->no_prefix  = opt.gcc_no_prefixed;
 
-    snprintf (str, sizeof(str)-1, "%s%sg++.exe", val1, val2);
-    gpp[i] = STRDUP (str);
-  }
-}
+      snprintf (short_name, sizeof(short_name)-1, "%s-g++.exe", gnu_pfx[i-1]);
+      gpp->short_name = STRDUP (short_name);
+      gpp->no_prefix  = opt.gcc_no_prefixed;
+    }
+    gcc->type = CC_GNU_GCC;
+    gpp->type = CC_GNU_GPP;
 
-static void get_longest (const char **cc, size_t num)
-{
-  size_t i, len;
+    gcc->full_name = searchpath (gcc->short_name, "PATH");
+    if (gcc->full_name)
+       gcc->full_name = STRDUP (gcc->full_name);
 
-  for (i = 0; i < num; i++)
-  {
-    len = strlen (cc[i]);
-    if (len > longest_cc)
-       longest_cc = len;
+    gpp->full_name = searchpath (gpp->short_name, "PATH");
+    if (gpp->full_name)
+       gpp->full_name = STRDUP (gpp->full_name);
+
+    smartlist_add (all_cc, gcc);
+    smartlist_add (all_cc, gpp);
   }
 }
 
 /**
- * Print the internal '*gcc' or '*g++' LIBRARY_PATH returned from 'setup_gcc_library_path()'.
- * I.e. only the directories NOT in %LIBRARY_PATH%.
- * If we have no %LIBRARY_PATH%, the 'copy[]' will contain only internal directories.
+ * Simple; only add the first "cl.exe" found on PATH.
+ * \todo:
+ *   do as with "envtool --path cl.exe" does and add all "cl.exe" found
+ *   on PATH to the list.
+ */
+static void add_msvc_compilers (void)
+{
+  compiler_info *cl = CALLOC (sizeof(*cl), 1);
+  const char    *full_name;
+
+  cl->type       = CC_MSVC;
+  cl->short_name = STRDUP ("cl.exe");
+  full_name      = searchpath (cl->short_name, "PATH");
+  if (full_name)
+      cl->full_name = STRDUP (full_name);
+  smartlist_add (all_cc, cl);
+}
+
+static void add_watcom_compilers (void)
+{
+  static const char *wcc[] = {
+                    "wcc386.exe",
+                    "wpp386.exe",
+#if 0
+                    /* x86 16-bit C/C++ compilers
+                     */
+                    "wcc.exe",
+                    "wpp.exe",
+
+                    /* MIPS / PowerPC, C compilers
+                     */
+                    "wccmps.exe",
+                    "wccppc.exe",
+#endif
+                    /* Museum stuff; Alpha AXP, C/C++ compilers
+                     */
+                    "wccaxp.exe",
+                    "wppaxp.exe"
+                  };
+  int i;
+
+  for (i = 0; i < DIM(wcc); i++)
+  {
+    compiler_info *wc = CALLOC (sizeof(*wc), 1);
+    const char    *full_name;
+
+    wc->type       = CC_WATCOM;
+    wc->short_name = STRDUP (wcc[i]);
+    full_name      = searchpath (wc->short_name, "PATH");
+    if (full_name)
+       wc->full_name = STRDUP (full_name);
+    smartlist_add (all_cc, wc);
+  }
+}
+
+/**
+ * This is used to find the longest \c cc->short_name. For aligning the 1st column
+ * (e.g. \c "cl.exe") to fit the compiler with the longest \c cc->short_name.
+ * I.e. \c "x86_64-w64-mingw32-gcc.exe".
+ */
+static size_t get_longest_short_name (void)
+{
+  int    i, max = smartlist_len (all_cc);
+  size_t longest = 0;
+
+  for (i = 0; i < max; i++)
+  {
+    const  compiler_info *cc = smartlist_get (all_cc, i);
+    size_t len = strlen (cc->short_name);
+
+    if (!cc->ignore && len > longest)
+       longest = len;
+  }
+  return (longest);
+}
+
+/**
+ * Print the internal \c "*gcc" or \c "*g++" \c LIBRARY_PATH returned from
+ * \c 'setup_gcc_library_path()'.
+ * I.e. only the directories \b not in \c %LIBRARY_PATH%.
+ *
+ * If we have no \c %LIBRARY_PATH%, the \c 'copy[]' will contain only internal
+ * directories.
  */
 static void print_gcc_internal_dirs (const char *env_name, const char *env_value)
 {
@@ -3043,150 +3212,191 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
  *    gcc.exe                    -> f:\MingW32\TDM-gcc\bin\gcc.exe
  *    ...
  *
- * 'get_longest()' called to align the 1st column (gcc.exe) to fit the
- * compiler with the longest name. I.e. "x86_64-w64-mingw32-gcc.exe".
- *
  * 'envtool -VVV' (print_lib_path = TRUE) will print the internal
- * '*gcc' or '*g++' library paths.
+ * '*gcc' or '*g++' library paths too.
  */
-static void searchpath_compilers (const char **cc, size_t num, BOOL print_lib_path)
+static void print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
 {
-  const char *found;
-  size_t      i, len;
+  BOOL   is_gnu;
+  size_t len = strlen (cc->short_name);
 
-  for (i = 0; i < num; i++)
+  C_printf ("    %s%*s -> ", cc->short_name, (int)(longest_cc-len), "");
+  if (cc->full_name)
+       C_printf ("~6%s~0\n", cc->full_name);
+  else C_printf ("~5Not found~0\n");
+
+  if (!cc->full_name || cc->ignore || !print_lib_path)
+     return;
+
+  is_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GPP);
+  if (is_gnu && setup_gcc_library_path(cc,FALSE) > 0)
   {
-    found = searchpath (cc[i], "PATH");
-    len = strlen (cc[i]);
-    C_printf ("    %s%*s -> ~%c%s~0\n",
-              cc[i], (int)(longest_cc-len), "",
-              found ? '6' : '5', found ? found : "Not found");
+    char *env = getenv_expand ("LIBRARY_PATH");
 
-    if (!found || !print_lib_path)
+    print_gcc_internal_dirs ("LIBRARY_PATH", env);
+    FREE (env);
+  }
+  FREE (cygwin_root);
+}
+
+static BOOL ignore_all_gnus (compiler_type type)
+{
+  int i, num_gnu = 0, gnu_ignore = 0;
+  int max = smartlist_len (all_cc);
+
+  for (i = 0; i < max; i++)
+  {
+    const compiler_info *cc = smartlist_get (all_cc, i);
+
+    if (cc->type != type)
        continue;
 
-    if (setup_gcc_library_path(cc[i],FALSE) > 0)
-    {
-      char *env = getenv_expand ("LIBRARY_PATH");
+     num_gnu++;
+     if (cc->ignore)
+        gnu_ignore++;
+  }
+  return (gnu_ignore >= num_gnu);
+}
 
-      print_gcc_internal_dirs ("LIBRARY_PATH", env);
-      FREE (env);
+static void searchpath_all_cc (BOOL print_info, BOOL print_lib_path)
+{
+  struct compiler_info *cc;
+  BOOL   at_least_one_gnu = FALSE;
+  int    i, max, ignored, save = opt.cache_ver_level;
+
+  ASSERT (all_cc == NULL);
+  all_cc = smartlist_new();
+
+  if (print_info && print_lib_path)
+     opt.cache_ver_level = 3;
+
+  add_gnu_compilers();
+  add_msvc_compilers();
+  add_watcom_compilers();
+
+  max = smartlist_len (all_cc);
+  for (i = 0; i < max; i++)
+     compiler_check_ignore (smartlist_get(all_cc, i));
+
+  longest_cc = get_longest_short_name();
+
+  ignore_all_gcc = ignore_all_gnus (CC_GNU_GCC);
+  ignore_all_gpp = ignore_all_gnus (CC_GNU_GPP);
+
+  DEBUGF (1, "\nignore_all_gcc: %d, ignore_all_gpp: %d.\n", ignore_all_gcc, ignore_all_gpp);
+
+  if (!print_info)
+     return;
+
+  /* Count the # of compilers that were ignored.
+   * And print some info if it wasn't ignored.
+   */
+  for (i = ignored = 0; i < max; i++)
+  {
+    compiler_info *cc = smartlist_get (all_cc, i);
+
+    if (cc->ignore)
+         ignored++;
+    else print_compiler_info (cc, print_lib_path);
+
+    if (!at_least_one_gnu)
+       at_least_one_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GPP);
+  }
+
+  if (print_lib_path && at_least_one_gnu)
+     C_puts ("    ~3(1)~0: internal GCC library paths.\n");
+
+  opt.cache_ver_level = save;
+
+  if (ignored == 0)
+     return;
+
+  /* Show the ignored ones
+   */
+  C_puts ("    Ignored:\n");
+  for (i = 0; i < max; i++)
+  {
+    cc = smartlist_get (all_cc, i);
+    if (cc->ignore)
+       C_printf ("      %s%s\n",
+                 cc->full_name ? cc->full_name : cc->short_name,
+                 cc->full_name == NULL ? "  ~5Not found~0" : "");
+  }
+}
+
+/**
+ * Common to both gcc/g++ checking of include-dirs.
+ */
+static int check_gnu_includes (compiler_type type, int *num_dirs)
+{
+  char  report [_MAX_PATH+50];
+  int   i, max, found;
+  const compiler_info *cc;
+  const char          *env;
+
+  *num_dirs = 0;
+  max = smartlist_len (all_cc);
+
+  for (i = found = 0; i < max; i++)
+  {
+    cc = smartlist_get (all_cc, i);
+    if (cc->type == type && !cc->ignore && setup_gcc_includes(cc) > 0)
+    {
+      env = (cc->type == CC_GNU_GCC) ? "%C_INCLUDE_PATH%" : "%CPLUS_INCLUDE_PATH%";
+      snprintf (report, sizeof(report), "Matches in %s %s path:\n", cc->short_name, env);
+      report_header = report;
+      found += process_gcc_dirs (cc->short_name, num_dirs);
     }
     FREE (cygwin_root);
   }
-}
-
-static size_t num_gcc (void)
-{
-  return (opt.gcc_no_prefixed ? 1 : _num_gcc);
-}
-
-static size_t num_gpp (void)
-{
-  return (opt.gcc_no_prefixed ? 1 : _num_gpp);
-}
-
-static void searchpath_all_cc (void)
-{
-  BOOL print_lib_path = FALSE;
-  int  save = opt.cache_ver_level;
-
-  if (opt.do_version >= 3)
-  {
-    opt.cache_ver_level = 3;
-    print_lib_path = TRUE;
-  }
-
-  build_gnu_prefixes();
-
-  get_longest ((const char**)gcc, num_gcc());
-  get_longest ((const char**)gpp, num_gpp());
-  get_longest (cl,  DIM(cl));
-  get_longest (wcc, DIM(wcc));
-
-  searchpath_compilers ((const char**)gcc, num_gcc(), print_lib_path);
-  searchpath_compilers ((const char**)gpp, num_gpp(), print_lib_path);
-  searchpath_compilers (cl,  DIM(cl), FALSE);
-  searchpath_compilers (wcc, DIM(wcc), FALSE);
-
-  if (print_lib_path)
-     C_puts ("    ~3(1)~0: internal GCC library paths.\n");
-  opt.cache_ver_level = save;
+  return (found);
 }
 
 static int do_check_gcc_includes (void)
 {
-  char   report [_MAX_PATH+50];
-  int    found = 0;
-  int    num_dirs = 0;
-  size_t i;
+  int num_dirs, found = check_gnu_includes (CC_GNU_GCC, &num_dirs);
 
-  build_gnu_prefixes();
-
-  for (i = 0; i < num_gcc(); i++)
-  {
-    if (setup_gcc_includes(gcc[i]) > 0)
-    {
-      snprintf (report, sizeof(report), "Matches in %s %%C_INCLUDE_PATH%% path:\n", gcc[i]);
-      report_header = report;
-      found += process_gcc_dirs (gcc[i], &num_dirs);
-    }
-    FREE (cygwin_root);
-  }
-
-  if (num_dirs == 0)  /* Impossible? */
+  if (num_dirs == 0 && !ignore_all_gcc)  /* Impossible unless we ignore all '*gcc' */
      WARN ("No gcc.exe programs returned any include paths.\n");
-
   return (found);
 }
 
 static int do_check_gpp_includes (void)
 {
-  char   report [_MAX_PATH+50];
-  int    found = 0;
-  int    num_dirs = 0;
-  size_t i;
+  int num_dirs, found = check_gnu_includes (CC_GNU_GPP, &num_dirs);
 
-  build_gnu_prefixes();
-
-  for (i = 0; i < num_gpp(); i++)
-  {
-    if (setup_gcc_includes(gpp[i]) > 0)
-    {
-      snprintf (report, sizeof(report), "Matches in %s %%CPLUS_INCLUDE_PATH%% path:\n", gpp[i]);
-      report_header = report;
-      found += process_gcc_dirs (gpp[i], &num_dirs);
-    }
-    FREE (cygwin_root);
-  }
-
-  if (num_dirs == 0)  /* Impossible? */
+  if (num_dirs == 0 && !ignore_all_gpp)  /* Impossible unless we ignore all '*g++.exe' */
      WARN ("No g++.exe programs returned any include paths.\n");
-
   return (found);
 }
 
 static int do_check_gcc_library_paths (void)
 {
-  char   report [_MAX_PATH+50];
-  int    found = 0;
-  int    num_dirs = 0;
-  size_t i;
+  char  report [_MAX_PATH+50];
+  int   found = 0;
+  int   num_dirs = 0;
+  int   i, max;
+  BOOL  is_gnu;
+  const compiler_info *cc;
+  const char    *gcc;
 
-  build_gnu_prefixes();
+  max = smartlist_len (all_cc);
 
-  for (i = 0; i < num_gcc(); i++)
+  for (i = 0; i < max; i++)
   {
-    if (setup_gcc_library_path(gcc[i],TRUE) > 0)
+    cc     = smartlist_get (all_cc, i);
+    is_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GPP);
+    if (is_gnu && !cc->ignore && setup_gcc_library_path(cc,TRUE) > 0)
     {
-      snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", gcc[i]);
+      gcc = cc->short_name;
+      snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", gcc);
       report_header = report;
-      found += process_gcc_dirs (gcc[i], &num_dirs);
+      found += process_gcc_dirs (gcc, &num_dirs);
     }
     FREE (cygwin_root);
   }
 
-  if (num_dirs == 0)  /* Impossible? */
+  if (num_dirs == 0 && !ignore_all_gcc)  /* Impossible unless we ignore all '*gcc' */
      WARN ("No gcc.exe programs returned any LIBRARY_PATH paths!?.\n");
 
   return (found);
@@ -3195,10 +3405,35 @@ static int do_check_gcc_library_paths (void)
 /**
  * Common stuff for Watcom checking.
  */
-static char *watcom_dir[2];
-
-static int setup_watcom_dirs (const char *dir1, const char *dir2)
+static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *dir2)
 {
+  const compiler_info *cc;
+  int   i, found, ignored, max;
+
+  max = smartlist_len (all_cc);
+  for (i = found = ignored = 0; i < max; i++)
+  {
+    cc = smartlist_get (all_cc, i);
+    if (!cc->full_name || cc->type != CC_WATCOM)
+       continue;
+
+    found++;
+    if (cc->ignore)
+       ignored++;
+  }
+
+  if (found == 0)
+  {
+    DEBUGF (1, "No Watcom compilers found.\n");
+    return (0);
+  }
+
+  if (ignored >= found)
+  {
+    DEBUGF (1, "All Watcom compilers ignored.\n");
+    return (0);
+  }
+
   if (!getenv("WATCOM"))
   {
     DEBUGF (1, "%%WATCOM%% not defined.\n");
@@ -3208,33 +3443,53 @@ static int setup_watcom_dirs (const char *dir1, const char *dir2)
   if (opt.add_cwd)
      add_to_dir_array (current_dir, 1, __LINE__);
 
-  watcom_dir[0] = getenv_expand (dir1);
-  watcom_dir[1] = getenv_expand (dir2);
+  watcom_dir[0] = getenv_expand (dir0);
+  watcom_dir[1] = getenv_expand (dir1);
+  watcom_dir[2] = getenv_expand (dir2);
 
   add_to_dir_array (watcom_dir[0], 0, __LINE__);
   add_to_dir_array (watcom_dir[1], 0, __LINE__);
+  add_to_dir_array (watcom_dir[2], 0, __LINE__);
+
   return (1);
 }
 
-static void frere_watcom_dirs (void)
+static void free_watcom_dirs (void)
 {
   FREE (watcom_dir[0]);
   FREE (watcom_dir[1]);
+  FREE (watcom_dir[2]);
+  FREE (watcom_dir[3]);
 }
 
 /**
- * Check in Watcom's include-directories
- * "%WATCOM%\h" and "%WATCOM%\nt"
+ * Check in Watcom's include-directories:
+ * \code
+ *   %WATCOM%\h
+ *   %WATCOM%\nt
+ *   %WATCOM%\lh    (Linux headers in recent OpenWatcom)
+ * \endcode
+ *
+ * And full path given by \c %NT_INCLUDE%.
+ *
+ * \note We do not spawn \c "wcc*.exe" to ask for it's internal include-directory
+ *   (as we do for \c "gcc*"). Simply search along the above directories.
+ *   Does not searches \c "%INCLUDE%".
  */
 static int do_check_watcom_includes (void)
 {
   int i, max, found;
 
-  if (!setup_watcom_dirs("%WATCOM%\\h", "%WATCOM%\\h\\nt"))
-  {
-    DEBUGF (1, "%%WATCOM%% not defined.\n");
-    return (0);
-  }
+  watcom_dir[3] = getenv_expand ("%NT_INCLUDE%");
+
+  if (!watcom_dir[3])
+        DEBUGF (1, "Env-var %s not defined.\n", "%NT_INCLUDE%");
+   else split_env_var ("%NT_INCLUDE%", watcom_dir[3]);
+
+ /* This will append to what was inserted in \c 'dir_array' above
+  */
+  if (!setup_watcom_dirs("%WATCOM%\\h", "%WATCOM%\\h\\nt", "%WATCOM%\\lh"))
+     return (0);
 
   max = smartlist_len (dir_array);
   for (i = found = 0; i < max; i++)
@@ -3244,24 +3499,25 @@ static int do_check_watcom_includes (void)
     found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
                           arr->is_dir, arr->exp_ok, "WATCOM", NULL, 0);
   }
-  frere_watcom_dirs();
+  free_watcom_dirs();
   free_dir_array();
   return (found);
 }
 
 /**
- * Check in Watcom's library-directories
- * "%WATCOM%\lib386" and "%WATCOM%\lib386\nt"
+ * Check in Watcom's library-directories:
+ * \code
+ *   %WATCOM%\lib386
+ *   %WATCOM%\lib386\nt
+ *   %WATCOM%\lib386\linux    (Linux libs in recent OpenWatcom)
+ * \endcode
  */
 static int do_check_watcom_library_paths (void)
 {
   int i, max, found;
 
-  if (!setup_watcom_dirs("%WATCOM%\\lib386", "%WATCOM%\\lib386\\nt"))
-  {
-    DEBUGF (1, "%%WATCOM%% not defined.\n");
-    return (0);
-  }
+  if (!setup_watcom_dirs("%WATCOM%\\lib386", "%WATCOM%\\lib386\\nt", "%WATCOM%\\lib386\\linux"))
+     return (0);
 
   max = smartlist_len (dir_array);
   for (i = found = 0; i < max; i++)
@@ -3272,7 +3528,7 @@ static int do_check_watcom_library_paths (void)
                           arr->is_dir, arr->exp_ok, "WATCOM", NULL, 0);
   }
   dump_dir_array (NULL, NULL);
-  frere_watcom_dirs();
+  free_watcom_dirs();
   free_dir_array();
   return (found);
 }
@@ -3517,11 +3773,35 @@ static void set_long_option (int o, const char *arg)
   }
 }
 
+/**
+ * Parse the options in \c %ENVTOOL_OPTIONS and then from the command-line.
+ * Find the 'file_spec' to search for.
+ */
 static void parse_cmdline (int argc, char *const *argv, char **fspec)
 {
   char  buf [_MAX_PATH];
-  char *env = getenv_expand ("ENVTOOL_OPTIONS");
-  char *ext;
+  char *env, *ext;
+
+#if defined(__CYGWIN__)
+  /*
+   * Cygwin gives an 'argv[]' that messed up regular expressions.
+   * E.g. on the cmdline, a "^c.*\\temp$", becomes a "^c.*\temp$".
+   * So get 'argv[argc-1]' back from kernel32.dll.
+   */
+  int       wargc;
+  wchar_t **wargv = CommandLineToArgvW (GetCommandLineW(), &wargc);
+  wchar_t  *last_argv;
+  static char new_last [_MAX_PATH];
+
+  if (wargv)
+  {
+    last_argv = wargv [wargc-1];
+    if (WideCharToMultiByte(CP_ACP, 0, last_argv, wcslen(last_argv),
+                            new_last, sizeof(new_last), "?", NULL) > 0)
+       argv [wargc-1] = new_last;
+    LocalFree (wargv);
+  }
+#endif
 
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
@@ -3532,6 +3812,8 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
 
   ext = (char*) get_file_ext (who_am_I);
   strlwr (ext);
+
+  env = getenv_expand ("ENVTOOL_OPTIONS");
 
   if (env)
   {
@@ -3627,17 +3909,11 @@ static void cleanup (void)
   FREE (user_env_lib);
   FREE (user_env_inc);
 
-  for (i = 0; i < (int)_num_gcc; i++)
-  {
-    FREE (gcc[i]);
-    FREE (gpp[i]);
-  }
-  FREE (gcc);
-  FREE (gpp);
-
   FREE (opt.file_spec_re);
   FREE (opt.file_spec);
   FREE (vcache_fname);
+
+  free_all_compilers();
 
   if (re_alloc)
      regfree (&re_hnd);
@@ -3741,28 +4017,6 @@ int main (int argc, char **argv)
 
   init_all();
 
-#if defined(__CYGWIN__)
-  {
-    /* Cygwin gives an 'argv[]' that messed up regular expressions.
-     * E.g. on the cmdline, a "^c.*\\temp$", becomes a "^c.*\temp$".
-     * So get 'argv[argc-1]' back from kernel32.dll.
-     */
-    int       wargc;
-    wchar_t **wargv = CommandLineToArgvW (GetCommandLineW(), &wargc);
-    wchar_t  *last_argv;
-    static char new_last [_MAX_PATH];
-
-    if (wargv)
-    {
-      last_argv = wargv [wargc-1];
-      if (WideCharToMultiByte(CP_ACP, 0, last_argv, wcslen(last_argv),
-                              new_last, sizeof(new_last), "?", NULL) > 0)
-         argv [wargc-1] = new_last;
-      LocalFree (wargv);
-    }
-  }
-#endif
-
   parse_cmdline (argc, argv, &opt.file_spec);
 
   cfg_ignore_init ("%APPDATA%\\envtool.cfg");
@@ -3792,6 +4046,9 @@ int main (int argc, char **argv)
 
   if (opt.do_evry && !opt.do_path)
      opt.no_sys_env = opt.no_usr_env = opt.no_app_path = 1;
+
+  if (opt.do_lib || opt.do_include)
+     searchpath_all_cc (FALSE, FALSE);
 
   if (!(opt.do_path || opt.do_lib || opt.do_include))
      opt.no_sys_env = opt.no_usr_env = 1;
@@ -3857,8 +4114,10 @@ int main (int argc, char **argv)
   {
     report_header = "Matches in %LIB:\n";
     found += do_check_env ("LIB", FALSE);
+
     if (!opt.no_watcom)
        found += do_check_watcom_library_paths();
+
     if (!opt.no_gcc && !opt.no_gpp)
        found += do_check_gcc_library_paths();
   }
@@ -3869,7 +4128,10 @@ int main (int argc, char **argv)
     found += do_check_env ("INCLUDE", FALSE);
 
     if (!opt.no_watcom)
-       found += do_check_watcom_includes();
+    {
+      report_header = "Matches in %NT_INCLUDE:\n";
+      found += do_check_watcom_includes();
+    }
 
     if (!opt.no_gcc)
        found += do_check_gcc_includes();
@@ -3969,7 +4231,7 @@ void test_split_env (const char *env)
     else if (!arr->exist)
        C_puts ("  ~5**not existing**~0");
     else if (!arr->is_dir)
-       C_puts ("  **not a dir**");
+       C_puts ("  ~5**not a dir**~0");
 
     C_putc ('\n');
   }
@@ -4854,8 +5116,12 @@ static int do_tests (void)
 #endif
 
 #if 1
+#ifdef __WATCOMC__
+  test_split_env ("NT_INCLUDE");
+#else
   test_split_env ("LIB");
   test_split_env ("INCLUDE");
+#endif
 
   save = opt.add_cwd;
   opt.add_cwd = 0;
