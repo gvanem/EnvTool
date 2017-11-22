@@ -671,7 +671,7 @@ static int dump_dir_array (const char *where, const char *note)
 {
   int i, max;
 
-  DEBUGF (2, "%s now%s\n", where, note);
+  DEBUGF (2, "%s now%s:\n", where, note);
 
   max = smartlist_len (dir_array);
   for (i = 0; i < max; i++)
@@ -735,6 +735,8 @@ static void dir_array_free (void *_d)
  * duplicates.
  *
  * Loop over the 'dir_array' smartlist and remove all non-unique items.
+ *
+ * Also used for Watcom's include-path.
  */
 static int make_unique_dir_array (const char *where)
 {
@@ -833,7 +835,7 @@ static void free_dir_array (void)
   smartlist_wipe (dir_array, dir_array_free);
 }
 
-/*
+/**
  * Parses an environment string and returns all components as an array of
  * 'struct directory_array' pointing into the global 'dir_array[]'.
  * This works since  we handle only one env-var at a time. The 'dir_array[]'
@@ -2905,6 +2907,21 @@ static int find_library_path_cb (char *buf, int index)
   return (i);
 }
 
+/*
+ * Print a warning on last error from a gnu 'popen_runf()' callback.
+ */
+static void gnu_popen_warn (const char *gcc, int rc)
+{
+  const char *err = popen_last_line();
+
+  if (*err != '\0')
+     err = strstr (err, "error: ");
+
+  WARN ("Calling %s returned %d", cygwin_fqfn[0] ? cygwin_fqfn : gcc, rc);
+  if (err && !opt.quiet)
+     C_printf (":\n  %s.\n", err);
+}
+
 #if defined(__CYGWIN__)
   #define CLANG_DUMP_FMT "clang -v -dM -xc -c - < /dev/null 2>&1"
   #define GCC_DUMP_FMT   "%s %s -v -dM -xc -c - < /dev/null 2>&1"
@@ -2931,7 +2948,7 @@ static int setup_gcc_includes (const compiler_info *cc)
   found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
   if (found > 0)
        DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
-  else WARN ("Calling %s returned %d.\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, found);
+  else gnu_popen_warn (gcc, found);
   return (found);
 }
 
@@ -2963,7 +2980,7 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
   if (found <= 0)
   {
     if (warn)
-       WARN ("Calling %s returned %d.\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, found);
+       gnu_popen_warn (gcc, found);
     return (found);
   }
 
@@ -3478,27 +3495,39 @@ static void free_watcom_dirs (void)
  */
 static int do_check_watcom_includes (void)
 {
-  int i, max, found;
+  int i, max, save, found = 0;
 
   watcom_dir[3] = getenv_expand ("%NT_INCLUDE%");
 
   if (!watcom_dir[3])
-        DEBUGF (1, "Env-var %s not defined.\n", "%NT_INCLUDE%");
-   else split_env_var ("%NT_INCLUDE%", watcom_dir[3]);
+       DEBUGF (1, "Env-var %s not defined.\n", "%NT_INCLUDE%");
+  else split_env_var ("%NT_INCLUDE%", watcom_dir[3]);
 
- /* This will append to what was inserted in \c 'dir_array' above
-  */
+
+  /* This will append to what was inserted in \c 'dir_array' above.
+   * Do not add \c ".\\" again (set \c opt.add_cwd to 0).
+   */
+  save = opt.add_cwd;
+  opt.add_cwd = 0;
   if (!setup_watcom_dirs("%WATCOM%\\h", "%WATCOM%\\h\\nt", "%WATCOM%\\lh"))
-     return (0);
+     goto quit;
+
+ /* The above adding of \c "%NT_INCLUDE" will probably create duplicate
+  * entries. Remove them.
+  */
+  make_unique_dir_array ("%NT_INCLUDE%");
 
   max = smartlist_len (dir_array);
-  for (i = found = 0; i < max; i++)
+  for (i = 0; i < max; i++)
   {
     struct directory_array *arr = smartlist_get (dir_array, i);
 
     found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
                           arr->is_dir, arr->exp_ok, "WATCOM", NULL, 0);
   }
+
+quit:
+  opt.add_cwd = save;
   free_watcom_dirs();
   free_dir_array();
   return (found);
@@ -3527,7 +3556,7 @@ static int do_check_watcom_library_paths (void)
     found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
                           arr->is_dir, arr->exp_ok, "WATCOM", NULL, 0);
   }
-  dump_dir_array (NULL, NULL);
+  dump_dir_array ("Watcom libs", "");
   free_watcom_dirs();
   free_dir_array();
   return (found);
@@ -4116,7 +4145,10 @@ int main (int argc, char **argv)
     found += do_check_env ("LIB", FALSE);
 
     if (!opt.no_watcom)
-       found += do_check_watcom_library_paths();
+    {
+      report_header = "Matches in %WATCOM libraries:\n";
+      found += do_check_watcom_library_paths();
+    }
 
     if (!opt.no_gcc && !opt.no_gpp)
        found += do_check_gcc_library_paths();
