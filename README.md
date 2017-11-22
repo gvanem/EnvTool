@@ -157,6 +157,12 @@ Matches from EveryThing:
 C-source included in `./src`. Makefiles for MinGW, Cygwin, Watcom, clang-cl and MSVC.
 Use at own risk. Enjoy!
 
+`#include <std_disclaimer.h>`:<br>
+   *"I do not accept responsibility for any effects, adverse or otherwise,
+    that this code may have on you, your computer, your sanity, your dog,
+    and anything else that you can think of. Use it at your own risk."*
+
+
 Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
 
 ---
@@ -244,4 +250,3 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
 
 PS. This file is written with the aid of [GitBookEditor](https://www.gitbook.com/editor).
 A real time-saver.
-
