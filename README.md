@@ -155,7 +155,7 @@ Matches from EveryThing:
 ```
 
 C-source included in `./src`. Makefiles for MinGW, Cygwin, Watcom, clang-cl and MSVC.
-Use at own risk. Enjoy!
+Enjoy!
 
 `#include <std_disclaimer.h>`:<br>
    *"I do not accept responsibility for any effects, adverse or otherwise,
