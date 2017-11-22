@@ -540,8 +540,9 @@ extern void     mem_report (void);
  */
 typedef int (*popen_callback) (char *buf, int index);
 
-int popen_run  (popen_callback callback, const char *cmd);
-int popen_runf (popen_callback callback, const char *fmt, ...);
+int   popen_run  (popen_callback callback, const char *cmd);
+int   popen_runf (popen_callback callback, const char *fmt, ...);
+char *popen_last_line (void);
 
 /* fnmatch() ret-values and flags:
  */

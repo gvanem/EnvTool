@@ -2662,6 +2662,16 @@ static char *popen_setup (const char *cmd)
 }
 
 /**
+ * Return the last line in the \c fgets() loop below.
+ */
+static char popen_last[1000];
+
+char *popen_last_line (void)
+{
+  return (popen_last);
+}
+
+/**
  * A wrapper for popen().
  *
  * \param[in] cmd       the program + args to run.
@@ -2681,6 +2691,8 @@ int popen_run (popen_callback callback, const char *cmd)
   int   j = -1;
   FILE *f;
   char *cmd2 = popen_setup (cmd);
+
+  *popen_last_line() = '\0';
 
   if (!cmd2)
      goto quit;
@@ -2703,6 +2715,8 @@ int popen_run (popen_callback callback, const char *cmd)
     DEBUGF (3, " _popen() buf: '%s'\n", buf);
     if (!buf[0] || !callback)
        continue;
+
+    _strlcpy (popen_last, buf, sizeof(popen_last));
     rc = (*callback) (buf, i++);
     j += rc;
     if (rc < 0)
