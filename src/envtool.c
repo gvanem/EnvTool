@@ -1256,7 +1256,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   {
     snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
     if (fsize < (__int64)-1)
-       total_size += fsize;
+       total_size += get_file_alloc_size (file, fsize);
   }
   else
     size[0] = '\0';
@@ -3502,7 +3502,6 @@ static int do_check_watcom_includes (void)
   if (!watcom_dir[3])
        DEBUGF (1, "Env-var %s not defined.\n", "%NT_INCLUDE%");
   else split_env_var ("%NT_INCLUDE%", watcom_dir[3]);
-
 
   /* This will append to what was inserted in \c 'dir_array' above.
    * Do not add \c ".\\" again (set \c opt.add_cwd to 0).
