@@ -1256,7 +1256,11 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   {
     snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
     if (fsize < (__int64)-1)
-       total_size += get_file_alloc_size (file, fsize);
+    {
+      if (key == HKEY_EVERYTHING_ETP)
+           total_size += fsize;
+      else total_size += get_file_alloc_size (file, fsize);
+    }
   }
   else
     size[0] = '\0';
