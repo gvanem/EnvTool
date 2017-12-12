@@ -9,12 +9,13 @@
  *   \endcode
  *   will print to stdout with \c Hello mapped to colour 4
  *   and \c world mapped to colour 2.
- *   See the \c color_map[] array below.
+ *   See the \c colour_map[] array below.
  *
  * by G. Vanem <gvanem@yahoo.no> 2011.
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <assert.h>
 #include <limits.h>
 #include <ctype.h>
@@ -52,6 +53,10 @@
 #if defined(NDEBUG)
   #define TRACE(level, ...)  ((void)0)
 #else
+  static int trace = 0;
+  extern const char *dump20 (const void *data_p, unsigned size);
+  extern int         is_cygwin_tty (int fd);
+
   #define TRACE(level, ...)  do {                            \
                               if (trace >= level) {          \
                                 printf ("%s(%u): ",          \
@@ -109,39 +114,64 @@ static CRITICAL_SECTION           crit;
 
 static HANDLE console_hnd = INVALID_HANDLE_VALUE;
 
-#if !defined(NDEBUG)
-  static int trace = 0;
-#endif
-
 /**
- * \todo: make this configurable from the calling side.
+ * This is also configurable from the calling side
+ * via the \c C_init_colours_maps() function.
  */
 static WORD colour_map [8];
-
 static char colour_map_ansi [DIM(colour_map)] [20];
-static void init_colour_map_ansi (void);
+
+static const char *wincon_to_ansi (WORD col);
 
 /**
- * Initialise the \c color_map[] array with the fixed colours.
- * \c color_map[0] is used to set default colour (active colour
- * in effect when program started).
+ * Customize the \c colour_map[1..N].
+ * Must be a list terminated by 0.
+ *
+ * \c colour_map[0] can \b not be modified. It is reserved for the default
+ * colour. I.e. the active colour in effect when program started.
  */
-static void init_colour_map (void)
+int C_init_colour_map (unsigned short col, ...)
 {
-  int  i;
-  WORD bg = console_info.wAttributes & ~7;
+  int     i;
+  va_list args;
+  va_start (args, col);
 
-  for (i = 0; i < DIM(colour_map); i++)
-      colour_map[i] = console_info.wAttributes;
+  colour_map[0] = console_info.wAttributes;
+  i = 1;
+  while (col && i < DIM(colour_map))
+  {
+    colour_map [i] = col;
+    TRACE (1, "i: %d, col: %u.\n", i, col);
+    i++;
+    col = (WORD) va_arg (args, WORD);
+  }
 
-  colour_map[0] = 0;
-  colour_map[1] = (bg + 3) | FOREGROUND_INTENSITY;  /* bright cyan */
-  colour_map[2] = (bg + 2) | FOREGROUND_INTENSITY;  /* bright green */
-  colour_map[3] = (bg + 6) | FOREGROUND_INTENSITY;  /* bright yellow */
-  colour_map[4] = (bg + 5) | FOREGROUND_INTENSITY;  /* bright magenta */
-  colour_map[5] = (bg + 4) | FOREGROUND_INTENSITY;  /* bright red */
-  colour_map[6] = (bg + 7) | FOREGROUND_INTENSITY;  /* bright white */
-  colour_map[7] = (bg + 3);                         /* dark cyan */
+  /* Set the rest to default colours in case not all elements was filled.
+   */
+  while (i < DIM(colour_map))
+  {
+    col = console_info.wAttributes;
+    TRACE (1, "i: %d, col: %u.\n", i, col);
+    colour_map [i++] = col;
+  }
+
+#if defined(__CYGWIN__)
+   if (C_no_ansi == 0)
+      C_use_ansi_colours = 1;
+#endif
+
+  /**
+   * Fill the ANSI-sequence array by looping over \c colour_map_ansi[].
+   * \note the size of both \c colour_map_ansi[] and \c colour_map[] \b must be equal.
+   */
+  for (i = 0; i < DIM(colour_map_ansi); i++)
+  {
+    const char *p = wincon_to_ansi (colour_map[i]);
+
+    TRACE (2, "colour_map_ansi[%u] -> %s\n", (unsigned)i, dump20(p,strlen(p)));
+    strncpy (colour_map_ansi[i], p, sizeof(colour_map_ansi[i]));
+  }
+  return (1);
 }
 
 /**
@@ -178,6 +208,12 @@ int C_setbin (int bin)
  */
 static void C_exit (void)
 {
+#if 0
+  /* Since the order of 'atexit()' functions are a bit undefined, maybe it's
+   * better for the application using color.c to call this function.
+   */
+  C_reset();
+#endif
   if (c_out)
      C_flush();
   c_head = c_tail = NULL;
@@ -188,8 +224,8 @@ static void C_exit (void)
 /**
  * Our local initialiser function. Called once to:
  *
- *  \li Set the trace-level from \c %COLOUR_TRACE.
- *  \li Get the console-buffer information from WinCon.
+ *  \li Set the trace-level from \c %COLOUR_TRACE%.
+ *  \li Get the console-buffer information from Windows Console.
  *  \li If the console is not redirected:
  *     1. get the screen height and width.
  *     2. setup the \c colour_map[] array and optionally the
@@ -229,16 +265,17 @@ static void C_init (void)
 
     if (okay)
     {
+      WORD bg = console_info.wAttributes & ~7;
+
       c_screen_width = console_info.srWindow.Right - console_info.srWindow.Left + 1;
-      init_colour_map();
-
-#if defined(__CYGWIN__)
-      if (C_no_ansi == 0)
-        C_use_ansi_colours = 1;
-#endif
-
-      if (C_use_ansi_colours)
-         init_colour_map_ansi();
+      C_init_colour_map ((bg + 3) | FOREGROUND_INTENSITY,  /* "~1" -> bright cyan */
+                         (bg + 2) | FOREGROUND_INTENSITY,  /* "~2" -> bright green */
+                         (bg + 6) | FOREGROUND_INTENSITY,  /* "~3" -> bright yellow */
+                         (bg + 5) | FOREGROUND_INTENSITY,  /* "~4" -> bright magenta */
+                         (bg + 4) | FOREGROUND_INTENSITY,  /* "~5" -> bright red */
+                         (bg + 7) | FOREGROUND_INTENSITY,  /* "~6" -> bright white */
+                         (bg + 3),                         /* "~7" -> dark cyan */
+                         0);
     }
     else
       C_use_colours = 0;
@@ -297,7 +334,6 @@ static void C_set (WORD col)
 
 /**
  * Reset console foreground and background to what is was initially.
- * \note not used anywhere.
  */
 void C_reset (void)
 {
@@ -319,7 +355,6 @@ void C_reset (void)
 const char *get_parent_process_name (void)
 {
 #if !defined(NDEBUG)
-  extern int is_cygwin_tty (int fd);
   if (trace > 0 || is_cygwin_tty(STDOUT_FILENO))
      return ("mintty.exe");  /* Just for testing */
 #endif
@@ -365,26 +400,6 @@ static const char *wincon_to_ansi (WORD col)
     else snprintf (p-1, left+1, ";%dm", 40 + SGR);
   }
   return (ret);
-}
-
-/**
- * Fill the ANSI-sequence array by looping over all \c colour_map_ansi[].
- * \note the size of both \c colour_map_ansi[] and \c colour_map[] \b must be equal.
- */
-static void init_colour_map_ansi (void)
-{
-  size_t i;
-
-  for (i = 0; i < DIM(colour_map_ansi); i++)
-  {
-    const char *p = wincon_to_ansi (colour_map[i]);
-
-#if !defined(NDEBUG)
-    extern const char *dump20 (const void *data_p, unsigned size);
-    TRACE (2, "colour_map_ansi[%u] -> %s\n", (unsigned)i, dump20(p,strlen(p)));
-#endif
-    strncpy (colour_map_ansi[i], p, sizeof(colour_map_ansi[i]));
-  }
 }
 
 /**
@@ -601,7 +616,8 @@ int C_putsn (const char *str, size_t len)
  */
 void C_puts_long_line (const char *start, size_t indent)
 {
-  size_t      left = c_screen_width - indent;
+  size_t      width = (c_screen_width == 0) ? UINT_MAX : c_screen_width;
+  size_t      left  = width - indent;
   const char *c = start;
 
   while (*c)
@@ -617,7 +633,7 @@ void C_puts_long_line (const char *start, size_t indent)
       if (left < 2 || (left <= (size_t)(p - c)))
       {
         C_printf ("\n%*c", (int)indent, ' ');
-        left = c_screen_width - indent;
+        left  = width - indent;
         start = ++c;
         continue;
       }
@@ -628,3 +644,10 @@ void C_puts_long_line (const char *start, size_t indent)
   C_putc ('\n');
 }
 
+/**
+ * Return the \c 'c_screen_width'.
+ */
+size_t C_screen_width (void)
+{
+  return (c_screen_width);
+}
