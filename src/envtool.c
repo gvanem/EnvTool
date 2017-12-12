@@ -495,16 +495,10 @@ static int show_help (void)
   #define PFX_GCC  "~4<prefix>~0-~6gcc~0"
   #define PFX_GPP  "~4<prefix>~0-~6g++~0"
 
-  #if defined(__CYGWIN__)
-    #define NO_ANSI "    ~6--no-ansi~0:      don't print colours using ANSI sequences.\n"
-  #else
-    #define NO_ANSI ""
-  #endif
-
   const char **py = py_get_variants();
 
   C_printf ("Environment check & search tool.\n\n"
-            "Usage: %s ~6[options] <--mode>~0 ~6<file-spec>~0\n"
+            "Usage: %s ~6[options] <--mode> <file-spec>~0\n"
             "  ~6<--mode>~0 can be at least one of these:\n"
             "    ~6--cmake~0:        check and search in ~3%%CMAKE_MODULE_PATH%%~0 and it's built-in module-path.\n"
             "    ~6--evry[=~3host~0]~0:  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
@@ -515,9 +509,10 @@ static int show_help (void)
             "    ~6--pkg~0:          check and search in ~3%%PKG_CONFIG_PATH%%~0.\n"
             "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[3]~0\n"
             "    ~6--check~0         check for missing directories in ~6all~0 supported environment variables\n"
-            "                    and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n"
-            "\n"
-            "  ~6Options~0:\n"
+            "                    and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n",
+            who_am_I);
+
+  C_printf ("  ~6[options]~0:\n"
             "    ~6--no-gcc~0:       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
             "    ~6--no-g++~0:       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
             "    ~6--no-prefix~0:    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs     ~2[2]~0.\n"
@@ -526,8 +521,8 @@ static int show_help (void)
             "    ~6--no-app~0:       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
             "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
             "    ~6--no-colour~0:    don't print using colours.\n"
-            "    ~6--no-watcom~0:    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode\n"
-            NO_ANSI
+            "    ~6--no-ansi~0:      don't print colours using ANSI sequences (effective on CygWin only).\n"
+            "    ~6--no-watcom~0:    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
             "    ~6--owner~0:        shown owner of the file.\n"
             "    ~6--pe~0:           print checksum and version-info for PE-files.\n"
             "    ~6--32~0:           tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
@@ -539,8 +534,7 @@ static int show_help (void)
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
             "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n"
             "    ~6-H~0, ~6--host~0:     hostname/IPv4-address for remote FTP ~6--evry~0 searches.\n"
-            "                    can be used multiple times. Alternative syntax is ~6--evry:<host>~0.\n",
-            who_am_I);
+            "                    can be used multiple times. Alternative syntax is ~6--evry:<host>~0.\n");
 
   C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
             "    ~6-s~0, ~6--size~0:     show size of file(s) found. With ~6--dir~0 option, recursively show\n"
@@ -5215,9 +5209,9 @@ static void print_build_cflags (void)
 #if defined(CFLAGS)
   #include CFLAGS
   C_puts ("\n    ");
-  C_puts_long_line (cflags, 4);
+  format_and_print_line (cflags, 4);
 #else
-  C_puts ("\n     Unknown\n");
+  C_puts (" Unknown\n");
 #endif
 }
 
@@ -5226,9 +5220,9 @@ static void print_build_ldflags (void)
 #if defined(LDFLAGS)
   #include LDFLAGS
   C_puts ("\n    ");
-  C_puts_long_line (ldflags, 4);
+  format_and_print_line (ldflags, 4);
 #else
-  C_puts ("\n     Unknown\n");
+  C_puts (" Unknown\n");
 #endif
 }
 
