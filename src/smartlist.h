@@ -1,6 +1,9 @@
 #ifndef _SMARTLIST_H
 #define _SMARTLIST_H
 
+#define SMARTLIST_FOREACH(sl)  for (i = 0; i < smartlist_len(sl); i++)
+#define SMARTLIST_EMPTY(sl)    (smartlist_len(sl) == 0)
+
 typedef struct smartlist_t smartlist_t;  /* Opaque struct; defined in smartlist.c */
 
 typedef int  (*smartlist_sort_func) (const void **a, const void **b);
