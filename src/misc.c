@@ -2453,20 +2453,20 @@ const char *get_time_str (time_t t)
   return (res);
 }
 
-#if defined(NOT_USED_YET)
 /**
  * Function that prints the line argument while limiting it
- * to at most 'MAX_CHARS_PER_LINE'. An appropriate number
- * of spaces are added on subsequent lines.
+ * to at most 'C_screen_width()'. If the console is redirected
+ * (== 0), the "screen width" is infinite (or \c UINT_MAX).
+ *
+ * An appropriate number of spaces are added on subsequent lines.
  *
  * Stolen from Wget (main.c) and simplified.
  */
-#define MAX_CHARS_PER_LINE 80
-
 void format_and_print_line (const char *line, int indent)
 {
-  char *token, *line_dup = STRDUP (line);
-  int   remaining_chars = 0;
+  char  *token, *line_dup = STRDUP (line);
+  size_t width = (C_screen_width() == 0) ? UINT_MAX : C_screen_width();
+  size_t left  = width - indent;
 
   /* We break on spaces.
    */
@@ -2476,25 +2476,27 @@ void format_and_print_line (const char *line, int indent)
     /* If a token is much larger than the maximum
      * line length, we print the token on the next line.
      */
-    if (remaining_chars <= (int)strlen(token))
+    if (left <= strlen(token)+1)
     {
       C_printf ("\n%*c", indent, ' ');
-      remaining_chars = MAX_CHARS_PER_LINE - indent;
+      left = width - indent;
     }
     C_printf ("%s ", token);
-    remaining_chars -= strlen (token) + 1;  /* account for " " */
+    left -= strlen (token) + 1;  /* account for " " */
     token = strtok (NULL, " ");
   }
   C_putc ('\n');
   FREE (line_dup);
 }
 
+#if defined(NOT_USED_YET)
 /*
  * As above, but without a STRDUP().
  */
-void print_long_line (const char *line, size_t indent)
+void print_long_line (const char *line, int indent)
 {
-  size_t      left = MAX_CHARS_PER_LINE - indent;
+  size_t      width = (C_screen_width() == 0) ? UINT_MAX : C_screen_width();
+  size_t      left  = width - indent;
   const char *c = line;
 
   while (*c)
@@ -2508,8 +2510,8 @@ void print_long_line (const char *line, size_t indent)
 
       if (c[1] && room < (int)left)
       {
-        C_printf ("'\n%*c'", (int)indent, ' ');
-        left = MAX_CHARS_PER_LINE - indent;
+        C_printf ("'\n%*c'", indent, ' ');
+        left = width - indent;
         line = c++;
         continue;
       }
