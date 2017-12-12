@@ -838,7 +838,7 @@ static void free_dir_array (void)
 /**
  * Parses an environment string and returns all components as an array of
  * 'struct directory_array' pointing into the global 'dir_array[]'.
- * This works since  we handle only one env-var at a time. The 'dir_array[]'
+ * This works since we handle only one env-var at a time. The 'dir_array[]'
  * gets cleared in 'free_dir_array()' first (in case it was used already).
  *
  * Add current working directory first if 'opt.add_cwd' is TRUE.
@@ -2431,8 +2431,7 @@ static int do_check_manpath (void)
       WARN ("%s: directory \"%s\" doesn't exist.\n", env_name, arr->dir);
       continue;
     }
-#if 0
-    if (!str_equal(arr->dir,current_dir))
+    if (arr->is_cwd)
     {
       DEBUGF (2, "Checking in current_dir '%s'\n", current_dir);
 
@@ -2442,7 +2441,6 @@ static int do_check_manpath (void)
         continue;
       }
     }
-#endif
     for (j = 0; j < DIM(sub_dirs); j++)
     {
       snprintf (subdir, sizeof(subdir), "%s\\%s", arr->dir, sub_dirs[j]);
