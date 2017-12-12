@@ -1774,6 +1774,7 @@ static void enum_pythons_on_path (void)
 
   for (dir = strtok(path, dir_sep); dir; dir = strtok(NULL,dir_sep))
   {
+    slashify2 (dir, dir, DIR_SEP);
     if (!match_python_exe(dir))
        break;
   }
