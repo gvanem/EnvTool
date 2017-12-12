@@ -137,6 +137,7 @@ int C_init_colour_map (unsigned short col, ...)
   va_start (args, col);
 
   colour_map[0] = console_info.wAttributes;
+  TRACE (1, "i: 0, col: %u.\n", colour_map[0]);
   i = 1;
   while (col && i < DIM(colour_map))
   {
