@@ -144,7 +144,12 @@ int C_init_colour_map (unsigned short col, ...)
     colour_map [i] = col;
     TRACE (1, "i: %d, col: %u.\n", i, col);
     i++;
-    col = (WORD) va_arg (args, WORD);
+
+    /* Use an 'int' due to the clang-cl warning:
+     *   second argument to 'va_arg' is of promotable type 'WORD' (aka 'unsigned short'); this va_arg
+     *   has undefined behavior because arguments will be promoted to 'int' [-Wvarargs]
+     */
+    col = (WORD) va_arg (args, int);
   }
 
   /* Set the rest to default colours in case not all elements was filled.
