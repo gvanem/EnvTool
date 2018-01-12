@@ -1906,7 +1906,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
      WARN ("%s: directory \"%s\" is empty.\n", prefix, path);
 
   if (!fspec)
-     fspec = opt.use_regex ? "*" : fix_filespec (&subdir);
+     fspec = (opt.use_regex ? "*" : fix_filespec(&subdir));
 
   snprintf (fqfn, sizeof(fqfn), "%s%c%s%s", path, DIR_SEP, subdir ? subdir : "", fspec);
   handle = FindFirstFile (fqfn, &ff_data);
@@ -1951,6 +1951,13 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     file  = slashify (fqfn, DIR_SEP);
     match = fnmatch (opt.file_spec, base, fnmatch_case(0) | FNM_FLAG_NOESCAPE);
 
+    if (opt.man_mode)
+    {
+      DEBUGF (2, "opt.file_spec: \"%s\", base: \"%s\".\n", opt.file_spec, base);
+      if (match == FNM_NOMATCH)
+         continue;
+    }
+
 #if 0
     if (match == FNM_NOMATCH && strchr(opt.file_spec,'~'))
     {
@@ -1967,7 +1974,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
        * I.e. if 'opt.file_spec' == "ratio.*" and base == "ratio", we qualify
        *      this as a match.
        */
-      if (!is_dir && !opt.dir_mode && !opt.man_mode &&
+      if (!is_dir && !opt.dir_mode &&
           !str_equal_n(base,opt.file_spec,strlen(base)))
          match = FNM_MATCH;
     }
@@ -2375,29 +2382,49 @@ static int do_check_env (const char *env_name, BOOL recursive)
 }
 
 /*
+ * Check a single MANPAGE directory for man-page match(es).
+ */
+static int check_man_dir (const char *dir, const char *env_name)
+{
+  if (!strcmp(dir,"\\"))
+       DEBUGF (1, "Looking in \"%s\" for \"%s\".\n", current_dir, opt.file_spec);
+  else DEBUGF (1, "Looking in \"%s\" for \"%s\".\n", dir, opt.file_spec);
+
+  return process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
+}
+
+/*
  * The MANPATH checking needs to be recursive (1 level); check all
  * 'man*' and 'cat*' directories under each directory in %MANPATH.
  *
- * If ".\\" (or "./") is in MANPATH, test for existence in 'current_dir'
+ * If ".\\" (or "./") is in '%MANPATH', test for existence in 'current_dir'
  * first.
  */
 static int do_check_manpath (void)
 {
   struct directory_array *arr;
   smartlist_t *list;
-  int    i, j, max, save, found = 0;
+  int    i, j, max, found = 0;
   char  *orig_e;
-  char   subdir [_MAX_PATH];
   char   report [300];
+  BOOL   save, done_cwd = FALSE;
   static const char env_name[] = "MANPATH";
 
-  /* \todo: this should be all directories matching "man?[pn]" or "cat?[pn]".
+  /* \todo:
+   *   This should be all directories matching "man?[pn]" or "cat?[pn]".
+   *   Make this array into a smartlist too?
    */
   static const char *sub_dirs[] = { "cat1", "cat2", "cat3", "cat4", "cat5",
                                     "cat6", "cat7", "cat8", "cat9",
                                     "man1", "man2", "man3", "man4", "man5",
                                     "man6", "man7", "man8", "man9", "mann"
                                   };
+
+  /* Do not implicit add current directory in searches.
+   * Unless '%MANPATH' contain a "./;" or a ".\;".
+   */
+  save = opt.add_cwd;
+  opt.add_cwd = FALSE;
 
   orig_e = getenv_expand (env_name);
   list   = orig_e ? split_env_var (env_name, orig_e) : NULL;
@@ -2409,7 +2436,6 @@ static int do_check_manpath (void)
 
   snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
   report_header = report;
-  save = opt.man_mode;
 
   /* Man-files should have an extension. Hence do not report dotless files as a
    * match in process_dir().
@@ -2425,24 +2451,32 @@ static int do_check_manpath (void)
       WARN ("%s: directory \"%s\" doesn't exist.\n", env_name, arr->dir);
       continue;
     }
+
+    /* If '%MANPATH' contains a "./", check in current-dir.
+     * If the path contains multiple "./", do this only once (with a warning).
+     * Also if current-dir contains "man*" sub-directories, check them too in the
+     * below for-loop.
+     */
     if (arr->is_cwd)
     {
-      DEBUGF (2, "Checking in current_dir '%s'\n", current_dir);
-
-      if (process_dir(".\\", 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE))
-      {
-        found++;
-        continue;
-      }
+      if (done_cwd)
+           WARN ("%s: Contains multiple \"%s\".\n", env_name, ".\\");
+      else found += check_man_dir (".\\", env_name);
+      done_cwd = TRUE;
     }
+
     for (j = 0; j < DIM(sub_dirs); j++)
     {
-      snprintf (subdir, sizeof(subdir), "%s\\%s", arr->dir, sub_dirs[j]);
-      if (FILE_EXISTS(subdir))
-         found += process_dir (subdir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
+      char dir [_MAX_PATH];
+
+      snprintf (dir, sizeof(dir), "%s%c%s", arr->dir, DIR_SEP, sub_dirs[j]);
+      if (FILE_EXISTS(dir))
+         found += check_man_dir (dir, env_name);
     }
   }
-  opt.man_mode = save;
+
+  opt.man_mode = 0;
+  opt.add_cwd = save;
   free_dir_array();
   FREE (orig_e);
   return (found);
