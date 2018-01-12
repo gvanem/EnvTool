@@ -42,13 +42,17 @@ typedef struct smartlist_t {
  /*
   * In MSVC '_DEBUG' mode (-MDd), if 'free()' was called on 'sl', the start-value
   * (or the whole block?) gets filled with '0xDDDDDDD'.
+  * Also the value '0xFDFDFDFD' is automatically placed before and after the heap block.
+  * Ref:
+  *   http://www.highprogrammer.com/alan/windev/visualstudio.html
   */
-  #define ASSERT_VAL(x) do {                                     \
-                          const size_t *val = (const size_t*) x; \
-                          ASSERT (*val != 0xDDDDDDDD);           \
-                        } while (0)
+  #define ASSERT_VAL(ptr) do {                                       \
+                            const DWORD *val = (const DWORD*) (ptr); \
+                            ASSERT (*val != 0xDDDDDDDD);             \
+                            ASSERT (*val != 0xFDFDFDFD);             \
+                          } while (0)
 #else
-  #define ASSERT_VAL(x) (void) 0
+  #define ASSERT_VAL(ptr) (void) 0
 #endif
 
 /*
@@ -138,9 +142,7 @@ void smartlist_free_all (smartlist_t *sl)
     {
       size_t *p = (size_t*) sl->list[i];
 
-#ifdef _CRTDBG_MAP_ALLOC
-      ASSERT (*p != 0xDDDDDDDD);
-#endif
+      ASSERT_VAL (p);
       FREE (p);
     }
   }
