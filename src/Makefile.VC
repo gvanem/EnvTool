@@ -23,7 +23,7 @@ EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib psapi.lib version.l
 
 !if "$(DEBUG)" == "1"
 D       = d
-CFLAGS  = $(CFLAGS) -Os -EHsc -RTCc
+CFLAGS  = $(CFLAGS) -Os -RTCc -RTCs -RTCu
 RCFLAGS = $(RCFLAGS) -D_DEBUG
 MSBUILD = $(MSBUILD) -p:Configuration=Debug
 !else
