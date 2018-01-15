@@ -801,6 +801,7 @@ static BOOL EVERYTHINGAPI _Everything_Query(void)
         WaitForSingleObject(hthread,INFINITE);
 
         CloseHandle(hthread);
+        Everything_hthread = NULL;
     }
     else
     {
