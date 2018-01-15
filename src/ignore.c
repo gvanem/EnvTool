@@ -252,6 +252,7 @@ void cfg_ignore_exit (void)
     FREE (node);
   }
   smartlist_free (ignore_list);
+  ignore_list = NULL;
 }
 
 #if 0
