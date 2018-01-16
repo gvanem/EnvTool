@@ -11,10 +11,10 @@
 #include <assert.h>
 
 #include "color.h"
-#include "dirlist.h"
 #include "ignore.h"
 #include "envtool.h"
 #include "envtool_py.h"
+#include "dirlist.h"
 #include "smartlist.h"
 
 /* No need to include <Python.h> just for this:
@@ -300,7 +300,7 @@ const char *py_variant_name (enum python_variants v)
 /**
  * \c qsort() helper used in \c py_get_variants().
  */
-static int compare_strings (const void *_s1, const void *_s2)
+static int MS_CDECL compare_strings (const void *_s1, const void *_s2)
 {
   const char *s1 = *(const char**) _s1;
   const char *s2 = *(const char**) _s2;

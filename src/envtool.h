@@ -241,6 +241,16 @@
   #define ADDR_CAST(x)  ((unsigned long)(x))
 #endif
 
+/*
+ * All MS compilers insists that 'main()', signal-handlers, atexit functions and
+ * var-arg functions must be defined as cdecl. This is only an issue if a program
+ * is using 'fastcall' globally (cl option '-Gr').
+ */
+#if defined(_MSC_VER) && !defined(__POCC__)
+  #define MS_CDECL __cdecl
+#else
+  #define MS_CDECL
+#endif
 
 #ifndef STDOUT_FILENO
 #define STDOUT_FILENO  1

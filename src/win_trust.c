@@ -78,7 +78,7 @@ static void usage (const char *fmt, ...)
   exit (-1);
 }
 
-int main (int argc, char **argv)
+int MS_CDECL main (int argc, char **argv)
 {
   const char *pe_file;
   DWORD       err;

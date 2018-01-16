@@ -86,6 +86,17 @@
 #endif
 
 /*
+ * All MS compilers insists that 'main()', signal-handlers, atexit functions and
+ * var-arg functions must be defined as cdecl. This is only an issue if a program
+ * is using 'fastcall' globally (cl option '-Gr').
+ */
+#if defined(_MSC_VER) && !defined(__POCC__)
+  #define MS_CDECL __cdecl
+#else
+  #define MS_CDECL
+#endif
+
+/*
  * From 'gcc -m64':
  *   Everything.c:33:26: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
  */
@@ -1052,7 +1063,7 @@ BOOL EVERYTHINGAPI Everything_QueryW(BOOL bWait)
     return ret;
 }
 
-static int _Everything_CompareA(const void *a,const void *b)
+static int MS_CDECL _Everything_CompareA(const void *a,const void *b)
 {
     int i;
 
@@ -1073,7 +1084,7 @@ static int _Everything_CompareA(const void *a,const void *b)
     }
 }
 
-static int _Everything_CompareW(const void *a,const void *b)
+static int MS_CDECL _Everything_CompareW(const void *a,const void *b)
 {
     int i;
 

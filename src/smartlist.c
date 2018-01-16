@@ -358,13 +358,26 @@ void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
  * Sort the members of 'sl' into an order defined by
  * the ordering function 'compare', which returns less then 0 if a
  * precedes b, greater than 0 if b precedes a, and 0 if a 'equals' b.
+ *
+ * Do it via '__cdecl local_compare()' since the caller's 'compare' may
+ * be '__fastcall. Only important for MSVC.
  */
-typedef int (*CmpFunc) (const void *, const void *);
+typedef int (*UserCmpFunc) (const void *, const void *);
+static UserCmpFunc user_compare;
+
+static int __cdecl local_compare (const void *a, const void *b)
+{
+  return (*user_compare) (a, b);
+}
 
 void smartlist_sort (smartlist_t *sl, smartlist_sort_func compare)
 {
   if (sl->num_used > 0)
-     qsort (sl->list, sl->num_used, sizeof(void*), (CmpFunc)compare);
+  {
+    user_compare = (UserCmpFunc) compare;
+    qsort (sl->list, sl->num_used, sizeof(void*), local_compare);
+    user_compare = NULL;
+  }
 }
 
 #if defined(NOT_USED_YET)

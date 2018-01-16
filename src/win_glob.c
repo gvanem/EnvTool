@@ -38,7 +38,7 @@ static DWORD num_ignored_errors;
 
 static int glob2 (const char *pattern, char *epathbuf);
 static int glob_add (const char *path, BOOL is_dir, unsigned line);
-static int str_compare (const void *va, const void *vb);
+static int MS_CDECL str_compare (const void *va, const void *vb);
 
 struct ffblk {
        HANDLE    ff_handle;
@@ -601,7 +601,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   return (0);
 }
 
-static int str_compare (const void *a, const void *b)
+static int MS_CDECL str_compare (const void *a, const void *b)
 {
   return stricmp (*(const char *const*)a, *(const char *const*)b);
 }
@@ -948,7 +948,7 @@ static void do_glob_new (const char *spec)
  * Syntax for a recursive glob() is e.g. "...\\*.c". Will search
  * for .c-files in current dir and in directories below it.
  */
-int main (int argc, char **argv)
+int MS_CDECL main (int argc, char **argv)
 {
   int ch, use_glob = 0;
 

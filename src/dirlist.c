@@ -33,9 +33,6 @@
 #include "dirlist.h"
 #include "getopt_long.h"
 
-typedef int (*QsortCmpFunc) (const void *, const void *);
-typedef int (*ScandirCmpFunc) (const void **, const void **);
-
 /*
  * Local functions
  */
@@ -400,8 +397,8 @@ static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
  */
 int scandir2 (const char       *dirname,
               struct dirent2 ***namelist_p,
-              int (*sd_select) (const struct dirent2 *),
-              int (*dcomp) (const void **, const void **))
+              ScandirSelectFunc sd_select,
+              ScandirCmpFunc    dcomp)
 {
   struct dirent2 **namelist;
   DIR2  *dirptr = NULL;
@@ -492,7 +489,7 @@ enomem:
  * Alphabetic order comparison routine.
  * Does not differensiate between files and directories.
  */
-static int compare_alphasort (const struct dirent2 *a, const struct dirent2 *b)
+static int MS_CDECL compare_alphasort (const struct dirent2 *a, const struct dirent2 *b)
 {
   const char *base_a = basename (a->d_name);
   const char *base_b = basename (b->d_name);
@@ -507,7 +504,7 @@ static int compare_alphasort (const struct dirent2 *a, const struct dirent2 *b)
   return (rc);
 }
 
-static int compare_dirs_first (const struct dirent2 *a, const struct dirent2 *b)
+static int MS_CDECL compare_dirs_first (const struct dirent2 *a, const struct dirent2 *b)
 {
   BOOL a_dir = (a->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
   BOOL b_dir = (b->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
@@ -526,7 +523,7 @@ static int compare_dirs_first (const struct dirent2 *a, const struct dirent2 *b)
   return (rc);
 }
 
-static int compare_files_first (const struct dirent2 *a, const struct dirent2 *b)
+static int MS_CDECL compare_files_first (const struct dirent2 *a, const struct dirent2 *b)
 {
   BOOL a_dir = (a->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
   BOOL b_dir = (b->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
@@ -545,17 +542,17 @@ static int compare_files_first (const struct dirent2 *a, const struct dirent2 *b
   return (rc);
 }
 
-int sd_compare_alphasort (const void **a, const void **b)
+int MS_CDECL sd_compare_alphasort (const void **a, const void **b)
 {
   return compare_alphasort (*a, *b);
 }
 
-int sd_compare_files_first (const void **a, const void **b)
+int MS_CDECL sd_compare_files_first (const void **a, const void **b)
 {
   return compare_files_first (*a, *b);
 }
 
-int sd_compare_dirs_first (const void **a, const void **b)
+int MS_CDECL sd_compare_dirs_first (const void **a, const void **b)
 {
   return compare_dirs_first (*a, *b);
 }
@@ -901,7 +898,7 @@ static enum od2x_sorting get_sorting (const char *s_type)
 
 /*
  */
-int main (int argc, char **argv)
+int MS_CDECL main (int argc, char **argv)
 {
   int  ch, do_scandir = 0;
   char dir_buf  [_MAX_PATH];

@@ -57,9 +57,14 @@ extern void            closedir2 (DIR2 *dp);
  *   If 'od2x_options::sort == OD2X_FILES_FIRST'       -> use 'sd_compare_files_first()'.
  *   If 'od2x_options::sort == OD2X_DIRECTORIES_FIRST' -> use 'sd_compare_dirs_first()'.
  */
-extern int sd_compare_alphasort   (const void **a, const void **b);
-extern int sd_compare_files_first (const void **a, const void **b);
-extern int sd_compare_dirs_first  (const void **a, const void **b);
+extern int MS_CDECL sd_compare_alphasort   (const void **a, const void **b);
+extern int MS_CDECL sd_compare_files_first (const void **a, const void **b);
+extern int MS_CDECL sd_compare_dirs_first  (const void **a, const void **b);
+
+typedef int (MS_CDECL *QsortCmpFunc) (const void *, const void *);
+typedef int (MS_CDECL *ScandirCmpFunc) (const void **, const void **);
+typedef int (MS_CDECL *ScandirSelectFunc) (const struct dirent2 *);
+
 
 /*
  * arg1 = directory name
@@ -70,9 +75,9 @@ extern int sd_compare_dirs_first  (const void **a, const void **b);
  * Returns number of files added to namelist[].
  * Or -1 on error.
  */
-extern int scandir2 (const char *dirname,
+extern int scandir2 (const char       *dirname,
                      struct dirent2 ***namelist,
-                     int (*sd_select)(const struct dirent2 *),
-                     int (*dcomp)(const void **, const void **));
+                     ScandirSelectFunc Select,
+                     ScandirCmpFunc    compare);
 
 #endif /* _DIRLIST_H */
