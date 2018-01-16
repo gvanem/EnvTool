@@ -37,15 +37,14 @@
 #include "Everything.h"
 #include "Everything_IPC.h"
 #include "Everything_ETP.h"
-#include "dirlist.h"
 #include "auth.h"
-
 #include "color.h"
 #include "smartlist.h"
 #include "regex.h"
 #include "ignore.h"
 #include "envtool.h"
 #include "envtool_py.h"
+#include "dirlist.h"
 
 /**
  * <!-- \includedoc  README.md ->
@@ -1261,11 +1260,10 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 
   if (key != HKEY_PYTHON_EGG)
   {
-    char  buf [_MAX_PATH];
-    char *p = _fix_path (file, NULL);  /* Has '\\' slashes */
+    char buf [_MAX_PATH];
 
-    file = slashify2 (buf, p, opt.show_unix_paths ? '/' : '\\');
-    FREE (p);
+    _fix_path (file, buf);  /* Has '\\' slashes */
+    file = slashify2 (buf, buf, opt.show_unix_paths ? '/' : '\\');
   }
 
   if (report_header)
@@ -2272,7 +2270,7 @@ static int do_check_evry (void)
   {
     static char prev [_MAX_PATH];
     char   file [_MAX_PATH];
-    UINT64 fsize = (__int64)-1;  /* since 0-byte file are leagal */
+    UINT64 fsize = (__int64)-1;  /* since a 0-byte file is valid */
     time_t mtime = 0;
 
     if (halt_flag > 0)
@@ -3944,7 +3942,7 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   }
 }
 
-static void cleanup (void)
+static void MS_CDECL cleanup (void)
 {
   int i;
 
@@ -3992,14 +3990,14 @@ static void cleanup (void)
   if (halt_flag > 0)
      C_puts ("~5Quitting.\n~0");
 
-  C_reset();
+  C_exit();
   crtdbug_exit();
 }
 
 /*
  * This signal-handler gets called in another thread.
  */
-static void halt (int sig)
+static void MS_CDECL halt (int sig)
 {
   extern HANDLE Everything_hthread;
 
@@ -4025,7 +4023,7 @@ static void halt (int sig)
   if (sig == SIGILL) /* Get out as fast as possible */
   {
     C_puts ("\n~5Illegal instruction.~0\n");
-    C_reset();
+    C_exit();
     ExitProcess (GetCurrentProcessId());
   }
 }
@@ -4069,7 +4067,7 @@ static void init_all (void)
   }
 }
 
-int main (int argc, char **argv)
+int MS_CDECL main (int argc, char **argv)
 {
   int found = 0;
 
@@ -5044,12 +5042,14 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
       snprintf (status, status_sz, "~5Missing dir~0: ~3\"%s\"~0", arr->dir);
       break;
     }
+    else if (opt.verbose)
+      C_printf ("     [%2d]: ~3%s~0\n", i, arr->dir);
   }
 
   if (max == 0)
      _strlcpy (status, "~5Does not exists~0", status_sz);
   else if (!status[0])
-     _strlcpy (status, "~2OK~0", status_sz);
+    _strlcpy (status, "~2OK~0", status_sz);
 
 #ifndef __CYGWIN__
   FREE (value);
