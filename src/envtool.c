@@ -1391,7 +1391,7 @@ static void final_report (int found)
   }
   else if (opt.PE_check)
   {
-    const char *are = (num_verified > 1) ? "are" : "is";
+    const char *are = (num_verified == 0 || num_verified > 1) ? "are" : "is";
     C_printf (" %d have PE-version info. %d %s verified.", num_version_ok, num_verified, are);
   }
   C_putc ('\n');
