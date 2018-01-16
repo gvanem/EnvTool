@@ -5128,7 +5128,12 @@ static int do_check (void)
                     NULL
                    };
   const char *env;
-  int   i;
+  int   i, save;
+
+  /* Do not implicit add current directory in these searches.
+   */
+  save = opt.add_cwd;
+  opt.add_cwd = 0;
 
   for (i = 0, env = envs[0]; i < DIM(envs) && env; env = envs[++i])
   {
@@ -5145,6 +5150,8 @@ static int do_check (void)
 
   C_printf ("Checking ~6HKLM\\%s~0:\n", REG_APP_PATH);
   check_reg_key (HKEY_LOCAL_MACHINE, REG_APP_PATH);
+
+  opt.add_cwd = save;
   return (0);
 }
 
@@ -5193,7 +5200,7 @@ static int do_tests (void)
 #endif
   test_split_env ("FOO");
   opt.add_cwd = save;
-#endif
+#endif   /* 1 */
 
   test_searchpath();
   test_fnmatch();
