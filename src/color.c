@@ -37,6 +37,12 @@
   #define snprintf           _snprintf
 #endif
 
+#if defined(_MSC_VER) && !defined(__POCC__)
+  #define MS_CDECL __cdecl
+#else
+  #define MS_CDECL
+#endif
+
 #define loBYTE(w)     (BYTE)(w)
 #define hiBYTE(w)     (BYTE)((WORD)(w) >> 8)
 #define DIM(x)        (int) (sizeof(x) / sizeof((x)[0]))
@@ -67,7 +73,7 @@
 #endif
 
 #ifndef C_BUF_SIZE
-#define C_BUF_SIZE (2*1024)
+#define C_BUF_SIZE 2048
 #endif
 
 #ifndef STDOUT_FILENO
@@ -108,6 +114,7 @@ static int    c_raw = 0;
 static int    c_binmode = 0;
 static size_t c_screen_width = UINT_MAX;
 static int    c_always_set_bg = 0;
+static BOOL   c_exited = FALSE;
 
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
 static CRITICAL_SECTION           crit;
@@ -209,21 +216,18 @@ int C_setbin (int bin)
 }
 
 /**
- * Our local \c atexit() function.
+ * The global exit function.
  * Flushes the output buffer and deletes the critical section.
  */
-static void C_exit (void)
+void C_exit (void)
 {
-#if 0
-  /* Since the order of 'atexit()' functions are a bit undefined, maybe it's
-   * better for the application using color.c to call this function.
-   */
   C_reset();
-#endif
+
   if (c_out)
      C_flush();
   c_head = c_tail = NULL;
   c_out = NULL;
+  c_exited = TRUE;
   DeleteCriticalSection (&crit);
 }
 
@@ -238,10 +242,15 @@ static void C_exit (void)
  *        \c colour_map_ansi[] array if ANSI output is wanted.
  *  \li Set \c c_out to default \c stdout and setup buffer head and tail.
  *  \li Initialise the critical-section structure.
- *  \li Hook \c C_exit() to be called at program exit.
  */
-static void C_init (void)
+static int C_init (void)
 {
+  if (c_exited)
+  {
+    fputs ("C_init() called after C_exit()!?\n", stderr);
+    return (0);
+  }
+
   if (!c_head || !c_out)
   {
     BOOL        okay;
@@ -294,8 +303,8 @@ static void C_init (void)
     c_head = c_buf;
     c_tail = c_head + C_BUF_SIZE - 1;
     InitializeCriticalSection (&crit);
-    atexit (C_exit);
   }
+  return (1);
 }
 
 /**
@@ -477,7 +486,8 @@ int C_vprintf (const char *fmt, va_list args)
 {
   int len1, len2;
 
-  C_init();
+  if (!C_init())
+     return (0);
 
   if (c_raw)
   {
@@ -490,6 +500,11 @@ int C_vprintf (const char *fmt, va_list args)
     char buf [2*C_BUF_SIZE];
 
     EnterCriticalSection (&crit);
+
+    /* Terminate first. Because if '_MSC_VER < 1900',
+     * should the returned buffer be exactly big enough for the result,
+     * 'vsnprintf() do not add a trailing NUL.
+     */
     buf [sizeof(buf)-1] = '\0';
     len2 = vsnprintf (buf, sizeof(buf)-1, fmt, args);
     len1 = C_puts (buf);
@@ -510,7 +525,8 @@ int C_putc (int ch)
   static BOOL get_color = FALSE;
   int    i, rc = 0;
 
-  C_init();
+  if (!C_init())
+     return (0);
 
   assert (c_head);
   assert (c_tail);
