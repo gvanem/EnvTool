@@ -1263,7 +1263,8 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
     char buf [_MAX_PATH];
 
     _fix_path (file, buf);  /* Has '\\' slashes */
-    file = slashify2 (buf, buf, opt.show_unix_paths ? '/' : '\\');
+    if (opt.show_unix_paths)
+       file = slashify (buf, '/');
   }
 
   if (report_header)
