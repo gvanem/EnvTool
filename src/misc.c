@@ -685,7 +685,7 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
    */
   if (hFile == INVALID_HANDLE_VALUE)
   {
-    DEBUGF (1, "CreateFile error = %s\n", win_strerror(GetLastError()));
+    DEBUGF (1, "CreateFile (\"%s\") error = %s\n", file, win_strerror(GetLastError()));
     return (FALSE);
   }
 
@@ -763,8 +763,8 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
     if (err == ERROR_NONE_MAPPED)
          DEBUGF (1, "Account owner not found for specified SID.\n");
     else DEBUGF (1, "(2) Error in LookupAccountSid(): %s.\n", win_strerror(err));
-    free (*domain_name);
-    free (*account_name);
+    FREE (*domain_name);
+    FREE (*account_name);
   }
   return (rc2);
 }
@@ -2054,7 +2054,7 @@ char *slashify (const char *path, char use)
 
 /**
  * As above, but copy into \c buf.
- * \note \c path and \c buf can point to same location.
+ * \note \c path and \c buf can point to the same location.
  */
 char *slashify2 (char *buf, const char *path, char use)
 {
@@ -2064,8 +2064,9 @@ char *slashify2 (char *buf, const char *path, char use)
   for (p = path; p < end; p++)
   {
     if (IS_SLASH(*p))
-         *s++ = use;
-    else *s++ = *p;
+         *s = use;
+    else *s = *p;
+    s++;
     ASSERT (s < buf+_MAX_PATH-1);
   }
   *s = '\0';

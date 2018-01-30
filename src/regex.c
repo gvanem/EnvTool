@@ -1002,7 +1002,7 @@ static boolean group_in_compile_stack (compile_stack_type compile_stack, regnum_
 
 /* Return, freeing storage we allocated.
   */
-#define FREE_STACK_RETURN(value) return (free(compile_stack.stack), value)
+#define FREE_STACK_RETURN(value) return (FREE(compile_stack.stack), value)
 
 static reg_errcode_t regex_compile (const char *pattern, size_t size,
                                     reg_syntax_t syntax, struct re_pattern_buffer *bufp)
