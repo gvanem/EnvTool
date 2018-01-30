@@ -1311,8 +1311,9 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   else if (key == HKEY_MAN_FILE)
   {
     const char *link = get_man_link (file);
+    const char *ext  = get_file_ext (file);
 
-    if (!link)
+    if (!link & !isdigit(*ext))
        link = get_gzip_link (file);
     if (link)
        C_printf ("%*s(%s)", get_trailing_indent(file), " ", link);
