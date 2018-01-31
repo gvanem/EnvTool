@@ -2154,6 +2154,12 @@ static int do_check_evry (void)
   struct ver_info evry_ver = { 0, 0, 0, 0 };
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
+  if (!wnd)
+  {
+    C_printf ("  Everything search engine not found.\n");
+    return (0):
+  }
+
   num_evry_dups = 0;
 
   if (evry_bitness == bit_unknown)
