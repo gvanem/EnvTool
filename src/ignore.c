@@ -54,7 +54,7 @@ static void cfg_parse (smartlist_t *sl, char *line)
 
     if (idx == UINT_MAX)
          WARN ("Ignoring unknown section: %s.\n", p);
-    else section = sections[idx].name; /* remember the section for nex line */
+    else section = sections[idx].name; /* remember the section for next line */
     return;
   }
 
