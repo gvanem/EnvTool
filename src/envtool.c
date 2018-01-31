@@ -2145,12 +2145,13 @@ static BOOL evry_IsDBLoaded (HWND wnd)
 
 static int do_check_evry (void)
 {
-  DWORD err, num, request_flags, version, i;
-  char  query [_MAX_PATH+8];
-  char *dir   = NULL;
-  char *base  = NULL;
-  int   len, found = 0;
-  HWND  wnd;
+  DWORD  i, err, num, request_flags, version = 0;
+  char   query [_MAX_PATH+8];
+  char  *dir   = NULL;
+  char  *base  = NULL;
+  int    len, found = 0;
+  HWND   wnd;
+  struct ver_info evry_ver = { 0, 0, 0, 0 };
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   num_evry_dups = 0;
@@ -2158,15 +2159,14 @@ static int do_check_evry (void)
   if (evry_bitness == bit_unknown)
      get_evry_bitness (wnd);
 
-  version = (Everything_GetMajorVersion() << 16) +
-            (Everything_GetMinorVersion() << 8)  +
-            Everything_GetRevision();
+  if (get_evry_version(wnd,&evry_ver))
+     version = (evry_ver.val_1 << 16) + (evry_ver.val_2 << 8) + evry_ver.val_3;
 
-  DEBUGF (1, "version %lu.%lu.%lu, build: %lu\n",
-          (unsigned long)(version >> 16),
-          (unsigned long)((version >> 8) & 255),
-          (unsigned long)(version & 255),
-          (unsigned long)Everything_GetBuildNumber());
+  DEBUGF (1, "version %u.%u.%u, build: %u\n",
+          evry_ver.val_1,
+          evry_ver.val_2,
+          evry_ver.val_3,
+          evry_ver.val_4);
 
   /* EveryThing seems not to support '\\'. Must split the 'opt.file_spec'
    * into a 'dir' and 'base' part.
