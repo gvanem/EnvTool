@@ -298,9 +298,9 @@ static const char *get_registry_value (const char *wanted_value, DWORD wanted_ty
   BOOL   found = FALSE;
   static char ret_buf [100];
 
-  rc  = RegOpenKeyEx (HKEY_LOCAL_MACHINE, CURRENT_VER_KEY, 0, KEY_READ, &key);
+  rc = RegOpenKeyEx (HKEY_LOCAL_MACHINE, CURRENT_VER_KEY, 0, KEY_READ, &key);
 
-  DEBUGF (1, "RegOpenKeyEx (HKLM\\%s): %s\n", CURRENT_VER_KEY, win_strerror(rc));
+  DEBUGF (2, "RegOpenKeyEx (HKLM\\%s): %s\n", CURRENT_VER_KEY, win_strerror(rc));
 
   for (num = 0; rc == ERROR_SUCCESS; num++)
   {
@@ -317,18 +317,20 @@ static const char *get_registry_value (const char *wanted_value, DWORD wanted_ty
     switch (type)
     {
       case REG_SZ:
-           DEBUGF (1, "  num %lu: %s = %s (REG_SZ).\n", (u_long)num, value, data);
+           DEBUGF (2, "  num %lu: %s = %s (REG_SZ).\n", (u_long)num, value, data);
            break;
       case REG_DWORD:
-           DEBUGF (1, "  num %lu: %s = %lu (REG_DWORD).\n", (u_long)num, value, *(u_long*)&data[0]);
+           DEBUGF (2, "  num %lu: %s = %lu (REG_DWORD).\n", (u_long)num, value, *(u_long*)&data[0]);
            break;
       default:
-           DEBUGF (1, "  num %lu: %s = ? (%s).\n", (u_long)num, value, reg_type_name(type));
+           DEBUGF (2, "  num %lu: %s = ? (%s).\n", (u_long)num, value, reg_type_name(type));
            break;
     }
     if (type == wanted_type && !stricmp(wanted_value,value))
     {
-      _strlcpy (ret_buf, data, sizeof(ret_buf));
+      if (type != REG_SZ)
+           _itoa (*(u_long*)&data[0], ret_buf, 10);
+      else _strlcpy (ret_buf, data, sizeof(ret_buf));
       found = TRUE;
       break;
     }
@@ -357,7 +359,7 @@ int main (void)
 {
   DWORD major, minor, platform;
   BOOL  rc;
-  const char *ver;
+  const char *ver, *release, *build;
 
   opt.debug = 1;
 
@@ -372,8 +374,14 @@ int main (void)
      DEBUGF (1, "  failed\n");
 
   ver = os_name();
-  DEBUGF (1, "Result from os_name(): %s\n", ver);
-  DEBUGF (1, "Result from os_bits(): %s bits\n", os_bits());
+  DEBUGF (1, "Result from os_name():             %s\n", ver);
+  DEBUGF (1, "Result from os_bits():             %s bits\n", os_bits());
+
+  release = os_release_id();
+  DEBUGF (1, "Result from os_release_id():       %s\n", release ? release : "<none>");
+
+  build = os_update_build_rev();
+  DEBUGF (1, "Result from os_update_build_rev(): %s\n", build ? build : "<none>");
   return (0);
 }
 #endif
