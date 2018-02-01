@@ -488,6 +488,8 @@ extern void crtdbug_exit (void);
  */
 extern const char *os_name (void);
 extern const char *os_bits (void);
+extern const char *os_release_id (void);
+extern const char *os_update_build_rev (void);
 
 /* Stuff in win_trust.c:
  */
