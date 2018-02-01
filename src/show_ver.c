@@ -140,6 +140,7 @@ static void do_printf (const char *fmt, ...)
   if (!trace_buf || left < 100)
   {
     size_t delta = trace_head - trace_buf;
+
     if (left < 100)
          size *= 2;
     else size = 1000;
