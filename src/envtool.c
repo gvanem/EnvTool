@@ -998,91 +998,63 @@ show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionW
 
  */
 
-static void print_PE_info (const char *file, BOOL chksum_ok,
-                           const struct ver_info *ver, enum Bitness bits)
+/*
+ * Print the Resource-version details after any 'wintrust_check_file()' results has
+ * been printed. The details come from 'print_PE_file_brief()' and 'get_PE_version_info()'.
+ * Which can be retrieved using 'get_PE_version_info_buf()'.
+ */
+static void print_PE_file_details (const char *filler)
 {
-  const char *filler = "      ";
-  char       *ver_trace, *line, *bitness;
-  char        trust_buf [200], *p = trust_buf;
-  size_t      left = sizeof(trust_buf);
-  int         raw;
-  DWORD       rc = wintrust_check (file, TRUE, FALSE);
+  char *line, *ver_trace = get_PE_version_info_buf();
+  int   raw, i;
 
-  switch (rc)
+  if (!ver_trace)
+     return;
+
+  raw = C_setraw (1);  /* In case version-info contains a "~" (SFN). */
+
+  for (i = 0, line = strtok(ver_trace,"\n"); line; line = strtok(NULL,"\n"), i++)
   {
-    case ERROR_SUCCESS:
-         p    += snprintf (trust_buf, sizeof(trust_buf), ", ~2(Verified");
-         left -= p - trust_buf;
-         num_verified++;
-         break;
-    case TRUST_E_NOSIGNATURE:
-    case TRUST_E_SUBJECT_FORM_UNKNOWN:
-    case TRUST_E_PROVIDER_UNKNOWN:
-         p    += snprintf (trust_buf, sizeof(trust_buf), ", ~5(Not signed");
-         left -= p - trust_buf;
-         break;
-    case TRUST_E_SUBJECT_NOT_TRUSTED:
-         p    += snprintf (trust_buf, sizeof(trust_buf), ", ~5(Not trusted");
-         left -= p - trust_buf;
-         break;
-  }
+    const char *colon  = strchr (line, ':');
+    size_t      indent = strlen (filler);
 
-  if (wintrust_signer_subject)
-       snprintf (p, left, ", %s)~0.", wintrust_signer_subject);
-  else snprintf (p, left, ")~0.");
-
-  bitness = (bits == bit_32) ? "~232" :
-            (bits == bit_64) ? "~364" : "~5?";
-
-  C_printf ("\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s%s\n",
-            filler, ver->val_1, ver->val_2, ver->val_3, ver->val_4,
-            bitness, chksum_ok ? "~2OK" : "~5fail", trust_buf);
-
-  ver_trace = get_PE_version_info_buf();
-  if (ver_trace)
-  {
-    raw = C_setraw (1);  /* In case version-info contains a "~" (SFN). */
-
-    for (line = strtok(ver_trace,"\n"); line; line = strtok(NULL,"\n"))
+    if (colon)
     {
-      const char *colon  = strchr (line, ':');
-      size_t      indent = strlen (filler);
-
-      if (colon)
+      if (colon && colon[1] == ' ')
       {
-        if (colon && colon[1] == ' ')
-        {
-          char ignore [200];
+        char ignore [200];
 
-          _strlcpy (ignore, line, colon-line+1);
-          if (cfg_ignore_lookup("[PE-resources]",str_trim(ignore)))
-             continue;
-        }
-        indent += (colon - line + 1);
+        _strlcpy (ignore, line, colon-line+1);
+        if (cfg_ignore_lookup("[PE-resources]",str_trim(ignore)))
+           continue;
       }
-      C_puts (filler);
-      C_puts_long_line (line, indent);
+      indent += (colon - line + 1);
     }
-    C_setraw (raw);
-    get_PE_version_info_free();
+    if (i == 0)
+       C_putc ('\n');
+    C_puts (filler);
+    C_puts_long_line (line, indent);
   }
+  C_setraw (raw);
+  get_PE_version_info_free();
 }
 
-static void print_PE_file (const char *file)
+static BOOL print_PE_file_brief (const char *file, const char *filler)
 {
   struct ver_info ver;
   enum Bitness    bits;
+  const char     *bitness;
   BOOL            chksum_ok  = FALSE;
   BOOL            version_ok = FALSE;
 
   if (!check_if_PE(file,&bits))
-     return;
+     return (FALSE);
 
   if (opt.only_32bit && bits != bit_32)
-     return;
+     return (FALSE);
 
   if (opt.only_64bit && bits != bit_64)
-     return;
+     return (FALSE);
 
   memset (&ver, 0, sizeof(ver));
   chksum_ok  = verify_PE_checksum (file);
@@ -1090,7 +1062,48 @@ static void print_PE_file (const char *file)
   if (version_ok)
      num_version_ok++;
 
-  print_PE_info (file, chksum_ok, &ver, bits);
+  bitness = (bits == bit_32) ? "~232" :
+            (bits == bit_64) ? "~364" : "~5?";
+
+  /* Do not print a '\n' since 'wintrust_check_file()' is called right after this function.
+   */
+  C_printf ("\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s",
+            filler, ver.val_1, ver.val_2, ver.val_3, ver.val_4,
+            bitness, chksum_ok ? "~2OK" : "~5fail");
+  return (TRUE);
+}
+
+static void print_wintrust_info (const char *file)
+{
+  char   buf [200], *p = buf;
+  size_t left = sizeof(buf);
+  DWORD  rc = wintrust_check (file, TRUE, FALSE);
+
+  switch (rc)
+  {
+    case ERROR_SUCCESS:
+         p    += snprintf (buf, left, " ~2(Verified");
+         left -= p - buf;
+         num_verified++;
+         break;
+    case TRUST_E_NOSIGNATURE:
+    case TRUST_E_SUBJECT_FORM_UNKNOWN:
+    case TRUST_E_PROVIDER_UNKNOWN:
+         p    += snprintf (buf, left, " ~5(Not signed");
+         left -= p - buf;
+         break;
+    case TRUST_E_SUBJECT_NOT_TRUSTED:
+         p    += snprintf (buf, left, " ~5(Not trusted");
+         left -= p - buf;
+         break;
+  }
+
+  if (wintrust_signer_subject)
+       snprintf (p, left, ", %s)~0.", wintrust_signer_subject);
+  else snprintf (p, left, ")~0.");
+
+  wintrust_cleanup();
+  C_puts (buf);
 }
 
 UINT64 get_directory_size (const char *dir)
@@ -1160,8 +1173,8 @@ static int get_trailing_indent (const char *file)
 int report_file (const char *file, time_t mtime, UINT64 fsize,
                  BOOL is_dir, BOOL is_junction, HKEY key)
 {
-  const char *note    = NULL;
-  const char *filler = "      ";
+  const char *note   = NULL;
+  const char *filler = "    ";
   char        size [40] = "?";
   int         raw;
   BOOL        have_it = TRUE;
@@ -1316,7 +1329,13 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   }
 
   if (opt.PE_check && !is_dir && key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE && key != HKEY_EVERYTHING_ETP)
-     print_PE_file (file);
+  {
+    if (print_PE_file_brief(file,filler))
+    {
+      print_wintrust_info (file);
+      print_PE_file_details (filler);
+    }
+  }
 
   C_putc ('\n');
   return (1);
@@ -3952,7 +3971,6 @@ static void MS_CDECL cleanup (void)
   if (halt_flag == 0)
      py_exit();
 
-  wintrust_cleanup();
   free_dir_array();
 
   FREE (who_am_I);
