@@ -289,14 +289,64 @@ const char *os_bits (void)
  *   Version  1709 (OS-build 16299.64)
  *   ReleaseId^         Build^ UBR ^
  */
+#define CURRENT_VER_KEY  "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
+
+static const char *get_registry_value (const char *wanted_value, DWORD wanted_type)
+{
+  HKEY   key = NULL;
+  DWORD  num,  rc;
+  BOOL   found = FALSE;
+  static char ret_buf [100];
+
+  rc  = RegOpenKeyEx (HKEY_LOCAL_MACHINE, CURRENT_VER_KEY, 0, KEY_READ, &key);
+
+  DEBUGF (1, "RegOpenKeyEx (HKLM\\%s): %s\n", CURRENT_VER_KEY, win_strerror(rc));
+
+  for (num = 0; rc == ERROR_SUCCESS; num++)
+  {
+    char  value [512] = "\0";
+    char  data [512]  = "\0";
+    DWORD value_size  = sizeof(value);
+    DWORD data_size   = sizeof(data);
+    DWORD type        = REG_NONE;
+
+    rc = RegEnumValue (key, num, value, &value_size, NULL, &type, (BYTE*)&data, &data_size);
+    if (rc == ERROR_NO_MORE_ITEMS)
+       break;
+
+    switch (type)
+    {
+      case REG_SZ:
+           DEBUGF (1, "  num %lu: %s = %s (REG_SZ).\n", (u_long)num, value, data);
+           break;
+      case REG_DWORD:
+           DEBUGF (1, "  num %lu: %s = %lu (REG_DWORD).\n", (u_long)num, value, *(u_long*)&data[0]);
+           break;
+      default:
+           DEBUGF (1, "  num %lu: %s = ? (%s).\n", (u_long)num, value, reg_type_name(type));
+           break;
+    }
+    if (type == wanted_type && !stricmp(wanted_value,value))
+    {
+      _strlcpy (ret_buf, data, sizeof(ret_buf));
+      found = TRUE;
+      break;
+    }
+  }
+
+  if (key)
+     RegCloseKey (key);
+  return (found ? ret_buf : NULL);
+}
+
 const char *os_release_id (void)
 {
-  return (NULL);
+  return get_registry_value ("ReleaseId", REG_SZ);
 }
 
 const char *os_update_build_rev (void)
 {
-  return (NULL);
+  return get_registry_value ("UBR", REG_DWORD);
 }
 
 #if defined(WIN_VER_TEST)
