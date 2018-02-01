@@ -3,7 +3,7 @@
  * \brief
  *   Functions for parsing and lookup of host/user records in:
  *   \verbatim %APPDATA%/.netrc    \endverbatim and
-     \verbatim %APPDATA%/.authinfo \endverbatim
+ *   \verbatim %APPDATA%/.authinfo \endverbatim
  *
  * Used in remote queries in Everything_ETP.c.
  *
