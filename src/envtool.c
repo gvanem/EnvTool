@@ -523,7 +523,7 @@ static int show_help (void)
             "    ~6--no-ansi~0:      don't print colours using ANSI sequences (effective on CygWin only).\n"
             "    ~6--no-watcom~0:    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
             "    ~6--owner~0:        shown owner of the file.\n"
-            "    ~6--pe~0:           print checksum and version-info for PE-files.\n"
+            "    ~6--pe~0:           print checksum, version-info and signing status for PE-files.\n"
             "    ~6--32~0:           tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
             "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
             "    ~6--64~0:           tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
@@ -1006,7 +1006,7 @@ static void print_PE_info (const char *file, BOOL chksum_ok,
   char        trust_buf [200], *p = trust_buf;
   size_t      left = sizeof(trust_buf);
   int         raw;
-  DWORD       rc = wintrust_check (file, (opt.debug || opt.verbose) ? TRUE : FALSE, FALSE);
+  DWORD       rc = wintrust_check (file, TRUE, FALSE);
 
   switch (rc)
   {
@@ -1075,12 +1075,9 @@ static int print_PE_file (const char *file, const char *note, const char *filler
   enum Bitness    bits;
   BOOL            chksum_ok  = FALSE;
   BOOL            version_ok = FALSE;
-  int             raw;
 
   if (!check_if_PE(file,&bits))
      return (0);
-
-  memset (&ver, 0, sizeof(ver));
 
   if (opt.only_32bit && bits != bit_32)
      return (0);
@@ -1088,17 +1085,13 @@ static int print_PE_file (const char *file, const char *note, const char *filler
   if (opt.only_64bit && bits != bit_64)
      return (0);
 
+  memset (&ver, 0, sizeof(ver));
   chksum_ok  = verify_PE_checksum (file);
   version_ok = get_PE_version_info (file, &ver);
   if (version_ok)
      num_version_ok++;
 
-  C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
-  raw = C_setraw (1);
-  C_puts (file);
-  C_setraw (raw);
   print_PE_info (file, chksum_ok, &ver, bits);
-  C_putc ('\n');
   return (1);
 }
 
@@ -1272,9 +1265,6 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 
   report_header = NULL;
 
-  if (opt.PE_check && key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE && key != HKEY_EVERYTHING_ETP)
-     return print_PE_file (file, note, filler, size, mtime);
-
   C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
 
   /* The remote 'file' from EveryThing is not something Windows knows
@@ -1326,6 +1316,9 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
     if (shebang)
        C_printf ("%*s(%s)", get_trailing_indent(file), " ", shebang);
   }
+
+  if (opt.PE_check && key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE && key != HKEY_EVERYTHING_ETP)
+     print_PE_file (file, note, filler, size, mtime);
 
   C_putc ('\n');
   return (1);
@@ -2157,7 +2150,7 @@ static int do_check_evry (void)
   if (!wnd)
   {
     C_printf ("  Everything search engine not found.\n");
-    return (0):
+    return (0);
   }
 
   num_evry_dups = 0;
