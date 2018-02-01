@@ -435,7 +435,8 @@ quit:
   return (res);
 }
 
-BOOL GetDateOfTimeStamp (CMSG_SIGNER_INFO *signer_info, SYSTEMTIME *st)
+BOOL GetDateOfTimeStamp (__IN const CMSG_SIGNER_INFO *signer_info,
+                         __OUT      SYSTEMTIME       *st)
 {
   FILETIME lft, ft;
   DWORD    data, n;
@@ -471,8 +472,8 @@ BOOL GetDateOfTimeStamp (CMSG_SIGNER_INFO *signer_info, SYSTEMTIME *st)
   return (res);
 }
 
-BOOL GetTimeStampSignerInfo (__IN  CMSG_SIGNER_INFO  *signer_info,
-                             __OUT CMSG_SIGNER_INFO **counter_signer_info)
+BOOL GetTimeStampSignerInfo (__IN  const CMSG_SIGNER_INFO  *signer_info,
+                             __OUT       CMSG_SIGNER_INFO **counter_signer_info)
 {
   BOOL   res = FALSE;
   DWORD  size, n;
@@ -633,7 +634,7 @@ static int crypt_check_file (const char *fname)
     cert_info.SerialNumber = counter_signer_info->SerialNumber;
 
     cert_context = CertFindCertificateInStore (h_store, ASN_ENCODING, 0, CERT_FIND_SUBJECT_CERT,
-                                              (void*)&cert_info, NULL);
+                                               (void*)&cert_info, NULL);
     if (!cert_context)
     {
       ERROR ("CertFindCertificateInStore");
@@ -644,7 +645,7 @@ static int crypt_check_file (const char *fname)
     PrintCertificateInfo (cert_context, &wintrust_timestamp_subject, &wintrust_timestamp_issuer);
 
     PRINTF ("\nTimeStamp: ");
-    if (GetDateOfTimeStamp (counter_signer_info, &st))
+    if (GetDateOfTimeStamp(counter_signer_info, &st))
          PRINTF ("%02d/%02d/%04d %02d:%02d\n",
                  st.wMonth, st.wDay, st.wYear, st.wHour, st.wMinute);
     else PRINTF ("<None>\n");
