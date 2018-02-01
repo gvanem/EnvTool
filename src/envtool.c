@@ -1068,8 +1068,7 @@ static void print_PE_info (const char *file, BOOL chksum_ok,
   }
 }
 
-static int print_PE_file (const char *file, const char *note, const char *filler,
-                          const char *size, time_t mtime)
+static void print_PE_file (const char *file)
 {
   struct ver_info ver;
   enum Bitness    bits;
@@ -1077,13 +1076,13 @@ static int print_PE_file (const char *file, const char *note, const char *filler
   BOOL            version_ok = FALSE;
 
   if (!check_if_PE(file,&bits))
-     return (0);
+     return;
 
   if (opt.only_32bit && bits != bit_32)
-     return (0);
+     return;
 
   if (opt.only_64bit && bits != bit_64)
-     return (0);
+     return;
 
   memset (&ver, 0, sizeof(ver));
   chksum_ok  = verify_PE_checksum (file);
@@ -1092,7 +1091,6 @@ static int print_PE_file (const char *file, const char *note, const char *filler
      num_version_ok++;
 
   print_PE_info (file, chksum_ok, &ver, bits);
-  return (1);
 }
 
 UINT64 get_directory_size (const char *dir)
@@ -1317,8 +1315,8 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
        C_printf ("%*s(%s)", get_trailing_indent(file), " ", shebang);
   }
 
-  if (opt.PE_check && key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE && key != HKEY_EVERYTHING_ETP)
-     print_PE_file (file, note, filler, size, mtime);
+  if (opt.PE_check && !is_dir && key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE && key != HKEY_EVERYTHING_ETP)
+     print_PE_file (file);
 
   C_putc ('\n');
   return (1);
