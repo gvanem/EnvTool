@@ -1174,7 +1174,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
                  BOOL is_dir, BOOL is_junction, HKEY key)
 {
   const char *note   = NULL;
-  const char *filler = "    ";
+  const char *filler = "      ";
   char        size [40] = "?";
   int         raw;
   BOOL        have_it = TRUE;
@@ -2700,7 +2700,7 @@ typedef enum compiler_type {
            } compiler_type;
 
 typedef struct compiler_info {
-        char          *short_name;  /* the short name we're looking for on%PATH */
+        char          *short_name;  /* the short name we're looking for on %PATH */
         char          *full_name;   /* the full name if found %PATH */
         compiler_type  type;        /* what type is it? */
         BOOL           ignore;      /* shall we ignore it? */
@@ -2969,6 +2969,39 @@ static void gnu_popen_warn (const char *gcc, int rc)
      C_printf (":\n  %s.\n", err);
 }
 
+/**
+ * The include-directory for C++ headers is not reported in the
+ * 'find_include_path_cb()' callback.
+ * Insert a 'x/c++' to the list where a 'c++' subdirectory is found.
+ */
+static void gnu_add_gpp_path (void)
+{
+  struct directory_array *d;
+  int    i, j, max = smartlist_len (dir_array);
+  char   fqdn [_MAX_PATH];
+
+  for (i = 0; i < max; i++)
+  {
+    d = smartlist_get (dir_array, i);
+    snprintf (fqdn, sizeof(fqdn), "%s%c%s", d->dir, DIR_SEP, "c++");
+    if (is_directory(fqdn))
+    {
+      /* This will be added at 'dir_array[max+1]'.
+       */
+      add_to_dir_array (fqdn, 0, __LINE__);
+
+#if 0
+      /* Insert the new 'c++' directory at the 'i'-th element.
+       */
+      j = smartlist_len (dir_array) - 1;
+      d = smartlist_get (dir_array, j);
+      smartlist_insert (dir_array, i, d);
+#endif
+      break;
+    }
+  }
+}
+
 #if defined(__CYGWIN__)
   #define CLANG_DUMP_FMT "clang -v -dM -xc -c - < /dev/null 2>&1"
   #define GCC_DUMP_FMT   "%s %s -v -dM -xc -c - < /dev/null 2>&1"
@@ -2994,8 +3027,13 @@ static int setup_gcc_includes (const compiler_info *cc)
 
   found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
   if (found > 0)
-       DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
-  else gnu_popen_warn (gcc, found);
+  {
+    DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
+    if (cc->type == CC_GNU_GPP)
+       gnu_add_gpp_path();
+  }
+  else
+    gnu_popen_warn (gcc, found);
   return (found);
 }
 
@@ -3473,6 +3511,7 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
 {
   const compiler_info *cc;
   int   i, found, ignored, max;
+  BOOL  dir2_found;
 
   max = smartlist_len (all_cc);
   for (i = found = ignored = 0; i < max; i++)
@@ -3511,9 +3550,16 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
   watcom_dir[1] = getenv_expand (dir1);
   watcom_dir[2] = getenv_expand (dir2);
 
+
+  /* This directory exist only on newer Watcom distos.
+   * Like "%WATCOM%\\lh" for Linux headers.
+   */
+  dir2_found = is_directory (watcom_dir[2]);
+
   add_to_dir_array (watcom_dir[0], 0, __LINE__);
   add_to_dir_array (watcom_dir[1], 0, __LINE__);
-  add_to_dir_array (watcom_dir[2], 0, __LINE__);
+  if (dir2_found)
+     add_to_dir_array (watcom_dir[2], 0, __LINE__);
 
   return (1);
 }
@@ -3558,9 +3604,9 @@ static int do_check_watcom_includes (void)
   if (!setup_watcom_dirs("%WATCOM%\\h", "%WATCOM%\\h\\nt", "%WATCOM%\\lh"))
      goto quit;
 
- /* The above adding of \c "%NT_INCLUDE" will probably create duplicate
-  * entries. Remove them.
-  */
+  /* The above adding of \c "%NT_INCLUDE" will probably create duplicate
+   * entries. Remove them.
+   */
   make_unique_dir_array ("%NT_INCLUDE%");
 
   max = smartlist_len (dir_array);
