@@ -1,9 +1,10 @@
 #
-# This is GNU-make Makefile for Envtool's './doc'
+# This is a GNU-make Makefile for Envtool's './doc'
 #
 DOC_GENERATED    = envtool.chm envtool.chw doxygen.log
 OUTPUT_GENERATED = $(addprefix ./output/, \
-                    *.css *.html *.js *.png *.map *.md5 index.{hhc,hhk,hhp} )
+                     *.css *.html *.js *.png *.map *.md5 index.{hhc,hhk,hhp} )
+
 all: envtool.chm
 
 envtool.chm: envtool.Doxyfile main_page.dox envtool.css ../src/*.[ch]
