@@ -4064,6 +4064,7 @@ static void MS_CDECL cleanup (void)
 static void MS_CDECL halt (int sig)
 {
   extern HANDLE Everything_hthread;
+  BOOL   quick_exit = FALSE;
 
   halt_flag++;
 
@@ -4080,13 +4081,21 @@ static void MS_CDECL halt (int sig)
 
 #ifdef SIGTRAP
   if (sig == SIGTRAP)
-     C_puts ("\n~5Got SIGTRAP.~0\n");
-  else
+  {
+    C_puts ("\n~5Got SIGTRAP.~0\n");
+    quick_exit = TRUE;
+  }
 #endif
 
-  if (sig == SIGILL) /* Get out as fast as possible */
+  if (sig == SIGILL)
   {
     C_puts ("\n~5Illegal instruction.~0\n");
+    quick_exit = TRUE;
+  }
+
+  if (quick_exit)
+  {
+    /* Get out as fast as possible */
     C_exit();
     ExitProcess (GetCurrentProcessId());
   }
