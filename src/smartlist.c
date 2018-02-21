@@ -354,6 +354,47 @@ void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
   sl1->num_used = (int) new_size;
 }
 
+/**
+ * Insert the value 'val' as the new 'idx' element of 'sl',
+ * moving all items previously at 'idx' or later forward one space.
+ */
+void smartlist_insert (smartlist_t *sl, int idx, void *val)
+{
+  ASSERT (sl);
+  ASSERT (idx >= 0);
+  ASSERT (idx <= sl->num_used);
+
+  if (idx == sl->num_used)
+    smartlist_add (sl, val);
+  else
+  {
+    smartlist_ensure_capacity (sl, ((size_t)sl->num_used)+1);
+
+    /* Move other elements away
+     */
+    if (idx < sl->num_used)
+       memmove (sl->list + idx + 1, sl->list + idx,
+                sizeof(void*)*(sl->num_used-idx));
+    sl->num_used++;
+    sl->list[idx] = val;
+  }
+}
+
+/**
+ * Exchange the elements at indices 'idx1'' and 'idx2' of the
+ * smartlist 'sl'.
+ */
+void smartlist_swap (smartlist_t *sl, int idx1, int idx2)
+{
+  if (idx1 != idx2)
+  {
+    void *elt = smartlist_get (sl, idx1);
+
+    smartlist_set (sl, idx1, smartlist_get(sl, idx2));
+    smartlist_set (sl, idx2, elt);
+  }
+}
+
 /*
  * Sort the members of 'sl' into an order defined by
  * the ordering function 'compare', which returns less then 0 if a
