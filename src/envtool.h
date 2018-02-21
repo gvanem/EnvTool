@@ -325,8 +325,8 @@ extern struct prog_options opt;
 
 extern volatile int halt_flag;
 
-extern char   sys_dir        [_MAX_PATH];
-extern char   sys_native_dir [_MAX_PATH];
+extern char sys_dir        [_MAX_PATH];
+extern char sys_native_dir [_MAX_PATH];
 
 extern int  report_file (const char *file, time_t mtime, UINT64 fsize,
                          BOOL is_dir, BOOL is_junction, HKEY key);
