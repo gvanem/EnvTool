@@ -26,7 +26,7 @@ struct ignore_node {
 
 /** A dynamic array of \c "ignore_node".
  */
-static smartlist_t *ignore_list;
+static smartlist_t *ignore_list = NULL;
 
 /**
  * Callback for \c smartlist_read_file():
