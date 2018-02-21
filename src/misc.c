@@ -2348,7 +2348,17 @@ void crtdbug_init (void)
 
 void crtdbug_exit (void)
 {
+  _CrtMemState new_state, diff_state;
+
+  _CrtMemCheckpoint (&new_state);
+
+  /* No significant difference in the mem-state. So just get out.
+   */
+  if (!_CrtMemDifference (&diff_state, &last_state, &new_state))
+     return;
+
   _CrtCheckMemory();
+
   if (opt.debug)
        _CrtMemDumpStatistics (&last_state);
   else _CrtMemDumpAllObjectsSince (&last_state);
