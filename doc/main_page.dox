@@ -88,7 +88,7 @@ Envtool contains a lot of options. These are:
   <tr><td>\c --no-colour    <td> Don't print using colours.
   <tr><td>\c --no-watcom    <td> Don't check for Watcom in \c --include or \c --lib mode
   <tr><td>\c --owner        <td> Shown owner of the file.
-  <tr><td>\c --pe           <td> Print checksum and version-info for PE-files.
+  <tr><td>\c --pe           <td> Print checksum, version-info and signing status for PE-files.
   <tr><td>\c --32           <td> Tell \c prefix -gcc to return only 32-bit libs in \c --lib mode.\n
                                  Report only 32-bit PE-files with \c --pe option.
   <tr><td>\c --64           <td> Tell \c prefix -gcc to return only 64-bit libs in \c --lib mode.\n
