@@ -2354,7 +2354,7 @@ void crtdbug_exit (void)
 
   /* No significant difference in the mem-state. So just get out.
    */
-  if (!_CrtMemDifference (&diff_state, &last_state, &new_state))
+  if (!_CrtMemDifference(&diff_state, &last_state, &new_state))
      return;
 
   _CrtCheckMemory();
