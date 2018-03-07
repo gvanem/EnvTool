@@ -1179,6 +1179,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   int         raw;
   BOOL        have_it = TRUE;
   BOOL        show_dir_size = TRUE;
+  BOOL        show_pc_files_only = FALSE;
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -1229,6 +1230,10 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   {
     show_dir_size = FALSE;
   }
+  else if (key == HKEY_PKGCONFIG_FILE)
+  {
+    show_pc_files_only = TRUE;
+  }
   else
   {
     found_in_default_env = 1;
@@ -1236,6 +1241,14 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 
   if ((!is_dir && opt.dir_mode) || !have_it)
      return (0);
+
+  if (show_pc_files_only)
+  {
+    const char *ext = get_file_ext (file);
+
+    if (stricmp(ext,"pc"))
+       return (0);
+  }
 
  /*
   * Recursively get the size of files under directory matching 'file'.
@@ -1328,7 +1341,8 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
        C_printf ("%*s(%s)", get_trailing_indent(file), " ", shebang);
   }
 
-  if (opt.PE_check && !is_dir && key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE && key != HKEY_EVERYTHING_ETP)
+  if (opt.PE_check && !is_dir &&
+      key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE && key != HKEY_EVERYTHING_ETP && key != HKEY_PKGCONFIG_FILE)
   {
     if (print_PE_file_brief(file,filler))
     {
@@ -2534,7 +2548,8 @@ static int get_pkg_config_info (const char **exe, struct ver_info *ver)
 }
 
 /*
- * Search and check along %PKG_CONFIG_PATH%.
+ * Search and check along %PKG_CONFIG_PATH% for a
+ * matching '<filespec>.pc' file.
  */
 static int do_check_pkg (void)
 {
@@ -2562,7 +2577,8 @@ static int do_check_pkg (void)
     const struct directory_array *arr = smartlist_get (list, i);
 
     DEBUGF (2, "Checking in dir '%s'\n", arr->dir);
-    num = process_dir (arr->dir, 0, arr->exist, TRUE, arr->is_dir, arr->exp_ok, env_name, NULL, FALSE);
+    num = process_dir (arr->dir, 0, arr->exist, TRUE, arr->is_dir, arr->exp_ok,
+                       env_name, HKEY_PKGCONFIG_FILE, FALSE);
 
     if (arr->num_dup == 0 && prev_num > 0 && num > 0)
        do_warn = TRUE;
