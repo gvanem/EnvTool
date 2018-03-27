@@ -634,9 +634,10 @@ static BOOL   follow_junctions = TRUE;
 
 void usage (void)
 {
-  printf ("Usage: dirlist [-cdurSs<type>] <dir\\spec*>\n"
+  printf ("Usage: dirlist [-cdourSs<type>] <dir\\spec*>\n"
           "       -c:      case-sensitive.\n"
           "       -d:      debug-level.\n"
+          "       -o:      show file-owner.\n"
           "       -u:      show files on Unix form.\n"
           "       -r:      be recursive.\n"
           "       -S:      use scandir2(). Otherwise use readdir2().\n"
