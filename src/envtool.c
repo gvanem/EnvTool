@@ -3014,6 +3014,8 @@ static void gnu_add_gpp_path (void)
       j = smartlist_len (dir_array) - 1;
       d = smartlist_get (dir_array, j);
       smartlist_insert (dir_array, i, d);
+#else
+      ARGSUSED (j);
 #endif
       break;
     }
