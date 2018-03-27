@@ -1976,6 +1976,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     file  = slashify (fqfn, DIR_SEP);
     match = fnmatch (opt.file_spec, base, fnmatch_case(0) | FNM_FLAG_NOESCAPE);
 
+#if 0
     if (opt.man_mode)
     {
       DEBUGF (2, "opt.file_spec: \"%s\", base: \"%s\".\n", opt.file_spec, base);
@@ -1983,7 +1984,6 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
          continue;
     }
 
-#if 0
     if (match == FNM_NOMATCH && strchr(opt.file_spec,'~'))
     {
       /* The case where 'opt.file_spec' is a SFN, fnmatch() doesn't work.
@@ -1999,7 +1999,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
        * I.e. if 'opt.file_spec' == "ratio.*" and base == "ratio", we qualify
        *      this as a match.
        */
-      if (!is_dir && !opt.dir_mode &&
+      if (!is_dir && !opt.dir_mode && !opt.man_mode &&
           !str_equal_n(base,opt.file_spec,strlen(base)))
          match = FNM_MATCH;
     }
@@ -2438,7 +2438,7 @@ static int do_check_manpath (void)
   int    i, j, max, found = 0;
   char  *orig_e;
   char   report [300];
-  BOOL   save, done_cwd = FALSE;
+  BOOL   save1, save2, done_cwd = FALSE;
   static const char env_name[] = "MANPATH";
 
   /* \todo:
@@ -2454,7 +2454,7 @@ static int do_check_manpath (void)
   /* Do not implicit add current directory in searches.
    * Unless '%MANPATH' contain a "./;" or a ".\;".
    */
-  save = opt.add_cwd;
+  save1 = opt.add_cwd;
   opt.add_cwd = FALSE;
 
   orig_e = getenv_expand (env_name);
@@ -2462,6 +2462,7 @@ static int do_check_manpath (void)
   if (!list)
   {
     WARN ("Env-var %s not defined.\n", env_name);
+    opt.add_cwd = save1;
     return (0);
   }
 
@@ -2471,6 +2472,7 @@ static int do_check_manpath (void)
   /* Man-files should have an extension. Hence do not report dotless files as a
    * match in process_dir().
    */
+  save2 = opt.man_mode;
   opt.man_mode = 1;
 
   max = smartlist_len (list);
@@ -2506,8 +2508,8 @@ static int do_check_manpath (void)
     }
   }
 
-  opt.man_mode = 0;
-  opt.add_cwd = save;
+  opt.add_cwd  = save1;
+  opt.man_mode = save2;
   free_dir_array();
   FREE (orig_e);
   return (found);
