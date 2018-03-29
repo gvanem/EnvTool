@@ -1,6 +1,6 @@
 build_script:
     - cd src
-    - msbuild -nologo -p:Configuration=Release envtool.sln
+    - msbuild -nologo -p:Configuration=Release -p:Platform="Win32" envtool.sln
 
     - set COLUMNS=120
     - echo Testing version output
