@@ -119,9 +119,9 @@ char   sys_native_dir [_MAX_PATH];  /* Not for WIN64 */
 char   sys_wow64_dir  [_MAX_PATH];  /* Not for WIN64 */
 
 static UINT64   total_size = 0;
-static int      num_version_ok = 0;
-static int      num_verified = 0;
-static unsigned num_evry_dups = 0;
+static DWORD    num_version_ok = 0;
+static DWORD    num_verified = 0;
+static DWORD    num_evry_dups = 0;
 static BOOL     have_sys_native_dir = FALSE;
 static BOOL     have_sys_wow64_dir  = FALSE;
 
@@ -528,6 +528,9 @@ static int show_help (void)
             "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
             "    ~6--64~0:           tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
             "                    report only 64-bit PE-files with ~6--pe~0 option.\n"
+            "    ~6--signed[=X]~0:   check for digital signature with the ~6--pe~0 option.\n"
+            "                    ~6--signed=0~0 report only PE-file that are ~4unsigned~0.\n"
+            "                    ~6--signed=1~0 report only PE-file that are ~4signed~0.\n"
             "    ~6-c~0:             don't add current directory to search-lists.\n"
             "    ~6-C~0:             be case-sensitive.\n"
             "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
@@ -999,19 +1002,19 @@ show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionW
  */
 
 /*
- * Print the Resource-version details after any 'wintrust_check_file()' results has
- * been printed. The details come from 'print_PE_file_brief()' and 'get_PE_version_info()'.
+ * Print the Resource-version details after any 'wintrust_check()' results has
+ * been printed. The details come from 'get_PE_file_brief()' and 'get_PE_version_info()'.
  * Which can be retrieved using 'get_PE_version_info_buf()'.
  */
 static void print_PE_file_details (const char *filler)
 {
   char *line, *ver_trace = get_PE_version_info_buf();
-  int   raw, i;
+  int   save, i;
 
   if (!ver_trace)
      return;
 
-  raw = C_setraw (1);  /* In case version-info contains a "~" (SFN). */
+  save = C_setraw (1);  /* In case version-info contains a "~" (SFN). */
 
   for (i = 0, line = strtok(ver_trace,"\n"); line; line = strtok(NULL,"\n"), i++)
   {
@@ -1035,17 +1038,28 @@ static void print_PE_file_details (const char *filler)
     C_puts (filler);
     C_puts_long_line (line, indent);
   }
-  C_setraw (raw);
+  C_setraw (save);
   get_PE_version_info_free();
 }
 
-static BOOL print_PE_file_brief (const char *file, const char *filler)
+/*
+ * With the "--pe" (and "--32" or "--64") option, check if a 'file' is a PE-file.
+ * If so, save the checksum, version-info, signing-status for later when
+ * 'report_file()' is ready to print this info.
+ */
+static char PE_file_info [1000];
+
+static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key)
 {
   struct ver_info ver;
   enum Bitness    bits;
   const char     *bitness;
   BOOL            chksum_ok  = FALSE;
   BOOL            version_ok = FALSE;
+
+  if (key == HKEY_INC_LIB_FILE || key == HKEY_MAN_FILE ||
+      key == HKEY_EVERYTHING_ETP || key == HKEY_PKGCONFIG_FILE)
+     return (FALSE);
 
   if (!check_if_PE(file,&bits))
      return (FALSE);
@@ -1065,36 +1079,54 @@ static BOOL print_PE_file_brief (const char *file, const char *filler)
   bitness = (bits == bit_32) ? "~232" :
             (bits == bit_64) ? "~364" : "~5?";
 
-  /* Do not print a '\n' since 'wintrust_check_file()' is called right after this function.
+  /* Do not add a '\n' since 'wintrust_check()' is called right after this function.
    */
-  C_printf ("\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s",
+  snprintf (PE_file_info, sizeof(PE_file_info), "\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s",
             filler, ver.val_1, ver.val_2, ver.val_3, ver.val_4,
             bitness, chksum_ok ? "~2OK" : "~5fail");
   return (TRUE);
 }
 
-static void print_wintrust_info (const char *file)
+/**
+ * With the "--pe" (and "--32" or "--64") option, and if 'file' is a PE-file
+ * (verified in above function), do a check for any signatures.
+ *
+ * \todo If the PE has a SECURITY data-directory, try to extract it's raw data;
+ *       const WIN_CERTIFICATE *cert = ..
+ *       if (cert->wCertificateType == WIN_CERT_TYPE_PKCS_SIGNED_DATA ||
+ *           cert->wCertificateType == WIN_CERT_TYPE_X509)
+ *          use 'libssl_1.1.dll' and call 'PKCS7_verify()' on 'cert+1'
+ *
+ *       Refs:
+ *         https://github.com/zed-0xff/pedump/blob/master/lib/pedump/security.rb
+ *         http://pedump.me/1d82d1e52ca97759a6f90438e59e7dc7/#signature
+ */
+static char win_trust_info [100];
+
+static BOOL get_wintrust_info (const char *file)
 {
-  char   buf [200], *p = buf;
-  size_t left = sizeof(buf);
+  char  *p = win_trust_info;
+  size_t left = sizeof(win_trust_info);
   DWORD  rc = wintrust_check (file, TRUE, FALSE);
+
+  *p = '\0';
 
   switch (rc)
   {
     case ERROR_SUCCESS:
-         p    += snprintf (buf, left, " ~2(Verified");
-         left -= p - buf;
+         p    += snprintf (win_trust_info, left, " ~2(Verified");
+         left -= p - win_trust_info;
          num_verified++;
          break;
     case TRUST_E_NOSIGNATURE:
     case TRUST_E_SUBJECT_FORM_UNKNOWN:
     case TRUST_E_PROVIDER_UNKNOWN:
-         p    += snprintf (buf, left, " ~5(Not signed");
-         left -= p - buf;
+         p    += snprintf (win_trust_info, left, " ~5(Not signed");
+         left -= p - win_trust_info;
          break;
     case TRUST_E_SUBJECT_NOT_TRUSTED:
-         p    += snprintf (buf, left, " ~5(Not trusted");
-         left -= p - buf;
+         p    += snprintf (win_trust_info, left, " ~5(Not trusted");
+         left -= p - win_trust_info;
          break;
   }
 
@@ -1103,7 +1135,30 @@ static void print_wintrust_info (const char *file)
   else snprintf (p, left, ")~0.");
 
   wintrust_cleanup();
-  C_puts (buf);
+
+  switch (opt.signed_status)
+  {
+    case SIGN_CHECK_NONE:
+         return (FALSE);
+    case SIGN_CHECK_ALL:
+         return (TRUE);
+    case SIGN_CHECK_SIGNED:
+         if (rc == ERROR_SUCCESS)
+            return (TRUE);
+         return (FALSE);
+    case SIGN_CHECK_UNSIGNED:
+         if (rc != ERROR_SUCCESS)
+            return (TRUE);
+         return (FALSE);
+  }
+  return (FALSE);
+}
+
+static print_wintrust_info (void)
+{
+  if (win_trust_info[0])
+     C_puts (win_trust_info);
+  win_trust_info[0] = '\0';
 }
 
 UINT64 get_directory_size (const char *dir)
@@ -1180,6 +1235,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   BOOL        have_it = TRUE;
   BOOL        show_dir_size = TRUE;
   BOOL        show_pc_files_only = FALSE;
+  BOOL        show_this_file = TRUE;
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -1289,6 +1345,23 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
 
   report_header = NULL;
 
+  if (opt.PE_check)
+  {
+    static DWORD num_version_ok_last = 0;
+
+    show_this_file = get_PE_file_brief (file, filler, key);
+    if (show_this_file && opt.signed_status != SIGN_CHECK_NONE)
+    {
+      show_this_file = get_wintrust_info (file);
+      if (!show_this_file && num_version_ok_last < num_version_ok)
+         num_version_ok--;  /* Fix this counter for the  'final_report()' */
+    }
+    num_version_ok_last = num_version_ok;
+  }
+
+  if (!show_this_file)
+     return (0);
+
   C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
 
   /* The remote 'file' from EveryThing is not something Windows knows
@@ -1341,14 +1414,13 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
        C_printf ("%*s(%s)", get_trailing_indent(file), " ", shebang);
   }
 
-  if (opt.PE_check && !is_dir &&
-      key != HKEY_INC_LIB_FILE && key != HKEY_MAN_FILE && key != HKEY_EVERYTHING_ETP && key != HKEY_PKGCONFIG_FILE)
+  if (PE_file_info[0])
   {
-    if (print_PE_file_brief(file,filler))
-    {
-      print_wintrust_info (file);
-      print_PE_file_details (filler);
-    }
+    C_printf ("%-60s", PE_file_info);
+    PE_file_info[0] = '\0';
+
+    print_wintrust_info();
+    print_PE_file_details (filler);
   }
 
   C_putc ('\n');
@@ -1398,7 +1470,8 @@ static void final_report (int found)
                "  to be loaded than from the command-line. Revise the above registry-keys.\n\n~0");
 
   if (num_evry_dups)
-     snprintf (duplicates, sizeof(duplicates), " (%u duplicated)", num_evry_dups);
+     snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)",
+               (unsigned long)num_evry_dups);
   else if (ETP_num_evry_dups)
      snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)",
                (unsigned long)ETP_num_evry_dups);
@@ -1417,8 +1490,12 @@ static void final_report (int found)
   }
   else if (opt.PE_check)
   {
-    const char *are = (num_verified == 0 || num_verified > 1) ? "are" : "is";
-    C_printf (" %d have PE-version info. %d %s verified.", num_version_ok, num_verified, are);
+    C_printf (" %lu have PE-version info.",
+              (unsigned long)num_version_ok, plural_str(num_version_ok,"is","are"));
+
+    if (opt.signed_status != SIGN_CHECK_NONE)
+       C_printf (" %lu %s verified.",
+                 (unsigned long)num_verified, plural_str(num_verified,"is","are"));
   }
   C_putc ('\n');
 }
@@ -3714,7 +3791,8 @@ static const struct option long_options[] = {
            { "no-watcom",   no_argument,       NULL, 0 },    /* 33 */
            { "owner",       no_argument,       NULL, 0 },
            { "check",       no_argument,       NULL, 0 },    /* 35 */
-           { NULL,          no_argument,       NULL, 0 }
+           { "signed",      optional_argument, NULL, 0 },
+           { NULL,          no_argument,       NULL, 0 }     /* 37 */
          };
 
 static int *values_tab[] = {
@@ -3754,6 +3832,7 @@ static int *values_tab[] = {
             &opt.no_watcom,       /* 33 */
             &opt.show_owner,
             &opt.do_check,        /* 35 */
+            (int*)&opt.signed_status
           };
 
 /*
@@ -3807,6 +3886,29 @@ static void set_evry_options (const char *arg)
        opt.evry_host = smartlist_new();
     smartlist_add (opt.evry_host, STRDUP(arg));
   }
+}
+
+static void set_signed_options (const char *arg)
+{
+  static const struct search_list sign_status[] = {
+                    { SIGN_CHECK_ALL,      "SIGN_CHECK_ALL"      },
+                    { SIGN_CHECK_UNSIGNED, "SIGN_CHECK_UNSIGNED" },
+                    { SIGN_CHECK_SIGNED,   "SIGN_CHECK_SIGNED"   },
+                  };
+
+  opt.signed_status = SIGN_CHECK_ALL;
+
+  if (arg)
+  {
+    if (*arg == '1' || !stricmp(arg,"on") || !stricmp(arg,"yes"))
+       opt.signed_status = SIGN_CHECK_SIGNED;
+
+    else if (*arg == '0' || !stricmp(arg,"off") || !stricmp(arg,"no"))
+       opt.signed_status = SIGN_CHECK_UNSIGNED;
+  }
+
+  DEBUGF (2, "got long option \"--signed %s\" -> opt.signed_status: %s\n",
+          arg, list_lookup_name(opt.signed_status,sign_status, DIM(sign_status)));
 }
 
 static void set_short_option (int o, const char *arg)
@@ -3886,6 +3988,13 @@ static void set_long_option (int o, const char *arg)
   {
     set_evry_options (arg);
     opt.do_evry = 1;
+    return;
+  }
+
+  if (!strcmp("signed",long_options[o].name))
+  {
+    set_signed_options (arg);
+    return;
   }
 
   if (arg)
@@ -4920,7 +5029,7 @@ static void test_PE_wintrust (void)
 {
   static const char *files[] = {
               "%s\\kernel32.dll",
-              "%s\\drivers\\usbport.sys",
+              "%s\\drivers\\tcpip.sys",
               "c:\\bootmgr",
               "notepad.exe",
               "cl.exe"
@@ -4972,6 +5081,8 @@ static void test_PE_wintrust (void)
     C_putc ('\n');
   }
   C_putc ('\n');
+
+  wintrust_dump_pkcs7_cert (NULL);   /* does nothing at the moment */
 }
 
 static void test_disk_ready (void)
@@ -5243,6 +5354,22 @@ static int do_check (void)
 
   C_printf ("Checking ~6HKLM\\%s~0:\n", REG_APP_PATH);
   check_reg_key (HKEY_LOCAL_MACHINE, REG_APP_PATH);
+
+#if 0
+  /*
+   * Iterate over these environment sources:
+   *   _environ[]
+   *   HKU\.DEFAULT\Environment
+   *   HKLM\System\CurrentControlSet\Control\Session Manager\Environment
+   *   HKCU\Environment
+   *   HKCU\Volatile Environment
+   *
+   * If there is a mismatch in a value in the above list, print a warning.
+   *
+   * And check for missing directories in above 'HKx' keys with values that looks
+   * like directories. Like 'Path', 'TEMP'
+   */
+#endif
 
   opt.add_cwd = save;
   return (0);
