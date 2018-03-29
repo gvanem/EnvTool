@@ -275,6 +275,7 @@ extern "C" {
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
 typedef enum SignStatus {
+        SIGN_CHECK_NONE,
         SIGN_CHECK_ALL,
         SIGN_CHECK_UNSIGNED,
         SIGN_CHECK_SIGNED
@@ -407,6 +408,7 @@ extern int         is_cygwin_tty (int fd);
 
 extern const char *qword_str (UINT64 val);
 extern const char *dword_str (DWORD val);
+extern const char *plural_str (DWORD val, const char *singular, const char *plural);
 
 extern void        format_and_print_line (const char *line, int indent);
 extern void        print_long_line (const char *line, size_t indent);

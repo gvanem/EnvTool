@@ -1063,6 +1063,17 @@ const char *dword_str (DWORD val)
 }
 
 /**
+ * Return string like "is"  for 'val == 0' or 'val == 1' or
+ *                    "are" for 0 or 'val > 1'.
+ */
+const char *plural_str (DWORD val, const char *singular, const char *plural)
+{
+ if (val == 0 || val > 1)
+    return (plural);
+  return (singular);
+}
+
+/**
  * Find the first slash in a file-name.
  * \param[in] s the file-name to search in.
  */
