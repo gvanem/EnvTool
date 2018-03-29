@@ -274,52 +274,59 @@ extern "C" {
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
+typedef enum SignStatus {
+        SIGN_CHECK_ALL,
+        SIGN_CHECK_UNSIGNED,
+        SIGN_CHECK_SIGNED
+      } SignStatus;
+
 struct prog_options {
-       int   debug;
-       int   verbose;
-       int   quiet;
-       int   quotes_warn;
-       int   add_cwd;
-       int   show_unix_paths;
-       int   show_owner;
-       int   decimal_timestamp;
-       int   no_sys_env;
-       int   no_usr_env;
-       int   no_app_path;
-       int   no_colours;
-       int   no_ansi;
-       int   use_regex;
-       int   use_buffered_io;
-       int   use_nonblock_io;
-       int   dir_mode;
-       int   man_mode;
-       int   PE_check;
-       int   help;
-       int   show_size;
-       int   only_32bit;
-       int   only_64bit;
-       int   gcc_no_prefixed;
-       int   no_gcc;
-       int   no_gpp;
-       int   no_watcom;
-       int   do_tests;
-       int   do_evry;
-       int   do_version;
-       int   do_path;
-       int   do_lib;
-       int   do_include;
-       int   do_python;
-       int   do_man;
-       int   do_cmake;
-       int   do_pkg;
-       int   do_check;
-       int   conv_cygdrive;
-       int   case_sensitive;
-       int   cache_ver_level;
-       int   keep_temp;
-       void *evry_host;     /* A smartlist_t */
-       char *file_spec;
-       char *file_spec_re;
+       int        debug;
+       int        verbose;
+       int        quiet;
+       int        quotes_warn;
+       int        add_cwd;
+       int        show_unix_paths;
+       int        show_owner;
+       int        decimal_timestamp;
+       int        no_sys_env;
+       int        no_usr_env;
+       int        no_app_path;
+       int        no_colours;
+       int        no_ansi;
+       int        use_regex;
+       int        use_buffered_io;
+       int        use_nonblock_io;
+       int        dir_mode;
+       int        man_mode;
+       int        PE_check;
+       SignStatus signed_status;
+       int        help;
+       int        show_size;
+       int        only_32bit;
+       int        only_64bit;
+       int        gcc_no_prefixed;
+       int        no_gcc;
+       int        no_gpp;
+       int        no_watcom;
+       int        do_tests;
+       int        do_evry;
+       int        do_version;
+       int        do_path;
+       int        do_lib;
+       int        do_include;
+       int        do_python;
+       int        do_man;
+       int        do_cmake;
+       int        do_pkg;
+       int        do_check;
+       int        conv_cygdrive;
+       int        case_sensitive;
+       int        cache_ver_level;
+       int        keep_temp;
+       void      *evry_host;     /* A smartlist_t */
+       char      *file_spec;
+       char      *file_spec_re;
      };
 
 extern struct prog_options opt;
@@ -518,7 +525,7 @@ extern char       *wintrust_timestamp_subject, *wintrust_timestamp_issuer;
 extern DWORD       wintrust_check (const char *pe_file, BOOL details, BOOL revoke_check);
 extern const char *wintrust_check_result (DWORD rc);
 extern void        wintrust_cleanup (void);
-
+extern BOOL        wintrust_dump_pkcs7_cert (const char *file);
 
 /* Simple debug-malloc functions:
  */
