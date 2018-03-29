@@ -189,6 +189,9 @@ int MS_CDECL main (int argc, char **argv)
 }
 #endif  /* WIN_TRUST_TEST */
 
+/**
+ * Free the memory allcated by \c PrintCertificateInfo().
+ */
 void wintrust_cleanup (void)
 {
   FREE (wintrust_signer_subject);
@@ -197,6 +200,14 @@ void wintrust_cleanup (void)
   FREE (wintrust_timestamp_issuer);
 }
 
+/**
+ * Check a single PE-file for WinTrust details.
+ * \param[in] pe_file        the PE-file to check.
+ * \param[in] check_details  Print more details like publisher-info.
+ * \param[in] revoke_check   Use flag \c WTD_REVOKE_WHOLECHAIN to try to
+ *                           check the whole chain of "Certificate Authorities"
+ *                           for a revoke status.
+ */
 DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check)
 {
   void              *p;
@@ -250,6 +261,12 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
   return (rc);
 }
 
+/**
+ * Return a string describing the result of the last call
+ * to \c wintrust_check().
+ *
+ * \param[in] rc the last result from \c wintrust_check()
+ */
 const char *wintrust_check_result (DWORD rc)
 {
   static char buf [30];
@@ -271,7 +288,8 @@ const char *wintrust_check_result (DWORD rc)
     case CRYPT_E_SECURITY_SETTINGS:
          return ("Admin disabled");
     default:
-         /* Cast to shut-up gcc in 64-bit mode.
+         /*
+          * Cast to shut-up gcc in 64-bit mode.
           */
          snprintf (buf, sizeof(buf), "0x%08lx", (unsigned long)rc);
          return (buf);
