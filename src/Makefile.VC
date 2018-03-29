@@ -18,7 +18,7 @@ LDFLAGS = -nologo -incremental:no -debug -map
 #
 LDFLAGS = $(LDFLAGS) -subsystem:console,5.01
 RCFLAGS = -nologo -D_MSC_VER -r
-MSBUILD = msbuild -nologo -fileLogger -fileLoggerParameters:LogFile=msbuild.log;Encoding=ASCII
+MSBUILD = msbuild -nologo -p:Platform="Win32"
 EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib psapi.lib version.lib shell32.lib ws2_32.lib user32.lib
 
 !if "$(DEBUG)" == "1"
@@ -99,7 +99,7 @@ clean vclean:
 	       dirlist.exe dirlist.map dirlist.pdb \
 	       win_glob.obj win_glob.exe win_glob.map win_glob.pdb \
 	       win_ver.exe win_ver.map win_ver.pdb \
-	        *.sbr vc1*.idb vc*.pdb cflags_MSVC.h ldflags_MSVC.h msbuild.log
+	        *.sbr vc1*.idb vc*.pdb cflags_MSVC.h ldflags_MSVC.h
 
 msbuild:
 	$(MSBUILD) envtool.sln
