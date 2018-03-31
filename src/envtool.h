@@ -260,6 +260,16 @@
 #define UINT64  unsigned __int64
 #endif
 
+/* Check for 'strcat_s()' used in envtool_py.c.
+ */
+#undef HAVE_STRCAT_S
+
+#if defined(__POCC__) && defined(__STDC_WANT_LIB_EXT1__) && (__STDC_WANT_LIB_EXT1__ >= 1)
+  #define HAVE_STRCAT_S
+#elif (defined(_MSC_VER) && !defined(__POCC__)) || defined(MINGW_HAS_SECURE_API)
+  #define HAVE_STRCAT_S
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -289,6 +299,7 @@ struct prog_options {
        int        add_cwd;
        int        show_unix_paths;
        int        show_owner;
+       void      *owners;          /* A smartlist_t */
        int        decimal_timestamp;
        int        no_sys_env;
        int        no_usr_env;
@@ -493,6 +504,39 @@ extern DWORD       reg_swap_long (DWORD val);
 extern void crtdbug_init (void);
 extern void crtdbug_exit (void);
 
+/*
+ * buf_printf() stuff
+ */
+typedef struct {
+        char   *buffer;        /* the 'alloca() buffer */
+        char   *buffer_start;  /* as above + 4 bytes (past the marker) */
+        char   *buffer_pos;    /* current position in the buffer */
+        size_t  buffer_size;   /* number of bytes allocated in the buffer */
+        size_t  buffer_left;   /* number of bytes left in the buffer */
+      } FMT_buf;
+
+#define FMT_BUF_MARKER  0xDEAFBABE
+
+#define BUF_INIT(fmt_buf, size) do {                             \
+        DWORD   *marker;                                         \
+        FMT_buf *buf = fmt_buf;                                  \
+                                                                 \
+        buf->buffer = alloca (size + 2*sizeof(DWORD));           \
+        marker  = (DWORD*) buf->buffer;                          \
+        *marker = FMT_BUF_MARKER;                                \
+        marker  = (DWORD*) (buf->buffer + size + sizeof(DWORD)); \
+        *marker = FMT_BUF_MARKER;                                \
+        buf->buffer_start  = buf->buffer + sizeof(DWORD);        \
+        buf->buffer_pos    = buf->buffer_start;                  \
+        buf->buffer_size   = size;                               \
+        buf->buffer_left   = size;                               \
+        buf->buffer_pos[0] = '\0';                               \
+      } while (0)
+
+#if defined(__POCC__)
+  _CRTCHK(printf,2,3)
+#endif
+  int buf_printf (FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...) ATTR_PRINTF (2,3);
 
 /* Stuff in win_ver.c:
  */
