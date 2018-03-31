@@ -931,15 +931,18 @@ static const char *relative_to_py_home (struct python_info *py, const char *file
 static const char *py_relative (struct python_info *py, const char *file)
 {
   const char *rel;
+  static char buf [_MAX_PATH];
 
   rel = relative_to_py_home (py, file);
   if (!rel)
-      rel = relative_to_user_site (py, file);
+     rel = relative_to_user_site (py, file);
 
-  if (!rel)
-     return slashify (file, opt.show_unix_paths ? '/' : '\\');
+  if (rel)
+    return (rel);
 
-  return (rel);
+  /* Returns 'file' unchanged except for the slashes.
+   */
+  return slashify2 (buf, file, opt.show_unix_paths ? '/' : '\\');
 }
 
 /**
@@ -1050,13 +1053,14 @@ static int popen_append_out (char *str, int index)
   if (index == 0)
      popen_out[0] = '\0';
 
-#if defined(_MSC_VER) || defined(MINGW_HAS_SECURE_API)
+#ifdef HAVE_STRCAT_S
   strcat_s (popen_out, popen_out_sz, str);
   strcat_s (popen_out, popen_out_sz-1, "\n");
 #else
   strcat (popen_out, str);
   strcat (popen_out, "\n");
 #endif
+
   return (1);
 }
 
