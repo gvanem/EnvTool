@@ -380,8 +380,6 @@ const char *get_gzip_link (const char *file)
   if (!gzip_exe[0])
      return (NULL);
 
-  DEBUGF (2, "getting the gzip (%s) link for file: \"%s\".\n", gzip_exe, file);
-
   gzip_link_name[0] = '\0';
 
 #if defined(__CYGWIN__)
@@ -398,7 +396,7 @@ const char *get_gzip_link (const char *file)
     static char fname [_MAX_PATH];
 
     DEBUGF (2, "gzip_link_name: \"%s\".\n", gzip_link_name);
-    return slashify2 (fname, fname, opt.show_unix_paths ? '/' : '\\');
+    return slashify2 (fname, gzip_link_name, opt.show_unix_paths ? '/' : '\\');
   }
   return (NULL);
 }
