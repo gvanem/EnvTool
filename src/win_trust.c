@@ -29,11 +29,14 @@
 #endif
 
 #if defined(WIN_TRUST_TEST)
+  #define PRINTF0(str)      printf (str)
   #define PRINTF(fmt, ...)  printf (fmt, ##__VA_ARGS__)
   #define NEWLINE()         putchar ('\n')
   #undef  ERROR
   #define ERROR(s)          printf ("%s() failed: %s\n", s, win_strerror(GetLastError()))
+
 #else
+  #define PRINTF0(str)      ((void)0)
   #define PRINTF(fmt, ...)  ((void)0)
   #define NEWLINE()         ((void)0)
   #undef  ERROR
@@ -302,7 +305,7 @@ static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context, char **subje
   DWORD  data, n;
   BOOL   res = FALSE;
 
-  PRINTF ("Serial Number: ");
+  PRINTF0 ("Serial Number: ");
   data = cert_context->pCertInfo->SerialNumber.cbData;
 
 #if 1
@@ -522,7 +525,7 @@ BOOL GetTimeStampSignerInfo (__IN  const CMSG_SIGNER_INFO  *signer_info,
     *counter_signer_info = CALLOC (size,1);
     if (*counter_signer_info == NULL)
     {
-      PRINTF ("Unable to allocate memory for timestamp info.\n");
+      PRINTF0 ("Unable to allocate memory for timestamp info.\n");
       QUIT (FALSE);
     }
 
@@ -567,7 +570,7 @@ static int crypt_check_file (const char *fname)
 
   if (mbstowcs(file_name, fname, DIM(file_name)) == -1)
   {
-    PRINTF ("Unable to convert to unicode.\n");
+    PRINTF0 ("Unable to convert to unicode.\n");
     QUIT (-1);
   }
 
@@ -638,7 +641,7 @@ static int crypt_check_file (const char *fname)
 
   /* Print Signer certificate information
    */
-  PRINTF ("Signer Certificate:\n\n");
+  PRINTF0 ("Signer Certificate:\n\n");
   PrintCertificateInfo (cert_context, &wintrust_signer_subject, &wintrust_signer_issuer);
   NEWLINE();
 
@@ -659,14 +662,14 @@ static int crypt_check_file (const char *fname)
       QUIT (-1);
     }
 
-    PRINTF ("TimeStamp Certificate:\n\n");
+    PRINTF0 ("TimeStamp Certificate:\n\n");
     PrintCertificateInfo (cert_context, &wintrust_timestamp_subject, &wintrust_timestamp_issuer);
 
-    PRINTF ("\nTimeStamp: ");
+    PRINTF0 ("\nTimeStamp: ");
     if (GetDateOfTimeStamp(counter_signer_info, &st))
          PRINTF ("%02d/%02d/%04d %02d:%02d\n",
                  st.wMonth, st.wDay, st.wYear, st.wHour, st.wMinute);
-    else PRINTF ("<None>\n");
+    else PRINTF0 ("<None>\n");
   }
 
 quit:
