@@ -87,7 +87,7 @@ static void init_syntax_once (void)
   done = 1;
 }
 
-#if defined(_MSC_VER) && (_MSC_VER < 1700)
+#if defined(_MSC_VER) && !defined(__POCC__) && (_MSC_VER < 1700)
   #define isblank(c) ((c) == ' ' || (c) == '\t')
 #endif
 
@@ -933,7 +933,7 @@ typedef struct {
                                STREQ(string, "punct") || STREQ(string, "graph")  || \
                                STREQ(string, "cntrl") || STREQ(string, "blank"))
 
-#ifndef MATCH_MAY_ALLOCATE
+#if !defined(MATCH_MAY_ALLOCATE)
 
   /* If we cannot allocate large objects within re_match_2_internal,
    * we make the fail stack and register vectors global.
@@ -1939,7 +1939,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
                      goto normal_char;
 
                   c1 = c - '0';
-                  if (c1 > regnum)
+                  if (c1 > (unsigned char)regnum)
                      FREE_STACK_RETURN (REG_ESUBREG);
 
                   /* Can't back reference to a subexpression if inside of it.
@@ -3196,7 +3196,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
              /* Cast to `unsigned' instead of `unsigned char' in case the
               * bit list is a full 32 bytes long.
               */
-             if (c < (unsigned)(*p * BYTEWIDTH) && p[1 + c / BYTEWIDTH] & (1 << (c % BYTEWIDTH)))
+             if (c < (unsigned char)(*p * BYTEWIDTH) && p[1 + c / BYTEWIDTH] & (1 << (c % BYTEWIDTH)))
                 not = !not;
 
              p += 1 + *p;
