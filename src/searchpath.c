@@ -216,16 +216,15 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
 }
 
 /**
- * \note If 'file' is found, this function returns a static buffer
- *       in 'slashify()'.
+ * \note If 'file' is found, this function returns a static buffer.
  */
 char *searchpath (const char *file, const char *env_var)
 {
-  char found [_MAX_PATH];
-  char *s = searchpath_internal (file, env_var, found);
+  static char found [_MAX_PATH];
+  char       *s = searchpath_internal (file, env_var, found);
 
   if (s)
-     return slashify (s, opt.show_unix_paths ? '/' : '\\');
+     return slashify2 (found, found, opt.show_unix_paths ? '/' : '\\');
   return (NULL);
 }
 
