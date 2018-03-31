@@ -517,20 +517,20 @@ typedef struct {
 
 #define FMT_BUF_MARKER  0xDEAFBABE
 
-#define BUF_INIT(fmt_buf, size) do {                             \
-        DWORD   *marker;                                         \
-        FMT_buf *buf = fmt_buf;                                  \
-                                                                 \
-        buf->buffer = alloca (size + 2*sizeof(DWORD));           \
-        marker  = (DWORD*) buf->buffer;                          \
-        *marker = FMT_BUF_MARKER;                                \
-        marker  = (DWORD*) (buf->buffer + size + sizeof(DWORD)); \
-        *marker = FMT_BUF_MARKER;                                \
-        buf->buffer_start  = buf->buffer + sizeof(DWORD);        \
-        buf->buffer_pos    = buf->buffer_start;                  \
-        buf->buffer_size   = size;                               \
-        buf->buffer_left   = size;                               \
-        buf->buffer_pos[0] = '\0';                               \
+#define BUF_INIT(fmt_buf, size) do {                               \
+        DWORD   *_marker;                                          \
+        FMT_buf *_buf = fmt_buf;                                   \
+                                                                   \
+        _buf->buffer = alloca (size + 2*sizeof(DWORD));            \
+        _marker  = (DWORD*) _buf->buffer;                          \
+        *_marker = FMT_BUF_MARKER;                                 \
+        _marker  = (DWORD*) (_buf->buffer + size + sizeof(DWORD)); \
+        *_marker = FMT_BUF_MARKER;                                 \
+        _buf->buffer_start  = _buf->buffer + sizeof(DWORD);        \
+        _buf->buffer_pos    = _buf->buffer_start;                  \
+        _buf->buffer_size   = size;                                \
+        _buf->buffer_left   = size;                                \
+        _buf->buffer_pos[0] = '\0';                                \
       } while (0)
 
 #if defined(__POCC__)
