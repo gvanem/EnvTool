@@ -348,8 +348,9 @@ int check_if_gzip (const char *fname)
 /**
  * Open a GZIP-file and extract first line to check if it contains a
  * ".so real-file-name". This is typical for CygWin man-pages.
- * Return result as "<dir_name>/real-file-name". Which is just an
- * assumption; the "real-file-name" can be anywhere on %MANPATH%.
+ *
+ * Return result as "real-file-name". I.e. without any dir-name since
+ * the "real-file-name" can be anywhere on %MANPATH%.
  */
 static char gzip_link_name [_MAX_PATH];
 
@@ -363,7 +364,7 @@ static int gzip_cb (char *buf, int index)
 
 const char *get_gzip_link (const char *file)
 {
-  static char gzip [_MAX_PATH];
+  static char gzip_exe [_MAX_PATH];
   static BOOL done = FALSE;
   const char *f = file;
   const char *p;
@@ -372,34 +373,32 @@ const char *get_gzip_link (const char *file)
   {
     p = searchpath ("gzip.exe", "PATH");
     if (p)
-       slashify2 (gzip, p, '\\');
+       slashify2 (gzip_exe, p, '\\');
     done = TRUE;
   }
 
-  if (!gzip[0])
+  if (!gzip_exe[0])
      return (NULL);
+
+  DEBUGF (2, "getting the gzip (%s) link for file: \"%s\".\n", gzip_exe, file);
 
   gzip_link_name[0] = '\0';
 
 #if defined(__CYGWIN__)
   {
     char cyg_name [_MAX_PATH];
+
     if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, f, cyg_name, sizeof(cyg_name)) == 0)
        f = cyg_name;
   }
 #endif
 
-  if (popen_runf(gzip_cb, "\"%s\" -cd %s 2> %s", gzip, f, DEV_NULL) > 0)
+  if (popen_runf(gzip_cb, "\"%s\" -cd %s 2> %s", gzip_exe, f, DEV_NULL) > 0)
   {
-    static char fqfn_name [_MAX_PATH];
-    char       *dir_name = dirname (file);
+    static char fname [_MAX_PATH];
 
-    DEBUGF (2, "gzip_link_name: \"%s\", dir_name: \"%s\".\n", gzip_link_name, dir_name);
-    snprintf (fqfn_name, sizeof(fqfn_name), "%s%c%s", dir_name, DIR_SEP, gzip_link_name);
-    FREE (dir_name);
-    if (opt.show_unix_paths)
-       return slashify2 (fqfn_name, fqfn_name, '/');
-    return (fqfn_name);
+    DEBUGF (2, "gzip_link_name: \"%s\".\n", gzip_link_name);
+    return slashify2 (fname, fname, opt.show_unix_paths ? '/' : '\\');
   }
   return (NULL);
 }
@@ -1395,18 +1394,11 @@ char *_fix_path (const char *path, char *result)
   *
   * to-do: maybe use GetLongPathName()?
   */
-  path = slashify (path, '\\');
-  if (!GetFullPathName(path, _MAX_PATH, result, NULL))
-  {
-    DEBUGF (2, "GetFullPathName(\"%s\") failed: %s\n",
-            path, win_strerror(GetLastError()));
+  slashify2 (result, path, '\\');
+  if (!GetFullPathName(result, _MAX_PATH, result, NULL))
+     DEBUGF (2, "GetFullPathName(\"%s\") failed: %s\n",
+             path, win_strerror(GetLastError()));
 
-    /* 'GetFullPathName()' handle the case where 'path == result'.
-     * So only copy the result if 'path != result'.
-     */
-    if (result != path)
-       _strlcpy (result, path, _MAX_PATH);
-  }
   return _fix_drive (result);
 }
 
@@ -2075,9 +2067,13 @@ char *slashify2 (char *buf, const char *path, char use)
   for (p = path; p < end; p++)
   {
     if (IS_SLASH(*p))
-         *s = use;
-    else *s = *p;
-    s++;
+    {
+      *s++ = use;
+      while (p < end && IS_SLASH(p[1]))  /* collapse multiple slashes */
+          p++;
+    }
+    else
+      *s++ = *p;
     ASSERT (s < buf+_MAX_PATH-1);
   }
   *s = '\0';
@@ -2385,6 +2381,29 @@ void crtdbug_exit (void)
 }
 #endif
 
+int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
+{
+  va_list      args;
+  int          len;
+  const DWORD *marker;
+
+  va_start (args, format);
+
+  marker = (const DWORD*) fmt_buf->buffer;
+  if (*marker != FMT_BUF_MARKER)
+     FATAL ("'First marked destroyed or 'BUF_INIT()' not called.\n");
+
+  marker = (const DWORD*) (fmt_buf->buffer + fmt_buf->buffer_size + sizeof(DWORD));
+  if (*marker != FMT_BUF_MARKER)
+     FATAL ("Last marked destroyed.\n");
+
+  len = vsnprintf (fmt_buf->buffer_pos, fmt_buf->buffer_left, format, args);
+  fmt_buf->buffer_left -= len;
+  fmt_buf->buffer_pos  += len;
+
+  va_end (args);
+  return (len);
+}
 
 #if defined(__POCC__) && !defined(__MT__) && defined(_M_AMD64)
   /*
@@ -2926,7 +2945,7 @@ const char *dump10 (const void *data, unsigned size)
     else ret [ofs] = ch;
     ret [ofs+1] = '\0';
   }
-  if (ofs < (int)size)
+  if (ofs < size)
      strcat (ret, "...");
   return (ret);
 }
@@ -2945,7 +2964,7 @@ const char *dump20 (const void *data, unsigned size)
     else ret [ofs] = ch;
     ret [ofs+1] = '\0';
   }
-  if (ofs < (int)size)
+  if (ofs < size)
      strcat (ret, "...");
   return (ret);
 }
