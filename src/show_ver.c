@@ -24,67 +24,71 @@
  * by Gisle Vanem <gvanem@yahoo.no> August 2011.
  *
  * Use at your own risk!
- *
- * Note: Must be compiled as C++ in MSVC.
  */
 
 #include "envtool.h"
+
+#define USE_FLAGS_DECODE 1
+
+#pragma pack (push,1)
 
 struct VS_VERSIONINFO {
        WORD              wLength;
        WORD              wValueLength;
        WORD              wType;
-       WCHAR             szKey[1];
-       WORD              Padding1[1];
+       WCHAR             szKey [1];
+       WORD              Padding1 [1];
        VS_FIXEDFILEINFO  Value;
-       WORD              Padding2[1];
-       WORD              Children[1];
+       WORD              Padding2 [1];
+       WORD              Children [1];
      };
 
 struct String {
        WORD          wLength;
        WORD          wValueLength;
        WORD          wType;
-       WCHAR         szKey[1];
-       WORD          Padding[1];
-       WORD          Value[1];
+       WCHAR         szKey [1];
+       WORD          Padding [1];
+       WORD          Value [1];
      };
 
 struct StringTable {
        WORD          wLength;
        WORD          wValueLength;
        WORD          wType;
-       WCHAR         szKey[1];
-       WORD          Padding[1];
-       struct String Children[1];
+       WCHAR         szKey [1];
+       WORD          Padding [1];
+       struct String Children [1];
      };
 
 struct StringFileInfo {
        WORD               wLength;
        WORD               wValueLength;
        WORD               wType;
-       WCHAR              szKey[1];
-       WORD               Padding[1];
-       struct StringTable Children[1];
+       WCHAR              szKey [1];
+       WORD               Padding [1];
+       struct StringTable Children [1];
      };
 
 struct Var {
        WORD       wLength;
        WORD       wValueLength;
        WORD       wType;
-       WCHAR      szKey[1];
-       WORD       Padding[1];
-       DWORD      Value[1];
+       WCHAR      szKey [1];
+       WORD       Padding [1];
+       DWORD      Value [1];
      };
 
 struct VarFileInfo {
        WORD       wLength;
        WORD       wValueLength;
        WORD       wType;
-       WCHAR      szKey[1];
-       WORD       Padding[1];
-       struct Var Children[1];
+       WCHAR      szKey [1];
+       WORD       Padding [1];
+       struct Var Children [1];
      };
+
+#pragma pack (pop)
 
 /* ----- VS_VERSION.dwFileFlags ----- */
 #define S_VS_FFI_SIGNATURE        "VS_FFI_SIGNATURE"
@@ -101,12 +105,6 @@ struct VarFileInfo {
 
 static DWORD last_err = 0;
 static BOOL  print_it = FALSE;
-
-#define VER_ERROR(fname)  do {                                                  \
-                            last_err = GetLastError();                          \
-                            DEBUGF (1, "Unable to access file \"%s\":\n  %s\n", \
-                                    fname, win_strerror(last_err));             \
-                          } while (0)
 
 static char *trace_buf  = NULL;
 static char *trace_head = NULL;
@@ -155,93 +153,113 @@ static void do_printf (const char *fmt, ...)
   va_end (args);
 }
 
+#if USE_FLAGS_DECODE
+static const char *show_file_flags (DWORD dwFileFlags)
+{
+  #define ADD_VALUE(v)  { v, S_##v }
+
+  static const struct search_list flags[] = {
+                      ADD_VALUE (VS_FF_DEBUG),
+                      ADD_VALUE (VS_FF_PRERELEASE),
+                      ADD_VALUE (VS_FF_PATCHED),
+                      ADD_VALUE (VS_FF_PRIVATEBUILD),
+                      ADD_VALUE (VS_FF_INFOINFERRED),
+                      ADD_VALUE (VS_FF_SPECIALBUILD)
+                   };
+
+  return flags_decode (dwFileFlags, flags, DIM(flags));
+}
+
+#else
+
 static const char *show_file_flags (DWORD dwFileFlags)
 {
   static char s[200];
   int pos = 0;
 
-  s[pos] = '\0';
+  s[0] = '\0';
 
-#define VS_FF_KNOWNFLAGS (VS_FF_DEBUG         \
-                        | VS_FF_PRERELEASE    \
-                        | VS_FF_PATCHED       \
-                        | VS_FF_PRIVATEBUILD  \
-                        | VS_FF_INFOINFERRED  \
+#define VS_FF_KNOWNFLAGS (VS_FF_DEBUG        \
+                        | VS_FF_PRERELEASE   \
+                        | VS_FF_PATCHED      \
+                        | VS_FF_PRIVATEBUILD \
+                        | VS_FF_INFOINFERRED \
                         | VS_FF_SPECIALBUILD)
 
   if (dwFileFlags & ~VS_FF_KNOWNFLAGS)
-     pos += sprintf (&s[pos], "0x%lX", (u_long)(dwFileFlags & ~VS_FF_KNOWNFLAGS));
+     pos += sprintf (s+pos, "0x%lX", (u_long)(dwFileFlags & ~VS_FF_KNOWNFLAGS));
 
   if (dwFileFlags & VS_FF_DEBUG)
   {
     if (pos)
     {
-      memcpy (&s[pos], " | ", 3);
+      memcpy (s+pos, " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_DEBUG, sizeof(S_VS_FF_DEBUG));
-    pos += sizeof (S_VS_FF_DEBUG) - 1;
+    memcpy (s+pos, S_VS_FF_DEBUG, sizeof(S_VS_FF_DEBUG));
+    pos += sizeof(S_VS_FF_DEBUG) - 1;
   }
 
   if (dwFileFlags & VS_FF_PRERELEASE)
   {
     if (pos)
     {
-      memcpy (&s[pos], " | ", 3);
+      memcpy (s+pos, " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_PRERELEASE, sizeof(S_VS_FF_PRERELEASE));
-    pos += sizeof (S_VS_FF_PRERELEASE) - 1;
+    memcpy (s+pos, S_VS_FF_PRERELEASE, sizeof(S_VS_FF_PRERELEASE));
+    pos += sizeof(S_VS_FF_PRERELEASE) - 1;
   }
 
   if (dwFileFlags & VS_FF_PATCHED)
   {
     if (pos)
     {
-      memcpy (&s[pos], " | ", 3);
+      memcpy (s+pos, " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_PATCHED, sizeof(S_VS_FF_PATCHED));
-    pos += sizeof (S_VS_FF_PATCHED) - 1;
+    memcpy (s+pos, S_VS_FF_PATCHED, sizeof(S_VS_FF_PATCHED));
+    pos += sizeof(S_VS_FF_PATCHED) - 1;
   }
 
   if (dwFileFlags & VS_FF_PRIVATEBUILD)
   {
     if (pos)
     {
-      memcpy (&s[pos], " | ", 3);
+      memcpy (s+pos, " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_PRIVATEBUILD, sizeof(S_VS_FF_PRIVATEBUILD));
-    pos += sizeof (S_VS_FF_PRIVATEBUILD) - 1;
+    memcpy (s+pos, S_VS_FF_PRIVATEBUILD, sizeof(S_VS_FF_PRIVATEBUILD));
+    pos += sizeof(S_VS_FF_PRIVATEBUILD) - 1;
   }
 
   if (dwFileFlags & VS_FF_INFOINFERRED)
   {
     if (pos)
     {
-      memcpy (&s[pos], " | ", 3);
+      memcpy (s+pos, " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_INFOINFERRED, sizeof(S_VS_FF_INFOINFERRED));
-    pos += sizeof (S_VS_FF_INFOINFERRED) - 1;
+    memcpy (s+pos, S_VS_FF_INFOINFERRED, sizeof(S_VS_FF_INFOINFERRED));
+    pos += sizeof(S_VS_FF_INFOINFERRED) - 1;
   }
 
   if (dwFileFlags & VS_FF_SPECIALBUILD)
   {
     if (pos)
     {
-      memcpy (&s[pos], " | ", 3);
+      memcpy (s+pos, " | ", 3);
       pos += 3;
     }
-    memcpy (&s[pos], S_VS_FF_SPECIALBUILD, sizeof(S_VS_FF_SPECIALBUILD));
-    pos += sizeof (S_VS_FF_SPECIALBUILD) - 1;
+    memcpy (s+pos, S_VS_FF_SPECIALBUILD, sizeof(S_VS_FF_SPECIALBUILD));
+    pos += sizeof(S_VS_FF_SPECIALBUILD) - 1;
   }
 
   if (!pos)
      memcpy (s, "0", 2);
   return (s);
 }
+#endif  /* USE_FLAGS_DECODE */
 
 /* ----- VS_VERSION.dwFileOS ----- */
 #define S_VOS_UNKNOWN             "VOS_UNKNOWN"
@@ -480,7 +498,9 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
 
       /* The current child is a 'struct StringFileInfo' element
        */
-      ASSERT (1 == pSFI->wType);
+      DEBUGF (3, "pSFI->wType: %d\n", pSFI->wType);
+
+      ASSERT (pSFI->wType == 0 || pSFI->wType == 1);
       ASSERT (!pSFI->wValueLength);
 
       /* Iterate through the 'struct StringTable' elements of 'struct StringFileInfo'
@@ -501,8 +521,13 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
         for (; (const BYTE*)pS < (const BYTE*)pST + pST->wLength;
              pS = (const struct String*) ROUND_POS ((BYTE*)pS + pS->wLength, pS, 4))
         {
+          int vlen;
+
           psVal = (const wchar_t*) ROUND_POS (&pS->szKey[wcslen(pS->szKey)+1], pS, 4);
-          do_printf ("  %-17S: %.*S\n", pS->szKey, (int)pS->wValueLength, psVal);   /* print <sKey> : <sValue> */
+          vlen = (int)pS->wValueLength;
+          vlen = min (500, vlen);  /* max 500 bytes */
+          do_printf ("  %-16S: %.*S%s\n", pS->szKey, vlen, psVal,  /* print <sKey> : <sValue> */
+                     vlen < (int)pS->wValueLength ? "..." : "");
         }
       }
     }
@@ -511,8 +536,10 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
       const struct VarFileInfo *pVFI = (const struct VarFileInfo*) pSFI;
       const struct Var         *pV;
 
-      /* The current child is a 'struct VarFileInfo' element */
-      ASSERT (1 == pSFI->wType); /* ?? it just seems to be this way... */
+      /* The current child is a 'struct VarFileInfo' element
+       */
+      DEBUGF (3, "pSFI->wType: %d\n", pSFI->wType);
+      ASSERT (pSFI->wType == 0 || pSFI->wType == 1);     /* ?? it just seems to be this way... */
 
       ASSERT (!wcscmp(pVFI->szKey, L"VarFileInfo"));
       ASSERT (!pVFI->wValueLength);
@@ -538,6 +565,7 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
         {
           WORD w1 = wpos[0];
           WORD w2 = wpos[1];
+
           do_printf ("%04X%04X ", w1, w2);
         }
 
@@ -564,7 +592,8 @@ int get_PE_version_info (const char *file, struct ver_info *ver)
 
   if (!size)
   {
-    VER_ERROR (file);
+    last_err = GetLastError();
+    DEBUGF (1, "file \"%s\": %s\n", file, win_strerror(last_err));
     return (0);
   }
 
@@ -573,7 +602,8 @@ int get_PE_version_info (const char *file, struct ver_info *ver)
   ver_data = CALLOC (size, 1);
   if (!GetFileVersionInfoA(file, 0, size, ver_data))
   {
-    VER_ERROR (file);
+    last_err = GetLastError();
+    DEBUGF (1, "file \"%s\": %s\n", file, win_strerror(last_err));
     FREE (ver_data);
     return (0);
   }
