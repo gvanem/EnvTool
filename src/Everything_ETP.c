@@ -121,10 +121,11 @@ struct state_CTX {
 /**
  * Local functions; prototypes.
  */
-static int    parse_host_spec      (struct state_CTX *ctx, const char *pattern, ...);
-static void   connect_common_init  (struct state_CTX *ctx, const char *which_state);
-static void   connect_common_final (struct state_CTX *ctx, int err);
-static void   set_nonblock         (SOCKET sock, DWORD non_block);
+static int         parse_host_spec      (struct state_CTX *ctx, const char *pattern, ...);
+static void        connect_common_init  (struct state_CTX *ctx, const char *which_state);
+static void        connect_common_final (struct state_CTX *ctx, int err);
+static void        set_nonblock         (SOCKET sock, DWORD non_block);
+static const char *ws2_strerror         (int err);
 
 static int         rbuf_read_char  (struct state_CTX *ctx, char *store);
 static const char *ETP_tracef      (struct state_CTX *ctx, const char *fmt, ...);
@@ -421,7 +422,7 @@ static BOOL state_PATH (struct state_CTX *ctx)
   if (strncmp(rx,"200 End",7))
   {
     ETP_tracef (ctx, "results_got: %lu", ctx->results_got);
-    WARN ("Unexpected response: \"%s\", err: %d\n", rx, ctx->ws_err);
+    WARN ("Unexpected response: \"%s\", err: %s\n", rx, ws2_strerror(ctx->ws_err));
   }
 
   ctx->state = state_closing;
@@ -458,11 +459,13 @@ static BOOL state_RESULT_COUNT (struct state_CTX *ctx)
  */
 static BOOL state_200 (struct state_CTX *ctx)
 {
-  char buf [200], *rx = recv_line (ctx, buf, sizeof(buf));
+  char   buf [200];
+  char  *rx = recv_line (ctx, buf, sizeof(buf));
+  size_t len = strlen (rx);
 
   if (!strncmp(rx,"200-",4))
      ctx->state = state_RESULT_COUNT;
-  else if (*rx != '2')
+  else if (len >= 1 && *rx != '2')
   {
     WARN ("This is not an ETP server; response was: \"%s\"\n", rx);
     ctx->state = state_closing;
@@ -881,7 +884,7 @@ static BOOL state_init (struct state_CTX *ctx)
   if (WSAStartup(MAKEWORD(1,1), &wsadata))
   {
     ctx->ws_err = WSAGetLastError();
-    WARN ("Failed to start Winsock, err: %d.\n", ctx->ws_err);
+    WARN ("Failed to start Winsock: %s.\n", ws2_strerror(ctx->ws_err));
     ctx->state = state_exit;
     return (TRUE);
   }
@@ -893,7 +896,7 @@ static BOOL state_init (struct state_CTX *ctx)
     char buf [80];
 
     ctx->ws_err = WSAGetLastError();
-    snprintf (buf, sizeof(buf), "Failed to create socket, err: %d.\n", ctx->ws_err);
+    snprintf (buf, sizeof(buf), "Failed to create socket: %s.\n", ws2_strerror(ctx->ws_err));
     WARN (buf);
     ETP_tracef (ctx, buf);
     ctx->state = state_exit;
@@ -990,7 +993,7 @@ static void connect_common_final (struct state_CTX *ctx, int err)
     char buf [200];
 
     ctx->ws_err = err;
-    snprintf (buf, sizeof(buf), "Failed to connect, err: %d.\n", ctx->ws_err);
+    snprintf (buf, sizeof(buf), "Failed to connect: %s.\n", ws2_strerror(ctx->ws_err));
     WARN (buf);
     ETP_tracef (ctx, buf);
     ctx->state = state_closing;
@@ -1015,6 +1018,44 @@ static void set_nonblock (SOCKET sock, DWORD non_block)
   ioctlsocket (sock, FIONBIO, &non_block);
 #endif
 }
+
+#if defined(CYGWIN_POSIX)
+/**
+ * If we use POSIX sockets in Cygwin, the 'err' is really 'errno'.
+ * And the error-string for 'err' is simply from 'strerror()'.
+ */
+static const char *ws2_strerror (int err)
+{
+  return strerror (err);
+}
+#else
+
+/**
+ * Return error-string for 'err' for Winsock error-codes.
+ * These strings are stored by "kernel32.dll" and not
+ * "ws2_32.dll".
+ */
+static const char *ws2_strerror (int err)
+{
+  static char    buf [500];
+  static HMODULE mod = (HANDLE)0;
+
+  if (err == 0)
+     return ("No error");
+
+  if (mod == (HANDLE)0)
+     mod = GetModuleHandle ("kernel32.dll");
+
+  if (mod != INVALID_HANDLE_VALUE &&
+     FormatMessageA (FORMAT_MESSAGE_FROM_HMODULE,
+                     mod, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                     buf, sizeof(buf), NULL))
+     return strip_nl (buf);
+
+  snprintf (buf, sizeof(buf), "%d?", err);
+  return (buf);
+}
+#endif
 
 /**
  * Save a piece of trace-information into the context.
@@ -1210,4 +1251,3 @@ static int rbuf_read_char (struct state_CTX *ctx, char *store)
   ctx->recv.buffer_left--;
   return (1);
 }
-
