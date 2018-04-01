@@ -374,7 +374,8 @@ static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
 static BOOL state_PATH (struct state_CTX *ctx)
 {
   FILETIME ft;
-  char buf [500], *rx = recv_line (ctx, buf, sizeof(buf));
+  char     buf [500];
+  char    *rx = recv_line (ctx, buf, sizeof(buf));
 
   if (!strncmp(rx, "PATH ", 5))
   {
@@ -435,7 +436,8 @@ static BOOL state_PATH (struct state_CTX *ctx)
  */
 static BOOL state_RESULT_COUNT (struct state_CTX *ctx)
 {
-  char buf [200], *rx = recv_line (ctx, buf, sizeof(buf));
+  char  buf [200];
+  char *rx = recv_line (ctx, buf, sizeof(buf));
 
   if (sscanf(rx,"RESULT_COUNT %u", &ctx->results_expected) == 1)
   {
@@ -554,7 +556,7 @@ static BOOL state_send_login (struct state_CTX *ctx)
 
   if (*rx == '\0' || rc < 0)   /* Empty response or Tx failed! */
   {
-    snprintf (buf, sizeof(buf), "Failure in protococl.\n");
+    _strlcpy (buf, "Failure in protococl.\n", sizeof(buf));
     WARN (buf);
     ETP_tracef (ctx, buf);
     ctx->state = state_closing;
@@ -570,7 +572,8 @@ static BOOL state_send_login (struct state_CTX *ctx)
  */
 static BOOL state_await_login (struct state_CTX *ctx)
 {
-  char buf [200], *rx = recv_line (ctx, buf, sizeof(buf));
+  char  buf [200];
+  char *rx = recv_line (ctx, buf, sizeof(buf));
 
   /* "230": Server accepted our login.
    */
@@ -596,7 +599,8 @@ static BOOL state_await_login (struct state_CTX *ctx)
  */
 static BOOL state_send_pass (struct state_CTX *ctx)
 {
-  char buf [200], *rx = recv_line (ctx, buf, sizeof(buf));
+  char  buf [200];
+  char *rx = recv_line (ctx, buf, sizeof(buf));
 
   if (!strcmp(rx,"230 Logged on."))
        ctx->state = state_send_query;   /* ETP server ignores passwords */
