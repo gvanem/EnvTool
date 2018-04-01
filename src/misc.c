@@ -2379,6 +2379,10 @@ void crtdbug_exit (void)
 }
 #endif
 
+/*
+ * A 'snprintf()' replacement to print and append to a local 'fmt_buf'
+ * initialised using 'BUF_INIT()'.
+ */
 int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
 {
   va_list      args;
@@ -2395,7 +2399,15 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
   if (*marker != FMT_BUF_MARKER)
      FATAL ("Last marked destroyed.\n");
 
+  /* Terminate first. Because with '_MSC_VER < 1900' and 'fmt_buf->buffer_left'
+   * exactly large enough for the result, 'vsnprintf()' will not add a trailing NUL.
+   */
+  *(fmt_buf->buffer_start + fmt_buf->buffer_size - 1) = '\0';
+
   len = vsnprintf (fmt_buf->buffer_pos, fmt_buf->buffer_left, format, args);
+
+  /* Assume 'len' is always positive.
+   */
   fmt_buf->buffer_left -= len;
   fmt_buf->buffer_pos  += len;
 
