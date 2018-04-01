@@ -1301,6 +1301,8 @@ BOOL wintrust_dump_pkcs7_cert (const char *file)
   BIO_write (indata, Python36_DLLs__ctypes_pyd, sizeof( Python36_DLLs__ctypes_pyd));
   if (PKCS7_verify(&p7, NULL, store, indata, NULL, 0) != 0)
       PKCS7_get0_signers();
+#else
+  ARGSUSED (Python36_DLLs__ctypes_pyd);
 #endif
 
   ARGSUSED (file);
