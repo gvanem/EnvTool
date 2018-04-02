@@ -60,6 +60,8 @@
 #define TOUPPER(c)    toupper ((int)(c))
 #define TOLOWER(c)    tolower ((int)(c))
 
+HANDLE kernel32_hnd;
+
 #if !defined(_CRTDBG_MAP_ALLOC)
   /**
    * \ingroup mem_tracker
@@ -195,30 +197,29 @@ static func_NeedCurrentDirectoryForExePathA p_NeedCurrentDirectoryForExePathA;
  */
 void init_misc (void)
 {
-  static BOOL   done = FALSE;
-  static HANDLE hnd;
+  static BOOL done = FALSE;
 
   if (done)
      return;
 
-  hnd = LoadLibrary ("kernel32.dll");
-  if (!hnd || hnd == INVALID_HANDLE_VALUE)
+  kernel32_hnd = LoadLibrary ("kernel32.dll");
+  if (!kernel32_hnd || kernel32_hnd == INVALID_HANDLE_VALUE)
   {
     DEBUGF (1, "Failed to load kernel32.dll; %s\n", win_strerror(GetLastError()));
     return;
   }
 
   p_GetModuleFileNameEx = (func_GetModuleFileNameEx)
-                            GetProcAddress (hnd, "K32GetModuleFileNameExA");
+                            GetProcAddress (kernel32_hnd, "K32GetModuleFileNameExA");
 
   p_SetThreadErrorMode = (func_SetThreadErrorMode)
-                           GetProcAddress (hnd, "SetThreadErrorMode");
+                           GetProcAddress (kernel32_hnd, "SetThreadErrorMode");
 
   p_IsWow64Process = (func_IsWow64Process)
-                       GetProcAddress (hnd, "IsWow64Process");
+                       GetProcAddress (kernel32_hnd, "IsWow64Process");
 
   p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)
-                                       GetProcAddress (hnd, "NeedCurrentDirectoryForExePathA");
+                                       GetProcAddress (kernel32_hnd, "NeedCurrentDirectoryForExePathA");
   done = TRUE;
 }
 

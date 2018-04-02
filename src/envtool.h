@@ -374,6 +374,8 @@ extern int  process_dir (const char *path, int num_dup, BOOL exist, BOOL check_e
  */
 #define MAX_ENV_VAR  32767
 
+extern HANDLE kernel32_hnd;
+
 extern void   init_misc    (void);
 extern char *_strlcpy      (char *dst, const char *src, size_t sz);
 extern char *_strrepeat    (int ch, size_t num);
