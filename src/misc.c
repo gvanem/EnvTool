@@ -621,8 +621,8 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
 }
 
 /**
- * Get the Domain and Account name for a file.
- * Does \em not work on directories.
+ * Get the Domain and Account name for a file or directory.
+ *
  * Except for Cygwin where I try to emulate what 'ls -la' does.
  * But it doesn't quite show the same owner information.
  *
@@ -643,6 +643,7 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
 {
   DWORD        rc, err;
   BOOL         rc2;
+  BOOL         is_dir;
   DWORD        account_name_sz = 0;
   DWORD        domain_name_sz  = 0;
   SID_NAME_USE sid_use = SidTypeUnknown;
@@ -668,6 +669,7 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
 #endif
 
   *domain_name = *account_name = NULL;
+  is_dir = is_directory (file);
 
   /* Get the handle of the file object.
    */
@@ -676,7 +678,7 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
                       FILE_SHARE_READ,
                       NULL,
                       OPEN_EXISTING,
-                      FILE_ATTRIBUTE_NORMAL,
+                      is_dir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL,
                       NULL);
 
   /* Check GetLastError for CreateFile error code.
