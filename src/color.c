@@ -123,7 +123,7 @@ static HANDLE console_hnd = INVALID_HANDLE_VALUE;
 
 /**
  * This is also configurable from the calling side
- * via the \c C_init_colours_maps() function.
+ * via the \c C_init_colour_map() function.
  */
 static WORD colour_map [8];
 static char colour_map_ansi [DIM(colour_map)] [20];
@@ -146,6 +146,7 @@ int C_init_colour_map (unsigned short col, ...)
   colour_map[0] = console_info.wAttributes;
   TRACE (1, "i: 0, col: %u.\n", colour_map[0]);
   i = 1;
+
   while (col && i < DIM(colour_map))
   {
     colour_map [i] = col;
