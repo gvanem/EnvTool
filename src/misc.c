@@ -626,22 +626,22 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
  * Except for Cygwin where I try to emulate what 'ls -la' does.
  * But it doesn't quite show the same owner information.
  *
- * \param[in]     file           the file or directory to get the domain and account-name for.
+ * \param[in]     file            the file or directory to get the domain and account-name for.
  *
- * \param[in,out] domain_name_p  on input a caller-supplied 'char **' pointer.
- *                               on output (if success), set to the domain-name of the owner.
- *                               Must be freed by the caller if set to non-NULL here.
+ * \param[in,out] domain_name_p   on input a caller-supplied 'char **' pointer.
+ *                                on output (if success), set to the domain-name of the owner.
+ *                                Must be free()'d by the caller if set to non-NULL here.
  *
  * \param[in,out] account_name_p  on input a caller-supplied 'char **' pointer.
  *                                on output (if success), set to the account-name of the owner.
- *                                Must be freed by the caller if set to non-NULL here.
+ *                                Must be free()'d by the caller if set to non-NULL here.
  *
  * Adapted from:
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa446629(v=vs.85).aspx
  */
 BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name_p)
 {
-  DWORD        rc, err;
+  DWORD        rc, attr, err;
   BOOL         rc2;
   BOOL         is_dir;
   DWORD        account_name_sz = 0;
@@ -674,7 +674,8 @@ BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name
  }
 #endif
 
-  is_dir = is_directory (file);
+  attr = GetFileAttributes (file);
+  is_dir = (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
 
   /* Get the handle of the file object.
    */
