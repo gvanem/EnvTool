@@ -12,6 +12,20 @@
 extern "C" {
 #endif
 
+/* These are the default colour that 'C_init_colour_map()' is initialised with.
+ * Can be used like:
+ *  C_printf ("  " C_BR_RED "<not found>" C_DEFAULT);
+ *
+ * But not after 'C_init_colour_map()' has been called with custom colours.
+ */
+#define C_BR_GREEN    "~2"   /* bright green */
+#define C_BR_YELLOW   "~3"   /* bright yellow */
+#define C_BR_MEGENTA  "~4"   /* bright magenta */
+#define C_BR_RED      "~5"   /* bright red */
+#define C_BR_WHITE    "~6"   /* bright white */
+#define C_BR_CYAN     "~7"   /* dark cyan */
+#define C_DEFAULT     "~0"   /* restore default colour */
+
 /**
  * The app using color.c must set to 1 prior to
  * calling the below \c C_xx() functions.
