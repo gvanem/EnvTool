@@ -626,49 +626,54 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
  * Except for Cygwin where I try to emulate what 'ls -la' does.
  * But it doesn't quite show the same owner information.
  *
- * \param[in]     file        the file to get the domain and account-name for.
+ * \param[in]     file           the file or directory to get the domain and account-name for.
  *
- * \param[in,out] domain_name on input a caller-supplied 'char **' pointer.
- *                            on output (if success), set to the domain-name of the owner.
- *                            Must be freed by the caller if set to non-NULL here.
+ * \param[in,out] domain_name_p  on input a caller-supplied 'char **' pointer.
+ *                               on output (if success), set to the domain-name of the owner.
+ *                               Must be freed by the caller if set to non-NULL here.
  *
- * \param[in,out] account_name on input a caller-supplied 'char **' pointer.
- *                             on output (if success), set to the account-name of the owner.
- *                             Must be freed by the caller if set to non-NULL here.
+ * \param[in,out] account_name_p  on input a caller-supplied 'char **' pointer.
+ *                                on output (if success), set to the account-name of the owner.
+ *                                Must be freed by the caller if set to non-NULL here.
  *
  * Adapted from:
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa446629(v=vs.85).aspx
  */
-BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
+BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name_p)
 {
   DWORD        rc, err;
   BOOL         rc2;
   BOOL         is_dir;
   DWORD        account_name_sz = 0;
   DWORD        domain_name_sz  = 0;
+  char        *domain_name;
+  char        *account_name;
   SID_NAME_USE sid_use = SidTypeUnknown;
   PSID         sid_owner = NULL;
   HANDLE       hFile;
-  PSECURITY_DESCRIPTOR pSD  = NULL;
-  const char   *system_name = NULL;
+  void        *pSD  = NULL;
+  const char  *system_name = NULL;
+
+  *domain_name_p  = NULL;
+  *account_name_p = NULL;
 
 #if defined(__CYGWIN__)
-  struct stat    st;
-  struct passwd *pw;
-
-  if (stat(file, &st) == 0 && _S_ISDIR(st.st_mode) && st.st_uid != -1)
   {
-    pw = getpwuid (st.st_uid);
-    *domain_name = NULL;
-    if (pw)
+    struct stat    st;
+    struct passwd *pw;
+
+    if (stat(file, &st) == 0 && _S_ISDIR(st.st_mode) && st.st_uid != -1)
     {
-      *account_name = STRDUP (pw->pw_name);
-      return (TRUE);
+      pw = getpwuid (st.st_uid);
+      if (pw)
+      {
+        *account_name_p = STRDUP (pw->pw_name);
+        return (TRUE);
+      }
     }
-  }
+ }
 #endif
 
-  *domain_name = *account_name = NULL;
   is_dir = is_directory (file);
 
   /* Get the handle of the file object.
@@ -699,10 +704,11 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
                         NULL,
                         NULL,
                         &pSD);
-  if (pSD)
-     LocalFree (pSD);  /* no need for this */
 
   CloseHandle (hFile);
+
+  if (pSD)
+     LocalFree (pSD);  /* no need for this */
 
   /* Check GetLastError for GetSecurityInfo error condition.
    */
@@ -738,15 +744,14 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
   }
 #endif
 
-  *account_name = CALLOC (account_name_sz, 1);
-  if (*account_name == NULL)
+  account_name = MALLOC (account_name_sz);
+  if (!account_name)
      return (FALSE);
 
-  *domain_name = CALLOC (domain_name_sz, 1);
-  if (*domain_name == NULL)
+  domain_name = MALLOC (domain_name_sz);
+  if (!domain_name)
   {
-    FREE (*account_name);
-    *account_name = NULL;
+    FREE (account_name);
     return (FALSE);
   }
 
@@ -754,22 +759,25 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
    */
   rc2 = LookupAccountSid (system_name,               /* name of local or remote computer */
                           sid_owner,                 /* security identifier */
-                          *account_name,             /* account name buffer */
+                          account_name,              /* account name buffer */
                           (DWORD*)&account_name_sz,  /* size of account name buffer */
-                          *domain_name,              /* domain name */
+                          domain_name,               /* domain name */
                           (DWORD*)&domain_name_sz,   /* size of domain name buffer */
                           &sid_use);                 /* SID type */
-
   if (!rc2)
   {
     err = GetLastError();
     if (err == ERROR_NONE_MAPPED)
          DEBUGF (1, "Account owner not found for specified SID.\n");
     else DEBUGF (1, "(2) Error in LookupAccountSid(): %s.\n", win_strerror(err));
-    FREE (*domain_name);
-    FREE (*account_name);
+    FREE (domain_name);
+    FREE (account_name);
+    return (FALSE);
   }
-  return (rc2);
+
+  *account_name_p = account_name;
+  *domain_name_p  = domain_name;
+  return (TRUE);
 }
 
 #if defined(NOT_USED_YET)
