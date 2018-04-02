@@ -737,7 +737,7 @@ static void print_de (const struct dirent2 *de, int idx, const struct od2x_optio
   }
   else
   {
-    slash = print_it (de->d_name, NULL, opts, opt.show_owner && !is_dir);
+    slash = print_it (de->d_name, NULL, opts, opt.show_owner);
     if (is_dir)
        C_putc (slash);
   }
