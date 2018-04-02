@@ -699,6 +699,9 @@ BOOL get_file_owner (const char *file, char **domain_name, char **account_name)
                         NULL,
                         NULL,
                         &pSD);
+  if (pSD)
+     LocalFree (pSD);  /* no need for this */
+
   CloseHandle (hFile);
 
   /* Check GetLastError for GetSecurityInfo error condition.
