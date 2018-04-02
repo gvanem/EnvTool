@@ -96,7 +96,7 @@ struct state_CTX {
        struct sockaddr_in sa;               /** Used in 'state_resolve()' and 'state_xx_connect()' */
        SOCKET             sock;             /** Set in 'state_xx_connect()' */
        int                port;             /** The server destination port to use */
-       char              *raw_url;          /** URL on raw form given in ddo_check_evry_ept() */
+       char              *raw_url;          /** URL on raw form given in do_check_evry_ept() */
        char               hostname [200];   /** Name of host to connect to */
        char               username [30];    /** Name of user */
        char               password [30];    /** And his password (if any) */
@@ -925,7 +925,6 @@ static BOOL state_exit (struct state_CTX *ctx)
   WSACleanup();
 #endif
 
-  FREE (ctx->raw_url);
   return (FALSE);
 }
 
@@ -1041,18 +1040,16 @@ static const char *ws2_strerror (int err)
  */
 static const char *ws2_strerror (int err)
 {
-  static char    buf [500];
-  static HMODULE mod = (HANDLE)0;
+  static char buf [500];
 
   if (err == 0)
      return ("No error");
 
-  if (mod == (HANDLE)0)
-     mod = GetModuleHandle ("kernel32.dll");
+  init_misc();
 
-  if (mod != INVALID_HANDLE_VALUE &&
+  if (kernel32_hnd != INVALID_HANDLE_VALUE &&
      FormatMessageA (FORMAT_MESSAGE_FROM_HMODULE,
-                     mod, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                     kernel32_hnd, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                      buf, sizeof(buf), NULL))
      return strip_nl (buf);
 
@@ -1137,12 +1134,13 @@ static const char *ETP_state_name (ETP_state f)
 int do_check_evry_ept (const char *host)
 {
   struct state_CTX ctx;
+  char   host_buf [100];
 
   memset (&ctx, 0, sizeof(ctx));
   ctx.state             = state_init;
   ctx.sock              = INVALID_SOCKET;
   ctx.timeout           = RECV_TIMEOUT;
-  ctx.raw_url           = STRDUP (host);
+  ctx.raw_url           = _strlcpy (host_buf, host, sizeof(host_buf));
   ctx.port              = 21;
   ctx.trace.buffer[0]   = '?';
   ctx.trace.buffer[1]   = '\0';
