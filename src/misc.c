@@ -639,7 +639,7 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
  * Adapted from:
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa446629(v=vs.85).aspx
  */
-BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name_p)
+static BOOL get_file_owner_internal (const char *file, char **domain_name_p, char **account_name_p, void **sid_p)
 {
   DWORD        rc, attr, err;
   BOOL         rc2;
@@ -651,11 +651,12 @@ BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name
   SID_NAME_USE sid_use = SidTypeUnknown;
   PSID         sid_owner = NULL;
   HANDLE       hFile;
-  void        *pSD  = NULL;
+  void        *sid = NULL;
   const char  *system_name = NULL;
 
   *domain_name_p  = NULL;
   *account_name_p = NULL;
+  *sid_p          = sid;
 
 #if defined(__CYGWIN__)
   {
@@ -704,12 +705,10 @@ BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name
                         NULL,
                         NULL,
                         NULL,
-                        &pSD);
+                        &sid);
 
+  *sid_p = sid;  /* LocalFree() in caller */
   CloseHandle (hFile);
-
-  if (pSD)
-     LocalFree (pSD);  /* no need for this */
 
   /* Check GetLastError for GetSecurityInfo error condition.
    */
@@ -779,6 +778,16 @@ BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name
   *account_name_p = account_name;
   *domain_name_p  = domain_name;
   return (TRUE);
+}
+
+BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name_p)
+{
+  void *sid_p;
+  BOOL  rc = get_file_owner_internal (file, domain_name_p, account_name_p, &sid_p);
+
+  if (sid_p)
+     LocalFree (sid_p);
+  return (rc);
 }
 
 #if defined(NOT_USED_YET)
