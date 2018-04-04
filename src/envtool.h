@@ -81,6 +81,13 @@
   #include <ssp/string.h>
 #endif
 
+/*
+ * So that <sec_api/string_s.h> gets included in <string.h>.
+ */
+#ifndef MINGW_HAS_SECURE_API
+#define MINGW_HAS_SECURE_API 1
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -266,7 +273,7 @@
 
 #if defined(__POCC__) && defined(__STDC_WANT_LIB_EXT1__) && (__STDC_WANT_LIB_EXT1__ >= 1)
   #define HAVE_STRCAT_S
-#elif (defined(_MSC_VER) && !defined(__POCC__)) || defined(MINGW_HAS_SECURE_API)
+#elif defined(_MSC_VER) && !defined(__POCC__)
   #define HAVE_STRCAT_S
 #endif
 

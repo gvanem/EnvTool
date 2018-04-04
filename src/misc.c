@@ -5,13 +5,6 @@
  * \note fnmatch(), basename() and dirname() are taken from djgpp and modified.
  */
 
-/*
- * So that <sec_api/string_s.h> gets included in <string.h>.
- */
-#ifndef MINGW_HAS_SECURE_API
-#define MINGW_HAS_SECURE_API 1
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
