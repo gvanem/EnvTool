@@ -154,6 +154,18 @@ Matches from EveryThing:
 <DIR> 01 Sep 2014 - 17:49:32: f:\MingW32\msys32\var\lib\pacman\local\awk-1.6-1\
 ```
 
+**E.g. 9**: All modes support showing the file-owner. Or only
+specific owners.<br>
+For example: `envtool.exe --path --owner=Admin* --owner=S-1-5* add*` could return:
+```
+Matches in %PATH:
+      25 Jun 2015 - 17:46:39: Administratorer  f:\MingW32\TDM-gcc\bin\addr2line.exe
+      01 Jun 2013 - 08:05:42: S-1-5-21...1001  f:\MingW32\bin\addr2line.exe
+      17 Aug 2001 - 22:04:02: Administratorer  f:\ProgramFiler\Support-Tools\addiag.exe
+      04 Nov 1999 - 09:45:44: Administratorer  f:\ProgramFiler\RKsupport\addiag.exe
+      19 Jan 2018 - 00:12:23: Administratorer  f:\gv\dx-radio\UHD\host\bin\addr_test.pdb
+```
+
 C-source included in `./src`. Makefiles for MinGW, Cygwin, Watcom, clang-cl and MSVC.
 Enjoy!
 
@@ -213,7 +225,7 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
   0.93: The "--python" option now loads Python dynamically (pythonXX.dll)
         and calls 'PyRun_SimpleString()' to execute Python programs.
 
-  0.94: Fixes for '--evry' (EverThing database) searches.
+  0.94: Fixes for '--evry' (EveryThing database) searches.
         Drop '-i' option.
         Add  '-r' option.
 
@@ -248,5 +260,6 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
 
 ```
 
-PS. This file is written with the aid of [GitBookEditor](https://www.gitbook.com/editor).
+PS. This file is written with the aid of the **[Atom](https://atom.io/)**
+editor and it's **[Markdown-Preview](https://atom.io/packages/markdown-preview)**.
 A real time-saver.
