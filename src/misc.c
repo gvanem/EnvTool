@@ -613,6 +613,42 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
   return (FALSE);
 }
 
+#if (_WIN32_WINNT >= 0x0500)
+/*
+ * 'LookupAccountSid()' often returns 'ERROR_NONE_MAPPED' for SIDs like:
+ * S-1-5-21-3396768664-3120275132-3847281217-1001.
+ *
+ * Cache this SID-string here since 'ConvertSidToStringSid()' is
+ * pretty expensive.
+ */
+static const char *sid_owner_cache (PSID sid)
+{
+  static BOOL done = FALSE;
+  static char sid_buf1[200] = { '\0' };
+  static char sid_buf2[200] = { '\0' };
+
+  if (!done)
+  {
+    DWORD sid_len = GetLengthSid (sid);
+    char *sid_str = NULL;
+
+    if (sid_len < sizeof(sid_buf1))
+    {
+      CopySid (sid_len, sid_buf1, sid);
+      ConvertSidToStringSid (sid, &sid_str);
+      if (sid_str && strlen(sid_str) < sizeof(sid_buf2))
+         strcpy (sid_buf2, sid_str);
+      DEBUGF (1, "sid_buf2: '%s', EqualSid(): %s.\n", sid_buf2, EqualSid(sid_buf1,sid) ? "Yes" : "No");
+      LocalFree (sid_str);
+    }
+  }
+  done = TRUE;
+  if (EqualSid(sid,sid_buf1) && sid_buf2[0])
+     return (sid_buf2);
+  return (NULL);
+}
+#endif /* _WIN32_WINNT >= 0x0500 */
+
 /**
  * Get the Domain and Account name for a file or directory.
  *
@@ -635,21 +671,21 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
 static BOOL get_file_owner_internal (const char *file, char **domain_name_p, char **account_name_p, void **sid_p)
 {
   DWORD        rc, attr, err;
-  BOOL         rc2;
-  BOOL         is_dir;
+  BOOL         rc2, is_dir;
   DWORD        account_name_sz = 0;
   DWORD        domain_name_sz  = 0;
   char        *domain_name;
   char        *account_name;
   SID_NAME_USE sid_use = SidTypeUnknown;
-  PSID         sid_owner = NULL;
-  HANDLE       hFile;
+  void        *sid_owner = NULL;
+  HANDLE       hnd;
   void        *sid = NULL;
+  const char  *sid_str;
   const char  *system_name = NULL;
 
   *domain_name_p  = NULL;
   *account_name_p = NULL;
-  *sid_p          = sid;
+  *sid_p          = NULL;
 
 #if defined(__CYGWIN__)
   {
@@ -673,17 +709,12 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
 
   /* Get the handle of the file object.
    */
-  hFile = CreateFile (file,
-                      GENERIC_READ,
-                      FILE_SHARE_READ,
-                      NULL,
-                      OPEN_EXISTING,
-                      is_dir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL,
-                      NULL);
+  hnd = CreateFile (file, GENERIC_READ, FILE_SHARE_READ,
+                    NULL, OPEN_EXISTING,
+                    is_dir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL,
+                    NULL);
 
-  /* Check GetLastError for CreateFile error code.
-   */
-  if (hFile == INVALID_HANDLE_VALUE)
+  if (hnd == INVALID_HANDLE_VALUE)
   {
     DEBUGF (1, "CreateFile (\"%s\") error = %s\n", file, win_strerror(GetLastError()));
     return (FALSE);
@@ -691,19 +722,13 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
 
   /* Get the owner SID of the file.
    */
-  rc = GetSecurityInfo (hFile,
-                        SE_FILE_OBJECT,
-                        OWNER_SECURITY_INFORMATION,
-                        &sid_owner,
-                        NULL,
-                        NULL,
-                        NULL,
-                        &sid);
+  rc = GetSecurityInfo (hnd, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
+                        &sid_owner, NULL, NULL, NULL, &sid);
 
   *sid_p = sid;  /* LocalFree() in caller */
-  CloseHandle (hFile);
+  CloseHandle (hnd);
 
-  /* Check GetLastError for GetSecurityInfo error condition.
+  /* Check GetSecurityInfo() error condition.
    */
   if (rc != ERROR_SUCCESS)
   {
@@ -711,31 +736,45 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
     return (FALSE);
   }
 
-  /* First call to LookupAccountSid to get the buffer sizes.
+  /* First call to LookupAccountSid() to get the sizes of account/domain names.
    */
   rc2 = LookupAccountSid (system_name, sid_owner,
                           NULL, (DWORD*)&account_name_sz,
-                          NULL, (DWORD*)&domain_name_sz, &sid_use);
+                          NULL, (DWORD*)&domain_name_sz,
+                          &sid_use);
+
+  DEBUGF (2, "sid_use: %d\n", sid_use);
+
   if (!rc2)
   {
     err = GetLastError();
     if (err != ERROR_INSUFFICIENT_BUFFER)
     {
       DEBUGF (1, "(1): Error in LookupAccountSid(): %s.\n", win_strerror(err));
+
+#if (_WIN32_WINNT >= 0x0500)
+      /*
+       * If no mapping between SID and account-name, just return the
+       * account-name as a SID-string. And no domain-name.
+       *
+       * How the SID is built up is documented here:
+       *  https://msdn.microsoft.com/en-us/library/windows/desktop/aa379597(v=vs.85).aspx
+       *  https://msdn.microsoft.com/en-us/library/windows/desktop/aa379649(v=vs.85).aspx
+       */
+      if (err == ERROR_NONE_MAPPED && sid_use == SidTypeUnknown)
+      {
+        sid_str = sid_owner_cache (sid_owner);
+        if (sid_str)
+        {
+          *account_name_p = STRDUP (sid_str);
+          *domain_name_p  = NULL;
+          return (TRUE);
+        }
+      }
+#endif
       return (FALSE);
     }
   }
-
-#if (_WIN32_WINNT >= 0x0500)
-  if (opt.debug >= 1)
-  {
-    char *sid_str = "?";
-
-    ConvertSidToStringSid (sid_owner, &sid_str);
-    DEBUGF (1, "\n  sid_str: %s.\n", sid_str);
-    LocalFree (sid_str);
-  }
-#endif
 
   account_name = MALLOC (account_name_sz);
   if (!account_name)
@@ -748,7 +787,7 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
     return (FALSE);
   }
 
-  /* Second call to LookupAccountSid() to get the account name.
+  /* Second call to LookupAccountSid() to get the account/domain names.
    */
   rc2 = LookupAccountSid (system_name,               /* name of local or remote computer */
                           sid_owner,                 /* security identifier */
@@ -776,10 +815,21 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
 BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name_p)
 {
   void *sid_p;
-  BOOL  rc = get_file_owner_internal (file, domain_name_p, account_name_p, &sid_p);
+  char *dummy1 = NULL;
+  char *dummy2 = NULL;
+  BOOL  rc;
+
+  if (!domain_name_p)
+     domain_name_p = &dummy1;
+  if (!account_name_p)
+     account_name_p = &dummy2;
+
+  rc = get_file_owner_internal (file, domain_name_p, account_name_p, &sid_p);
 
   if (sid_p)
      LocalFree (sid_p);
+  FREE (dummy1);
+  FREE (dummy2);
   return (rc);
 }
 
