@@ -2454,9 +2454,12 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
 {
   va_list      args;
   int          len;
+  size_t       fmt_len = strlen (format);
   const DWORD *marker;
 
   va_start (args, format);
+  if (fmt_len > fmt_buf->buffer_size)
+     FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", 2*fmt_len);
 
   marker = (const DWORD*) fmt_buf->buffer;
   if (*marker != FMT_BUF_MARKER)
@@ -2480,6 +2483,34 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
 
   va_end (args);
   return (len);
+}
+
+int buf_puts (FMT_buf *fmt_buf, const char *string)
+{
+  size_t       str_len = strlen (string);
+  const DWORD *marker;
+
+  if (str_len > fmt_buf->buffer_left)
+     FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", 1+str_len);
+
+  marker = (const DWORD*) fmt_buf->buffer;
+  if (*marker != FMT_BUF_MARKER)
+     FATAL ("'First marked destroyed or 'BUF_INIT()' not called.\n");
+
+  marker = (const DWORD*) (fmt_buf->buffer + fmt_buf->buffer_size + sizeof(DWORD));
+  if (*marker != FMT_BUF_MARKER)
+     FATAL ("Last marked destroyed.\n");
+
+  strcpy (fmt_buf->buffer_pos, string);
+  fmt_buf->buffer_left -= str_len;
+  fmt_buf->buffer_pos  += str_len;
+  return (str_len);
+}
+
+void buf_reset (FMT_buf *fmt_buf)
+{
+  fmt_buf->buffer_pos  = fmt_buf->buffer_start;
+  fmt_buf->buffer_left = fmt_buf->buffer_size;
 }
 
 #if defined(__POCC__) && !defined(__MT__) && defined(_M_AMD64)

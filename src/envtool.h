@@ -374,9 +374,9 @@ extern int  process_dir (const char *path, int num_dup, BOOL exist, BOOL check_e
 /* Stuff in misc.c:
  */
 #if defined(__POCC__)
-  _CRTCHK(printf,1,2)
+_CRTCHK(printf,1,2)
 #endif
-  int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1,2);
+int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1,2);
 
 /*
  * According to:
@@ -546,9 +546,11 @@ typedef struct {
       } while (0)
 
 #if defined(__POCC__)
-  _CRTCHK(printf,2,3)
+_CRTCHK(printf,2,3)
 #endif
-  int buf_printf (FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...) ATTR_PRINTF (2,3);
+int  buf_printf (FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...) ATTR_PRINTF (2,3);
+int  buf_puts   (FMT_buf *fmt_buf, const char *string);
+void buf_reset  (FMT_buf *fmt_buf);
 
 /* Stuff in win_ver.c:
  */
