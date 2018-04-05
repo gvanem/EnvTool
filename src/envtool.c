@@ -3602,7 +3602,7 @@ static void searchpath_all_cc (BOOL print_info, BOOL print_lib_path)
 
   /* Show the ignored ones
    */
-  C_puts ("    Ignored:\n");
+  C_puts ("\n    Ignored:\n");
   for (i = 0; i < max; i++)
   {
     cc = smartlist_get (all_cc, i);
