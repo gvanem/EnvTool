@@ -897,7 +897,7 @@ static BOOL state_init (struct state_CTX *ctx)
   ctx->sock = socket (AF_INET, SOCK_STREAM, 0);
   if (ctx->sock == INVALID_SOCKET)
   {
-    char buf [80];
+    char buf [500];
 
     ctx->ws_err = WSAGetLastError();
     snprintf (buf, sizeof(buf), "Failed to create socket: %s.\n", ws2_strerror(ctx->ws_err));
@@ -993,7 +993,7 @@ static void connect_common_final (struct state_CTX *ctx, int err)
 {
   if (err)  /* The connection failed */
   {
-    char buf [200];
+    char buf [500];
 
     ctx->ws_err = err;
     snprintf (buf, sizeof(buf), "Failed to connect: %s.\n", ws2_strerror(ctx->ws_err));
