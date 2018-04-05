@@ -1961,7 +1961,7 @@ void py_searchpaths (void)
        ignored = cfg_ignore_next("[Python]"), i++)
   {
     if (i == 0)
-       C_puts ("   Ignored:\n");
+       C_puts ("\n   Ignored:\n");
     C_printf ("       %s\n", ignored);
   }
 }
