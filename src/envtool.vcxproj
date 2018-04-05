@@ -53,13 +53,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>.</OutDir>
+    <OutDir>.\</OutDir>
     <TargetName>envtool</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>.</OutDir>
+    <OutDir>.\</OutDir>
     <TargetName>envtool</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
