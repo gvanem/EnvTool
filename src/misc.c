@@ -1076,6 +1076,25 @@ int str_equal (const char *s1, const char *s2)
 }
 
 /**
+ * Return a shorten string with length \c max_len such that
+ * it looks like \c "abcde...12345".
+ * I.e. equal many starting and ending characters.
+ */
+char *str_shorten (const char *str, size_t max_len)
+{
+  static char buf [200];
+  const char *end;
+  size_t      len;
+
+  if (strlen(str) <= max_len)
+     return (char*) str;
+  end = strchr (str,'\0');
+  len = (max_len - 3) / 2;
+  snprintf (buf, sizeof(buf), "%.*s...%.*s", len, str, len, end-len);
+  return (buf);
+}
+
+/**
  * Return the left-trimmed place where paths 'p1' and 'p2' are similar.
  * Not case sensitive. Treats `/` and `\\` equally.
  */

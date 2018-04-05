@@ -1439,11 +1439,11 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
     if (found_owner)
     {
       DEBUGF (2, "account_name (%s) %smatches owner (%s).\n", account_name, inverse ? "does not " : "", found_owner);
-      buf_printf (&fmt_buf_owner_info, "%-16.16s ", account_name);
+      buf_printf (&fmt_buf_owner_info, "%-18s", str_shorten(account_name,18));
     }
     else
     {
-      buf_printf (&fmt_buf_owner_info, "%-16s ", "<None>");
+      buf_printf (&fmt_buf_owner_info, "%-18s", "<None>");
       DEBUGF (2, "account_name (%s) did not match any wanted owner(s) for file '%s'.\n",
               account_name, basename(file));
     }
