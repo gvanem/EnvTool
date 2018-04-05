@@ -511,8 +511,8 @@ int C_vprintf (const char *fmt, va_list args)
     len1 = C_puts (buf);
     LeaveCriticalSection (&crit);
     if (len2 < len1)
-      FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
-             len1, len2, (int)(c_head - c_buf), c_buf, buf);
+       FATAL ("len1: %d, len2: %d. c_buf: '%.*s',\nbuf: '%s'\n",
+              len1, len2, (int)(c_head - c_buf), c_buf, buf);
   }
   return (len1);
 }
