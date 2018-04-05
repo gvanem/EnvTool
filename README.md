@@ -165,6 +165,8 @@ Matches in %PATH:
       04 Nov 1999 - 09:45:44: Administratorer  f:\ProgramFiler\RKsupport\addiag.exe
       19 Jan 2018 - 00:12:23: Administratorer  f:\gv\dx-radio\UHD\host\bin\addr_test.pdb
 ```
+The inverse `envtool.exe --path --owner=!Admin*` is also possible; showing files
+on the `%PATH` who's owner does *not* match `Admin*`.
 
 C-source included in `./src`. Makefiles for MinGW, Cygwin, Watcom, clang-cl and MSVC.
 Enjoy!
