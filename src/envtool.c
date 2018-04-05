@@ -515,57 +515,59 @@ static int show_help (void)
             "Usage: %s ~6[options] <--mode> <file-spec>~0\n", who_am_I);
 
   C_puts ("  ~6<--mode>~0 can be at least one of these:\n"
-          "    ~6--cmake~0:        check and search in ~3%CMAKE_MODULE_PATH%~0 and it's built-in module-path.\n"
-          "    ~6--evry[=~3host~0]~0:  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
-          "    ~6--inc~0:          check and search in ~3%INCLUDE%~0.                   ~2[2]~0\n"
-          "    ~6--lib~0:          check and search in ~3%LIB%~0 and ~3%LIBRARY_PATH%~0.    ~2[2]~0\n"
-          "    ~6--man~0:          check and search in ~3%MANPATH%~0.\n"
-          "    ~6--path~0:         check and search in ~3%PATH%~0.\n"
-          "    ~6--pkg~0:          check and search in ~3%PKG_CONFIG_PATH%~0.\n"
-          "    ~6--python~0[~3=X~0]:   check and search in ~3%PYTHONPATH%~0 and ~3sys.path[]~0. ~2[3]~0\n"
-          "    ~6--check~0         check for missing directories in ~6all~0 supported environment variables\n"
-          "                    and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n");
+          "    ~6--cmake~0        check and search in ~3%CMAKE_MODULE_PATH%~0 and it's built-in module-path.\n"
+          "    ~6--evry[=~3host~0]~0  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
+          "    ~6--inc~0          check and search in ~3%INCLUDE%~0.                   ~2[2]~0\n"
+          "    ~6--lib~0          check and search in ~3%LIB%~0 and ~3%LIBRARY_PATH%~0.    ~2[2]~0\n"
+          "    ~6--man~0          check and search in ~3%MANPATH%~0.\n"
+          "    ~6--path~0         check and search in ~3%PATH%~0.\n"
+          "    ~6--pkg~0          check and search in ~3%PKG_CONFIG_PATH%~0.\n"
+          "    ~6--python~0[~3=X~0]   check and search in ~3%PYTHONPATH%~0 and ~3sys.path[]~0. ~2[3]~0\n"
+          "    ~6--check~0        check for missing directories in ~6all~0 supported environment variables\n"
+          "                   and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n");
 
-  C_puts ("  ~6[options]~0:\n"
-          "    ~6--no-gcc~0:       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
-          "    ~6--no-g++~0:       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
-          "    ~6--no-prefix~0:    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs.    ~2[2]~0\n"
-          "    ~6--no-sys~0:       don't scan ~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0.\n"
-          "    ~6--no-usr~0:       don't scan ~3HKCU\\Environment~0.\n"
-          "    ~6--no-app~0:       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
-          "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
-          "    ~6--no-colour~0:    don't print using colours.\n"
-          "    ~6--no-ansi~0:      don't print colours using ANSI sequences (effective on CygWin only).\n"
-          "    ~6--no-watcom~0:    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
-          "    ~6--owner~0:        shown owner of the file.\n"
-          "    ~6--pe~0:           print checksum, version-info and signing status for PE-files.\n"
-          "    ~6--32~0:           for ~6--lib~0 mode,  report only 32-bit libs (not yet).\n"
-          "                    for ~6--pe~0 option, report only 32-bit PE-files.\n"
-          "    ~6--64~0:           for ~6--lib~0 mode,  report only 64-bit libs (not yet).\n"
-          "                    for ~6--pe~0 option, report only 64-bit PE-files.\n"
-          "    ~6--signed[=X]~0:   check for digital signature with the ~6--pe~0 option.\n"
-          "                    ~6--signed=0~0 report only PE-file that are ~4unsigned~0.\n"
-          "                    ~6--signed=1~0 report only PE-file that are ~4signed~0.\n"
-          "    ~6-c~0:             don't add current directory to search-lists.\n"
-          "    ~6-C~0:             be case-sensitive.\n"
-          "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
-          "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n");
+  C_puts ("  ~6[options]~0\n"
+          "    ~6--no-gcc~0       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
+          "    ~6--no-g++~0       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
+          "    ~6--no-prefix~0    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs.    ~2[2]~0\n"
+          "    ~6--no-sys~0       don't scan ~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0.\n"
+          "    ~6--no-usr~0       don't scan ~3HKCU\\Environment~0.\n"
+          "    ~6--no-app~0       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
+          "                              ~3HKLM\\" REG_APP_PATH "~0.\n"
+          "    ~6--no-colour~0    don't print using colours.\n"
+          "    ~6--no-ansi~0      don't print colours using ANSI sequences (effective on CygWin only).\n"
+          "    ~6--no-watcom~0    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
+          "    ~6--owner~0        shown owner of the file (shows all owners).\n"
+          "    ~6--owner~0=~3spec~0   shown only files/directories matching owner ~3spec~0.\n"
+          "    ~6--owner~0=~3!spec~0  shown only files/directories ~4not~0 matching owner ~3spec~0.\n"
+          "    ~6--pe~0           print checksum, version-info and signing status for PE-files.\n"
+          "    ~6--32~0           for ~6--lib~0 mode,  report only 32-bit libs (~4not yet~0).\n"
+          "                   for ~6--pe~0 option, report only 32-bit PE-files.\n"
+          "    ~6--64~0           for ~6--lib~0 mode,  report only 64-bit libs (~4not yet~0).\n"
+          "                   for ~6--pe~0 option, report only 64-bit PE-files.\n"
+          "    ~6--signed~0       check for ~4all~0 digital signature with the ~6--pe~0 option.\n"
+          "    ~6--signed=0~0     report only PE-files files that are ~4unsigned~0.\n"
+          "    ~6--signed=1~0     report only PE-files files that are ~4signed~0.\n"
+          "    ~6-c~0             don't add current directory to search-lists.\n"
+          "    ~6-C~0             be case-sensitive.\n"
+          "    ~6-d~0, ~6--debug~0    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
+          "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n");
 
-  C_puts ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
-          "    ~6-s~0, ~6--size~0:     show size of files or directories found.\n"
-          "    ~6-q~0, ~6--quiet~0:    disable warnings.\n"
-          "    ~6-t~0:             do some internal tests. Use ~6--owner~0, ~6--py~0 or ~6--evry~0 for extra tests.\n"
-          "    ~6-T~0:             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
-          "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
-          "    ~6-v~0:             increase verbose level (currently only used in ~6--pe~0).\n"
-          "    ~6-V~0:             show program version information. ~6-VV~0 and ~6-VVV~0  prints more info.\n"
-          "    ~6-h~0, ~6-?~0:         show this help.\n\n");
+  C_puts ("    ~6-r~0, ~6--regex~0    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
+          "    ~6-s~0, ~6--size~0     show size of files or directories found.\n"
+          "    ~6-q~0, ~6--quiet~0    disable warnings.\n"
+          "    ~6-t~0             do some internal tests. Use ~6--owner~0, ~6--py~0 or ~6--evry~0 for extra tests.\n"
+          "    ~6-T~0             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
+          "    ~6-u~0             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
+          "    ~6-v~0             increase verbose level (currently only used in ~6--pe~0).\n"
+          "    ~6-V~0             show program version information. ~6-VV~0 and ~6-VVV~0  prints more info.\n"
+          "    ~6-h~0, ~6-?~0         show this help.\n\n");
 
   C_puts ("    ~6--evry~0 remote FTP options:\n"
-          "      ~6-H~0, ~6--host~0:    hostname/IPv4-address. Can be used multiple times.\n"
-          "                     alternative syntax is ~6--evry=<host>~0.\n"
-          "      ~6--nonblock-io~0: connects using non-blocking I/O.\n"
-          "      ~6--buffered-io~0: use buffering to receive the data.\n");
+          "      ~6-H~0, ~6--host~0    hostname/IPv4-address. Can be used multiple times.\n"
+          "                    alternative syntax is ~6--evry=<host>~0.\n"
+          "      ~6--nonblock-io~0 connects using non-blocking I/O.\n"
+          "      ~6--buffered-io~0 use buffering to receive the data.\n");
 
   C_puts ("\n"
           "  ~2[1]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
@@ -597,7 +599,7 @@ static int show_help (void)
           "\n"
           "Notes:\n"
           "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
-          "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0 or ~6--dir~0 is used, only\n"
+          "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0/~6--dir~0 is used, only\n"
           "              matching directories are reported.\n"
           "  Commonly used options can be set in ~3%ENVTOOL_OPTIONS%~0.\n");
   return (0);
@@ -1391,43 +1393,52 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
    */
   if (opt.show_owner && key != HKEY_EVERYTHING_ETP)
   {
-    char       *domain_name = NULL, *account_name;
-    const char *wanted_owner = NULL;
+    char       *account_name;
+    const char *found_owner = NULL;
+    BOOL        inverse = FALSE;
 
     if (get_file_owner(file, NULL, &account_name))
     {
       int i, max = smartlist_len (opt.owners);
 
-      /* Show only the file if it matches one of the owners in 'opt.owners'.
+      /* Show only the file/directory if it matches (or not matches) one of the
+       * owners in 'opt.owners'.
        * With 'opt.owners == "*"', match all.
+       * With 'opt.owners == "!*"', match none.
        *
        * E.g. with:
-       *   envtool --man  --owner=Admin* pkcs7*
+       *   envtool --man --owner=Admin*  pkcs7*
+       *   show only Man-pages matching "pkcs7*" and owners "Admin*":
        *
-       * show only Man-pages matching "pkcs7*" and owners "Admin*":
-       *
-       * Assume no, if there are >= 1 owner-patterns to check for
+       *   envtool --man --owner=!Admin* pkcs7*
+       *   show only Man-pages matching "pkcs7*" and owners not matching "Admin*":
        */
       if (max > 0)
-         show_this_file = FALSE;
+         show_this_file = FALSE; /* Assume no, if there are >= 1 owner-patterns to check for */
 
       for (i = 0; i < max; i++)
       {
         const char *owner = smartlist_get (opt.owners, i);
 
-        if (fnmatch(owner, account_name, FNM_FLAG_NOCASE) == FNM_MATCH)
+        if (owner[0] == '!' && fnmatch(owner+1, account_name, FNM_FLAG_NOCASE) == FNM_NOMATCH)
         {
-          wanted_owner = owner;
+          inverse = TRUE;
+          found_owner = owner + 1;
           show_this_file = TRUE;
-          DEBUGF (2, "account_name (%s) matches wanted owner (%s).\n", account_name, wanted_owner);
+          break;
+        }
+        else if (fnmatch(owner, account_name, FNM_FLAG_NOCASE) == FNM_MATCH)
+        {
+          found_owner = owner;
+          show_this_file = TRUE;
           break;
         }
       }
     }
 
-    if (wanted_owner)
+    if (found_owner)
     {
-      DEBUGF (2, "account_name (%s) matches a wanted owner (%s).\n", account_name, wanted_owner);
+      DEBUGF (2, "account_name (%s) %smatches owner (%s).\n", account_name, inverse ? "does not " : "", found_owner);
       buf_printf (&fmt_buf_owner_info, "%-16.16s ", account_name);
     }
     else
@@ -1436,7 +1447,6 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
       DEBUGF (2, "account_name (%s) did not match any wanted owner(s) for file '%s'.\n",
               account_name, basename(file));
     }
-    FREE (domain_name);
     FREE (account_name);
   }
 
@@ -1466,7 +1476,10 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   }
 
   if (!show_this_file)
-     return (0);
+  {
+    get_PE_version_info_free();
+    return (0);
+  }
 
   C_puts (fmt_buf_time_size.buffer_start);
   C_puts (fmt_buf_owner_info.buffer_start);
