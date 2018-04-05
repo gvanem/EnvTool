@@ -306,13 +306,13 @@ static void get_evry_bitness (HWND wnd)
  */
 static void show_ext_versions (void)
 {
-  static const char *found_fmt[] = { "  Python %u.%u.%u detected",
-                                     "  Cmake %u.%u.%u detected",
+  static const char *found_fmt[] = { "  Cmake %u.%u.%u detected",
+                                     "  Python %u.%u.%u detected",
                                      "  pkg-config %u.%u detected",
                                    };
 
-  static const char *not_found_fmt[] = { "  Python ~5not~0 found.\n",
-                                         "  Cmake ~5not~0 found.\n",
+  static const char *not_found_fmt[] = { "  Cmake ~5not~0 found.\n",
+                                         "  Python ~5not~0 found.\n",
                                          "  pkg-config ~5not~0 found.\n"
                                        };
   #define FOUND_SZ 100
@@ -325,24 +325,24 @@ static void show_ext_versions (void)
   struct ver_info py_ver, cmake_ver, pkg_config_ver;
 
   memset (&found, '\0', sizeof(found));
-  memset (&py_ver, '\0', sizeof(py_ver));
   memset (&cmake_ver, '\0', sizeof(cmake_ver));
+  memset (&py_ver, '\0', sizeof(py_ver));
   memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
 
   pad_len = sizeof("  pkg-config 9.99 detected");
 
+  if (get_cmake_info(&cmake_exe, &cmake_ver))
+  {
+    len[0] = snprintf (found[0], FOUND_SZ, found_fmt[0], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
+    if (len[0] > pad_len)
+       pad_len = len[0];
+  }
+
   if (py_get_info(&py_exe, NULL, &py_ver))
   {
     slashify2 (py_exe, py_exe, opt.show_unix_paths ? '/' : '\\');
-    len[0] = snprintf (found[0], FOUND_SZ, found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
-    pad_len = len[0];
-  }
-
-  if (get_cmake_info(&cmake_exe, &cmake_ver))
-  {
-    len[1] = snprintf (found[1], FOUND_SZ, found_fmt[1], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
-    if (len[1] > pad_len)
-       pad_len = len[1];
+    len[1] = snprintf (found[1], FOUND_SZ, found_fmt[1], py_ver.val_1, py_ver.val_2, py_ver.val_3);
+    pad_len = len[1];
   }
 
   if (get_pkg_config_info(&pkg_config_exe, &pkg_config_ver))
@@ -352,20 +352,20 @@ static void show_ext_versions (void)
        pad_len = len[2];
   }
 
-  if (py_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[0], py_exe);
+  if (cmake_exe)
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[0], cmake_exe);
   else C_printf (not_found_fmt[0]);
 
-  if (cmake_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[1], cmake_exe);
+  if (py_exe)
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[1], py_exe);
   else C_printf (not_found_fmt[1]);
 
   if (pkg_config_exe)
        C_printf ("%-*s -> ~6%s~0\n", pad_len, found[2], pkg_config_exe);
   else C_printf (not_found_fmt[2]);
 
-  FREE (py_exe);
   FREE (cmake_exe);
+  FREE (py_exe);
   FREE (pkg_config_exe);
 }
 
