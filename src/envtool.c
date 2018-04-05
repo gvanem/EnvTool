@@ -47,7 +47,7 @@
 #include "dirlist.h"
 
 /**
- * <!-- \includedoc  README.md ->
+ * <!-- \includedoc README.md ->
  * \image html  envtool-help.png "List of modes" width=10cm
  * \image latex envtool-help.png "List of modes" width=10cm
  */
@@ -153,6 +153,22 @@ static int        re_alloc;       /* the above 're_hnd' was allocated */
 
 volatile int halt_flag;
 
+/*
+ * The list of prefixes for gnu tools.
+ * E.g. we try "gcc.exe" ... "avr-gcc.exe" to figure out the
+ *      %C_INCLUDE_PATH, %CPLUS_INCLUDE_PATH and %LIBRARY_PATH.
+ *      Unless one of the '<path>/<prefix>-gcc.exe' are in the
+ *      "[Compiler]" ignore-list.
+ *
+ * \todo: add more prefixes from envtool.cfg here?
+ */
+static const char *gnu_prefixes[] = {
+                  "x86_64-w64-mingw32",
+                  "i386-mingw32",
+                  "i686-w64-mingw32",
+                  "avr"
+                };
+
 /** Get the bitness (32/64-bit) of the EveryThing program.
  */
 static enum Bitness evry_bitness = bit_unknown;
@@ -164,8 +180,8 @@ static int   do_tests (void);
 static void  searchpath_all_cc (BOOL print_info, BOOL print_lib_path);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
-static int   get_pkg_config_info (const char **exe, struct ver_info *ver);
-static int   get_cmake_info (char **exe, struct ver_info *ver);
+static int   get_pkg_config_info (char **exe_p, struct ver_info *ver);
+static int   get_cmake_info (char **exe_p, struct ver_info *ver);
 
 /**
  * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
@@ -301,10 +317,11 @@ static void show_ext_versions (void)
                                        };
   #define FOUND_SZ 100
 
-  char           found [3][FOUND_SZ];
-  int            pad_len, len [3] = { 0,0,0 };
-  const char     *py_exe = NULL, *pkg_config_exe = NULL;
-  char           *cmake_exe = NULL;
+  char            found [3][FOUND_SZ];
+  int             pad_len, len [3] = { 0,0,0 };
+  char           *py_exe         = NULL;
+  char           *pkg_config_exe = NULL;
+  char           *cmake_exe      = NULL;
   struct ver_info py_ver, cmake_ver, pkg_config_ver;
 
   memset (&found, '\0', sizeof(found));
@@ -316,28 +333,23 @@ static void show_ext_versions (void)
 
   if (py_get_info(&py_exe, NULL, &py_ver))
   {
-    char py_copy [_MAX_PATH];
-
-    py_exe = slashify2 (py_copy, py_exe, opt.show_unix_paths ? '/' : '\\');
+    slashify2 (py_exe, py_exe, opt.show_unix_paths ? '/' : '\\');
     len[0] = snprintf (found[0], FOUND_SZ, found_fmt[0], py_ver.val_1, py_ver.val_2, py_ver.val_3);
     pad_len = len[0];
   }
 
   if (get_cmake_info(&cmake_exe, &cmake_ver))
   {
-   /* Because searchpath() returns a static buffer
-    */
-    cmake_exe = STRDUP (cmake_exe);
     len[1] = snprintf (found[1], FOUND_SZ, found_fmt[1], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
     if (len[1] > pad_len)
-        pad_len = len[1];
+       pad_len = len[1];
   }
 
   if (get_pkg_config_info(&pkg_config_exe, &pkg_config_ver))
   {
     len[2] = snprintf (found[2], FOUND_SZ, found_fmt[2], pkg_config_ver.val_1, pkg_config_ver.val_2);
     if (len[2] > pad_len)
-        pad_len = len[2];
+       pad_len = len[2];
   }
 
   if (py_exe)
@@ -352,7 +364,9 @@ static void show_ext_versions (void)
        C_printf ("%-*s -> ~6%s~0\n", pad_len, found[2], pkg_config_exe);
   else C_printf (not_found_fmt[2]);
 
+  FREE (py_exe);
   FREE (cmake_exe);
+  FREE (pkg_config_exe);
 }
 
 /*
@@ -495,73 +509,80 @@ static int show_help (void)
   #define PFX_GPP  "~4<prefix>~0-~6g++~0"
 
   const char **py = py_get_variants();
+  int   i;
 
   C_printf ("Environment check & search tool.\n\n"
-            "Usage: %s ~6[options] <--mode> <file-spec>~0\n"
-            "  ~6<--mode>~0 can be at least one of these:\n"
-            "    ~6--cmake~0:        check and search in ~3%%CMAKE_MODULE_PATH%%~0 and it's built-in module-path.\n"
-            "    ~6--evry[=~3host~0]~0:  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
-            "    ~6--inc~0:          check and search in ~3%%INCLUDE%%~0.                   ~2[2]~0\n"
-            "    ~6--lib~0:          check and search in ~3%%LIB%%~0 and ~3%%LIBRARY_PATH%%~0.    ~2[2]~0\n"
-            "    ~6--man~0:          check and search in ~3%%MANPATH%%~0.\n"
-            "    ~6--path~0:         check and search in ~3%%PATH%%~0.\n"
-            "    ~6--pkg~0:          check and search in ~3%%PKG_CONFIG_PATH%%~0.\n"
-            "    ~6--python~0[~3=X~0]:   check and search in ~3%%PYTHONPATH%%~0 and ~3sys.path[]~0. ~2[3]~0\n"
-            "    ~6--check~0         check for missing directories in ~6all~0 supported environment variables\n"
-            "                    and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n",
-            who_am_I);
+            "Usage: %s ~6[options] <--mode> <file-spec>~0\n", who_am_I);
 
-  C_printf ("  ~6[options]~0:\n"
-            "    ~6--no-gcc~0:       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
-            "    ~6--no-g++~0:       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
-            "    ~6--no-prefix~0:    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs     ~2[2]~0.\n"
-            "    ~6--no-sys~0:       don't scan ~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0.\n"
-            "    ~6--no-usr~0:       don't scan ~3HKCU\\Environment~0.\n"
-            "    ~6--no-app~0:       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
-            "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
-            "    ~6--no-colour~0:    don't print using colours.\n"
-            "    ~6--no-ansi~0:      don't print colours using ANSI sequences (effective on CygWin only).\n"
-            "    ~6--no-watcom~0:    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
-            "    ~6--owner~0:        shown owner of the file.\n"
-            "    ~6--pe~0:           print checksum, version-info and signing status for PE-files.\n"
-            "    ~6--32~0:           tell " PFX_GCC " to return only 32-bit libs in ~6--lib~0 mode.\n"
-            "                    report only 32-bit PE-files with ~6--pe~0 option.\n"
-            "    ~6--64~0:           tell " PFX_GCC " to return only 64-bit libs in ~6--lib~0 mode.\n"
-            "                    report only 64-bit PE-files with ~6--pe~0 option.\n"
-            "    ~6--signed[=X]~0:   check for digital signature with the ~6--pe~0 option.\n"
-            "                    ~6--signed=0~0 report only PE-file that are ~4unsigned~0.\n"
-            "                    ~6--signed=1~0 report only PE-file that are ~4signed~0.\n"
-            "    ~6-c~0:             don't add current directory to search-lists.\n"
-            "    ~6-C~0:             be case-sensitive.\n"
-            "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
-            "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n"
-            "    ~6-H~0, ~6--host~0:     hostname/IPv4-address for remote FTP ~6--evry~0 searches.\n"
-            "                    can be used multiple times. Alternative syntax is ~6--evry:<host>~0.\n");
+  C_puts ("  ~6<--mode>~0 can be at least one of these:\n"
+          "    ~6--cmake~0:        check and search in ~3%CMAKE_MODULE_PATH%~0 and it's built-in module-path.\n"
+          "    ~6--evry[=~3host~0]~0:  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
+          "    ~6--inc~0:          check and search in ~3%INCLUDE%~0.                   ~2[2]~0\n"
+          "    ~6--lib~0:          check and search in ~3%LIB%~0 and ~3%LIBRARY_PATH%~0.    ~2[2]~0\n"
+          "    ~6--man~0:          check and search in ~3%MANPATH%~0.\n"
+          "    ~6--path~0:         check and search in ~3%PATH%~0.\n"
+          "    ~6--pkg~0:          check and search in ~3%PKG_CONFIG_PATH%~0.\n"
+          "    ~6--python~0[~3=X~0]:   check and search in ~3%PYTHONPATH%~0 and ~3sys.path[]~0. ~2[3]~0\n"
+          "    ~6--check~0         check for missing directories in ~6all~0 supported environment variables\n"
+          "                    and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n");
 
-  C_printf ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
-            "    ~6-s~0, ~6--size~0:     show size of file(s) found. With ~6--dir~0 option, recursively show\n"
-            "                    the size of all files under directories matching ~6<file-spec>~0.\n"
-            "    ~6-q~0, ~6--quiet~0:    disable warnings.\n"
-            "    ~6-t~0:             do some internal tests.\n"
-            "    ~6-T~0:             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
-            "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
-            "    ~6-v~0:             increase verbose level (currently only used in ~6--pe~0).\n"
-            "    ~6-V~0:             show program version information. ~6-VV~0 and ~6-VVV~0  prints more info.\n"
-            "    ~6-h~0, ~6-?~0:         show this help.\n");
+  C_puts ("  ~6[options]~0:\n"
+          "    ~6--no-gcc~0:       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
+          "    ~6--no-g++~0:       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
+          "    ~6--no-prefix~0:    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs.    ~2[2]~0\n"
+          "    ~6--no-sys~0:       don't scan ~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0.\n"
+          "    ~6--no-usr~0:       don't scan ~3HKCU\\Environment~0.\n"
+          "    ~6--no-app~0:       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
+          "                               ~3HKLM\\" REG_APP_PATH "~0.\n"
+          "    ~6--no-colour~0:    don't print using colours.\n"
+          "    ~6--no-ansi~0:      don't print colours using ANSI sequences (effective on CygWin only).\n"
+          "    ~6--no-watcom~0:    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
+          "    ~6--owner~0:        shown owner of the file.\n"
+          "    ~6--pe~0:           print checksum, version-info and signing status for PE-files.\n"
+          "    ~6--32~0:           for ~6--lib~0 mode,  report only 32-bit libs (not yet).\n"
+          "                    for ~6--pe~0 option, report only 32-bit PE-files.\n"
+          "    ~6--64~0:           for ~6--lib~0 mode,  report only 64-bit libs (not yet).\n"
+          "                    for ~6--pe~0 option, report only 64-bit PE-files.\n"
+          "    ~6--signed[=X]~0:   check for digital signature with the ~6--pe~0 option.\n"
+          "                    ~6--signed=0~0 report only PE-file that are ~4unsigned~0.\n"
+          "                    ~6--signed=1~0 report only PE-file that are ~4signed~0.\n"
+          "    ~6-c~0:             don't add current directory to search-lists.\n"
+          "    ~6-C~0:             be case-sensitive.\n"
+          "    ~6-d~0, ~6--debug~0:    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
+          "    ~6-D~0, ~6--dir~0:      looks only for directories matching ~6<file-spec>~0.\n");
 
-  C_printf (
-            "\n"
-            "  ~2[1]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
-            "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
-            "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
-            "      should be specified in your ~6%%APPDATA%%/.netrc~0 or ~6%%APPDATA%%/.authinfo~0 files or\n"
-            "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
-            "\n"
-            "  ~2[2]~0 Unless ~6--no-prefix~0 is used, the ~3%%C_INCLUDE_PATH%%~0, ~3%%CPLUS_INCLUDE_PATH%%~0 and\n"
-            "      ~3%%LIBRARY_PATH%%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
-            "      These ~4<prefix>~0-es are built-in: { ~6x86_64-w64-mingw32~0 | ~6i386-mingw32~0 | ~6i686-w64-mingw32~0 | ~6avr~0 }.\n"
-            "\n"
-            "  ~2[3]~0 The ~6--python~0 option can be detailed further with ~3=X~0:\n");
+  C_puts ("    ~6-r~0, ~6--regex~0:    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
+          "    ~6-s~0, ~6--size~0:     show size of files or directories found.\n"
+          "    ~6-q~0, ~6--quiet~0:    disable warnings.\n"
+          "    ~6-t~0:             do some internal tests. Use ~6--owner~0, ~6--py~0 or ~6--evry~0 for extra tests.\n"
+          "    ~6-T~0:             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
+          "    ~6-u~0:             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
+          "    ~6-v~0:             increase verbose level (currently only used in ~6--pe~0).\n"
+          "    ~6-V~0:             show program version information. ~6-VV~0 and ~6-VVV~0  prints more info.\n"
+          "    ~6-h~0, ~6-?~0:         show this help.\n\n");
+
+  C_puts ("    ~6--evry~0 remote FTP options:\n"
+          "      ~6-H~0, ~6--host~0:    hostname/IPv4-address. Can be used multiple times.\n"
+          "                     alternative syntax is ~6--evry=<host>~0.\n"
+          "      ~6--nonblock-io~0: connects using non-blocking I/O.\n"
+          "      ~6--buffered-io~0: use buffering to receive the data.\n");
+
+  C_puts ("\n"
+          "  ~2[1]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
+          "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
+          "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
+          "      should be specified in your ~6%APPDATA%/.netrc~0 or ~6%APPDATA%/.authinfo~0 files or\n"
+          "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
+          "\n"
+          "  ~2[2]~0 Unless ~6--no-prefix~0 is used, the ~3%C_INCLUDE_PATH%~0, ~3%CPLUS_INCLUDE_PATH%~0 and\n"
+          "      ~3%LIBRARY_PATH%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
+          "      These ~4<prefix>~0-es are built-in: ");
+
+  for (i = 0; i < DIM(gnu_prefixes); i++)
+      C_printf ("~6%s~0%s", gnu_prefixes[i], i <= DIM(gnu_prefixes)-2 ? ", " : ".");
+
+  C_puts ("\n\n"
+          "  ~2[3]~0 The ~6--python~0 option can be detailed further with ~3=X~0:\n");
 
   for (; *py; py++)
   {
@@ -572,13 +593,13 @@ static int show_help (void)
     else C_printf ("      ~6%-6s~0 use a %s program only.\n", *py, py_variant_name(v));
   }
 
-  C_printf ("             otherwise use only first Python found on PATH (i.e. the default).\n"
-            "\n"
-            "Notes:\n"
-            "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
-            "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0 or ~6--dir~0 is used, only\n"
-            "              matching directories are reported.\n"
-            "  Commonly used options can be set in ~3%%ENVTOOL_OPTIONS%%~0.\n");
+  C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n"
+          "\n"
+          "Notes:\n"
+          "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
+          "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0 or ~6--dir~0 is used, only\n"
+          "              matching directories are reported.\n"
+          "  Commonly used options can be set in ~3%ENVTOOL_OPTIONS%~0.\n");
   return (0);
 }
 
@@ -1025,18 +1046,19 @@ static void print_PE_file_details (const char *filler)
     {
       if (colon && colon[1] == ' ')
       {
-        char ignore [200];
+        char   ignore [200];
+        size_t len = min (sizeof(ignore)-1, colon-line+1);
 
-        _strlcpy (ignore, line, colon-line+1);
+        _strlcpy (ignore, line, len);
         if (cfg_ignore_lookup("[PE-resources]",str_trim(ignore)))
            continue;
       }
-      indent += (colon - line + 1);
+      indent += colon - line + 1;
     }
     if (i == 0)
        C_putc ('\n');
     C_puts (filler);
-    C_puts_long_line (line, indent);
+    C_puts_long_line (line, indent+1);
   }
   C_setraw (save);
   get_PE_version_info_free();
@@ -1047,15 +1069,15 @@ static void print_PE_file_details (const char *filler)
  * If so, save the checksum, version-info, signing-status for later when
  * 'report_file()' is ready to print this info.
  */
-static char PE_file_info [1000];
-
-static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key)
+static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, char *dest, size_t dest_size)
 {
   struct ver_info ver;
   enum Bitness    bits;
   const char     *bitness;
   BOOL            chksum_ok  = FALSE;
   BOOL            version_ok = FALSE;
+
+  *dest = '\0';
 
   if (key == HKEY_INC_LIB_FILE || key == HKEY_MAN_FILE ||
       key == HKEY_EVERYTHING_ETP || key == HKEY_PKGCONFIG_FILE)
@@ -1081,7 +1103,7 @@ static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key)
 
   /* Do not add a '\n' since 'wintrust_check()' is called right after this function.
    */
-  snprintf (PE_file_info, sizeof(PE_file_info), "\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s",
+  snprintf (dest, dest_size, "\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s~0",
             filler, ver.val_1, ver.val_2, ver.val_3, ver.val_4,
             bitness, chksum_ok ? "~2OK" : "~5fail");
   return (TRUE);
@@ -1101,12 +1123,10 @@ static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key)
  *         https://github.com/zed-0xff/pedump/blob/master/lib/pedump/security.rb
  *         http://pedump.me/1d82d1e52ca97759a6f90438e59e7dc7/#signature
  */
-static char win_trust_info [100];
-
-static BOOL get_wintrust_info (const char *file)
+static BOOL get_wintrust_info (const char *file, char *dest, size_t dest_size)
 {
-  char  *p = win_trust_info;
-  size_t left = sizeof(win_trust_info);
+  char  *p = dest;
+  size_t left = dest_size;
   DWORD  rc = wintrust_check (file, TRUE, FALSE);
 
   *p = '\0';
@@ -1114,19 +1134,19 @@ static BOOL get_wintrust_info (const char *file)
   switch (rc)
   {
     case ERROR_SUCCESS:
-         p    += snprintf (win_trust_info, left, " ~2(Verified");
-         left -= p - win_trust_info;
+         p    += snprintf (dest, left, " ~2(Verified");
+         left -= p - dest;
          num_verified++;
          break;
     case TRUST_E_NOSIGNATURE:
     case TRUST_E_SUBJECT_FORM_UNKNOWN:
     case TRUST_E_PROVIDER_UNKNOWN:
-         p    += snprintf (win_trust_info, left, " ~5(Not signed");
-         left -= p - win_trust_info;
+         p    += snprintf (dest, left, " ~5(Not signed");
+         left -= p - dest;
          break;
     case TRUST_E_SUBJECT_NOT_TRUSTED:
-         p    += snprintf (win_trust_info, left, " ~5(Not trusted");
-         left -= p - win_trust_info;
+         p    += snprintf (dest, left, " ~5(Not trusted");
+         left -= p - dest;
          break;
   }
 
@@ -1152,13 +1172,6 @@ static BOOL get_wintrust_info (const char *file)
          return (FALSE);
   }
   return (FALSE);
-}
-
-static print_wintrust_info (void)
-{
-  if (win_trust_info[0])
-     C_puts (win_trust_info);
-  win_trust_info[0] = '\0';
 }
 
 UINT64 get_directory_size (const char *dir)
@@ -1231,11 +1244,23 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   const char *note   = NULL;
   const char *filler = "      ";
   char        size [40] = "?";
-  int         raw;
+  int         save;
   BOOL        have_it = TRUE;
   BOOL        show_dir_size = TRUE;
   BOOL        show_pc_files_only = FALSE;
   BOOL        show_this_file = TRUE;
+
+  FMT_buf     fmt_buf_time_size;
+  FMT_buf     fmt_buf_file_info;
+  FMT_buf     fmt_buf_owner_info;
+  FMT_buf     fmt_buf_ver_info;
+  FMT_buf     fmt_buf_trust_info;
+
+  BUF_INIT (&fmt_buf_time_size, 100);
+  BUF_INIT (&fmt_buf_file_info, 100 + _MAX_PATH);
+  BUF_INIT (&fmt_buf_owner_info, 100);
+  BUF_INIT (&fmt_buf_ver_info, 100);
+  BUF_INIT (&fmt_buf_trust_info, 100);
 
   if (key == HKEY_CURRENT_USER)
   {
@@ -1273,8 +1298,6 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
         (!have_sys_native_dir || !str_equal_n(file,sys_native_dir,strlen(sys_native_dir))))
        have_it = FALSE;
 #endif
-    if (is_dir)
-       note = "<DIR> ";
 
     if (have_it && mtime == 0 && !(is_dir ^ opt.dir_mode))
     {
@@ -1295,15 +1318,24 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
     found_in_default_env = 1;
   }
 
+  if (is_dir)
+     note = "<DIR> ";
+
   if ((!is_dir && opt.dir_mode) || !have_it)
-     return (0);
+  {
+    show_this_file = FALSE;
+    return (0);
+  }
 
   if (show_pc_files_only)
   {
     const char *ext = get_file_ext (file);
 
     if (stricmp(ext,"pc"))
-       return (0);
+    {
+      show_this_file = FALSE;
+      return (0);
+    }
   }
 
  /*
@@ -1331,15 +1363,6 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   else
     size[0] = '\0';
 
-  if (key != HKEY_PYTHON_EGG)
-  {
-    char buf [_MAX_PATH];
-
-    _fix_path (file, buf);  /* Has '\\' slashes */
-    if (opt.show_unix_paths)
-       file = slashify (buf, '/');
-  }
-
   if (report_header)
      C_printf ("~3%s~0", report_header);
 
@@ -1349,77 +1372,117 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   {
     static DWORD num_version_ok_last = 0;
 
-    show_this_file = get_PE_file_brief (file, filler, key);
+    show_this_file = get_PE_file_brief (file, filler, key, fmt_buf_ver_info.buffer_start, fmt_buf_ver_info.buffer_size);
     if (show_this_file && opt.signed_status != SIGN_CHECK_NONE)
     {
-      show_this_file = get_wintrust_info (file);
+      show_this_file = get_wintrust_info (file, fmt_buf_trust_info.buffer_start, fmt_buf_trust_info.buffer_size);
       if (!show_this_file && num_version_ok_last < num_version_ok)
          num_version_ok--;  /* Fix this counter for the  'final_report()' */
     }
     num_version_ok_last = num_version_ok;
   }
 
-  if (!show_this_file)
-     return (0);
-
-  C_printf ("~3%s~0%s%s: ", note ? note : filler, get_time_str(mtime), size);
+  buf_printf (&fmt_buf_time_size, "~3%s~0%s%s: ",
+              note ? note : filler, get_time_str(mtime), size);
 
   /* The remote 'file' from EveryThing is not something Windows knows
-   * about. Hence no point in trying.
+   * about. Hence no point in trying to get the DomainName + AccountName
+   * for it.
    */
-  if (key != HKEY_EVERYTHING_ETP && opt.show_owner)
+  if (opt.show_owner && key != HKEY_EVERYTHING_ETP)
   {
-    char *domain_name, *account_name;
+    char       *domain_name = NULL, *account_name;
+    const char *wanted_owner = NULL;
 
-    if (get_file_owner(file, &domain_name, &account_name))
+    if (get_file_owner(file, NULL, &account_name))
     {
-      C_printf ("%-16s ", account_name);
-      FREE (domain_name);
-      FREE (account_name);
+      int i, max = smartlist_len (opt.owners);
+
+      /* Show only the file if it matches one of the owners in 'opt.owners'.
+       * With 'opt.owners == "*"', match all.
+       *
+       * E.g. with:
+       *   envtool --man  --owner=Admin* pkcs7*
+       *
+       * show only Man-pages matching "pkcs7*" and owners "Admin*":
+       *
+       * Assume no, if there are >= 1 owner-patterns to check for
+       */
+      if (max > 0)
+         show_this_file = FALSE;
+
+      for (i = 0; i < max; i++)
+      {
+        const char *owner = smartlist_get (opt.owners, i);
+
+        if (fnmatch(owner, account_name, FNM_FLAG_NOCASE) == FNM_MATCH)
+        {
+          wanted_owner = owner;
+          show_this_file = TRUE;
+          DEBUGF (2, "account_name (%s) matches wanted owner (%s).\n", account_name, wanted_owner);
+          break;
+        }
+      }
+    }
+
+    if (wanted_owner)
+    {
+      DEBUGF (2, "account_name (%s) matches a wanted owner (%s).\n", account_name, wanted_owner);
+      buf_printf (&fmt_buf_owner_info, "%-16.16s ", account_name);
     }
     else
-      C_printf ("%-16s ", "<None>");
+    {
+      buf_printf (&fmt_buf_owner_info, "%-16s ", "<None>");
+      DEBUGF (2, "account_name (%s) did not match any wanted owner(s) for file '%s'.\n",
+              account_name, basename(file));
+    }
+    FREE (domain_name);
+    FREE (account_name);
   }
 
-  /* In case 'file' contains a "~" (SFN), we switch to raw mode.
+  /* slashify2() will remove excessive '/' or '\\' anywhere in the name.
+   * Add a trailing slash to directories.
    */
-  raw = C_setraw (1);
-  C_puts (file);
-  C_setraw (raw);
+  buf_printf (&fmt_buf_file_info, "%s%c", file, is_dir ? DIR_SEP: '\0');
+  slashify2 (fmt_buf_file_info.buffer_start, fmt_buf_file_info.buffer_start,
+             opt.show_unix_paths ? '/' : '\\');
 
-  /* Add a slash to end of a directory.
-   */
-  if (is_dir)
-  {
-    const char *end = strchr (file, '\0');
-
-    if (end > file && end[-1] != '\\' && end[-1] != '/')
-       C_putc (opt.show_unix_paths ? '/' : '\\');
-  }
-  else if (key == HKEY_MAN_FILE)
+  if (!is_dir && key == HKEY_MAN_FILE)
   {
     const char *link = get_man_link (file);
     const char *ext  = get_file_ext (file);
 
-    if (!link & !isdigit(*ext))
+    if (!link && !isdigit(*ext))
        link = get_gzip_link (file);
     if (link)
-       C_printf ("%*s(%s)", get_trailing_indent(file), " ", link);
+       buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(file), " ", link);
   }
-  else
+  else if (!is_dir)
   {
     const char *shebang = check_if_shebang (file);
 
     if (shebang)
-       C_printf ("%*s(%s)", get_trailing_indent(file), " ", shebang);
+       buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(file), " ", shebang);
   }
 
-  if (PE_file_info[0])
-  {
-    C_printf ("%-60s", PE_file_info);
-    PE_file_info[0] = '\0';
+  if (!show_this_file)
+     return (0);
 
-    print_wintrust_info();
+  C_puts (fmt_buf_time_size.buffer_start);
+  C_puts (fmt_buf_owner_info.buffer_start);
+
+  /* In case 'report_file_info' contains a "~" (SFN), we switch to raw mode.
+   */
+  save = C_setraw (1);
+  C_puts (fmt_buf_file_info.buffer_start);
+  C_setraw (save);
+
+  /* All this must be printed on the next line
+   */
+  if (opt.PE_check && fmt_buf_ver_info.buffer_start[0])
+  {
+    C_printf ("%-60s", fmt_buf_ver_info.buffer_start);
+    C_puts (fmt_buf_trust_info.buffer_start);
     print_PE_file_details (filler);
   }
 
@@ -2024,7 +2087,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     char  *base, *file;
     int    match, len;
     BOOL   is_junction;
-    BOOL   ignore = opt.use_regex &&
+    BOOL   ignore = /* opt.use_regex && */
                     ((ff_data.cFileName[0] == '.' && ff_data.cFileName[1] == '\0') ||
                     !strcmp(ff_data.cFileName,".."));
     if (ignore)
@@ -2050,7 +2113,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
       continue;
     }
 
-    file  = slashify (fqfn, DIR_SEP);
+    file  = slashify2 (fqfn, fqfn, DIR_SEP);
     match = fnmatch (opt.file_spec, base, fnmatch_case(0) | FNM_FLAG_NOESCAPE);
 
 #if 0
@@ -2202,13 +2265,20 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
 static int report_evry_file (const char *file, time_t mtime, UINT64 fsize)
 {
   struct stat st;
-  int         is_dir = 0;
+  BOOL        is_dir = FALSE;
   const char *file2;
+  DWORD       attr;
 
-  if (safe_stat(file, &st, NULL) == 0)
-     is_dir = _S_ISDIR (st.st_mode);
+  memset (&st, '\0', sizeof(st));
 
-  else if (errno == ENOENT)
+  /* Do not use the slower 'safe_stat()' unless needed.
+   * See below.
+   */
+  attr = GetFileAttributes (file);
+  if (attr != INVALID_FILE_ATTRIBUTES)
+     is_dir = (attr & FILE_ATTRIBUTE_DIRECTORY);
+
+  else if (attr == INVALID_FILE_ATTRIBUTES)
   {
     file2 = get_sysnative_file (file, &st);
     if (file2 != file)
@@ -2216,12 +2286,21 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize)
     file = file2;
   }
 
-  /* If EveryThing older than 1.4.1 was used, these are not set.
-   */
-  if (mtime == 0)
-     mtime = st.st_mtime;
-  if (fsize == (__int64)-1)
-     fsize = st.st_size;
+  if (st.st_mtime == 0)
+  {
+    /* If EveryThing older than 1.4.1 was used, these are not set.
+     */
+    if (mtime == 0)
+    {
+      safe_stat (file, &st, NULL);
+      mtime = st.st_mtime;
+    }
+    if (fsize == (__int64)-1)
+    {
+      safe_stat (file, &st, NULL);
+      fsize = st.st_size;
+    }
+  }
 
   return report_file (file, mtime, is_dir ? (__int64)-1 : fsize,
                       is_dir, FALSE, HKEY_EVERYTHING);
@@ -2605,24 +2684,26 @@ static int find_pkg_config_version_cb (char *buf, int index)
   return (0);
 }
 
-static int get_pkg_config_info (const char **exe, struct ver_info *ver)
+static int get_pkg_config_info (char **exe_p, struct ver_info *ver)
 {
-  char exe_copy [_MAX_PATH];
+  char  exe_copy [_MAX_PATH];
+  char *exe;
 
+  *exe_p = NULL;
   pkg_config_major = pkg_config_minor = -1;
-  *exe = searchpath ("pkg-config.exe", "PATH");
-  if (*exe == NULL)
+  exe = searchpath ("pkg-config.exe", "PATH");
+  if (exe == NULL)
      return (0);
 
-  slashify2 (exe_copy, *exe, '\\');
+  slashify2 (exe_copy, exe, '\\');
 
   if (popen_runf(find_pkg_config_version_cb, "\"%s\" --version", exe_copy) > 0)
   {
     ver->val_1 = pkg_config_major;
     ver->val_2 = pkg_config_minor;
+    *exe_p = STRDUP (exe);
     return (1);
   }
-  *exe = NULL;
   return (0);
 }
 
@@ -2702,16 +2783,19 @@ static int find_cmake_version_cb (char *buf, int index)
   return (0);
 }
 
-static int get_cmake_info (char **exe, struct ver_info *ver)
+static int get_cmake_info (char **exe_p, struct ver_info *ver)
 {
-  char exe_copy [_MAX_PATH];
+  char  exe_copy [_MAX_PATH];
+  char *exe;
 
+  *exe_p = NULL;
   cmake_major = cmake_minor = cmake_micro = -1;
-  *exe = searchpath ("cmake.exe", "PATH");
-  if (*exe == NULL)
+
+  exe = searchpath ("cmake.exe", "PATH");
+  if (exe == NULL)
      return (0);
 
-  slashify2 (exe_copy, *exe, '\\');
+  slashify2 (exe_copy, exe, '\\');
 
   if (popen_runf(find_cmake_version_cb, "\"%s\" -version", exe_copy) > 0)
   {
@@ -2719,9 +2803,9 @@ static int get_cmake_info (char **exe, struct ver_info *ver)
     ver->val_2 = cmake_minor;
     ver->val_3 = cmake_micro;
     ver->val_4 = 0;
+    *exe_p = STRDUP (exe_copy);
     return (1);
   }
-  *exe = NULL;
   return (0);
 }
 
@@ -3215,19 +3299,11 @@ static int process_gcc_dirs (const char *gcc, int *num_dirs)
  * But only add the first \c "*gcc.exe" / \c "*g++.exe"" found on PATH.
  *
  * The first pair added has no prefix (simply \c "gcc.exe" / \c "g++.exe").
- * The others pairs use the prefixes in \c 'gnu_pfx[]'.
+ * The others pairs use the prefixes in \c 'gnu_prefixes[]'.
  */
 static void add_gnu_compilers (void)
 {
-  static const char *gnu_pfx[] = {
-                    "x86_64-w64-mingw32",
-                    "i386-mingw32",
-                    "i686-w64-mingw32",
-                    "avr"
-                  };
-                  /* \todo: add more prefixes from envtool.cfg here? */
-
-  size_t i, num_gnu = 1 + DIM(gnu_pfx);
+  size_t i, num_gnu = 1 + DIM(gnu_prefixes);
   char   short_name[30];
 
   for (i = 0; i < num_gnu; i++)
@@ -3242,11 +3318,11 @@ static void add_gnu_compilers (void)
     }
     else
     {
-      snprintf (short_name, sizeof(short_name)-1, "%s-gcc.exe", gnu_pfx[i-1]);
+      snprintf (short_name, sizeof(short_name)-1, "%s-gcc.exe", gnu_prefixes[i-1]);
       gcc->short_name = STRDUP (short_name);
       gcc->no_prefix  = opt.gcc_no_prefixed;
 
-      snprintf (short_name, sizeof(short_name)-1, "%s-g++.exe", gnu_pfx[i-1]);
+      snprintf (short_name, sizeof(short_name)-1, "%s-g++.exe", gnu_prefixes[i-1]);
       gpp->short_name = STRDUP (short_name);
       gpp->no_prefix  = opt.gcc_no_prefixed;
     }
@@ -3367,7 +3443,8 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
   for (i = 0; i < max; i++)
   {
     arr = smartlist_get (dir_array, i);
-    copy[i] = STRDUP (slashify(arr->dir,slash));
+    copy[i] = STRDUP (arr->dir);
+    slashify2 (copy[i], copy[i], slash);
   }
   copy[i] = NULL;
   DEBUGF (3, "Made a 'copy[]' of %d directories.\n", max);
@@ -3386,7 +3463,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
     for (j = 0; j < max; j++)
     {
       arr = smartlist_get (list, j);
-      dir = slashify (arr->dir, slash);
+      dir = slashify2 (arr->dir, arr->dir, slash);
       if (!stricmp(dir,copy[i]))
       {
         found = TRUE;
@@ -3789,7 +3866,7 @@ static const struct option long_options[] = {
            { "buffered-io", no_argument,       NULL, 0 },    /* 31 */
            { "nonblock-io", no_argument,       NULL, 0 },
            { "no-watcom",   no_argument,       NULL, 0 },    /* 33 */
-           { "owner",       no_argument,       NULL, 0 },
+           { "owner",       optional_argument, NULL, 0 },
            { "check",       no_argument,       NULL, 0 },    /* 35 */
            { "signed",      optional_argument, NULL, 0 },
            { NULL,          no_argument,       NULL, 0 }     /* 37 */
@@ -3888,6 +3965,10 @@ static void set_evry_options (const char *arg)
   }
 }
 
+/**
+ * Set \c opt.signed_status based on "--owner" and any optional
+ * parameters given to it.
+ */
 static void set_signed_options (const char *arg)
 {
   static const struct search_list sign_status[] = {
@@ -3909,6 +3990,24 @@ static void set_signed_options (const char *arg)
 
   DEBUGF (2, "got long option \"--signed %s\" -> opt.signed_status: %s\n",
           arg, list_lookup_name(opt.signed_status,sign_status, DIM(sign_status)));
+}
+
+/**
+ * Set \c opt.owner based on "--owner" and any optional
+ * parameters given to it.
+ */
+static void set_owner_options (const char *arg)
+{
+  opt.show_owner = 1;
+
+  if (!opt.owners)
+     opt.owners = smartlist_new();
+
+  if (arg)
+     smartlist_add (opt.owners, STRDUP(arg));
+  else
+  if (smartlist_len(opt.owners) == 0)
+     smartlist_add (opt.owners, STRDUP("*"));
 }
 
 static void set_short_option (int o, const char *arg)
@@ -3994,6 +4093,12 @@ static void set_long_option (int o, const char *arg)
   if (!strcmp("signed",long_options[o].name))
   {
     set_signed_options (arg);
+    return;
+  }
+
+  if (!strcmp("owner",long_options[o].name))
+  {
+    set_owner_options (arg);
     return;
   }
 
@@ -4118,7 +4223,7 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
     exit (1);
   }
 
-  if (!opt.PE_check && opt.do_lib && (opt.only_32bit || opt.only_64bit))
+  if (!opt.PE_check && (opt.only_32bit || opt.only_64bit))
      opt.PE_check = TRUE;
 
 #if defined(__CYGWIN__)
@@ -4171,6 +4276,7 @@ static void MS_CDECL cleanup (void)
   smartlist_free (reg_array);
 
   smartlist_free_all (opt.evry_host);
+  smartlist_free_all (opt.owners);
 
   for (i = 0; i < new_argc && i < DIM(new_argv)-1; i++)
       FREE (new_argv[i]);
@@ -4412,13 +4518,14 @@ int MS_CDECL main (int argc, char **argv)
 
   if (opt.do_python)
   {
-    char        report [_MAX_PATH+50];
-    const char *py_exe = NULL;
+    char  report [_MAX_PATH+50];
+    char *py_exe;
 
     py_get_info (&py_exe, NULL, NULL);
     snprintf (report, sizeof(report), "Matches in \"%s\" sys.path[]:\n", py_exe);
     report_header = report;
     found += py_search();
+    FREE (py_exe);
   }
 
   /* Mode "--evry" specified.
@@ -4478,7 +4585,7 @@ void test_split_env (const char *env)
        dir = _fix_path (dir, buf);
 
     if (opt.show_unix_paths)
-       dir = slashify (dir, '/');
+       dir = slashify2 (dir, dir, '/');
 
     C_printf ("  arr[%2d]: %-65s", i, dir);
 
@@ -4597,7 +4704,7 @@ void test_posix_to_win_cygwin (void)
 
     raw = C_setraw (1);  /* In case result contains a "~". */
 
-    file = slashify (result, opt.show_unix_paths ? '/' : '\\');
+    file = slashify2 (result, result, opt.show_unix_paths ? '/' : '\\');
     C_printf ("    %-20s -> %s\n", cyg_paths[i], file);
     C_setraw (raw);
   }
@@ -4743,6 +4850,7 @@ static void test_slashify (void)
               "c:\\/Windows/system32/drivers/etc\\hosts"
             };
   const char *f, *rc;
+  char  fbuf [_MAX_PATH];
   int   i;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
@@ -4750,13 +4858,13 @@ static void test_slashify (void)
   for (i = 0; i < DIM(files1); i++)
   {
     f  = files1 [i];
-    rc = slashify (f, '/');
+    rc = slashify2 (fbuf, f, '/');
     C_printf ("  (\"%s\",'/') %*s -> %s\n", f, (int)(39-strlen(f)), "", rc);
   }
   for (i = 0; i < DIM(files2); i++)
   {
     f  = files2 [i];
-    rc = slashify (f, '\\');
+    rc = slashify2 (fbuf, f, '\\');
     C_printf ("  (\"%s\",'\\\\') %*s -> %s\n", f, (int)(38-strlen(f)), "", rc);
   }
   C_putc ('\n');
@@ -4770,15 +4878,10 @@ static void test_slashify (void)
  */
 static void test_fix_path (void)
 {
-#if defined(__CYGWIN__)
-  extern char *canonicalize_file_name (const char *);
-#endif
-
   static const char *files[] = {
-    "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include",                             /* exists here */
-    "f:\\mingw32\\bin\\../lib/gcc/x86_64-w64-mingw32/4.8.1/include\\ssp\\ssp.h",                 /* exists here */
-    "f:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",  /* exists here */
-    "c:\\mingw32\\bin\\../lib/gcc/i686-w64-mingw32/4.8.1/../../../../i686-w64-mingw32/include",  /* doesn't exist here */
+    "f:\\CygWin64\\bin\\../lib/gcc/x86_64-w64-mingw32/6.4.0/include",                            /* exists here */
+    "f:\\CygWin64\\bin\\../lib/gcc/x86_64-w64-mingw32/6.4.0/include\\ssp\\ssp.h",                /* exists here */
+    "f:\\CygWin64\\bin\\../lib/gcc/i686-w64-mingw32/6.4.0/../../../../i686-w64-mingw32/include", /* exists here */
     "/usr/lib/gcc/x86_64-pc-cygwin/6.4.0/../../../../include/w32api"                             /* CygWin64 output, exists here */
   };
   const char *f;
@@ -4793,33 +4896,36 @@ static void test_fix_path (void)
     BOOL is_dir;
 
     f = files [i];
-    rc1 = _fix_path (f, buf);    /* Only '\\' slashes */
+    rc1 = _fix_path (f, buf);    /* has only '\\' slashes */
     rc2 = FILE_EXISTS (buf);
     is_dir = is_directory (rc1);
 
     if (opt.show_unix_paths)
-       rc1 = slashify (buf, '/');
+       rc1 = slashify2 (buf, buf, '/');
 
 #if defined(__CYGWIN__)
     {
+      extern char *canonicalize_file_name (const char *);
       char *realname = canonicalize_file_name (f);
 
       if (realname)
       {
-        cyg_result = ", ~2cyg-exists: 1~0";
+        cyg_result = ", ~2cyg-exists: 1";
         rc1 = _strlcpy (buf, realname, sizeof(buf));
         free (realname);
       }
       else
-        cyg_result = ", ~2cyg-exists: 0~0";
+        cyg_result = ", ~5cyg-exists: 0";
     }
 #endif
 
-    C_printf ("  _fix_path (\"%s\")\n"
-              "   -> \"%s\" ", f, rc1);
+    C_printf ("  _fix_path (\"%s\")\n", f);
+
     if (!rc2)
-         C_printf ("~5exists 0, is_dir %d~0%s\n", is_dir, cyg_result);
-    else C_printf ("exists 1, is_dir %d~0%s\n", is_dir, cyg_result);
+         C_printf ("   ~5exists 0, is_dir %d%s~0", is_dir, cyg_result);
+    else C_printf ("   ~2exists 1, is_dir %d%s~0", is_dir, cyg_result);
+
+    C_printf (" -> %s\n", rc1);
   }
   C_putc ('\n');
 }
@@ -4986,7 +5092,7 @@ static void test_ReparsePoints (void)
 
     if (!rc)
          C_printf (" ~5%s~0%s\n", last_reparse_err, st_result);
-    else C_printf (" \"%s\"%s\n", slashify(result, opt.show_unix_paths ? '/' : '\\'), st_result);
+    else C_printf (" \"%s\"%s\n", slashify2(result, result, opt.show_unix_paths ? '/' : '\\'), st_result);
   }
   C_putc ('\n');
 }
@@ -5022,7 +5128,7 @@ static void test_auth (void)
 
 /*
  * Test PE-file WinTrust crypto signature verification.
- * Optionally calling 'get_file_owner()' for each file is
+ * Optionally calling 'get_file_owner()' for each file if
  * option "--owner" was used on command-line.
  */
 static void test_PE_wintrust (void)
@@ -5032,7 +5138,10 @@ static void test_PE_wintrust (void)
               "%s\\drivers\\tcpip.sys",
               "c:\\bootmgr",
               "notepad.exe",
-              "cl.exe"
+              "cl.exe",
+              "some-file-never-found.exe",
+              "%s\\drivers\\",        /* test "--owner" on a directory */
+              "c:\\$Recycle.Bin\\"
             };
   int i;
 
@@ -5041,10 +5150,12 @@ static void test_PE_wintrust (void)
   for (i = 0; i < DIM(files); i++)
   {
     char  *file = (char*) files[i];
+    char  *account_name;
+    char  *domain_name;
     char   path [_MAX_PATH];
     char  *is_sys = strchr (file, '%');
     size_t len;
-    DWORD  rc;
+    DWORD  wintrust_rc;
 
     if (is_sys)
     {
@@ -5053,30 +5164,34 @@ static void test_PE_wintrust (void)
       else snprintf (path, sizeof(path), "%s\\%s", sys_dir, is_sys+3);
       file = path;
     }
-    else
+    else if (file[1] != ':')
+    {
       file = searchpath (file, "PATH");
+      if (!file)
+         file = _strlcpy (path, files[i], sizeof(path));
+    }
 
-    rc = wintrust_check (file, FALSE, FALSE);
-    if (!file)
-       file = _strlcpy (path, files[i], sizeof(path)-1);
+    wintrust_rc = wintrust_check (file, FALSE, FALSE);
 
     len = strlen (file);
     if (len > 50)
          C_printf ("  %d: ...%-47.47s ->", i, file+len-47);
-    else C_printf ("  %d: %-50.50s ->", i, _fix_drive(file));
+    else C_printf ("  %d: %-50.50s ->", i, file);
 
-    C_printf (" ~2%-10s~0", wintrust_check_result(rc));
+    C_printf (" ~2%-10s~0", wintrust_check_result(wintrust_rc));
 
-    if (opt.show_owner && rc != ERROR_FILE_NOT_FOUND)
+    if (opt.show_owner)
     {
-      char *account_name, *domain_name;
-
-      if (get_file_owner(file, &domain_name, &account_name))
+      if (wintrust_rc == ERROR_FILE_NOT_FOUND)
+         C_printf ("  ~5<Not found>~0");
+      else if (get_file_owner(file, &domain_name, &account_name))
       {
         C_printf ("  ~4%s\\%s~0", domain_name, account_name);
         FREE (domain_name);
         FREE (account_name);
       }
+      else
+        C_printf ("  ~5<Unknown>~0");
     }
     C_putc ('\n');
   }
@@ -5212,7 +5327,7 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
  */
 static void check_env_val (const char *env, int *num, char *status, size_t status_sz)
 {
-  smartlist_t                  *list;
+  smartlist_t                  *list = NULL;
   int                           i, max = 0;
   int                           save  = opt.conv_cygdrive;
   char                         *value = getenv_expand (env);
@@ -5403,7 +5518,6 @@ static int do_tests (void)
   test_posix_to_win_cygwin();
 #endif
 
-#if 1
 #ifdef __WATCOMC__
   test_split_env ("NT_INCLUDE");
 #else
@@ -5418,9 +5532,9 @@ static int do_tests (void)
 #else
   putenv ("FOO=c:\\");
 #endif
+
   test_split_env ("FOO");
   opt.add_cwd = save;
-#endif   /* 1 */
 
   test_searchpath();
   test_fnmatch();

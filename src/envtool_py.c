@@ -407,9 +407,15 @@ struct python_info *py_select (enum python_variants which)
 /**
  * Returns some information of the Python selected.
  */
-int py_get_info (const char **exe, const char **dll, struct ver_info *ver)
+int py_get_info (char **exe, char **dll, struct ver_info *ver)
 {
   const struct python_info *py;
+
+  if (exe)
+     *exe = NULL;
+
+  if (dll)
+     *dll = NULL;
 
   if (py_which == ALL_PYTHONS)          /* Not possible here */
        py = py_select (DEFAULT_PYTHON);
@@ -419,10 +425,10 @@ int py_get_info (const char **exe, const char **dll, struct ver_info *ver)
      return (0);
 
   if (exe)
-     *exe = py->exe_name;
+     *exe = STRDUP (py->exe_name);
 
   if (dll)
-     *dll = py->dll_name;
+     *dll = STRDUP (py->dll_name);
 
   if (ver)
   {
