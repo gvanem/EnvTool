@@ -67,25 +67,28 @@
 
 #if !defined(RC_INVOKED)  /* rest of file */
 
-#if (defined(__MINGW32__) || defined(_CYGWIN__)) && defined(_FORTIFY_SOURCE)
+#if defined(__MINGW32__) || defined(_CYGWIN__)
   /*
-   * Enable GNU LibSSP; "Stack Smashing Protector".
-   *   Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
+   * So that <sec_api/string_s.h> gets included in <string.h>.
    */
-  #if (_FORTIFY_SOURCE == 1) && defined(INSIDE_ENVTOOL_C)
-    #pragma message ("Using _FORTIFY_SOURCE=1")
-  #elif (_FORTIFY_SOURCE == 2) && defined(INSIDE_ENVTOOL_C)
-    #pragma message ("Using _FORTIFY_SOURCE=2")
+  #ifndef MINGW_HAS_SECURE_API
+  #define MINGW_HAS_SECURE_API 1
   #endif
-  #include <ssp/stdio.h>
-  #include <ssp/string.h>
-#endif
 
-/*
- * So that <sec_api/string_s.h> gets included in <string.h>.
- */
-#ifndef MINGW_HAS_SECURE_API
-#define MINGW_HAS_SECURE_API 1
+  #if defined(_FORTIFY_SOURCE)
+    /*
+     * Enable GNU LibSSP; "Stack Smashing Protector".
+     *   Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
+     */
+    #if (_FORTIFY_SOURCE == 1) && defined(INSIDE_ENVTOOL_C)
+      #pragma message ("Using _FORTIFY_SOURCE=1")
+    #elif (_FORTIFY_SOURCE == 2) && defined(INSIDE_ENVTOOL_C)
+      #pragma message ("Using _FORTIFY_SOURCE=2")
+    #endif
+
+    #include <ssp/stdio.h>
+    #include <ssp/string.h>
+  #endif
 #endif
 
 #include <stdio.h>
