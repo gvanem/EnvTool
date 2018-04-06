@@ -1,36 +1,36 @@
 /* Defines all the groups here: */
 
-/**\addtogroup Authentication
+/**\addtogroup Authentication Auth - User and password retrieval
  *  @{
  */
 /** @} */
 
-/**\addtogroup Color
+/**\addtogroup Color Colour - printf()-style printing with colours
  *  @{
  */
 /** @} */
 
-/**\addtogroup Envtool
+/**\addtogroup Envtool Main functions
  *  @{
  */
 /** @} */
 
-/**\addtogroup Envtool_PY
+/**\addtogroup Envtool_PY Python functions for the envtool program
  *  @{
  */
 /** @} */
 
-/**\addtogroup EveryThing
+/**\addtogroup EveryThing Interface for the EveryThing database
 *  @{
 */
 /** @} */
 
-/**\addtogroup EveryThing_ETP
+/**\addtogroup EveryThing_ETP Remote queries using EveryThing's ETP protocol
  *  @{
  */
 /** @} */
 
-/**\addtogroup Misc
+/**\addtogroup Misc Misc - Various support functions for EnvTool
  *  @{
  */
 /** @} */
@@ -47,13 +47,13 @@ The following modes handles these environment variables:
 <table>
   <tr><td width="20%">\c --cmake <td>Check and search in \c \%CMAKE_MODULE_PATH\%
                                      and it's built-in module-path.
-  <tr><td>\c --evry[\em =host]   <td>Check and search in the [EveryThing](https://www.voidtools.com/) database.
+  <tr><td>\c --evry[=\em host]   <td>Check and search in the [EveryThing](https://www.voidtools.com/) database.
   <tr><td>\c --inc               <td>Check and search in \c \%INCLUDE\%.
   <tr><td>\c --lib               <td>Check and search in \c \%LIB\% and \c \%LIBRARY_PATH\%.
   <tr><td>\c --man               <td>Check and search in \c \%MANPATH\%.
   <tr><td>\c --path              <td>Check and search in \c \%PATH\%.
   <tr><td>\c --pkg               <td>Check and search in \c \%PKG_CONFIG_PATH\%.
-  <tr><td>\c --python[\em =X]    <td>Check and search in \c \%PYTHONPATH\% and \c sys.path[].\n
+  <tr><td>\c --python[=\em X]    <td>Check and search in \c \%PYTHONPATH\% and \c sys.path[].\n
                                      The \em X selects a specific Python (if found). Can be one of these:\n
                                      <table>
                                        <tr><td>\c all    <td>Use all Python programs found on \c \%PATH\%.
@@ -88,6 +88,8 @@ Envtool contains a lot of options. These are:
   <tr><td>\c --no-colour    <td> Don't print using colours.
   <tr><td>\c --no-watcom    <td> Don't check for Watcom in \c --include or \c --lib mode
   <tr><td>\c --owner        <td> Shown owner of the file.
+  <tr><td>\c --owner=\em [X] <td> Shown only owners matching \c X.
+  <tr><td>\c --owner=\em [!X]<td> Shown only owners \b not matching \c X.
   <tr><td>\c --pe           <td> Print checksum, version-info and signing status for PE-files.
   <tr><td>\c --32           <td> Tell \c prefix -gcc to return only 32-bit libs in \c --lib mode.\n
                                  Report only 32-bit PE-files with \c --pe option.
@@ -99,6 +101,11 @@ Envtool contains a lot of options. These are:
   <tr><td>\c -D, \c --dir   <td> Looks only for directories matching \c \<file-spec\>.
   <tr><td>\c -H, \c --host  <td> Hostname/IPv4-address for remote FTP \c --evry searches.
                                  Can be used multiple times. Alternative syntax is \c --evry:host\[:port].
+
+  <tr><td>\c --evry remote FTP options: <td>
+  <tr><td>\c --nonblock-io  <td> connects using non-blocking I/O.
+  <tr><td>\c --buffered-io  <td> use buffering to receive the data.
+
   <tr><td>\c -r, \c --regex <td> Enable Regular Expressions in all \c --mode searches.
   <tr><td>\c -s, \c --size  <td> Show size of file(s) found. With \c --dir option, recursively show
                                  The size of all files under directories matching \c \<file-spec\>.
