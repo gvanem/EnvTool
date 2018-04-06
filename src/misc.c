@@ -1078,35 +1078,35 @@ int str_equal (const char *s1, const char *s2)
 /**
  * Return a shorten string with length \c max_len such that
  * it looks like \c "abcde...12345".
- * I.e. equal many starting and ending characters.
+ * I.e. equally many starting and ending characters.
  */
 char *str_shorten (const char *str, size_t max_len)
 {
   static char buf [200];
   const char *end  = strchr (str,'\0');
-  const char *dots = "...";
+  int         dots_len = 3;
   int         shift = 0;
   size_t      len;
 
   if (strlen(str) <= max_len || max_len < 2)
      return (char*) str;
 
-  if (max_len <= 2)
-       len = 1, dots = "\0";
-  else if (max_len <= 3)
-       len = 1, dots = ".";
-  else if (max_len <= 4)
-       len = 1, dots = "..";
-  else if (max_len <= 5)
-       len = 1, shift++, dots = "..";
+  if (max_len == 2)
+       len = 1, dots_len = 0;
+  else if (max_len == 3)
+       len = 1, dots_len = 1;
+  else if (max_len == 4)
+       len = 1, dots_len = 2;
+  else if (max_len == 5)
+       len = 1, dots_len = 2, shift++;
   else
   {
     len = (max_len - 3) / 2;
     if ((max_len & 1) == 0)   /* an even number */
        shift++;
   }
-
-  snprintf (buf, sizeof(buf), "%.*s%s%.*s", len, str, dots, len+shift, end-len-shift);
+  snprintf (buf, sizeof(buf), "%.*s%.*s%.*s",
+            len, str, dots_len, "...", len+shift, end-len-shift);
   return (buf);
 }
 
