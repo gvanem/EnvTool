@@ -7,7 +7,7 @@ OUTPUT_GENERATED = $(addprefix ./output/, \
 
 all: envtool.chm
 
-envtool.chm: envtool.Doxyfile main_page.dox envtool.css ../src/*.[ch]
+envtool.chm: Makefile envtool.Doxyfile main_page.dox envtool.css ../src/*.[ch]
 	doxygen envtool.Doxyfile > doxygen.log ; \
 	cd output                              ; \
 	hhc index.hhp                          ; \
