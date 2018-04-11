@@ -64,11 +64,11 @@
 
 #define PRINT_ERROR ((opterr) && (*options != ':'))
 
-#define FLAG_PERMUTE    0x01    /* permute non-options to the end of argv */
-#define FLAG_ALLARGS    0x02    /* treat non-options as args to option "-1" */
-#define FLAG_LONGONLY   0x04    /* operate as getopt_long_only */
+#define FLAG_PERMUTE    0x01    /** permute non-options to the end of argv */
+#define FLAG_ALLARGS    0x02    /** treat non-options as args to option "-1" */
+#define FLAG_LONGONLY   0x04    /** operate as getopt_long_only */
 
-/* Return values
+/** Return values
  */
 #define BADCH       (int)'?'
 #define BADARG      ((*options == ':') ? (int)':' : (int)'?')
@@ -84,13 +84,13 @@
 char *optarg;
 int   optind, opterr = 1, optopt;
 
-static const char *place = EMSG; /* option letter processing */
+static const char *place = EMSG; /** option letter processing */
 
-static int nonopt_start = -1; /* first non option argument (for permute) */
-static int nonopt_end = -1;   /* first option after non options (for permute) */
+static int nonopt_start = -1; /** first non option argument (for permute) */
+static int nonopt_end = -1;   /** first option after non options (for permute) */
 static int dash_prefix = NO_PREFIX;
 
-/* Error messages
+/** Error messages
  */
 static const char recargchar[] = "option requires an argument -- %c";
 static const char illoptchar[] = "illegal option -- %c"; /* From P1003.2 */
@@ -101,7 +101,7 @@ static const char ambig[] = "option `%s%.*s' is ambiguous";
 static const char noarg[] = "option `%s%.*s' doesn't allow an argument";
 static const char illoptstring[] = "unrecognized option `%s%s'";
 
-/*
+/**
  * Compute the greatest common divisor of a and b.
  */
 static int gcd (int a, int b)
@@ -118,7 +118,7 @@ static int gcd (int a, int b)
   return (b);
 }
 
-/*
+/**
  * Exchange the block from nonopt_start to nonopt_end with the block
  * from nonopt_end to opt_end (keeping the same order of arguments
  * in each block).
@@ -153,7 +153,7 @@ static void permute_args (int panonopt_start, int panonopt_end,
   }
 }
 
-/*
+/**
  * Print a warning on stderr.
  */
 static void warnx (const char *fmt, ...)
@@ -168,9 +168,8 @@ static void warnx (const char *fmt, ...)
   va_end (ap);
 }
 
-/*
- * parse_long_options --
- *  Parse long options in argc/argv argument vector.
+/**
+ * Parse long options in argc/argv argument vector.
  * Returns -1 if short_too is set and the option does not match long_options.
  */
 static int parse_long_options (char *const *nargv, const char *options,
@@ -326,8 +325,8 @@ static int parse_long_options (char *const *nargv, const char *options,
     return (long_options[match].val);
 }
 
-/*
- * getopt_internal -- Parse argc/argv argument vector.
+/**
+ * Parse argc/argv argument vector.
  * Called by user level routines.
  */
 static int getopt_internal (int nargc, char * const *nargv,
@@ -543,19 +542,19 @@ start:
   return (optchar);
 }
 
-/*
- * getopt --  Parse argc/argv argument vector.
+/**
+ * Parse argc/argv argument vector.
  */
 int getopt (int nargc, char * const *nargv, const char *options)
 {
-  /* We don't pass FLAG_PERMUTE to getopt_internal() since
-   * the BSD getopt(3) (unlike GNU) has never done this.
+  /** We don't pass FLAG_PERMUTE to getopt_internal() since
+   *  the BSD getopt(3) (unlike GNU) has never done this.
    */
   return getopt_internal(nargc, nargv, options, NULL, NULL, 0);
 }
 
-/*
- * getopt_long --  Parse argc/argv argument vector.
+/**
+ * Parse argc/argv argument vector.
  */
 int getopt_long (int nargc, char * const *nargv, const char *options,
                  const struct option *long_options, int *idx)
@@ -564,8 +563,8 @@ int getopt_long (int nargc, char * const *nargv, const char *options,
                           FLAG_PERMUTE);
 }
 
-/*
- * getopt_long_only -- Parse argc/argv argument vector.
+/**
+ * Parse argc/argv argument vector.
  */
 int getopt_long_only (int nargc, char * const *nargv, const char *options,
                       const struct option *long_options, int *idx)

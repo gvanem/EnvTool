@@ -1,10 +1,8 @@
 /**\file    misc.c
  * \ingroup Misc
- * \brief
- *   Various support functions for EnvTool.
- * \note fnmatch(), basename() and dirname() are taken from djgpp and modified.
+ * \brief   Various support functions for EnvTool
+ * \note    fnmatch(), basename() and dirname() are taken from djgpp and modified.
  */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -57,8 +55,6 @@ HANDLE kernel32_hnd;
 
 #if !defined(_CRTDBG_MAP_ALLOC)
   /**
-   * \ingroup mem_tracker
-   *
    * Internal memory-leak tracker that is \b only enabled in
    * \c _RELEASE builds.
    * Since \c _DEBUG builds (on MSVC at least), should be good enough.
@@ -160,9 +156,9 @@ static struct mem_head *mem_list_get_head (void *ptr)
 #endif
 
 /**
- * We need to use "K32GetModuleFileNameExA", "IsWow64Process" and
- * "SetThreadErrorMode" dynamically (since these are not available on Win-XP).
- * Try to load them from "kernel32.dll" only once.
+ * We need to use \c K32GetModuleFileNameExA, \c IsWow64Process and
+ * \c SetThreadErrorMode dynamically (since these are not available on Win-XP).
+ * Try to load them from \c kernel32.dll only once.
  *
  * \typedef func_GetModuleFileNameEx
  */
@@ -186,7 +182,7 @@ static func_IsWow64Process                  p_IsWow64Process;
 static func_NeedCurrentDirectoryForExePathA p_NeedCurrentDirectoryForExePathA;
 
 /**
- * Initialise once the above function pointers.
+ * Initialise the above function pointers once.
  */
 void init_misc (void)
 {
@@ -212,14 +208,15 @@ void init_misc (void)
                        GetProcAddress (kernel32_hnd, "IsWow64Process");
 
   p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)
-                                       GetProcAddress (kernel32_hnd, "NeedCurrentDirectoryForExePathA");
+                                         GetProcAddress (kernel32_hnd, "NeedCurrentDirectoryForExePathA");
   done = TRUE;
 }
 
 /**
- * If given a 'fname' without any extension, open the 'fname' and check if
+ * If given a \c fname without any extension, open the \c fname and check if
  * there's a she-bang line on 1st line.
- * Accepts "#!/xx" or "#! /xx".
+ *
+ * Accepts \c "#!/xx" or \c "#! /xx".
  */
 const char *check_if_shebang (const char *fname)
 {
@@ -272,7 +269,7 @@ const char *check_if_shebang (const char *fname)
 }
 
 /**
- * Open a fname and check if there's a "PK" signature in header.
+ * Open a \c fname and check if there's a \c "PK" signature in header.
  */
 int check_if_zip (const char *fname)
 {
@@ -301,7 +298,9 @@ int check_if_zip (const char *fname)
 }
 
 /**
- * Open a fname and check if there's a "GZIP" or "TAR.GZ" signature in header.
+ * Open a \c fname and check if there's a \c "GZIP" or \c "TAR.GZ" signature in header.
+ * gzipped format:
+ *   http://www.onicos.com/staff/iz/formats/gzip.html
  */
 int check_if_gzip (const char *fname)
 {
@@ -313,7 +312,7 @@ int check_if_gzip (const char *fname)
   BOOL   is_gzip, is_tgz;
   int    rc = 0;
 
-  /* Accept only ".gz" or ".tgz" extensions.
+  /** Accept only \c ".gz" or \c ".tgz" extensions.
    */
   ext = get_file_ext (fname);
   is_gzip = (stricmp(ext,"gz") == 0);
@@ -1839,7 +1838,7 @@ BOOL get_volume_path (int disk, char **mount)
 }
 
 /**
- * Check if a disk is ready. disk is ['A'..'Z'].
+ * Check if a disk is ready. disk is \c "['A'..'Z']".
  */
 int disk_ready (int disk)
 {
@@ -1907,7 +1906,7 @@ quit:
 }
 
 /**
- * Return a cached status for disk ready: A: to Z:.
+ * Return a cached status for disk ready \c "['A'..'Z']".
  */
 BOOL chk_disk_ready (int disk)
 {
@@ -2185,7 +2184,7 @@ char *slashify2 (char *buf, const char *path, char use)
  *
  * Return 1 if file A is newer than file B.
  * Based on modification times 'mtime_a', 'mtime_b' and file-versions
- * returned from show_version_info().
+ * returned from \c show_version_info().
  *
  * Currently not used.
  */
@@ -2200,7 +2199,7 @@ int compare_file_time_ver (time_t mtime_a, time_t mtime_b,
 }
 
 /**
- * Return error-string for 'err' from kernel32.dll.
+ * Return error-string for \c err from kernel32.dll.
  */
 static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
 {
@@ -2217,8 +2216,8 @@ static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
 }
 
 /**
- * Return err-number+string for 'err'. Use only with GetLastError().
- * Does not handle libc errno's. Remove trailing \c [\\r\\n].
+ * Return err-number+string for \c err. Use only with \c GetLastError().
+ * Does not handle libc \c errno's. Remove trailing \c [\\r\\n].
  */
 char *win_strerror (unsigned long err)
 {
@@ -2255,8 +2254,8 @@ char *win_strerror (unsigned long err)
 
 #if !defined(_CRTDBG_MAP_ALLOC)
 /**
- * A strdup() that fails if no memory. It's pretty hopeless to continue
- * this program if strdup() fails.
+ * A \c strdup() that fails if no memory. It's pretty hopeless to continue
+ * this program if \c strdup() fails.
  */
 char *strdup_at (const char *str, const char *file, unsigned line)
 {
@@ -2276,7 +2275,7 @@ char *strdup_at (const char *str, const char *file, unsigned line)
 }
 
 /**
- * Similar to wcsdup()
+ * Similar to \c wcsdup()
  */
 wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
 {
@@ -2297,8 +2296,8 @@ wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
 }
 
 /**
- * A malloc() that fails if no memory. It's pretty hopeless to continue
- * this program if strdup() fails.
+ * A \c malloc() that fails if no memory. It's pretty hopeless to continue
+ * this program if \c malloc() fails.
  */
 void *malloc_at (size_t size, const char *file, unsigned line)
 {
@@ -2319,8 +2318,8 @@ void *malloc_at (size_t size, const char *file, unsigned line)
 }
 
 /**
- * A calloc() that fails if no memory. It's pretty hopeless to continue
- * this program if calloc() fails.
+ * A \c calloc() that fails if no memory. It's pretty hopeless to continue
+ * this program if \c calloc() fails.
  */
 void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
 {
@@ -2341,8 +2340,8 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
 }
 
 /**
- * A realloc() that fails if no memory. It's pretty hopeless to continue
- * this program if realloc() fails.
+ * A \c realloc() that fails if no memory. It's pretty hopeless to continue
+ * this program if \c realloc() fails.
  */
 void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
 {
@@ -2376,7 +2375,7 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
 }
 
 /**
- * A free() that checks the 'ptr' and decrements the 'mem_frees' value.
+ * A \c free() that checks the \c ptr and decrements the \c mem_frees value.
  */
 void free_at (void *ptr, const char *file, unsigned line)
 {
@@ -2426,17 +2425,21 @@ void mem_report (void)
 #endif
 }
 
+#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
 /**
- * In _DEBUG-mode, remember the 'last_state' as the CRT-memory start-up state.
+ * Only one global mem-state.
+ */
+static _CrtMemState last_state;
+
+/**
+ * In \c _DEBUG-mode, remember the \c last_state as the CRT-memory
+ * start-up state.
  *
  * \note
  *   Enable this for MSVC and clang-cl only.
- *   The mem-checker in PellesC (it defines '__POCC__' and '_MSC_VER') is somewhat
- *   buggy last time I checked. So leave that off.
+ *   The mem-checker in PellesC (which defines \c __POCC__ and \c _MSC_VER) is
+ *   somewhat buggy last time I checked. So leave that off.
  */
-#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
-static _CrtMemState last_state;
-
 void crtdbug_init (void)
 {
   _HFILE file  = _CRTDBG_FILE_STDERR;
@@ -2453,6 +2456,12 @@ void crtdbug_init (void)
   _CrtMemCheckpoint (&last_state);
 }
 
+/**
+ * In \c _DEBUG-mode, compare the \c last_state set in crtdbug_init() to
+ * check if there is a significant difference in the mem-state.
+ *
+ * This function should be called as late as possible.
+ */
 void crtdbug_exit (void)
 {
   _CrtMemState new_state, diff_state;

@@ -172,6 +172,10 @@
   #include <crtdbg.h>
 #endif
 
+#if defined(__DOXYGEN__)
+  #undef _CRTDBG_MAP_ALLOC
+#endif
+
 #if defined(_DEBUG)
   #define ASSERT(expr) do {                                            \
                          if (!(expr))                                  \

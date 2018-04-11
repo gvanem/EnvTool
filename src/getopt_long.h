@@ -33,7 +33,9 @@
 #ifndef _GETOPT_LONG_H_
 #define _GETOPT_LONG_H_
 
-/*
+/** \file    getopt_long.h
+ *  \ingroup Misc
+ *
  * GNU-like getopt_long()/getopt_long_only() with 4.4BSD optreset extension.
  * getopt() is declared here too for GNU programs.
  */
@@ -41,19 +43,18 @@
 #define required_argument  1
 #define optional_argument  2
 
+/**\struct option */
 struct option {
-    /* name of long option */
-    const char *name;
-    /*
-     * one of no_argument, required_argument, and optional_argument:
-     * whether option takes an argument
-     */
-    int has_arg;
-    /* if not NULL, set *flag to val when option found */
-    int *flag;
-    /* if flag not NULL, value to set *flag to; else return value */
-    int val;
-};
+       const char *name; /** name of long option */
+
+       /**
+        * one of \c no_argument, \c required_argument or \c optional_argument:
+        * whether option takes an argument
+        */
+       int  has_arg;
+       int *flag;    /** if not NULL, set *flag to val when option found */
+       int  val;     /** if flag not NULL, value to set \c *flag to; else return value */
+    };
 
 int getopt_long (int, char * const *, const char *,
                  const struct option *, int *);
@@ -63,7 +64,9 @@ int getopt_long_only (int, char * const *, const char *,
 
 int getopt (int nargc, char * const *nargv, const char *options);
 
-extern char *optarg;          /* getopt(3) external variables */
+/** getopt(3) external variables
+ */
+extern char *optarg;
 extern int   optind, opterr, optopt;
 
 #endif  /* !_GETOPT_LONG_H_ */

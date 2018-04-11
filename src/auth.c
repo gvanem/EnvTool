@@ -27,9 +27,9 @@ struct login_info {
 
 static smartlist_t *login_list = NULL;
 
-/*
- * Common to both 'netrc_init()' and 'authinfo_init()'.
- * The 'login_list' is grown in the 'parser' functions below.
+/**
+ * Common to both \c netrc_init() and \c authinfo_init().
+ * The \c login_list is grown in the below \c parser functions.
  */
 static int common_init (const char *fname, smartlist_parse_func parser)
 {
@@ -53,8 +53,8 @@ static int common_init (const char *fname, smartlist_parse_func parser)
   return (1);
 }
 
-/*
- * Free the memory allocated in the 'login_list' smartlist.
+/**
+ * Free the memory allocated in the \c login_list smartlist.
  */
 static void common_exit (BOOL is_netrc)
 {
@@ -94,8 +94,8 @@ static void common_exit (BOOL is_netrc)
   }
 }
 
-/*
- * Search the 'login_list' smartlist for 'host'.
+/**
+ * Search the \c login_list smartlist for \c host.
  */
 static const struct login_info *common_lookup (const char *host, BOOL is_netrc)
 {
@@ -133,13 +133,13 @@ static const struct login_info *common_lookup (const char *host, BOOL is_netrc)
   return (NULL);
 }
 
-/*
- * Parse a line from '~/.netrc'. Match lines like:
- *   machine <host> login <user> password <password>
+/**
+ * Parse a line from \c ~/.netrc. Match lines like:
+ *   \verbatim machine <host> login <user> password <password> \endverbatim
  * Or
- *   default login <user> password <password>
+ *   \verbatim default login <user> password <password> \endverbatim
  *
- * And add to the 'login_list' smartlist.
+ * And add to the \c login_list smartlist.
  */
 static void netrc_parse (smartlist_t *sl, const char *line)
 {
@@ -170,13 +170,13 @@ static void netrc_parse (smartlist_t *sl, const char *line)
      smartlist_add (sl, li);
 }
 
-/*
- * Parse a line from '~/.authinfo'. Match lines like:
- *   machine <host> port <num> login <user> password <password>
+/**
+ * Parse a line from \c ~/.authinfo. Match lines like:
+ *   \verbatim  machine <host> port <num> login <user> password <password> \endverbatim
  * Or
- *   default port <num> login <user> password <password>
+ *   \verbatim default port <num> login <user> password <password> \endverbatim
  *
- * And add to the 'login_list' smartlist.
+ * And add to the \c login_list smartlist.
  */
 static void authinfo_parse (smartlist_t *sl, const char *line)
 {
@@ -230,9 +230,9 @@ void authinfo_exit (void)
   common_exit (FALSE);
 }
 
-/*
- * Use this externally.
- * 'netrc_lookup (NULL, NULL, NULL)' can be used for test/debug.
+/**
+ * Use this externally:
+ * \c 'netrc_lookup (NULL, NULL, NULL)' can be used for test/debug.
  */
 int netrc_lookup (const char *host, const char **user, const char **passw)
 {
@@ -248,9 +248,9 @@ int netrc_lookup (const char *host, const char **user, const char **passw)
   return (1);
 }
 
-/*
- * Use this externally.
- * 'authinfo_lookup (NULL, NULL, NULL, NULL)' can be used for test/debug.
+/**
+ * Use this externally:
+ * \c 'authinfo_lookup (NULL, NULL, NULL, NULL)' can be used for test/debug.
  */
 int authinfo_lookup (const char *host, const char **user, const char **passw, int *port)
 {
