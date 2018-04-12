@@ -5,7 +5,7 @@
  */
 /** @} */
 
-/**\addtogroup Color Colour - printf()-style printing with colours
+/**\addtogroup Color printf()-style printing with colours
  *  @{
  */
 /** @} */
@@ -15,7 +15,7 @@
  */
 /** @} */
 
-/**\addtogroup Envtool_PY Python functions for the envtool program
+/**\addtogroup Envtool_PY Python functions
  *  @{
  */
 /** @} */
@@ -30,7 +30,7 @@
  */
 /** @} */
 
-/**\addtogroup Misc Misc - Various support functions for EnvTool
+/**\addtogroup Misc Misc - Various support functions
  *  @{
  */
 /** @} */
