@@ -37,12 +37,6 @@
   #define snprintf           _snprintf
 #endif
 
-#if defined(_MSC_VER) && !defined(__POCC__)
-  #define MS_CDECL __cdecl
-#else
-  #define MS_CDECL
-#endif
-
 #define loBYTE(w)     (BYTE)(w)
 #define hiBYTE(w)     (BYTE)((WORD)(w) >> 8)
 #define DIM(x)        (int) (sizeof(x) / sizeof((x)[0]))
@@ -190,8 +184,8 @@ int C_init_colour_map (unsigned short col, ...)
 
 /**
  * Sets raw or normal output mode.
- * \param[in] raw = 1 : do not interpret \c '~n' to set colour.
- * \param[in] raw = 0 : do interpret \c '~n' as colour indices (\b default).
+ * \param[in] raw  raw = 1: do not interpret \c '~n' to set colour.
+ *                 raw = 0: do interpret \c '~n' as colour indices (\b default).
  * \return the previous mode.
  */
 int C_setraw (int raw)
@@ -204,8 +198,8 @@ int C_setraw (int raw)
 
 /**
  * Sets binary or cooked output mode.
- * \param[in] bin = 1 : do not convert \c '\\n' into \c '\\r\\n'.
- * \param[in] bin = 0 : do convert \c '\\n' into \c '\\r\\n' (\b default).
+ * \param[in] bin bin = 1: do not convert \c '\\n' into \c '\\r\\n'.
+ *                bin = 0: do convert \c '\\n' into \c '\\r\\n' (\b default).
  * \return the previous mode.
  */
 int C_setbin (int bin)
