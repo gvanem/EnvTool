@@ -353,14 +353,19 @@ struct prog_options {
        void      *evry_host;     /* A smartlist_t */
        char      *file_spec;
        char      *file_spec_re;
+       int        remaining_arg_pos;
      };
 
 extern struct prog_options opt;
+
+extern char  *program_name;       /* used by getopt_long.c */
+extern HANDLE Everything_hthread; /* set by Everything.c */
 
 extern volatile int halt_flag;
 
 extern char sys_dir        [_MAX_PATH];
 extern char sys_native_dir [_MAX_PATH];
+extern char sys_wow64_dir  [_MAX_PATH];
 
 extern int  report_file (const char *file, time_t mtime, UINT64 fsize,
                          BOOL is_dir, BOOL is_junction, HKEY key);

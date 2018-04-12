@@ -31,7 +31,9 @@
 #include <shlobj.h>
 #include <psapi.h>
 
-#define INSIDE_ENVTOOL_C
+#if defined(__MINGW32__) || defined(_CYGWIN__)
+#define INSIDE_ENVTOOL_C  /* Important for MinGW/CygWin with '_FORTIFY_SOURCE' only */
+#endif
 
 #include "getopt_long.h"
 #include "Everything.h"
@@ -73,8 +75,6 @@
 char *program_name = NULL;
 
 #define REG_APP_PATH    "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths"
-
-#define MAX_PATHS       500
 #define MAX_ARGS        20
 
 /** These were added in Everything 1.4
@@ -185,11 +185,11 @@ static int   get_cmake_info (char **exe_p, struct ver_info *ver);
 
 /**
  * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
- *        E.g. if a PATH (or INCLUDE etc.) component contains "/foo/bar//", the search will
- *             do a recursive search for all files (and dirs) under "/foo/bar/".
+ *        E.g. if a PATH (or INCLUDE etc.) component contains \c "/foo/bar//", the search will
+ *             do a recursive search for all files (and dirs) under \c "/foo/bar/".
  *        Ref. http://tug.org/texinfohtml/kpathsea.html
  *
- * \todo: In 'report_file()', test if a file (in %PATH, %INCLUDE or %LIB) is
+ * \todo: In 'report_file()', test if a file (in \c %PATH, \c %INCLUDE or \c %LIB) is
  *        shadowed by an older file of the same name (ahead of the newer file).
  *        Warn if this is the case.
  *
@@ -197,18 +197,20 @@ static int   get_cmake_info (char **exe_p, struct ver_info *ver);
  *                         on filename.
  *                         on file-size.
  *
- * \todo: Add '--locate' option (or in combination with '--evry' option?) to
- *        look into GNU locatedb (%LOCATE_PATH=/cygdrive/f/Cygwin32/locatedb)
+ * \todo: Add \c --locate option (or in combination with \c --evry option?) to
+ *        look into GNU \em locatedb (\c %LOCATE_PATH=/cygdrive/f/Cygwin32/locatedb)
  *        information too.
  *
- * \todo: Add a '--check' option for 64-bit Windows to check that all .DLLs in:
- *             %SystemRoot%\System32 are 64-bit and
- *             %SystemRoot%\SysWOW64 are 32-bit.
+ * \todo: Add a \c --check option for 64-bit Windows to check that all .DLLs in:\br
+ *             \c "%SystemRoot%\System32" are 64-bit and
+ *             \c "%SystemRoot%\SysWOW64" are 32-bit.
  *
- *        E.g. pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
- *             Machine:                      014C (i386)
- *             Machine:                      014C (i386)
- *             ....
+ *        E.g. \verbatim
+ *            pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
+ *            Machine:                      014C (i386)
+ *            Machine:                      014C (i386)
+ *            ....
+ *            \endverbatim
  *
  *        Also check their Wintrust signature status and version information.
  */
@@ -1239,9 +1241,14 @@ static int get_trailing_indent (const char *file)
  * Also any she-bang statements, links for a gzipped man-page,
  * PE-information like resource version or trust information
  * and file-owner.
+ *
+ * \param[in] file         the file or directory to report.
+ * \param[in] mtime        the modification time of the file or directory (-1 if unknown).
+ * \param[in] fsize        the allocated size of the file or directory (-1 if unknown).
+ * \param[in] is_dir       TRUE if the \c file is a directory.
+ * \param[in] is_junction  not used yet.
  */
-int report_file (const char *file, time_t mtime, UINT64 fsize,
-                 BOOL is_dir, BOOL is_junction, HKEY key)
+int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL is_junction, HKEY key)
 {
   const char *note   = NULL;
   const char *filler = "      ";
@@ -1500,6 +1507,8 @@ int report_file (const char *file, time_t mtime, UINT64 fsize,
   }
 
   C_putc ('\n');
+
+  ARGSUSED (is_junction);
   return (1);
 }
 
@@ -1986,7 +1995,7 @@ static int do_check_registry (void)
  * \note It is quite normal that e.g. \c "%INCLUDE" contain a directory with
  *       no .h-files but at least 1 subdirectory with .h-files.
  */
-static BOOL dir_is_empty (const char *env_var, const char *dir)
+static BOOL dir_is_empty (const char *dir)
 {
   HANDLE          handle;
   WIN32_FIND_DATA ff_data;
@@ -2080,7 +2089,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     return (0);
   }
 
-  if (check_empty && is_dir && dir_is_empty(prefix,path))
+  if (check_empty && is_dir && dir_is_empty(path))
      WARN ("%s: directory \"%s\" is empty.\n", prefix, path);
 
   if (!fspec)
@@ -3582,8 +3591,7 @@ static void searchpath_all_cc (BOOL print_info, BOOL print_lib_path)
    */
   for (i = ignored = 0; i < max; i++)
   {
-    compiler_info *cc = smartlist_get (all_cc, i);
-
+    cc = smartlist_get (all_cc, i);
     if (cc->ignore)
          ignored++;
     else print_compiler_info (cc, print_lib_path);
@@ -4142,8 +4150,14 @@ static void set_long_option (int o, const char *arg)
 }
 
 /**
- * Parse the options in \c %ENVTOOL_OPTIONS and then from the command-line.
- * Find the 'file_spec' to search for.
+ * Parse the options in \c %ENVTOOL_OPTIONS and then parse the ones from
+ * the command-line given by \c 'argv[1..argc-1]'.
+ * At the end, find the 'file_spec' to search for.
+ *
+ * \param[in] argc  The number of argument on the command-line.
+ *                  Same as the global \c __argc.
+ * \param[in] argv  The argument-vector of the command-line.
+ *                  Same as the global \c 'char *__argv[]'.
  */
 static void parse_cmdline (int argc, char *const *argv, char **fspec)
 {
@@ -4217,10 +4231,29 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
 
   opt.debug = 0;
 
+  /**
+   * Use a \c "+" first in \c getopt_long() options. This will disable the
+   * GNU extensions that allow non-options to come before options.
+   * E.g. a cmd-line like:
+   *      \verbatim
+   *        envtool --path foo* -d
+   *      \endverbatim
+   *
+   *      is equivalent to:
+   *      \verbatim
+   *        envtool --path -d foo*
+   *      \endverbatim
+   *
+   * We do not want that since whatever comes after \c "foo*" should be
+   * pointed to by \c '__argv [opt.remaining_arg_pos]'. This could then
+   * be passed as a command-line to a Python-script. See \c py_execfile()
+   * below for an example.
+   */
+
   while (1)
   {
     int opt_index = 0;
-    int c = getopt_long (argc, argv, "cChH:vVdDkrstTuq", long_options, &opt_index);
+    int c = getopt_long (argc, argv, "+cChH:vVdDkrstTuq", long_options, &opt_index);
 
     if (c == 0)
        set_long_option (opt_index, optarg);
@@ -4249,8 +4282,18 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
 
   if (argc >= 2 && argv[optind])
   {
+    int i;
+
     *fspec = STRDUP (argv[optind]);
-    DEBUGF (1, "*fspec: \"%s\"\n", *fspec);
+    if (new_argc > optind)
+         opt.remaining_arg_pos = new_argc - optind - 1;
+    else opt.remaining_arg_pos = optind + 1;
+
+    DEBUGF (1, "*fspec: \"%s\", optind: %d, __argc: %d, new_argc: %d, opt.remaining_arg_pos: %d\n",
+            *fspec, optind, __argc, new_argc, opt.remaining_arg_pos);
+
+    for (i = opt.remaining_arg_pos; i < __argc; i++)
+        DEBUGF (1, "argv[%d]: '%s'\n", i, __argv[i]);
   }
 }
 
@@ -4311,8 +4354,7 @@ static void MS_CDECL cleanup (void)
  */
 static void MS_CDECL halt (int sig)
 {
-  extern HANDLE Everything_hthread;
-  BOOL   quick_exit = FALSE;
+  BOOL quick_exit = FALSE;
 
   halt_flag++;
 
@@ -4576,7 +4618,7 @@ int MS_CDECL main (int argc, char **argv)
 /*
  * Some test functions.
  */
-void test_split_env (const char *env)
+static void test_split_env (const char *env)
 {
   smartlist_t *list;
   char        *value;
@@ -4626,7 +4668,7 @@ void test_split_env (const char *env)
 
 #pragma GCC diagnostic ignored  "-Wstack-protector"
 
-void test_split_env_cygwin (const char *env)
+static void test_split_env_cygwin (const char *env)
 {
   smartlist_t *list;
   char        *value, *cyg_value;
@@ -5315,6 +5357,33 @@ static void test_ETP_host (void)
   }
 }
 
+/*
+ * A simple test for Python functions
+ */
+static int test_python_funcs (void)
+{
+  char *str = NULL;
+
+  if (halt_flag)
+     return (1);
+
+ py_test();
+
+ if (opt.file_spec) /* Should be equal to '__argv[opt.remaining_arg_pos-1]' */
+ {
+   char **argv = alloca (sizeof(char*) * (1 + __argc - opt.remaining_arg_pos));
+   int    i, j;
+
+   argv[0] = opt.file_spec;
+   for (j = 1, i = opt.remaining_arg_pos; i <= __argc; i++, j++)
+       argv[j] = __argv[i];
+   str = py_execfile (argv);
+ }
+
+ FREE (str);
+ return (0);
+}
+
 void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
 {
   size_t i, j;
@@ -5437,6 +5506,7 @@ static void check_reg_key (HKEY top_key, const char *reg_key)
 
   C_printf ("~6%2d~0 elements\n", max);
   free_reg_array();
+  ARGSUSED (reg_key);
 }
 
 /*
@@ -5503,6 +5573,22 @@ static int do_check (void)
   return (0);
 }
 
+#ifdef NOT_USED
+int test_str_shorten (void)
+{
+  const char *res, *str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  int   i;
+
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+  for (i = 2; i < strlen(str); i++)
+  {
+    res = str_shorten (str, i);
+    C_printf ("%2d: %-26s %s~0\n", i, res, i == strlen(res) ? "~2OK" : "~5Error");
+  }
+  return (0);
+}
+#endif
+
 /*
  * The handler for option "-t" / "--test".
  */
@@ -5517,11 +5603,11 @@ static int do_tests (void)
   }
 
   if (opt.do_python)
-  {
-    if (!halt_flag)
-       py_test();
-    return (0);
-  }
+     return test_python_funcs();
+
+#ifdef NOT_USED
+  return test_str_shorten();
+#endif
 
   test_split_env ("PATH");
   test_split_env ("MANPATH");
