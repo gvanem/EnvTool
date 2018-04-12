@@ -48,7 +48,9 @@
    *   Everything.c(1165,14):  warning: comparison of unsigned expression < 0 is always false [-Wtautological-compare]
    *               if (nIndex < 0)
    */
-  #pragma GCC diagnostic ignored "-Wtautological-compare"
+  #pragma clang diagnostic ignored "-Wtautological-compare"
+  #pragma clang diagnostic ignored "-Wtautological-unsigned-zero-compare"
+  #pragma clang diagnostic ignored "-Wmissing-variable-declarations"
 
 #elif defined(_MSC_VER)
   // disable warnings
@@ -614,7 +616,6 @@ static LRESULT WINAPI _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wParam,L
             break;
         }
     }
-
     return DefWindowProc(hwnd,msg,wParam,lParam);
 }
 
@@ -791,6 +792,7 @@ exit:
         _Everything_LastError = EVERYTHING_ERROR_IPC;
     }
 
+    (void) param;
     return 0;
 }
 
@@ -2207,6 +2209,7 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
         }
     }
 
+    (void) wParam;
     return FALSE;
 }
 
