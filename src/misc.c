@@ -1672,7 +1672,6 @@ char *create_temp_file (void)
  *
  * \c SetErrorMode()       is per process.
  * \c SetThreadErrorMode() is per thread on Win-7+.
- * \return void
  */
 void set_error_mode (int restore)
 {
@@ -2108,7 +2107,7 @@ char *_strsep (char **stringp, const char *delim)
 
 /**
  * "string allocate and concatinate".
- * Assumes 's1' is allocated. Thus 'free(s1)' after '_stracat()' is done.
+ * Assumes 's1' is allocated. Thus 'FREE(s1)' after '_stracat()' is done.
  */
 char *_stracat (char *s1, const char *s2)
 {
@@ -3217,8 +3216,6 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
   return (FALSE);
 }
 
-#define REPARSE_DATA_BUFFER_HEADER_SIZE  FIELD_OFFSET (struct REPARSE_DATA_BUFFER, GenericReparseBuffer)
-
 #ifndef MAXIMUM_REPARSE_DATA_BUFFER_SIZE
 #define MAXIMUM_REPARSE_DATA_BUFFER_SIZE  (16*1024)
 #endif
@@ -3230,10 +3227,15 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
 #endif
 
 #ifndef FSCTL_GET_REPARSE_POINT
-  #define CTL_CODE(DeviceType,Function,Method,Access) \
-                   (((DeviceType) << 16) | ((Access) << 14) | ((Function) << 2) | (Method))
+  #define CTL_CODE(DeviceType, Function, Method, Access) ( ((DeviceType) << 16) | \
+                                                           ((Access)     << 14) | \
+                                                           ((Function)   << 2)  | \
+                                                           (Method) )
 
-  #define FSCTL_GET_REPARSE_POINT   CTL_CODE(FILE_DEVICE_FILE_SYSTEM,42,METHOD_BUFFERED,FILE_ANY_ACCESS)
+  #define FSCTL_GET_REPARSE_POINT  CTL_CODE (FILE_DEVICE_FILE_SYSTEM /* == 0x00000009 */, \
+                                             42,                                          \
+                                             METHOD_BUFFERED         /* == 0 */,          \
+                                             FILE_ANY_ACCESS         /* == 0 */)
 #endif
 
 BOOL wchar_to_mbchar (size_t len, const wchar_t *buf, char *result)
@@ -3529,7 +3531,7 @@ int is_cygwin_tty (int fd)
 {
   typedef LONG (NTAPI *func_NtQueryObject) (HANDLE, OBJECT_INFORMATION_CLASS, void*, ULONG, ULONG*);
   func_NtQueryObject   p_NtQueryObject;
-  HANDLE               h_fd;
+  intptr_t             h_fd;
 
   /* NtQueryObject needs space for OBJECT_NAME_INFORMATION.Name->Buffer also.
    */
@@ -3540,8 +3542,8 @@ int is_cygwin_tty (int fd)
   wchar_t                   c, *s;
   USHORT                    i;
 
-  h_fd = (HANDLE) _get_osfhandle (fd);
-  if (!h_fd || h_fd == INVALID_HANDLE_VALUE)
+  h_fd = _get_osfhandle (fd);
+  if (!h_fd || h_fd == (intptr_t)INVALID_HANDLE_VALUE)
   {
     DEBUGF (2, "_get_osfhandle (%d) failed\n", fd);
     errno = EBADF;
