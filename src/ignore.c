@@ -10,12 +10,12 @@
 #include "smartlist.h"
 #include "ignore.h"
 
-const struct search_list sections[] = {
-                       { 0, "[Compiler]" },
-                       { 1, "[Registry]" },
-                       { 2, "[Python]" },
-                       { 3, "[PE-resources]" }
-                     };
+static const struct search_list sections[] = {
+                              { 0, "[Compiler]" },
+                              { 1, "[Registry]" },
+                              { 2, "[Python]" },
+                              { 3, "[PE-resources]" }
+                            };
 
 /**\struct ignore_node
  */
