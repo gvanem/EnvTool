@@ -46,10 +46,10 @@ typedef struct smartlist_t {
   * Ref:
   *   http://www.highprogrammer.com/alan/windev/visualstudio.html
   */
-  #define ASSERT_VAL(ptr) do {                                       \
-                            const DWORD *val = (const DWORD*) (ptr); \
-                            ASSERT (*val != 0xDDDDDDDD);             \
-                            ASSERT (*val != 0xFDFDFDFD);             \
+  #define ASSERT_VAL(ptr) do {                                        \
+                            const DWORD *_val = (const DWORD*) (ptr); \
+                            ASSERT (*_val != 0xDDDDDDDD);             \
+                            ASSERT (*_val != 0xFDFDFDFD);             \
                           } while (0)
 #else
   #define ASSERT_VAL(ptr) (void) 0
