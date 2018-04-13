@@ -728,7 +728,7 @@ static int callback (const char *epath, int error)
 {
 //printf ("callback: rc: %d, '%s'\n", error, epath);
   ARGSUSED (epath);
-  ARGSUSED (error)
+  ARGSUSED (error);
   return (0);
 }
 
