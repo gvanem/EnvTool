@@ -477,7 +477,7 @@ static const char *dir_name (const char *dir, BOOL is_dir)
 {
   static char ret [_MAX_PATH];
   char  *end;
-  int    slash = opt.show_unix_paths ? '/' : '\\';
+  char   slash = opt.show_unix_paths ? '/' : '\\';
 
   slashify2 (ret, dir, slash);
   end = strchr (ret, '\0');
@@ -1060,7 +1060,7 @@ static char *tmp_fputs (const struct python_info *py, const char *buf)
   fprintf (fil, "#\n"
                 "# Tmp-file %s for command \"%s %s\".\n"
                 "# Created %.24s.\n"
-                "#\n", tmp, py->exe_name, tmp, get_time_str(&now));
+                "#\n", tmp, py->exe_name, tmp, get_time_str(now));
   fwrite (buf, 1, strlen(buf), fil);
   fclose (fil);
   return (tmp);

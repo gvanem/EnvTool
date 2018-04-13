@@ -814,7 +814,7 @@ static int reg_array_compare (const void **_a, const void **_b)
   const struct registry_array *b = *_b;
   char  fqdn_a [_MAX_PATH];
   char  fqdn_b [_MAX_PATH];
-  int   slash = (opt.show_unix_paths ? '/' : '\\');
+  char  slash = (opt.show_unix_paths ? '/' : '\\');
 
   if (!a->path || !a->real_fname || !b->path || !b->real_fname)
      return (0);
@@ -881,7 +881,7 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
   val = STRDUP (value);  /* Freed before we return */
   free_dir_array();
 
-  sep[0] = path_separator;
+  sep[0] = (char) path_separator;
   sep[1] = '\0';
 
   tok = strtok (val, sep);
@@ -3454,7 +3454,8 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
   struct directory_array *arr;
   smartlist_t            *list;
   char                  **copy;
-  int                     i, j, max, slash = opt.show_unix_paths ? '/' : '\\';
+  char                    slash = opt.show_unix_paths ? '/' : '\\';
+  int                     i, j, max;
   static BOOL done_note = FALSE;
 
   max = smartlist_len (dir_array);
