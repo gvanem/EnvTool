@@ -1044,7 +1044,6 @@ static char *tmp_fputs (const struct python_info *py, const char *buf)
 {
   FILE  *fil;
   char  *tmp = create_temp_file();
-  time_t now;
 
   if (!tmp)
      return (NULL);
@@ -1056,11 +1055,10 @@ static char *tmp_fputs (const struct python_info *py, const char *buf)
     return (NULL);
   }
 
-  now = time (NULL);
   fprintf (fil, "#\n"
                 "# Tmp-file %s for command \"%s %s\".\n"
                 "# Created %.24s.\n"
-                "#\n", tmp, py->exe_name, tmp, get_time_str(now));
+                "#\n", tmp, py->exe_name, tmp, get_time_str(time(NULL)));
   fwrite (buf, 1, strlen(buf), fil);
   fclose (fil);
   return (tmp);
