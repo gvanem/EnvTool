@@ -332,7 +332,7 @@ static void C_set (WORD col)
       attr &= ~8;  /* Since 'wAttributes' could have been hi-intensity at startup. */
     }
     else
-      attr = bg << 4;
+      attr = (WORD) (bg << 4);
 
     attr |= fg;
   }
@@ -551,7 +551,7 @@ int C_putc (int ch)
       {
         char buf[3] = { '~', '\0', '\0' };
 
-        buf[1] = ch;
+        buf[1] = (char) ch;
         (*C_write_hook) (buf);
       }
 
@@ -580,7 +580,7 @@ int C_putc (int ch)
   }
 
 put_it:
-  *c_head++ = ch;
+  *c_head++ = (char) ch;
   rc++;
 
   if (ch == '\n' || c_head >= c_tail)

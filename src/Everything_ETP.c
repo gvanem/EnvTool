@@ -975,7 +975,7 @@ static void connect_common_init (struct state_CTX *ctx, const char *which_state)
   else rx_size = MAX_RECV_BUF;  /* 16 kByte. Should currently be the same for both cases. */
 
   ctx->sa.sin_family = AF_INET;
-  ctx->sa.sin_port   = htons (ctx->port);
+  ctx->sa.sin_port   = htons ((WORD)ctx->port);
   setsockopt (ctx->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
   setsockopt (ctx->sock, SOL_SOCKET, SO_RCVBUF, (const char*)&rx_size, sizeof(rx_size));
 

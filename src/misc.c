@@ -234,11 +234,11 @@ const char *check_if_shebang (const char *fname)
   f = fopen (fname, "rb");
   if (f)
   {
-    shebang[0] = fgetc (f);
-    shebang[1] = fgetc (f);
-    shebang[2] = fgetc (f);
+    shebang[0] = (char) fgetc (f);
+    shebang[1] = (char) fgetc (f);
+    shebang[2] = (char) fgetc (f);
     if (shebang[2] == ' ')
-       shebang[2] = fgetc (f);
+       shebang[2] = (char) fgetc (f);
     fread (shebang+3, 1, sizeof(shebang)-3, f);
     fclose (f);
   }
@@ -1509,7 +1509,7 @@ char *_fix_drive (char *path)
   size_t len = strlen (path);
 
   if (len >= 3 && path[1] == ':' && IS_SLASH(path[2]))
-     path[0] = TOLOWER (path[0]);
+     path[0] = (char) TOLOWER (path[0]);
   return (path);
 }
 
@@ -1733,7 +1733,7 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
     return (TRUE);
   }
 
-  root[0] = disk;
+  root[0] = (char) disk;
   sect_per_cluster = bytes_per_sector = free_clusters = total_clusters = 0;
 
   if (!GetDiskFreeSpace(root, &sect_per_cluster, &bytes_per_sector, &free_clusters, &total_clusters))
@@ -1806,7 +1806,7 @@ UINT get_disk_type (int disk)
   char root[] = "?:\\";
   UINT type;
 
-  root[0] = disk;
+  root[0] = (char) disk;
   type = GetDriveType (root);
 
   DEBUGF (1, "GetDriveType (\"%s\"): type: %s (%d).\n",
@@ -1824,7 +1824,7 @@ BOOL get_volume_path (int disk, char **mount)
   BOOL   rc = FALSE;
   static char res [2*_MAX_PATH];
 
-  root[0] = disk;
+  root[0] = (char) disk;
   if (!GetVolumePathName(root, res, sizeof(res)))
        err = win_strerror (GetLastError());
   else rc = TRUE;
@@ -2059,7 +2059,7 @@ char *_strrepeat (int ch, size_t num)
 
   *p = '\0';
   for (i = 0; i < num && i < sizeof(buf)-1; i++)
-     *p++ = ch;
+     *p++ = (char) ch;
   *p = '\0';
   return (buf);
 }
@@ -3022,7 +3022,7 @@ char *translate_shell_pattern (const char *pattern)
             break;
 
       default:
-            *out++ = c;
+            *out++ = (char) c;
             break;
     }
   }
@@ -3093,7 +3093,7 @@ const char *dump10 (const void *data, unsigned size)
     ch = ((const BYTE*)data) [ofs];
     if (ch < ' ')            /* non-printable */
          ret [ofs] = '.';
-    else ret [ofs] = ch;
+    else ret [ofs] = (char) ch;
     ret [ofs+1] = '\0';
   }
   if (ofs < size)
@@ -3112,7 +3112,7 @@ const char *dump20 (const void *data, unsigned size)
     ch = ((const BYTE*)data) [ofs];
     if (ch < ' ')            /* non-printable */
          ret [ofs] = '.';
-    else ret [ofs] = ch;
+    else ret [ofs] = (char) ch;
     ret [ofs+1] = '\0';
   }
   if (ofs < size)
