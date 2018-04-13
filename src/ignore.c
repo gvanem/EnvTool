@@ -10,6 +10,9 @@
 #include "smartlist.h"
 #include "ignore.h"
 
+/**
+ * The list of sections we handle here.
+ */
 static const struct search_list sections[] = {
                               { 0, "[Compiler]" },
                               { 1, "[Registry]" },
@@ -20,8 +23,8 @@ static const struct search_list sections[] = {
 /**\struct ignore_node
  */
 struct ignore_node {
-       const char *section;  /** The section; one of the above */
-       char       *value;
+       const char *section;  /** The section; one of the ones in \c sections[] */
+       char       *value;    /** The value to ignore */
      };
 
 /** A dynamic array of \c "ignore_node".
@@ -29,14 +32,14 @@ struct ignore_node {
 static smartlist_t *ignore_list = NULL;
 
 /**
- * Callback for \c smartlist_read_file():
+ * Callback for \ref smartlist_read_file():
  *
  * Accepts only strings like "ignore = xx" from the config-file.
- * Add to \c ignore_list with the correct "section".
+ * Add to \ref ignore_list in the correct \c sections[] slot.
  *
  * \param[in] sl    the smartlist to add the string-value to.
  * \param[in] line  the prepped string-value from the file opened in
- *                  \c cfg_ignore_init().
+ *                  \ref cfg_ignore_init().
  */
 static void cfg_parse (smartlist_t *sl, char *line)
 {
@@ -54,7 +57,7 @@ static void cfg_parse (smartlist_t *sl, char *line)
 
     if (idx == UINT_MAX)
          WARN ("Ignoring unknown section: %s.\n", p);
-    else section = sections[idx].name; /* remember the section for next line */
+    else section = sections[idx].name;   /* remember the section for next line */
     return;
   }
 
@@ -97,6 +100,7 @@ static void cfg_parse (smartlist_t *sl, char *line)
 
 /**
  * Try to open and parse a config-file.
+ *
  * \param[in] fname  the config-file.
  */
 int cfg_ignore_init (const char *fname)
@@ -116,11 +120,11 @@ int cfg_ignore_init (const char *fname)
 /**
  * Lookup a \c value to test for ignore. Compare the \c section too.
  *
- * \param[in] section  Look for the \c value in this section.
+ * \param[in] section  Look for the \c value in this \c section.
  * \param[in] value    The string-value to check.
  *
  * \retval 0 the \c section and \c value was not something to ignore.
- * \retval 1 the \c section and \c value was found in the \c ignore_list.
+ * \retval 1 the \c section and \c value was found in the \ref ignore_list.
  */
 int cfg_ignore_lookup (const char *section, const char *value)
 {
@@ -144,14 +148,15 @@ int cfg_ignore_lookup (const char *section, const char *value)
 }
 
 /**
- * Helper indices for \c cfg_ignore_first() and
- * \c cfg_ignore_next().
+ * Help indices for \ref cfg_ignore_first() and \ref cfg_ignore_next().
  */
 static int  next_idx = -1;
 static UINT curr_sec = UINT_MAX;
 
 /**
  * Lookup the first ignored \c value in a \c section.
+ *
+ * \param[in] section  the \c section to start in.
  */
 const char *cfg_ignore_first (const char *section)
 {
@@ -185,6 +190,8 @@ not_found:
 
 /**
  * Lookup the next ignored \c value in the same \c section.
+ *
+ * \param[in] section  the \c section to search in.
  */
 const char *cfg_ignore_next (const char *section)
 {
@@ -234,7 +241,7 @@ void cfg_ignore_dump (void)
 
 /**
  * Free the memory allocated in the \c ignore_list smartlist.
- * Called from \c cleanup() in envtool.c.
+ * Called from \ref cleanup() in envtool.c.
  */
 void cfg_ignore_exit (void)
 {
@@ -257,8 +264,10 @@ void cfg_ignore_exit (void)
 
 #if 0
 /*
- * Thinking loud; future generic section lookup of
- * a handler give a "[Section]" with a key and value.
+ * \todo:
+ *   Thinking out loud:
+ *     A future generic section lookup of a handler given
+ *     a "[Section]" with a key and value.
  */
 static const char *Compiler_handler (const char *key, const char *value)
 {
@@ -301,6 +310,7 @@ static handler_t cfg_lookup_handler (const char *section)
 const char *cfg_Compiler_lookup (const char *key, const char *value)
 {
   handler_t handler = cfg_lookup_handler ("[Compiler]");
+
   if (handler)
      return (*handler) (key, value);
   return (NULL);
@@ -309,6 +319,7 @@ const char *cfg_Compiler_lookup (const char *key, const char *value)
 int cfg_ignore_lookup2 (const char *section, const char *value)
 {
   handler_t handler = cfg_lookup_handler (section);
+
   if (handler)
      return (int) (*handler) ("ignore", value);
   return (0);

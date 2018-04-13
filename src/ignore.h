@@ -1,4 +1,5 @@
 /** \file ignore.h
+ *  \ingroup Misc
  */
 #ifndef _IGNORE_H
 #define _IGNORE_H
