@@ -63,18 +63,22 @@ typedef struct Save_new {
 static DWORD find_first (const char *file_spec, struct ffblk *ffblk);
 static DWORD find_next (struct ffblk *ffblk);
 
-static DWORD64 total_files, total_dirs, total_reparse_points;
-static DWORD64 total_size;
-static int     show_full_path;
+#if defined(WIN_GLOB_TEST)
+  static DWORD64 total_files, total_dirs, total_reparse_points;
+  static DWORD64 total_size;
+  static int     show_full_path;
+#endif
 
 /*
  * For fnmatch() used in the walker_func callback.
  */
-static const char *global_spec, *orig_spec, *dot_spec;
-static int         fn_flags;
-static int         glob_flags;
+static int glob_flags;
 
-typedef int (*walker_func) (const char *path, const struct ffblk *ff);
+#if defined(WIN_GLOB_TEST)
+  static const char *global_spec, *orig_spec, *dot_spec;
+  static int         fn_flags;
+
+  typedef int (*walker_func) (const char *path, const struct ffblk *ff);
 
 static DWORD glob_new2 (const char *dir,
                         walker_func callback,
@@ -134,7 +138,7 @@ static DWORD glob_new2 (const char *dir,
 
   while (!done)
   {
-    int result;
+    int result1;
 
     /* Skip '.' and '..' entries.
      */
@@ -151,21 +155,21 @@ static DWORD glob_new2 (const char *dir,
 
     /* Invoke callback() on this file.
      */
-    result = (*callback) (path, &ff);
-    if (result)
-       return (result);
+    result1 = (*callback) (path, &ff);
+    if (result1)
+       return (result1);
 
     /* If this is a directory, walk its siblings if in recursive-mode.
      * The 'path' on exit could be different that on enty if this path is a junction.
      */
     if ((glob_flags & GLOB_RECURSIVE) && (ff.ff_attrib & FILE_ATTRIBUTE_DIRECTORY))
     {
-      DWORD result;
+      DWORD result2;
 
       recursion_level++;
-      result = glob_new2 (path, callback, res);
-      if (result)
-         return (result);
+      result2 = glob_new2 (path, callback, res);
+      if (result2)
+         return (result2);
       recursion_level--;
     }
     done = find_next (&ff);
@@ -188,11 +192,17 @@ quit:
 
   return (rc);
 }
+#endif /* WIN_GLOB_TEST */
+
 
 int glob_new (const char *_dir, int _flags,
-              int (*callback)(const char *path),
+              int (*_callback)(const char *path),
               glob_new_t *_pglob)
 {
+  ARGSUSED (_dir);
+  ARGSUSED (_flags);
+  ARGSUSED (_callback);
+  ARGSUSED (_pglob);
   return (0);  /* to-do !! */
 }
 
@@ -717,6 +727,8 @@ void usage (void)
 static int callback (const char *epath, int error)
 {
 //printf ("callback: rc: %d, '%s'\n", error, epath);
+  ARGSUSED (epath);
+  ARGSUSED (error)
   return (0);
 }
 
