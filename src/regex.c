@@ -40,6 +40,16 @@
 #include "regex.h"
 #include "envtool.h"
 
+#if defined(__clang__)
+  /*
+   * Turn off these:
+   *   warning: implicit conversion loses integer precision: 'int' to 'unsigned char' [-Wconversion]
+   *   warning: default label in switch which covers all enumeration values [-Wcovered-switch-default]
+   */
+  #pragma clang diagnostic ignored "-Wconversion"
+  #pragma clang diagnostic ignored "-Wcovered-switch-default"
+#endif
+
 // #define REGEX_MALLOC 1
 
 /* The following two types have to be signed and unsigned integer type
@@ -323,10 +333,10 @@ typedef enum {
 
 /* Store NUMBER in two contiguous bytes starting at DESTINATION.
  */
-#define STORE_NUMBER(destination, number)      \
-        do {                                   \
-          (destination)[0] = (number) & 0377;  \
-          (destination)[1] = (number) >> 8;    \
+#define STORE_NUMBER(destination, number)    \
+        do {                                 \
+          (destination)[0] = (number) & 255; \
+          (destination)[1] = (number) >> 8;  \
         } while (0)
 
 /* Same as STORE_NUMBER, except increment DESTINATION to
@@ -344,7 +354,7 @@ typedef enum {
  */
 #define EXTRACT_NUMBER(destination, source) \
         do {                                \
-          (destination) = *(source) & 0377; \
+          (destination) = *(source) & 255;  \
           (destination) += SIGN_EXTEND_CHAR (*((source) + 1)) << 8; \
         } while (0)
 
@@ -428,19 +438,19 @@ static const char *re_error_msgid[] = {
  */
 #define INIT_FAILURE_ALLOC 5
 
-
 /* Roughly the maximum number of failure points on the stack.  Would be
  * exactly that if always used MAX_FAILURE_ITEMS items each time we failed.
  * This is a variable only so users of regex can assign to it; we never
  * change it ourselves.
  */
 #ifdef MATCH_MAY_ALLOCATE
-  /* 4400 was enough to cause a crash on Alpha OSF/1,
-   * whose default stack limit is 2mb.
+  /*
+   * 4400 was enough to cause a crash on Alpha OSF/1,
+   * whose default stack limit is 2MB.
    */
-  long int re_max_failures = 4000;
+  static long int re_max_failures = 4000;
 #else
-  long int re_max_failures = 2000;
+  static long int re_max_failures = 2000;
 #endif
 
 typedef union fail_stack_elt {
@@ -1651,7 +1661,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
                     {
                       unsigned char *inner_group_loc = bufp->buffer + COMPILE_STACK_TOP.inner_group_offset;
 
-                      *inner_group_loc = regnum - this_group_regnum;
+                      *inner_group_loc = (unsigned char) (regnum - this_group_regnum);
                       BUF_PUSH_3 (stop_memory, this_group_regnum, regnum - this_group_regnum);
                     }
                   }
@@ -2213,7 +2223,7 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
   /* We don't push any register information onto the failure stack. */
 //unsigned num_regs = 0;
 
-  char *fastmap = bufp->fastmap;
+  char          *fastmap = bufp->fastmap;
   unsigned char *pattern = bufp->buffer;
   unsigned char *p = pattern;
   unsigned char *pend = pattern + bufp->used;
@@ -2306,7 +2316,7 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
 
       case anychar:
            {
-             int fastmap_newline = fastmap['\n'];
+             char fastmap_newline = fastmap['\n'];
 
              /* `.' matches anything ... */
              for (j = 0; j < (1 << BYTEWIDTH); j++)
@@ -4382,6 +4392,7 @@ size_t regerror (int errcode, const regex_t *preg, char *errbuf, size_t errbuf_s
     else
       strcpy (errbuf, msg);
   }
+  (void) preg;
   return (msg_size);
 }
 
