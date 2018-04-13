@@ -730,7 +730,7 @@ static void print_de (const struct dirent2 *de, int idx, const struct od2x_optio
   {
     static char prefix[] = " \n             -> ~3";
 
-    prefix[0] = print_it (de->d_name, NULL, opts, FALSE);
+    prefix[0] = (char) print_it (de->d_name, NULL, opts, FALSE);
     slash = print_it (de->d_link ? de->d_link : "??", prefix, opts, FALSE);
     if (de->d_link)
        C_putc (slash);
