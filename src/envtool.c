@@ -5368,21 +5368,21 @@ static int test_python_funcs (void)
   if (halt_flag)
      return (1);
 
- py_test();
+  py_test();
 
- if (opt.file_spec) /* Should be equal to '__argv[opt.remaining_arg_pos-1]' */
- {
-   char **argv = alloca (sizeof(char*) * (1 + __argc - opt.remaining_arg_pos));
-   int    i, j;
+  if (opt.file_spec) /* Should be equal to '__argv[opt.remaining_arg_pos-1]' */
+  {
+    char **argv = alloca (sizeof(char*) * (1 + __argc - opt.remaining_arg_pos));
+    int    i, j;
 
-   argv[0] = opt.file_spec;
-   for (j = 1, i = opt.remaining_arg_pos; i <= __argc; i++, j++)
-       argv[j] = __argv[i];
-   str = py_execfile (argv);
- }
+    argv[0] = opt.file_spec;
+    for (j = 1, i = opt.remaining_arg_pos; i <= __argc; i++, j++)
+        argv[j] = __argv[i];
+    str = py_execfile (argv);
+  }
 
- FREE (str);
- return (0);
+  FREE (str);
+  return (0);
 }
 
 void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
