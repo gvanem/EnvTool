@@ -1527,6 +1527,24 @@ static int build_sys_path (char *str, int index)
                           "print (sysconfig.get_path('purelib', '%s_user' % os.name))"
 
 /**
+ * For a MSVC-built Python, the above 'os.name' will yield 'nt'. Thus the command:
+ *   print (sysconfig.get_path('purelib', 'nt'))
+ * will in my case print:
+ *   c:\Users\Gisle\AppData\Roaming\Python\Python27\site-packages
+ *
+ * But for a Cygwin-built Python, 'os.name' will yield 'posix' and thus print:
+ *   /cygdrive/c/Users/Gisle/AppData/Roaming/.local/lib/python2.7/site-packages
+ *
+ * \note The \c site-packages directory need not exist. It's a result of the
+ *       hardcoded rules in \c '<Python-root>./lib/sysconfig.py'.
+ *       E.g my \c 'pypy' reports:
+ *       \verbatim
+ *         c:\Users\Gisle\AppData\Roaming\Python\PyPy27\site-packages
+ *       \endverbatim
+ *       which does \em not exists.
+ */
+
+/**
  * \def PY_PRINT_SYS_PATH_DIRECT
  *   The code which is used if \c "py->is_embeddable == TRUE".
  *   Used in the parameter to \ref call_python_func().
@@ -1715,7 +1733,7 @@ int py_search (void)
 static struct python_info *add_python (const char *exe, struct python_info *py)
 {
   struct python_info *py2 = CALLOC (sizeof(*py2), 1);
-  const char *base = basename (exe);
+  const char         *base = basename (exe);
 
   _strlcpy (py2->dir, exe, base - exe);
   _strlcpy (py2->program, py->program, sizeof(py2->program));
@@ -1750,11 +1768,11 @@ static struct python_info *add_python (const char *exe, struct python_info *py)
 }
 
 /**
- * For each \c dir in \c %PATH, try to match a Python from the ones in
- * \c all_py_programs[].\n
+ * For each \c directory in the \c %PATH, try to match a Python from the
+ * ones in \c all_py_programs[].
  *
- * If it's found in the \c "ignore-list", do not add it.
- * Figure out it's version and .DLL-name (if embeddable).
+ * If it's found in the \c "ignore-list" (by \ref cfg_ignore_lookup()) do not add it.\n
+ * Figure out it's version and .DLL-name (if it's embeddable).
  */
 static int match_python_exe (const char *dir)
 {
