@@ -31,6 +31,13 @@
 /*
  * With changes by G. Vanem <2017> for the envtool program.
  */
+
+/** \file    Everything.c
+ *  \ingroup EveryThing
+ *  \brief
+ *    The EveryThing SDK for user queries.
+ */
+
 #if defined(__POCC__)
   /*
    * warning #2130: Result of comparison is constant.

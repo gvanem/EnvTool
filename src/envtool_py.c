@@ -1521,28 +1521,36 @@ static int build_sys_path (char *str, int index)
  * \def PY_GET_VERSION
  *   Run python with this on the command-line to get the version triplet.\n
  *   Also in the same command, print the \c user-site path.
+ *
+ * For a MSVC-built Python, the below \c os.name will yield \c nt. Thus the command:
+ *   \code
+ *    print (sysconfig.get_path('purelib', 'nt'))
+ *   \endcode
+ *
+ * will in my case print:
+ *   \code
+ *    c:\Users\Gisle\AppData\Roaming\Python\Python27\site-packages
+ *   \endcode
+ *
+ * But for a Cygwin-built Python, \c 'os.name' will yield 'posix' and thus print:
+ *   \code
+ *    /cygdrive/c/Users/Gisle/AppData/Roaming/.local/lib/python2.7/site-packages
+ *   \endcode
+ *
+ * \note
+ *   The \c site-packages directory need not exist. It's a result of the
+ *   hardcoded rules in \c "<PYTHON_ROOT>/lib/sysconfig.py".\n
+ *   E.g my \c pypy reports:
+ *   \code
+ *     c:\Users\Gisle\AppData\Roaming\Python\PyPy27\site-packages
+ *   \endcode
+ *
+ *   which does \em not exists.
  */
 #define PY_GET_VERSION()  "import os, sys, sysconfig; " \
                           "print (sys.version_info); "  \
                           "print (sysconfig.get_path('purelib', '%s_user' % os.name))"
 
-/**
- * For a MSVC-built Python, the above 'os.name' will yield 'nt'. Thus the command:
- *   print (sysconfig.get_path('purelib', 'nt'))
- * will in my case print:
- *   c:\Users\Gisle\AppData\Roaming\Python\Python27\site-packages
- *
- * But for a Cygwin-built Python, 'os.name' will yield 'posix' and thus print:
- *   /cygdrive/c/Users/Gisle/AppData/Roaming/.local/lib/python2.7/site-packages
- *
- * \note The \c site-packages directory need not exist. It's a result of the
- *       hardcoded rules in \c '<Python-root>./lib/sysconfig.py'.
- *       E.g my \c 'pypy' reports:
- *       \verbatim
- *         c:\Users\Gisle\AppData\Roaming\Python\PyPy27\site-packages
- *       \endverbatim
- *       which does \em not exists.
- */
 
 /**
  * \def PY_PRINT_SYS_PATH_DIRECT
@@ -2296,8 +2304,8 @@ static void free_arg_vector (arg_vector *av)
 
 /**
  * Executes a Python script, optionally with arguments.
- * \param[in] py_argv  the Python-script to run must be in \c argv[0].\n
- *                     the remaining command-line is in \c argv[1..].
+ * \param[in] py_argv  The Python-script to run must be in \c py_argv[0].\n
+ *                     The remaining command-line is in \c py_argv[1..].
  */
 char *py_execfile (char **py_argv)
 {

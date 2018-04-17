@@ -1246,7 +1246,8 @@ static int get_trailing_indent (const char *file)
  * \param[in] mtime        the modification time of the file or directory (-1 if unknown).
  * \param[in] fsize        the allocated size of the file or directory (-1 if unknown).
  * \param[in] is_dir       TRUE if the \c file is a directory.
- * \param[in] is_junction  not used yet.
+ * \param[in] is_junction  TRUE if file (i.e. directory) was a reparse-point) not used yet.
+ * \param[in] key          the (pseudo) key the search was a result of.
  */
 int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL is_junction, HKEY key)
 {

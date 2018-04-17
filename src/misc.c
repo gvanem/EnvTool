@@ -1759,7 +1759,7 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
 }
 
 /**
- * Get the allocation size of a file.
+ * Get the allocation size of a file or directory.
  * This uses cached information from the above 'get_disk_cluster_size()'.
  * Currently only works on local disks; 'disk-type == DRIVE_FIXED'.
  * Otherwise it simply returns the 'size'.
@@ -1778,7 +1778,7 @@ UINT64 get_file_alloc_size (const char *file, UINT64 size)
   }
 
   /* I assume a directory allocates 1 cluster_size.
-   * Not sure it's correct.
+   * I'm not sure this is correct.
    */
   if (size == (UINT64)-1)
      return (cluster_size);
