@@ -28,6 +28,7 @@ struct ignore_node {
      };
 
 /** A dynamic array of \c "ignore_node".
+ * \anchor ignore_list
  */
 static smartlist_t *ignore_list = NULL;
 
@@ -241,7 +242,7 @@ void cfg_ignore_dump (void)
 
 /**
  * Free the memory allocated in the \c ignore_list smartlist.
- * Called from \ref cleanup() in envtool.c.
+ * Called from \ref cleanup in envtool.c.
  */
 void cfg_ignore_exit (void)
 {
