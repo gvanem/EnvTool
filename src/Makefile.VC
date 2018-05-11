@@ -6,7 +6,7 @@ DEBUG  = 0
 STATIC = 1
 
 CC      = cl
-CFLAGS  = -nologo -W3 -Zi -Gy -Gs -DWIN32 \
+CFLAGS  = -nologo -W3 -Zi -Zo -Gy -Gs -DWIN32 \
           -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE \
           -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -D_WIN32_IE=0x500 \
           -DEVERYTHINGAPI=__cdecl
