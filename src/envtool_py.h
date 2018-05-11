@@ -5,16 +5,21 @@
 #define _ENVTOOL_PY_H
 
 /**
- *\enum python_variants
- * UNKNOWN_PYTHON  we have not found any suitable Python yet.\n
- * DEFAULT_PYTHON  a suiteable Python found first on \c PATH.\n
- * PY2_PYTHON      a Python ver 2.x found and selected.\n
- * PY3_PYTHON      a Python ver 3.x found and selected.\n
- * IRON2_PYTHON    a IronPython ver 2.x found and selected.\n
- * IRON3_PYTHON    a IronPython ver 3.x found and selected.\n
- * PYPY_PYTHON     a PyPy ver x.x found and selected.\n
- * JYTHON_PYTHON   a JavaPython ver x.x found and selected.\n
- * ALL_PYTHONS     any Python found.
+ *\enum   python_variants
+ *\anchor python_variants
+ * <table>
+ *   <tr><td width="20%">\c UNKNOWN_PYTHON <td> we have not found any suitable Python yet.
+ *   <tr><td>            \c DEFAULT_PYTHON <td> a suiteable Python found first on \c PATH.
+ *   <tr><td>            \c UNKNOWN_PYTHON <td> we have not found any suitable Python yet.
+ *   <tr><td>            \c DEFAULT_PYTHON <td> a suiteable Python found first on \c PATH.
+ *   <tr><td>            \c PY2_PYTHON     <td> a Python ver 2.x found and selected.
+ *   <tr><td>            \c PY3_PYTHON     <td> a Python ver 3.x found and selected.
+ *   <tr><td>            \c IRON2_PYTHON   <td> a IronPython ver 2.x found and selected.
+ *   <tr><td>            \c IRON3_PYTHON   <td> a IronPython ver 3.x found and selected.
+ *   <tr><td>            \c PYPY_PYTHON    <td> a PyPy ver x.x found and selected.
+ *   <tr><td>            \c JYTHON_PYTHON  <td> a JavaPython ver x.x found and selected.
+ *   <tr><td>            \c ALL_PYTHONS    <td> any Python found. \anchor ALL_PYTHONS
+ * </table>
  */
 enum python_variants {
      UNKNOWN_PYTHON,

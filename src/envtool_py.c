@@ -2,7 +2,11 @@
  *  \ingroup Envtool_PY
  *  \brief The Python functions for the envtool program.
  *
- * By Gisle Vanem <gvanem@yahoo.no> August 2011.
+ * All functions need that \ref py_init() was called first.
+ * The output from \ref call_python_func() is captured and can be parsed.
+ * Look at \ref py_print_modules() for an example.
+ *
+ * By Gisle Vanem <gvanem@yahoo.no> August 2011 - 2018.
  */
 
 #include <stddef.h>
@@ -36,6 +40,7 @@ struct python_path {
  *  The type of Python we're currently using.\n
  * Ref: \ref g_py
  *      \ref bitness
+ * \anchor py_which
  */
 enum python_variants py_which = DEFAULT_PYTHON;
 
@@ -133,8 +138,8 @@ struct python_info {
 };
 
 /**
- * List of all Pythons we care about. Ignore the console-less 'pythonw.exe'
- * programs.
+ * List of all Pythons we care about. Ignore the console-less \c pythonw.exe programs.
+ * \anchor all_py_programs
  */
 static struct python_info all_py_programs[] = {
 
@@ -171,8 +176,8 @@ static enum Bitness  our_bitness;
 static int  tmp_ver_major, tmp_ver_minor, tmp_ver_micro;
 static char tmp_user_site [_MAX_PATH];
 
-static int longest_py_program = 0;  /* set in py_init() */
-static int longest_py_version = 0;  /* set in py_init() */
+static int longest_py_program = 0;  /** set in py_init() */
+static int longest_py_version = 0;  /** set in py_init() */
 static int global_indent = 0;
 
 #if !defined(_DEBUG)
@@ -266,7 +271,7 @@ static const struct search_list full_names[] = {
 
 /**
  * Return a variant value from a short or a full name.\n
- * E.g. \ref py_variant_value("all",NULL) -> \ref ALL_PYTHONS.
+ * E.g. \c py_variant_value("all",NULL) -> \ref ALL_PYTHONS.
  */
 int py_variant_value (const char *short_name, const char *full_name)
 {
@@ -301,7 +306,7 @@ const char *py_variant_name (enum python_variants v)
 }
 
 /**
- * \c qsort() helper used in \ref py_get_variants().
+ * A \c qsort() helper used in \ref py_get_variants().
  */
 static int MS_CDECL compare_strings (const void *_s1, const void *_s2)
 {
@@ -384,7 +389,7 @@ const char **py_get_variants (void)
 /**
  * Select a Python that is found on \c %PATH and that we've found the DLL for
  * and that is of a suitable variant.
- * Cannot select \c ALL_PYTHONS here.
+ * Cannot select \ref ALL_PYTHONS here.
  */
 struct python_info *py_select (enum python_variants which)
 {
@@ -415,7 +420,6 @@ struct python_info *py_select (enum python_variants which)
  * \param[in] ver a pointer to a \c 'struct ver_info' filled with version information
  * \return    0   on some error; none of the in-params gets filled.
  * \return    1   if all went okay.
- *
  */
 int py_get_info (char **exe, char **dll, struct ver_info *ver)
 {
@@ -453,8 +457,8 @@ int py_get_info (char **exe, char **dll, struct ver_info *ver)
 /**
  * Since both Python2 and Python3 usually have the same \c python.exe name, we
  * don't know it's variant for sure before obtaining it's \c py->ver_major value.
- * If the \c v value from \ref all_py_programs[] is either \ref PY2_PYTHON or
- * \ref PY3_PYTHON, fix the \c py->py_variant member accordingly.
+ * If the \c value from \ref all_py_programs[] is either \ref PY2_PYTHON or
+ * \ref PY3_PYTHON, fix the \c 'py->py_variant' member accordingly.
  */
 static void fix_python_variant (struct python_info *py, enum python_variants v)
 {
@@ -648,7 +652,7 @@ static void py_exit_embedding (struct python_info *py)
 }
 
 /**
- * \ref smartlist_wipe() helper: \n
+ * A \ref smartlist_wipe() helper: \n
  * Free the \c sys.path[] for a single \ref py_program.
  */
 static void free_sys_path (void *e)
@@ -659,7 +663,7 @@ static void free_sys_path (void *e)
 }
 
 /**
- * \ref smartlist_wipe() helper: \n
+ * A \ref smartlist_wipe() helper: \n
  * Free one element in \ref py_programs.
  */
 static void free_py_program (void *e)
@@ -760,6 +764,7 @@ static PyObject *setup_stdout_catcher (void)
 
 /**
  * Do NOT call this unless \c "py->is_embeddable == TRUE".
+ * \anchor py_init_embedding
  */
 static int py_init_embedding (struct python_info *py)
 {
@@ -855,7 +860,7 @@ failed:
  * \note if \c 'opt.debug >= 3', the program is dumped one line at a time prior
  *       to running it.
  *
- * \anchor call_python_func()
+ * \anchor call_python_func
  */
 static char *call_python_func (struct python_info *py, const char *py_prog)
 {
@@ -1065,7 +1070,7 @@ static char *tmp_fputs (const struct python_info *py, const char *buf)
 }
 
 /**
- * Variables used in the generic callback helper function \ref popen_append_out().
+ * Variables used in the generic callback helper function \ref popen_append_out.
  */
 static char  *popen_tmp = NULL;
 static char  *popen_out = NULL;
@@ -1077,7 +1082,7 @@ static BOOL   popen_py_crash = FALSE;
  *
  * This \b must be used if the Python is \b not embeddable.
  * But it can be used if the Python \b is embeddable (allthough
- * this is much slower than using \ref call_python_func() directly).
+ * this is much slower than using \ref call_python_func directly).
  *
  * Write the Python-code (\ref PY_LIST_MODULES or \ref PY_ZIP_LIST) to a
  * temporary file and call \ref popen_runf() on it. Then parse the output
@@ -1088,7 +1093,7 @@ static BOOL   popen_py_crash = FALSE;
 static int popen_append_out (char *str, int index)
 {
   /**
-   * Report this Python "crash" to \ref popen_run_py().
+   * Report this Python "crash" to \ref popen_run_py.
    * Hopefully it will happen only at the first line (\c index=0).
    * This also needs \c stderr to be redirected into \c stdout.
    */
@@ -1119,7 +1124,7 @@ static int popen_append_out (char *str, int index)
 }
 
 /**
- * Clear up things after \ref popen_run_py() has finished.
+ * Clear up things after \ref popen_run_py has finished.
  */
 static void popen_append_clear (void)
 {
@@ -1134,7 +1139,7 @@ static void popen_append_clear (void)
 
 /**
  * The \ref popen_runf() function for running a non-embedded Python program.
- * \anchor popen_run_py()
+ * \anchor popen_run_py
  */
 static char *popen_run_py (const struct python_info *py, const char *py_prog, BOOL redir_stderr)
 {
@@ -1200,8 +1205,8 @@ static char *popen_run_py (const struct python_info *py, const char *py_prog, BO
 #else
   /**
    * \def PY_IMPORT_PIP
-   *   Catch the \c "Traceback" or \c "ImportError" (sent to stderr) in \ref popen_append_out()
-   *   and report the "crash" in \ref popen_run_py().
+   *   Catch the \c "Traceback" or \c "ImportError" (sent to stderr) in \ref popen_append_out
+   *   and report the "crash" in \ref popen_run_py.
    */
   #define PY_IMPORT_PIP()  "import pip\n"
 #endif
@@ -1239,7 +1244,7 @@ static char *popen_run_py (const struct python_info *py, const char *py_prog, BO
 
 /**
  * Print the list of installed Python modules.
- * \anchor py_print_modules()
+ * \anchor py_print_modules
  */
 int py_print_modules (void)
 {
@@ -1397,21 +1402,22 @@ static int report_zip_file (struct python_info *py, const char *zip_file, char *
 }
 
 /**
- * List a ZIP/EGG-file (file) for a matching \c opt.file_spec.
+ * List a ZIP/EGG-file for a matching \c opt.file_spec.
  *
  * \note
- *   We are not interested in the dir-part. Hence get the basename of
- *   \c 'f.filename' first. Thus:
+ *   We are not interested in the directory-part. Hence get the basename of
+ *   \c f.filename first. Thus:
  *   \code
  *     "EGG-INFO/requires.txt" -> False
  *     "egg-timer.txt"         -> True
  *    \endcode
  *
  * \note
- *   \c 'fnmatch.fnmatch ("EGG-INFO/dependency_links.txt", "egg*.txt")' will return True!
+ *   \code fnmatch.fnmatch ("EGG-INFO/dependency_links.txt", "egg*.txt") \endcode
+ *   will return True!
  *
  * \def PY_ZIP_LIST
- *   This text goes into a buffer used by \ref call_python_func().
+ *   This text goes into a buffer used by \ref call_python_func ().
  */
 #define PY_ZIP_LIST()                                                               \
         "import os, sys, fnmatch, zipfile\n"                                        \
@@ -1493,7 +1499,7 @@ static void add_sys_path (const char *dir)
 /**
  * Build up the \c "g_py->sys_path[]" array.
  * \param[in] str    the string to add to \c g_py->sys_path[].
- * \param[in] index  \c 'index == -1'  we are called from \ref call_python_func().
+ * \param[in] index  \c 'index == -1'  we are called from \ref call_python_func.
  *                   \c 'index != -1'  we are the \ref popen_runf() callback.
  */
 static int build_sys_path (char *str, int index)
@@ -1555,7 +1561,7 @@ static int build_sys_path (char *str, int index)
 /**
  * \def PY_PRINT_SYS_PATH_DIRECT
  *   The code which is used if \c "py->is_embeddable == TRUE".
- *   Used in the parameter to \ref call_python_func().
+ *   Used in the parameter to \ref call_python_func.
  */
 #define PY_PRINT_SYS_PATH_DIRECT()  "import sys\n" \
                                     "for (i,p) in enumerate(sys.path):\n" \
@@ -1736,7 +1742,7 @@ int py_search (void)
 
 /**
  * Allocate a new \c python_info node, fill it and return it
- * for adding to the \c py_programs smartlist.
+ * for adding to the \ref py_programs smartlist.
  */
 static struct python_info *add_python (const char *exe, struct python_info *py)
 {
@@ -1776,8 +1782,8 @@ static struct python_info *add_python (const char *exe, struct python_info *py)
 }
 
 /**
- * For each \c directory in the \c %PATH, try to match a Python from the
- * ones in \c all_py_programs[].
+ * For each directory in the \c %PATH, try to match a Python from the
+ * ones in \ref all_py_programs[].
  *
  * If it's found in the \c "ignore-list" (by \ref cfg_ignore_lookup()) do not add it.\n
  * Figure out it's version and .DLL-name (if it's embeddable).
@@ -1872,9 +1878,9 @@ static void enum_pythons_on_path (void)
 }
 
 /**
- * Loop over 'all_py_programs[]' and do some tests on a Python matching 'py_which'.
- * This can be the 'default', one specific Python or 'all'.
- * This must be called after 'py_init()' has been called.
+ * Loop over \ref all_py_programs[] and do some tests on a Python matching \ref py_which.
+ * This can be the 'default', one specific Python in \ref python_variants or 'all'.
+ * This must be called after \ref py_init has been called.
  */
 int py_test (void)
 {
@@ -1971,9 +1977,9 @@ static int get_python_version (const char *exe_name)
 }
 
 /**
- * Called from \c show_version():
- *   \li Print information for all found Pythons.
- *   \li Print the \c sys_path[] if \c "envtool -VVV" was issued.
+ * Called from \ref show_version ():
+ *   \li Print information for all found Pythons if \c "envtool -VV" was specified.
+ *   \li Print the \c sys_path[] if \c "envtool -VVV" was specified.
  */
 void py_searchpaths (void)
 {
@@ -2162,9 +2168,11 @@ void enum_python_in_registry (const char *key_name)
 
 /**
  * Main initialiser function for this module:
- *  \li Find the details of all supported Pythons in \c all_py_programs[].
+ *  \li Find the details of all supported Pythons in \ref all_py_programs.
  *  \li Walk the \c %PATH and Registry (not yet) to find this information.
- *  \li Add each Python found to the \c py_programs smartlist as they are found.
+ *  \li Add each Python found to the \ref py_programs smartlist as they are found.
+ *
+ * \anchor py_init
  */
 void py_init (void)
 {
