@@ -407,9 +407,11 @@ static void read_hook (smartlist_t *sl, const char *buf)
   ARGSUSED (sl);
 }
 
-/*
- * Show some basic version information:    option '-V'.
- * Show more detailed version information: option '-VV'.
+/**
+ * \li Show some basic version information:    option \c -V.
+ * \li Show more detailed version information: option \c -VV.
+ *
+ * \anchor show_version
  */
 static int show_version (void)
 {
@@ -471,6 +473,7 @@ static int show_version (void)
 
     C_printf ("  OS-version: %s (%s bits).\n", os_name(), os_bits());
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
+    C_printf ("  ConEmu:     %sdetected.\n", C_conemu_detected ? "" : "not ");
 
     C_puts ("\n  Compile command and ~3CFLAGS~0:");
     print_build_cflags();
@@ -537,7 +540,7 @@ static int show_help (void)
           "    ~6--no-app~0       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
           "                              ~3HKLM\\" REG_APP_PATH "~0.\n"
           "    ~6--no-colour~0    don't print using colours.\n"
-          "    ~6--no-ansi~0      don't print colours using ANSI sequences (effective on CygWin only).\n"
+          "    ~6--no-ansi~0      don't print colours using ANSI sequences (effective for CygWin/ConEmu only).\n"
           "    ~6--no-watcom~0    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--owner~0        shown owner of the file (shows all owners).\n"
           "    ~6--owner~0=~3spec~0   shown only files/directories matching owner ~3spec~0.\n"
@@ -4274,10 +4277,7 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   if (!opt.PE_check && (opt.only_32bit || opt.only_64bit))
      opt.PE_check = TRUE;
 
-#if defined(__CYGWIN__)
-  if (opt.no_ansi)
-     C_no_ansi = 1;
-#endif
+  C_no_ansi = opt.no_ansi;
 
   if (opt.no_colours)
      C_use_colours = C_use_ansi_colours = 0;
@@ -4299,6 +4299,10 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   }
 }
 
+/**
+ * The only \c atexit() function where all cleanup is done.
+ * \anchor cleanup
+ */
 static void MS_CDECL cleanup (void)
 {
   int i;

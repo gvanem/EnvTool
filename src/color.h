@@ -48,6 +48,11 @@ extern int C_no_ansi;
  */
 extern int C_use_fwrite;
 
+/**
+ * Set to 1 if detected running under the ConEmu program.
+ */
+extern int C_conemu_detected;
+
 /*
  * Defined in newer <sal.h> for MSVC.
  */

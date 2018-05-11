@@ -57,12 +57,12 @@
   extern const char *dump20 (const void *data_p, unsigned size);
   extern int         is_cygwin_tty (int fd);
 
-  #define TRACE(level, ...)  do {                            \
-                              if (trace >= level) {          \
-                                printf ("%s(%u): ",          \
-                                        __FILE__, __LINE__); \
-                                printf (__VA_ARGS__);        \
-                              }                              \
+  #define TRACE(level, ...)  do {                             \
+                              if (trace >= level) {           \
+                                 printf ("%s(%u): ",          \
+                                         __FILE__, __LINE__); \
+                                 printf (__VA_ARGS__);        \
+                              }                               \
                             } while (0)
 #endif
 
@@ -82,13 +82,21 @@ int C_use_colours = 0;
 /**
  * For CygWin or if we detect we're running under \b mintty.exe (or some other program
  * lacking WinCon support), this variable means we must use ANSI-sequences to set colours.
+ *
+ * If running under ConEmu (detecting a valid \c %ConEmuHWND% window and \c %ConEmuANSI=ON),
+ * this variable is set to '1' to use a more rich set of ANSI-colours.
  */
 int C_use_ansi_colours = 0;
 
 /**
- * Unless this is set. Then CygWin also uses WinCon API to set colours.
+ * When this is set to '0', CygWin / ConEmu will also uses WinCon API to set colours.
  */
 int C_no_ansi = 1;
+
+/**
+ * Set to 1 if detected running under the ConEmu program.
+ */
+int C_conemu_detected = 0;
 
 /**
  * The program using color.c must set this to 1 if \c fwrite() shall
@@ -123,6 +131,28 @@ static WORD colour_map [8];
 static char colour_map_ansi [DIM(colour_map)] [20];
 
 static const char *wincon_to_ansi (WORD col);
+
+/**
+ * Try to detect if running under the ConEmu program.
+ */
+static BOOL ConEmu_detect (void)
+{
+  const char *conemu_hwnd = getenv ("ConEmuHWND");
+  const char *conemu_ansi = getenv ("ConEmuANSI");
+
+  if (!conemu_hwnd || !conemu_ansi)
+  {
+    TRACE (1, "Not running under ConEmu.\n");
+    return (FALSE);
+  }
+  if (!stricmp(conemu_ansi,"ON"))
+  {
+    C_conemu_detected = 1;
+    TRACE (1, "Running under ConEmu with ANSI X3.64 support.\n");
+    return (TRUE);
+  }
+  return (FALSE);
+}
 
 /**
  * Customize the \c colour_map[1..N].
@@ -162,11 +192,6 @@ int C_init_colour_map (unsigned short col, ...)
     TRACE (1, "i: %d, col: %u.\n", i, col);
     colour_map [i++] = col;
   }
-
-#if defined(__CYGWIN__)
-   if (C_no_ansi == 0)
-      C_use_ansi_colours = 1;
-#endif
 
   /**
    * Fill the ANSI-sequence array by looping over \c colour_map_ansi[].
@@ -289,6 +314,15 @@ static int C_init (void)
     }
     else
       C_use_colours = 0;
+
+    if (C_no_ansi == 0 && C_use_colours)
+    {
+#if defined(__CYGWIN__)
+      C_use_ansi_colours = 1;
+#endif
+      if (ConEmu_detect())
+         C_use_ansi_colours = 1;
+    }
 
     env = getenv ("COLUMNS");
     if (env && atoi(env) > 0)
