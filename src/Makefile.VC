@@ -39,14 +39,18 @@ CFLAGS = -MT$(D) $(CFLAGS)
 CFLAGS = -MD$(D) $(CFLAGS)
 !endif
 
-!if "$(Platform)" == "x64"
-CFLAGS  = $(CFLAGS) -wd4244 -wd4267
+!if "$(PLATFORM)" == "x64"
+CFLAGS  = $(CFLAGS) -wd4244 -wd4267 -wd4477
 RCFLAGS = $(RCFLAGS) -DWIN64
-!endif
+!message "Building for x64"
 
-!if "$(CPU)" == "X64"
-CFLAGS  = $(CFLAGS) -wd4244 -wd4267
+!else if "$(CPU)" == "X64"
+CFLAGS  = $(CFLAGS) -wd4244 -wd4267 -wd4477
 RCFLAGS = $(RCFLAGS) -DWIN64
+!message "Building for x64"
+
+!else
+!message "Building for x86"
 !endif
 
 OBJECTS = auth.obj envtool.obj envtool_py.obj color.obj dirlist.obj Everything.obj Everything_ETP.obj \
