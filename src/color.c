@@ -94,11 +94,6 @@ int C_use_ansi_colours = 0;
 int C_no_ansi = 1;
 
 /**
- * Set to 1 if detected running under the ConEmu program.
- */
-int C_conemu_detected = 0;
-
-/**
  * The program using color.c must set this to 1 if \c fwrite() shall
  * be used in \c C_flush(). This can be needed to synchronize the output
  * with other calls (libraries?) that writes to stdout using \c fwrite().
@@ -132,10 +127,7 @@ static char colour_map_ansi [DIM(colour_map)] [20];
 
 static const char *wincon_to_ansi (WORD col);
 
-/**
- * Try to detect if running under the ConEmu program.
- */
-static BOOL ConEmu_detect (void)
+int C_conemu_detected (void)
 {
   const char *conemu_hwnd = getenv ("ConEmuHWND");
   const char *conemu_ansi = getenv ("ConEmuANSI");
@@ -147,7 +139,6 @@ static BOOL ConEmu_detect (void)
   }
   if (!stricmp(conemu_ansi,"ON"))
   {
-    C_conemu_detected = 1;
     TRACE (1, "Running under ConEmu with ANSI X3.64 support.\n");
     return (TRUE);
   }
@@ -320,7 +311,7 @@ static int C_init (void)
 #if defined(__CYGWIN__)
       C_use_ansi_colours = 1;
 #endif
-      if (ConEmu_detect())
+      if (C_conemu_detected())
          C_use_ansi_colours = 1;
     }
 

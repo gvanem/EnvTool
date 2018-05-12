@@ -473,7 +473,12 @@ static int show_version (void)
 
     C_printf ("  OS-version: %s (%s bits).\n", os_name(), os_bits());
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
-    C_printf ("  ConEmu:     %sdetected.\n", C_conemu_detected ? "" : "not ");
+    C_printf ("  ConEmu:     %sdetected.\n", opt.under_conemu ? "" : "not ");
+
+#if 1
+    if (opt.debug >= 2 && opt.under_conemu)
+       C_use_ansi_colours = 1;  /* test ANSI under ConEmu */
+#endif
 
     C_puts ("\n  Compile command and ~3CFLAGS~0:");
     print_build_cflags();
@@ -958,7 +963,7 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
     is_cwd = !strcmp(tok,".") || !strcmp(tok,".\\") || !strcmp(tok,"./");
     if (is_cwd)
     {
-      if (i > 0)
+      if (i > 0 && !opt.under_conemu)
          WARN ("Having \"%s\" not first in \"%s\" is asking for trouble.\n",
                tok, env_name);
       tok = current_dir;
@@ -4405,6 +4410,8 @@ static void init_all (void)
   tzset();
   memset (&opt, 0, sizeof(opt));
   opt.add_cwd = 1;
+  opt.under_conemu = C_conemu_detected();
+
   C_use_colours = 1;  /* Turned off by "--no-colour" */
 
   dir_array = smartlist_new();

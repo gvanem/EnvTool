@@ -48,11 +48,6 @@ extern int C_no_ansi;
  */
 extern int C_use_fwrite;
 
-/**
- * Set to 1 if detected running under the ConEmu program.
- */
-extern int C_conemu_detected;
-
 /*
  * Defined in newer <sal.h> for MSVC.
  */
@@ -87,6 +82,11 @@ extern void   C_set_ansi (unsigned short col);
 extern void   C_puts_long_line (const char *start, size_t indent);
 extern int    C_init_colour_map (unsigned short col1, ...);
 extern size_t C_screen_width (void);
+
+/**
+ * Returns 1 if detected running under the ConEmu program.
+ */
+extern int C_conemu_detected (void);
 
 #ifdef __cplusplus
 }

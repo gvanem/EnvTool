@@ -350,6 +350,7 @@ struct prog_options {
        int        case_sensitive;
        int        cache_ver_level;
        int        keep_temp;
+       int        under_conemu;
        void      *evry_host;     /* A smartlist_t */
        char      *file_spec;
        char      *file_spec_re;
