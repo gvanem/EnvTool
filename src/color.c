@@ -50,21 +50,17 @@
                            else ExitProcess (GetCurrentProcessId()); \
                          } while (0)
 
-#if defined(NDEBUG)
-  #define TRACE(level, ...)  ((void)0)
-#else
-  static int trace = 0;
-  extern const char *dump20 (const void *data_p, unsigned size);
-  extern int         is_cygwin_tty (int fd);
+static int c_trace = 0;
+static const char *C_dump20 (const void *data_p, unsigned size);
+extern int         is_cygwin_tty (int fd);
 
-  #define TRACE(level, ...)  do {                             \
-                              if (trace >= level) {           \
-                                 printf ("%s(%u): ",          \
-                                         __FILE__, __LINE__); \
-                                 printf (__VA_ARGS__);        \
-                              }                               \
-                            } while (0)
-#endif
+#define TRACE(level, ...)  do {                             \
+                            if (c_trace >= level) {         \
+                               printf ("%s(%u): ",          \
+                                       __FILE__, __LINE__); \
+                               printf (__VA_ARGS__);        \
+                            }                               \
+                          } while (0)
 
 #ifndef C_BUF_SIZE
 #define C_BUF_SIZE 2048
@@ -146,6 +142,18 @@ int C_conemu_detected (void)
 }
 
 /**
+ * Check \c %COLOUR_TRACE and return it's value.
+ */
+int C_trace_level (void)
+{
+  const char *env = getenv ("COLOUR_TRACE");
+
+  if (env && *env >= '0' && *env <= '9')
+     return (*env - '0');
+  return (0);
+}
+
+/**
  * Customize the \c colour_map[1..N].
  * Must be a list terminated by 0.
  *
@@ -192,7 +200,7 @@ int C_init_colour_map (unsigned short col, ...)
   {
     const char *p = wincon_to_ansi (colour_map[i]);
 
-    TRACE (2, "colour_map_ansi[%u] -> %s\n", (unsigned)i, dump20(p,strlen(p)));
+    TRACE (2, "colour_map_ansi[%u] -> %s\n", (unsigned)i, C_dump20(p,strlen(p)));
     strncpy (colour_map_ansi[i], p, sizeof(colour_map_ansi[i]));
   }
   return (1);
@@ -264,14 +272,10 @@ static int C_init (void)
 
   if (!c_head || !c_out)
   {
-    BOOL        okay;
     const char *env;
+    BOOL        okay;
 
-#if !defined(NDEBUG)
-    env = getenv ("COLOUR_TRACE");
-    if (env)
-       trace = *env - '0';
-#endif
+    c_trace = C_trace_level();
 
     console_hnd = GetStdHandle (STD_OUTPUT_HANDLE);
     okay = (console_hnd != INVALID_HANDLE_VALUE &&
@@ -389,10 +393,8 @@ void C_reset (void)
  */
 const char *get_parent_process_name (void)
 {
-#if !defined(NDEBUG)
-  if (trace > 0 || is_cygwin_tty(STDOUT_FILENO))
+  if (c_trace > 0 || is_cygwin_tty(STDOUT_FILENO))
      return ("mintty.exe");  /* Just for testing */
-#endif
   return (NULL);
 }
 
@@ -692,4 +694,26 @@ void C_puts_long_line (const char *start, size_t indent)
 size_t C_screen_width (void)
 {
   return (c_screen_width);
+}
+
+/**
+ * Dump max 20 bytes of data as hex-printables.
+ */
+static const char *C_dump20 (const void *data, unsigned size)
+{
+  static char ret [25];
+  unsigned  ofs;
+  int       ch;
+
+  for (ofs = 0; ofs < sizeof(ret)-4 && ofs < size; ofs++)
+  {
+    ch = ((const BYTE*)data) [ofs];
+    if (ch < ' ')            /* non-printable */
+         ret [ofs] = '.';
+    else ret [ofs] = (char) ch;
+    ret [ofs+1] = '\0';
+  }
+  if (ofs < size)
+     strcat (ret, "...");
+  return (ret);
 }

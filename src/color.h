@@ -82,6 +82,7 @@ extern void   C_set_ansi (unsigned short col);
 extern void   C_puts_long_line (const char *start, size_t indent);
 extern int    C_init_colour_map (unsigned short col1, ...);
 extern size_t C_screen_width (void);
+extern int    C_trace_level (void);
 
 /**
  * Returns 1 if detected running under the ConEmu program.
