@@ -2651,6 +2651,7 @@ const char *get_time_str (time_t t)
  * (== 0), the "screen width" is infinite (or \c UINT_MAX).
  *
  * An appropriate number of spaces are added on subsequent lines.
+ * Multiple spaces ("  ") are collapsed into one space.
  *
  * Stolen from Wget (main.c) and simplified.
  */
