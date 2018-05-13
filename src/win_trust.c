@@ -65,11 +65,11 @@ static int      crypt_check_file (const char *fname);
 char  *program_name = "win_trust.exe";
 struct prog_options opt;
 
-const char *usage_fmt = "Usage: %s <-hcdr> PE-file\n"
-                        "    -h: show this help.\n"
-                        "    -c: call crypt_check_file().\n"
-                        "    -d: set debug-level.\n"
-                        "    -r: perform a Cert revocation check.\n";
+static const char *usage_fmt = "Usage: %s <-hcdr> PE-file\n"
+                               "    -h: show this help.\n"
+                               "    -c: call crypt_check_file().\n"
+                               "    -d: set debug-level.\n"
+                               "    -r: perform a Cert revocation check.\n";
 
 static void usage (const char *fmt, ...)
 {
