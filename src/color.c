@@ -675,6 +675,7 @@ int C_putsn (const char *str, size_t len)
 /**
  * Print a long string to screen.
  * Try to wrap nicely according to the screen-width.
+ * Multiple spaces ("  ") are collapsed into one space.
  */
 void C_puts_long_line (const char *start, size_t indent)
 {
@@ -697,6 +698,11 @@ void C_puts_long_line (const char *start, size_t indent)
         C_printf ("\n%*c", (int)indent, ' ');
         left  = width - indent;
         start = ++c;
+        continue;
+      }
+      if (isspace((int)c[1]))  /* Drop excessive blanks */
+      {
+        c++;
         continue;
       }
     }
