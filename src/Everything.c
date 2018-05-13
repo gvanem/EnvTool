@@ -53,7 +53,7 @@
   /*
    * Turn off these:
    *   Everything.c(1165,14):  warning: comparison of unsigned expression < 0 is always false [-Wtautological-compare]
-   *               if (nIndex < 0)
+   *               if (dwIndex < 0)
    */
   #pragma clang diagnostic ignored "-Wtautological-compare"
   #pragma clang diagnostic ignored "-Wtautological-unsigned-zero-compare"
