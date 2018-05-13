@@ -96,6 +96,10 @@ int C_no_ansi = 1;
  */
 int C_use_fwrite = 0;
 
+/**
+ * A count of number of times \c C_flush() was called with nothing
+ * in the trace-buffer.
+ */
 unsigned C_redundant_flush = 0;
 
 void (*C_write_hook) (const char *buf) = NULL;
@@ -106,7 +110,7 @@ static FILE  *c_out = NULL;
 static int    c_raw = 0;
 static int    c_binmode = 0;
 static size_t c_screen_width = UINT_MAX;
-static int    c_always_set_bg = 0;
+static BOOL   c_always_set_bg = FALSE;
 static BOOL   c_exited = FALSE;
 
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
@@ -194,7 +198,7 @@ int C_init_colour_map (unsigned short col, ...)
 
   /**
    * Fill the ANSI-sequence array by looping over \c colour_map_ansi[].
-   * \note the size of both \c colour_map_ansi[] and \c colour_map[] \b must be equal.
+   * \note the size of both \c colour_map_ansi[] and \c colour_map[] \b are equal.
    */
   for (i = 0; i < DIM(colour_map_ansi); i++)
   {
@@ -288,7 +292,7 @@ static int C_init (void)
        console_info.srWindow.Right = 100;
        console_info.srWindow.Left  = 0;
        console_info.wAttributes    = 0x1F;   /* Bright white on blue background */
-       c_always_set_bg = 1;
+       c_always_set_bg = TRUE;
        okay = TRUE;
      }
 #endif
@@ -377,7 +381,13 @@ static void C_set (WORD col)
 void C_reset (void)
 {
   if (C_use_ansi_colours)
-     C_set_ansi (0);
+  {
+     int raw = c_raw;
+
+     c_raw = 1;
+     C_puts (colour_map_ansi[0]);
+     c_raw = raw;
+  }
   else if (console_hnd != INVALID_HANDLE_VALUE)
      SetConsoleTextAttribute (console_hnd, console_info.wAttributes);
 }
@@ -455,6 +465,18 @@ void C_set_ansi (unsigned short col)
         break;
       }
   c_raw = raw_save;
+}
+
+/**
+ * Change colour using ANSI or WinCon API.
+ * Does nothing if console is redirected.
+ */
+void C_set_colour (unsigned short col)
+{
+  if (C_use_ansi_colours)
+     C_set_ansi (col);
+  else if (C_use_colours)
+     C_set (col);
 }
 
 /**
@@ -581,11 +603,7 @@ int C_putc (int ch)
         buf[1] = (char) ch;
         (*C_write_hook) (buf);
       }
-
-      if (C_use_ansi_colours)
-         C_set_ansi (color);
-      else if (C_use_colours)
-         C_set (color);
+      C_set_colour (color);
       return (1);
     }
 
@@ -655,7 +673,7 @@ int C_putsn (const char *str, size_t len)
 }
 
 /**
- * Put a long string to output buffer.
+ * Print a long string to screen.
  * Try to wrap nicely according to the screen-width.
  */
 void C_puts_long_line (const char *start, size_t indent)

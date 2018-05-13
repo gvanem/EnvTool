@@ -78,6 +78,7 @@ extern int    C_setbin   (int bin);
 extern size_t C_flush    (void);
 extern void   C_reset    (void);
 extern void   C_exit     (void);
+extern void   C_set_colour (unsigned short col);
 extern void   C_set_ansi (unsigned short col);
 extern void   C_puts_long_line (const char *start, size_t indent);
 extern int    C_init_colour_map (unsigned short col1, ...);
