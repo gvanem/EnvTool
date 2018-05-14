@@ -553,7 +553,7 @@ typedef struct {
         _buf->buffer_pos    = _buf->buffer_start;                  \
         _buf->buffer_size   = size;                                \
         _buf->buffer_left   = size;                                \
-        _buf->buffer_pos[0] = '\0';                                \
+        memset (&_buf->buffer_pos, '\0', size);                    \
       } while (0)
 
 #if defined(__POCC__)

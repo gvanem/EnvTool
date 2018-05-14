@@ -2499,6 +2499,7 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
   int          len;
   size_t       fmt_len = strlen (format);
   const DWORD *marker;
+  char        *end;
 
   va_start (args, format);
   if (fmt_len > fmt_buf->buffer_size)
@@ -2518,6 +2519,12 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
   *(fmt_buf->buffer_start + fmt_buf->buffer_size - 1) = '\0';
 
   len = vsnprintf (fmt_buf->buffer_pos, fmt_buf->buffer_left, format, args);
+
+  /* Do not assume POSIX compliance of above 'vnsprintf()' function.
+   * Force next call to 'buf_printf()' to append at the 'end' position.
+   */
+  end = strchr (fmt_buf->buffer_pos, '\0');
+  len = end - fmt_buf->buffer_pos;
 
   /* Assume 'len' is always positive.
    */
