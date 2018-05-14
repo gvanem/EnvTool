@@ -502,15 +502,21 @@ static BOOL state_closing (struct state_CTX *ctx)
  */
 static BOOL state_send_query (struct state_CTX *ctx)
 {
-  /* Always 'REGEX 1', but translate from a shell-pattern if
-   * 'opt.use_regex == 0'.
+  /* The "--evry:raw" option was used; send 'file_spec' query as-is.
    */
-  send_cmd (ctx, "EVERYTHING REGEX 1");
-  send_cmd (ctx, "EVERYTHING CASE %d", opt.case_sensitive);
+  if (opt.evry_raw)
+     send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
+  else
+  {
+    /* Always send a "REGEX 1", but translate from a shell-pattern if 'opt.use_regex == 0'.
+     */
+    send_cmd (ctx, "EVERYTHING REGEX 1");
+    send_cmd (ctx, "EVERYTHING CASE %d", opt.case_sensitive);
 
-  if (opt.use_regex)
-       send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
-  else send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(opt.file_spec));
+    if (opt.use_regex)
+         send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
+    else send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(opt.file_spec));
+  }
 
   send_cmd (ctx, "EVERYTHING PATH_COLUMN 1");
   send_cmd (ctx, "EVERYTHING SIZE_COLUMN 1");
