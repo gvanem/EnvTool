@@ -475,11 +475,6 @@ static int show_version (void)
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
     C_printf ("  ConEmu:     %sdetected.\n", opt.under_conemu ? "" : "not ");
 
-#if 1
-    if (opt.debug >= 2 && opt.under_conemu)
-       C_use_ansi_colours = 1;  /* test ANSI under ConEmu */
-#endif
-
     C_puts ("\n  Compile command and ~3CFLAGS~0:");
     print_build_cflags();
 
@@ -4284,6 +4279,12 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
 
   C_no_ansi = opt.no_ansi;
 
+  /* Use ANSI-sequences under ConEmu or if "%COLOUR_TRACE >= 2".
+   * Nullifies the "--no-ansi" option set above.
+   */
+  if (opt.under_conemu || C_trace_level() >= 2)
+     C_use_ansi_colours = 1;
+
   if (opt.no_colours)
      C_use_colours = C_use_ansi_colours = 0;
 
@@ -5696,7 +5697,7 @@ static void print_build_cflags (void)
 #if defined(CFLAGS)
   #include CFLAGS
   C_puts ("\n    ");
-  format_and_print_line (cflags, 4);
+  C_puts_long_line (cflags, 4);
 #else
   C_puts (" Unknown\n");
 #endif
@@ -5707,7 +5708,7 @@ static void print_build_ldflags (void)
 #if defined(LDFLAGS)
   #include LDFLAGS
   C_puts ("\n    ");
-  format_and_print_line (ldflags, 4);
+  C_puts_long_line (ldflags, 4);
 #else
   C_puts (" Unknown\n");
 #endif
