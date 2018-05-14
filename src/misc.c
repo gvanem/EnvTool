@@ -2465,6 +2465,11 @@ void crtdbug_exit (void)
 {
   _CrtMemState new_state, diff_state;
 
+  /* If 'FATAL()' was called, we'll get tons of leaks here. Just ignore those.
+   */
+  if (opt.fatal_flag)
+     return;
+
   _CrtMemCheckpoint (&new_state);
 
   /* No significant difference in the mem-state. So just get out.

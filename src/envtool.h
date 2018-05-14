@@ -309,6 +309,7 @@ struct prog_options {
        int        debug;
        int        verbose;
        int        quiet;
+       int        fatal_flag;
        int        quotes_warn;
        int        add_cwd;
        int        show_unix_paths;
@@ -351,6 +352,7 @@ struct prog_options {
        int        cache_ver_level;
        int        keep_temp;
        int        under_conemu;
+       BOOL       evry_raw;      /* use raw non-regex searches */
        void      *evry_host;     /* A smartlist_t */
        char      *file_spec;
        char      *file_spec_re;
@@ -553,7 +555,7 @@ typedef struct {
         _buf->buffer_pos    = _buf->buffer_start;                  \
         _buf->buffer_size   = size;                                \
         _buf->buffer_left   = size;                                \
-        memset (&_buf->buffer_pos, '\0', size);                    \
+        memset (_buf->buffer_pos, '\0', size);                     \
       } while (0)
 
 #if defined(__POCC__)
@@ -678,6 +680,7 @@ extern char *fnmatch_res  (int rc);
                               fprintf (stderr, "\nFatal: %s(%u): ",     \
                                        __FILE(), __LINE__);             \
                               fprintf (stderr, ##__VA_ARGS__);          \
+                              opt.fatal_flag = 1;                       \
                               if (IsDebuggerPresent())                  \
                                    abort();                             \
                               else ExitProcess (GetCurrentProcessId()); \
