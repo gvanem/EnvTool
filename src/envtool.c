@@ -5310,7 +5310,7 @@ static int test_python_funcs (void)
   if (halt_flag)
      return (1);
 
-// py_test();
+  py_test();
 
   c = &opt.cmd_line;
   if (c->argc0 > 0)
