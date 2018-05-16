@@ -1,6 +1,3 @@
-/*  $NetBSD: getopt.h,v 1.4 2000/07/07 10:43:54 ad Exp $    */
-/*  $FreeBSD$ */
-
 /*-
  * Copyright (c) 2000 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -68,5 +65,29 @@ int getopt (int nargc, char * const *nargv, const char *options);
  */
 extern char *optarg;
 extern int   optind, opterr, optopt;
+
+typedef void (*set_option) (int o, const char *arg);
+
+typedef struct command_line {
+        /*
+         * Set on input by the caller.
+         */
+        const char          *env_opt;        /* Take options from an environment variable? */
+        const char          *short_opt;      /* Short options for 'getopt_long()' */
+        const struct option *long_opt;       /* Long options for 'getopt_long()' */
+        set_option           set_short_opt;  /* Callback for setting a short option */
+        set_option           set_long_opt;   /* Callback for setting a long option */
+
+        /*
+         * Set on output by getopt_parse().
+         */
+        int      argc;       /* Number of arguments from 'GetCommandLineW()' */
+        char   **argv;       /* All arguments from 'GetCommandLineW()' are stored here */
+        int      argc0;      /* The index of the first non-option in 'argv[]' */
+        wchar_t *file_wbuf;  /* Scratch-buffer for reading a response-file */
+      } command_line;
+
+void getopt_parse (struct command_line *cmd_line);
+void getopt_free (struct command_line *cmd_line);
 
 #endif  /* !_GETOPT_LONG_H_ */

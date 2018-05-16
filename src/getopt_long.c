@@ -60,7 +60,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <windows.h>
+#include <shellapi.h>
 
+#include "envtool.h"
 #include "getopt_long.h"
 
 #define PRINT_ERROR ((opterr) && (*options != ':'))
@@ -301,7 +304,7 @@ static int parse_long_options (char *const *nargv, const char *options,
       return (BADARG);
     }
   }
-  else             /* unknown option */
+  else        /* unknown option */
   {
     if (short_too)
     {
@@ -322,8 +325,7 @@ static int parse_long_options (char *const *nargv, const char *options,
     *long_options[match].flag = long_options[match].val;
     return (0);
   }
-  else
-    return (long_options[match].val);
+  return (long_options[match].val);
 }
 
 /**
@@ -479,6 +481,7 @@ start:
      */
     if (optchar == (int)'-' && *place == '\0')
        return (-1);
+
     if (!*place)
        ++optind;
 
@@ -565,11 +568,285 @@ int getopt_long (int nargc, char * const *nargv, const char *options,
 }
 
 /**
- * Parse argc/argv argument vector.
+ * Parse \c argc / \c argv argument vector.
  */
 int getopt_long_only (int nargc, char * const *nargv, const char *options,
                       const struct option *long_options, int *idx)
 {
   return getopt_internal (nargc, nargv, options, long_options, idx,
                           FLAG_PERMUTE|FLAG_LONGONLY);
+}
+
+/**
+ * Dummy function when caller did set his own functions.
+ */
+static void dummy_set_opt (int o, const char *arg)
+{
+  ARGSUSED (o);
+  ARGSUSED (arg);
+}
+
+/**
+ * The 'file' exists. Open it, get it's length, allocate space for it.
+ * One unescaped file-line is one element.
+ * Escaped lines (like \"foo\") will be taken care of by \c CommandLineToArgvW().
+ *
+ * A file like:
+ *   element-1 element-2 element-3 \"element-3a\" "element-3b"
+ *   element-4
+ *   "element-4a element-4b"
+ *
+ * shall be  turned into a vector with these elements:
+ *   element-1
+ *   element-2
+ *   element-3
+ *   "element-3a"
+ *   element-3b
+ *   element-4
+ *   "element-4a element-4b"
+ */
+static void read_file_as_wchar_t (struct command_line *c, const char *file)
+{
+  FILE *f = fopen (file, "rb");
+  long  i, flen = filelength (fileno(f));
+  int   ch;
+  BOOL  escpaped = FALSE;
+
+  DEBUGF (2, "filelength: %lu.\n", flen);
+  c->file_wbuf = MALLOC (2*(flen+1));
+  for (i = 0; i < flen; i++)
+  {
+    ch = fgetc (f);
+    if (ch == EOF)
+       break;
+
+    if (ch == '\\')
+       escpaped ^= 1;
+    if (!escpaped && (ch == '\r' || ch == '\n'))
+       ch = ' ';
+    c->file_wbuf[i] = (wchar_t) ch;
+  }
+  c->file_wbuf[i] = L'\0';
+  fclose (f);
+}
+
+#define DEBUGF2(line, ...)                          \
+        do {                                        \
+          if (opt.debug >= 1) {                     \
+             debug_printf ("getopt_long.c(%u): ",   \
+                           line ? line : __LINE__); \
+             debug_printf (__VA_ARGS__);            \
+          }                                         \
+        } while (0)
+
+static void dump_argv (const struct command_line *c, unsigned line)
+{
+  const char *p;
+  int   i;
+
+  DEBUGF2 (line, "c->argc: %d\n", c->argc);
+  for (i = 0; c->argv && i <= c->argc; i++)
+  {
+    p = c->argv[i];
+    DEBUGF2 (line, "c->argv[%2d]: %-40.40s (0x%p)\n",
+             i, (p && IsBadReadPtr(p,40)) ? "<bogus>" : p, p);
+  }
+}
+
+/**
+ * Parse the short and long options from these sources in order:
+ *  \li the \c c->env_opt variable.
+ *  \li the command-line given by \c GetCommandLineW().
+ *  \li any elements found in a \c @response_file.
+ *
+ * Match elements in all sources against the \c c->short_opt and \c c->long_opt
+ * and call corresponding \c c->set_short_opt and \c c->set_long_opt functions.
+ *
+ * A command-line like this shuld be legal:
+ *  program --arg1 @response-file-1 --arg2  @response-file-2 --arg3
+ *
+ * \param[in] c  The structure defining how the command-line is to be set and parsed.
+ */
+void getopt_parse (struct command_line *c)
+{
+  int         i, j, k, l;
+  int         wargC  = 0;       /** wide count of cmd-line elements */
+  int         wenvC  = 0;       /** wide count of \c c->env_opt elements */
+  int         wfileC = 0;       /** wide count of response-file elements */
+  wchar_t   **wargV  = NULL;    /** wide array of cmd-line elements */
+  wchar_t   **wenvV  = NULL;    /** wide array of \c c->env_opt elements */
+  wchar_t   **wfileV = NULL;    /** wide array of response-file elements */
+  const char *env, *file;
+  wchar_t    *cmd = GetCommandLineW();
+  wchar_t     wenv_buf [1000];
+  UINT        acp  = GetConsoleCP();
+  size_t      wlen;
+
+  set_option set_short_opt = c->set_short_opt;
+  set_option set_long_opt  = c->set_long_opt;
+
+  c->file_wbuf = NULL;
+
+  if (!set_short_opt)
+     set_short_opt = dummy_set_opt;
+
+  if (!set_long_opt)
+     set_long_opt = dummy_set_opt;
+
+  if (c->env_opt)
+  {
+    env = getenv (c->env_opt);
+    if (env)
+    {
+      wenv_buf[0] = L'\0';
+      MultiByteToWideChar (CP_ACP, 0, env, -1, wenv_buf, DIM(wenv_buf));
+      wenvV = CommandLineToArgvW (wenv_buf, &wenvC);
+    }
+  }
+
+  if (wcsstr(cmd,L" -d"))    /* because getopt_long hasn't been called yet */
+    opt.debug = 1;
+
+  wargV = CommandLineToArgvW (cmd, &wargC);
+  c->argc  = wargC + wenvC;
+  c->argv  = CALLOC (sizeof(char*), c->argc + 1);
+  c->argc0 = 0;
+
+  DEBUGF2 (0, "c->argc: %d\n", c->argc);
+
+  for (i = j = k = l = 0; i < (volatile int)c->argc; )
+  {
+    wchar_t *warg = NULL;
+    char    *aarg;
+
+    if (i > 0)
+    {
+      if (wenvV && k < wenvC)         /* pick one arg from the \c c->env_opt */
+         warg = wenvV [k++];
+
+      else if (wfileV && l < wfileC)  /* pick one arg from the response-file */
+         warg = wfileV[l++];
+    }
+
+    if (!warg && wargV)
+    {
+      /* pick one arg from command-line */
+      warg = wargV [j++];
+    }
+
+    DEBUGF2 (0, "i: %2d, j: %2d, k: %2d, l: %2d, c->argc: %2d, warg: '%" WIDESTR_FMT "'.\n",
+             i, j, k, l, c->argc, warg);
+
+    /* We reached the end of all sources
+     */
+    if (warg == NULL)
+    {
+      c->argv [i] = NULL;
+      break;
+    }
+
+    wlen = WideCharToMultiByte (acp, 0, warg, wcslen(warg), 0, 0, 0, 0);
+    aarg = MALLOC (2 * (wlen+1));
+    WideCharToMultiByte (acp, 0, warg, wcslen(warg), aarg, wlen, 0, 0);
+    aarg [wlen] = '\0';
+
+    /* A response file. If it doesn't exist, simply add '@file' to 'c->argv[i]'.
+     * Do not support '@file' inside a response-file.
+     */
+    if (!c->file_wbuf && aarg[0] == '@' && FILE_EXISTS(aarg+1))
+    {
+      file = aarg + 1;
+      read_file_as_wchar_t (c, file);
+      wfileV = CommandLineToArgvW (c->file_wbuf, &wfileC);
+
+      DEBUGF2 (0, "file: %s, wfileV: 0x%p, wfileC: %d\n", file, wfileV, wfileC);
+      if (wfileV && wfileC > 0)  /* Insert wfileV[] on next loop(s)  */
+      {
+        c->argc--;    /* since '@file' argument shall be dropped from 'c->argv[]' */
+        c->argv = REALLOC (c->argv, sizeof(char*) * (c->argc + wfileC + 1));
+        c->argv [c->argc + wfileC] = NULL;
+        FREE (aarg);
+        dump_argv (c, __LINE__);
+        c->argc += wfileC;
+        continue;
+      }
+    }
+
+    c->argv [i++] = aarg;
+
+    /* Do we need this anymore?
+     */
+    if (wfileV && l == wfileC)
+    {
+      FREE (c->file_wbuf);
+      LocalFree (wfileV);
+      wfileV = NULL;
+    }
+  }
+
+  if (wenvV)
+     LocalFree (wenvV);
+
+  if (wargV)
+     LocalFree (wargV);
+
+  dump_argv (c, __LINE__);
+
+  /**
+   * Use a \c "+" first in \c getopt_long() options. This will disable the
+   * GNU extensions that allow non-options to come before options.
+   * E.g. a command-line like:
+   *      \verbatim
+   *        envtool --path foo* -d
+   *      \endverbatim
+   *
+   *      is equivalent to:
+   *      \verbatim
+   *        envtool --path -d foo*
+   *      \endverbatim
+   *
+   * We do not want that since whatever comes after \c "foo*" should be
+   * pointed to by \c 'c->argv[c->argc0]'.
+   * See \c py_execfile() below for an example.
+   */
+
+  opt.debug = 0;
+
+  while (1)
+  {
+    int index = 0;
+
+    i = getopt_long (c->argc, c->argv, c->short_opt, c->long_opt, &index);
+    if (i == 0)
+       (*set_long_opt) (index, optarg);
+    else if (i > 0)
+       (*set_short_opt) (i, optarg);
+    else if (i == -1)
+       break;
+  }
+
+  DEBUGF2 (0, "c->argc: %d, optind: %d\n", c->argc, optind);
+
+  if (c->argc > optind)
+     c->argc0 = optind;
+}
+
+/**
+ * Free the data allocated in \c getopt_parse().
+ */
+void getopt_free (struct command_line *c)
+{
+  char *p;
+  int   i;
+
+  dump_argv (c, __LINE__);
+
+  for (i = 0; i < c->argc; i++)
+  {
+    p = c->argv[i];
+    FREE (p);
+    c->argv[i] = NULL;
+  }
+  FREE (c->argv);
+  FREE (c->file_wbuf);
 }
