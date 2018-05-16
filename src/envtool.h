@@ -3,9 +3,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "1.1"
+#define VER_STRING  "1.2"
 #define MAJOR_VER   1
-#define MINOR_VER   1
+#define MINOR_VER   2
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 #define GITHUB_STR    "https://github.com/gvanem/EnvTool"
@@ -172,6 +172,8 @@
   #include <crtdbg.h>
 #endif
 
+#include "getopt_long.h"
+
 #if defined(__DOXYGEN__)
   #undef _CRTDBG_MAP_ALLOC
 #endif
@@ -306,57 +308,58 @@ typedef enum SignStatus {
       } SignStatus;
 
 struct prog_options {
-       int        debug;
-       int        verbose;
-       int        quiet;
-       int        fatal_flag;
-       int        quotes_warn;
-       int        add_cwd;
-       int        show_unix_paths;
-       int        show_owner;
-       void      *owners;          /* A smartlist_t */
-       int        decimal_timestamp;
-       int        no_sys_env;
-       int        no_usr_env;
-       int        no_app_path;
-       int        no_colours;
-       int        no_ansi;
-       int        use_regex;
-       int        use_buffered_io;
-       int        use_nonblock_io;
-       int        dir_mode;
-       int        man_mode;
-       int        PE_check;
-       SignStatus signed_status;
-       int        help;
-       int        show_size;
-       int        only_32bit;
-       int        only_64bit;
-       int        gcc_no_prefixed;
-       int        no_gcc;
-       int        no_gpp;
-       int        no_watcom;
-       int        do_tests;
-       int        do_evry;
-       int        do_version;
-       int        do_path;
-       int        do_lib;
-       int        do_include;
-       int        do_python;
-       int        do_man;
-       int        do_cmake;
-       int        do_pkg;
-       int        do_check;
-       int        conv_cygdrive;
-       int        case_sensitive;
-       int        cache_ver_level;
-       int        keep_temp;
-       int        under_conemu;
-       BOOL       evry_raw;      /* use raw non-regex searches */
-       void      *evry_host;     /* A smartlist_t */
-       char      *file_spec;
-       char      *file_spec_re;
-       int        remaining_arg_pos;
+       int          debug;
+       int          verbose;
+       int          quiet;
+       int          fatal_flag;
+       int          quotes_warn;
+       int          add_cwd;
+       int          show_unix_paths;
+       int          show_owner;
+       void        *owners;          /* A smartlist_t */
+       int          decimal_timestamp;
+       int          no_sys_env;
+       int          no_usr_env;
+       int          no_app_path;
+       int          no_colours;
+       int          no_ansi;
+       int          use_regex;
+       int          use_buffered_io;
+       int          use_nonblock_io;
+       int          dir_mode;
+       int          man_mode;
+       int          PE_check;
+       SignStatus   signed_status;
+       int          help;
+       int          show_size;
+       int          only_32bit;
+       int          only_64bit;
+       int          gcc_no_prefixed;
+       int          no_gcc;
+       int          no_gpp;
+       int          no_watcom;
+       int          do_tests;
+       int          do_evry;
+       int          do_version;
+       int          do_path;
+       int          do_lib;
+       int          do_include;
+       int          do_python;
+       int          do_man;
+       int          do_cmake;
+       int          do_pkg;
+       int          do_check;
+       int          conv_cygdrive;
+       int          case_sensitive;
+       int          cache_ver_level;
+       int          keep_temp;
+       int          under_conemu;
+       BOOL         evry_raw;      /* use raw non-regex searches */
+       void        *evry_host;     /* A smartlist_t */
+       char        *file_spec;
+       char        *spec_extras;
+       int          remaining_arg_pos;
+       command_line cmd_line;
      };
 
 extern struct prog_options opt;
@@ -403,6 +406,7 @@ extern char *_strlcpy      (char *dst, const char *src, size_t sz);
 extern char *_strrepeat    (int ch, size_t num);
 extern char *_strsep       (char **s, const char *delim);
 extern char *_stracat      (char *s1, const char *s2);
+extern char *_strjoin      (char *const *arr, const char *sep);
 extern char *strip_nl      (char *s);
 extern char *str_ltrim     (char *s);
 extern char *str_rtrim     (char *s);

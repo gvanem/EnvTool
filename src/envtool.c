@@ -136,9 +136,6 @@ static char *user_env_lib    = NULL;
 static char *user_env_inc    = NULL;
 static char *report_header   = NULL;
 
-static char *new_argv [MAX_ARGS];  /* argv[0...] + contents of "%ENVTOOL_OPTIONS" allocated here */
-static int   new_argc;             /* 1... to highest allocated cmd-line component */
-
 static int   path_separator = ';';
 static char  current_dir [_MAX_PATH];
 
@@ -521,7 +518,7 @@ static int show_help (void)
 
   C_puts ("  ~6<--mode>~0 can be at least one of these:\n"
           "    ~6--cmake~0        check and search in ~3%CMAKE_MODULE_PATH%~0 and it's built-in module-path.\n"
-          "    ~6--evry[=~3host~0]~0  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
+          "    ~6--evry[=~3host~0]  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
           "    ~6--inc~0          check and search in ~3%INCLUDE%~0.                   ~2[2]~0\n"
           "    ~6--lib~0          check and search in ~3%LIB%~0 and ~3%LIBRARY_PATH%~0.    ~2[2]~0\n"
           "    ~6--man~0          check and search in ~3%MANPATH%~0.\n"
@@ -580,6 +577,15 @@ static int show_help (void)
           "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
           "      should be specified in your ~6%APPDATA%/.netrc~0 or ~6%APPDATA%/.authinfo~0 files or\n"
           "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
+          "\n"
+          "      To perform raw searches, append a modifier like:\n"
+          "        envtool ~6--evry~0 ~3*.exe~0 rc:today                     - find today's changes of all ~3*.exe~0 files.\n"
+          "        envtool ~6--evry~0 ~3*.mp3~0 title:RTM                    - find all ~3*.mp3~0 files with a title staring with RTM.\n"
+          "        envtool ~6--evry~0 ~3M*.mp3~0 artist:Madonna \"year:<2002\" - find all Madonna ~3M*.mp3~0 titles issued prior to 2002.\n"
+          "\n"
+          "      Ref: https://www.voidtools.com/support/everything/recent_changes/\n"
+          "           https://www.voidtools.com/support/everything/searching/#functions\n"
+
           "\n"
           "  ~2[2]~0 Unless ~6--no-prefix~0 is used, the ~3%C_INCLUDE_PATH%~0, ~3%CPLUS_INCLUDE_PATH%~0 and\n"
           "      ~3%LIBRARY_PATH%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
@@ -2024,14 +2030,13 @@ static BOOL dir_is_empty (const char *dir)
 }
 
 /*
- * Try to match 'str' against the global regular expression in
- * 'opt.file_spec_re'.
+ * Try to match 'str' against the global regular expression in 'opt.file_spec'.
  */
 static BOOL regex_match (const char *str)
 {
   memset (&re_matches, '\0', sizeof(re_matches));
   re_err = regexec (&re_hnd, str, DIM(re_matches), re_matches, 0);
-  DEBUGF (3, "regex() pattern '%s' against '%s'. re_err: %d\n", opt.file_spec_re, str, re_err);
+  DEBUGF (3, "regex() pattern '%s' against '%s'. re_err: %d\n", opt.file_spec, str, re_err);
 
   if (re_err == REG_NOMATCH)
      return (FALSE);
@@ -2352,7 +2357,8 @@ static BOOL evry_IsDBLoaded (HWND wnd)
 static int do_check_evry (void)
 {
   DWORD  i, err, num, request_flags, version = 0;
-  char   query [_MAX_PATH+8];
+  char   query_buf [_MAX_PATH+8];
+  char  *query = query_buf;
   char  *dir   = NULL;
   char  *base  = NULL;
   int    len, found = 0;
@@ -2380,36 +2386,41 @@ static int do_check_evry (void)
           evry_ver.val_3,
           evry_ver.val_4);
 
-  /* EveryThing seems not to support '\\'. Must split the 'opt.file_spec'
-   * into a 'dir' and 'base' part.
-   */
-  if (strpbrk(opt.file_spec, "/\\"))
+  if (opt.evry_raw)
+     query = opt.file_spec;
+  else
   {
-    dir  = dirname (opt.file_spec);   /* Allocates memory */
-    base = basename (opt.file_spec);
-  }
+    /* EveryThing seems not to support '\\'. Must split the 'opt.file_spec'
+     * into a 'dir' and 'base' part.
+     */
+    if (strpbrk(opt.file_spec, "/\\"))
+    {
+      dir  = dirname (opt.file_spec);   /* Allocates memory */
+      base = basename (opt.file_spec);
+    }
 
-  /* If user didn't use the '-r/--regex' option, we must convert
-   * 'opt.file_spec into' a RegExp compatible format.
-   * E.g. "ez_*.py" -> "^ez_.*\.py$"
-   */
-  if (opt.use_regex)
-       len = snprintf (query, sizeof(query), "regex:%s", opt.file_spec);
-  else if (dir)
-       len = snprintf (query, sizeof(query), "regex:%s\\\\%s", dir, base);
-  else len = snprintf (query, sizeof(query), "regex:^%s$", translate_shell_pattern(opt.file_spec));
+    /* If user didn't use the '-r/--regex' option, we must convert
+     * 'opt.file_spec into' a RegExp compatible format.
+     * E.g. "ez_*.py" -> "^ez_.*\.py$"
+     */
+    if (opt.use_regex)
+         len = snprintf (query_buf, sizeof(query_buf), "regex:%s", opt.file_spec);
+    else if (dir)
+         len = snprintf (query_buf, sizeof(query_buf), "regex:%s\\\\%s", dir, base);
+    else len = snprintf (query_buf, sizeof(query_buf), "regex:^%s$", translate_shell_pattern(opt.file_spec));
 
-  /* With option '-D' / '--dir', match only folders.
-   */
-  if (opt.dir_mode && !opt.use_regex)
-     snprintf (query+len, sizeof(query)-len, " folder:");
+    /* With option '-D' / '--dir', match only folders.
+     */
+    if (opt.dir_mode && !opt.use_regex)
+       snprintf (query_buf+len, sizeof(query_buf)-len, " folder:");
 
 #if 0   /* \todo Query contents with option "--grep" */
-  if (opt.evry_grep && len > 0)
-     snprintf (query+len, sizeof(query)-len, "content: %s", opt.evry_grep);
+    if (opt.evry_grep && len > 0)
+       snprintf (query_buf+len, sizeof(query_buf)-len, "content: %s", opt.evry_grep);
 #endif
 
-  FREE (dir);
+    FREE (dir);
+  }
 
   Everything_SetMatchCase (opt.case_sensitive);
 
@@ -2460,7 +2471,7 @@ static int do_check_evry (void)
     if (opt.use_regex)
          WARN ("Nothing matched your regexp \"%s\".\n"
                "Are you sure it is correct? Try quoting it.\n",
-               opt.file_spec_re);
+               opt.file_spec);
     else WARN ("Nothing matched your search \"%s\".\n"
                "Are you sure all NTFS disks are indexed by EveryThing? Try adding folders manually.\n",
                opt.file_spec);
@@ -2599,10 +2610,13 @@ static int do_check_env (const char *env_name, BOOL recursive)
  */
 static int check_man_dir (const char *dir, const char *env_name)
 {
-  if (!strcmp(dir,"\\"))
-       DEBUGF (1, "Looking in \"%s\" for \"%s\".\n", current_dir, opt.file_spec);
-  else DEBUGF (1, "Looking in \"%s\" for \"%s\".\n", dir, opt.file_spec);
+  const char *_dir;
 
+  if (!strcmp(dir,"\\"))
+       _dir = current_dir;
+  else _dir = dir;
+
+  DEBUGF (1, "Looking for \"%s\" in \"%s\".\n", opt.file_spec, _dir);
   return process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
 }
 
@@ -4088,7 +4102,7 @@ static void set_short_option (int o, const char *arg)
          opt.quiet = 1;
          break;
     case '?':      /* '?' == BADCH || BADARG */
-         usage ("  Use \"--help\" for options\n");
+         usage ("  Use %s \"-h\" / \"--help\" for options\n", who_am_I);
          break;
     default:
          usage ("Illegal option: '%c'\n", optopt);
@@ -4155,123 +4169,45 @@ static void set_long_option (int o, const char *arg)
 }
 
 /**
- * Parse the options in \c %ENVTOOL_OPTIONS and then parse the ones from
- * the command-line given by \c 'argv[1..argc-1]'.
- * At the end, find the 'file_spec' to search for.
- *
- * \param[in] argc  The number of argument on the command-line.
- *                  Same as the global \c __argc.
- * \param[in] argv  The argument-vector of the command-line.
- *                  Same as the global \c 'char *__argv[]'.
+ * Parse the command-line.
  */
-static void parse_cmdline (int argc, char *const *argv, char **fspec)
+static void parse_cmdline (void)
 {
-  char  buf [_MAX_PATH];
-  char *env, *ext;
+  command_line *c = &opt.cmd_line;
 
-#if defined(__CYGWIN__)
-  /*
-   * Cygwin gives an 'argv[]' that messed up regular expressions.
-   * E.g. on the cmdline, a "^c.*\\temp$", becomes a "^c.*\temp$".
-   * So get 'argv[argc-1]' back from kernel32.dll.
-   */
-  int       wargc;
-  wchar_t **wargv = CommandLineToArgvW (GetCommandLineW(), &wargc);
-  wchar_t  *last_argv;
-  static char new_last [_MAX_PATH];
+  c->env_opt       = "ENVTOOL_OPTIONS";
+  c->short_opt     = "+cChH:vVdDkrstTuq";
+  c->long_opt      = long_options;
+  c->set_short_opt = set_short_option;
+  c->set_long_opt  = set_long_option;
+  getopt_parse (c);
 
-  if (wargv)
+  if (c->argc0 > 0 && c->argc - c->argc0 >= 1)
+     opt.file_spec = STRDUP (c->argv[c->argc0]);
+
+  if ((c->argc0 > 0) && (c->argc - c->argc0 >= 2))
+     opt.evry_raw = TRUE;
+
+  if (opt.evry_raw)
   {
-    last_argv = wargv [wargc-1];
-    if (WideCharToMultiByte(CP_ACP, 0, last_argv, wcslen(last_argv),
-                            new_last, sizeof(new_last), "?", NULL) > 0)
-       argv [wargc-1] = new_last;
-    LocalFree (wargv);
-  }
-#endif
-
-  if (GetModuleFileName(NULL, buf, sizeof(buf)))
-       who_am_I = STRDUP (buf);
-  else who_am_I = STRDUP (argv[0]);
-
-  program_name = who_am_I;
-  *fspec = NULL;
-
-  ext = (char*) get_file_ext (who_am_I);
-  strlwr (ext);
-
-  env = getenv_expand ("ENVTOOL_OPTIONS");
-
-  if (env)
-  {
-    char *s = strtok (env, "\t ");
-    int   i, j;
-
-    if (strstr(env,"-d"))  /* Since getopt_long() hasn't been called yet. */
-       opt.debug = 1;
-
-    memset (new_argv, '\0', sizeof(new_argv));
-    new_argv[0] = STRDUP (argv[0]);
-    for (i = 1; s && i < DIM(new_argv)-1; i++)
-    {
-      new_argv[i] = STRDUP (s);
-      s = strtok (NULL, "\t ");
-    }
-    new_argc = i;
-
-    for (j = new_argc, i = 1; i < argc && j < DIM(new_argv)-1; i++, j++)
-       new_argv [j] = STRDUP (argv[i]);  /* allocate original into new_argv[] */
-
-    new_argc = j;
-    if (new_argc == DIM(new_argv)-1)
-       WARN ("Too many arguments (%d) in %%ENVTOOL_OPTIONS%%.\n", i);
-    argc = new_argc;
-    argv = new_argv;
-
-    DEBUGF (1, "argc: %d\n", argc);
-    for (i = 0; i < argc; i++)
-        DEBUGF (1, "argv[%d]: \"%s\"\n", i, argv[i]);
-    FREE (env);
+    FREE (opt.file_spec);
+    opt.file_spec = _strjoin (c->argv + c->argc0, " ");
   }
 
-  opt.debug = 0;
+  DEBUGF (1, "c->argc0:      %d\n", c->argc0);
+  DEBUGF (1, "opt.file_spec: %s'\n", opt.file_spec);
+  DEBUGF (1, "opt.evry_raw:  %d\n", opt.evry_raw);
+}
 
-  /**
-   * Use a \c "+" first in \c getopt_long() options. This will disable the
-   * GNU extensions that allow non-options to come before options.
-   * E.g. a cmd-line like:
-   *      \verbatim
-   *        envtool --path foo* -d
-   *      \endverbatim
-   *
-   *      is equivalent to:
-   *      \verbatim
-   *        envtool --path -d foo*
-   *      \endverbatim
-   *
-   * We do not want that since whatever comes after \c "foo*" should be
-   * pointed to by \c '__argv [opt.remaining_arg_pos]'. This could then
-   * be passed as a command-line to a Python-script. See \c py_execfile()
-   * below for an example.
-   */
-
-  while (1)
-  {
-    int opt_index = 0;
-    int c = getopt_long (argc, argv, "+cChH:vVdDkrstTuq", long_options, &opt_index);
-
-    if (c == 0)
-       set_long_option (opt_index, optarg);
-    else if (c > 0)
-       set_short_option (c, optarg);
-    else if (c == -1)
-       break;
-  }
-
+/**
+ * Evaluate if some combinations of options doesn't make sense.
+ */
+static int eval_options (void)
+{
   if (!(opt.do_lib || opt.do_include) && opt.only_32bit && opt.only_64bit)
   {
     WARN ("Specifying both '--32' and '--64' doesn't make sense.\n");
-    exit (1);
+    return (0);
   }
 
   if (!opt.PE_check && (opt.only_32bit || opt.only_64bit))
@@ -4280,7 +4216,7 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   C_no_ansi = opt.no_ansi;
 
   /* Use ANSI-sequences under ConEmu or if "%COLOUR_TRACE >= 2".
-   * Nullifies the "--no-ansi" option set above.
+   * Nullifies the "--no-ansi" option.
    */
   if (opt.under_conemu || C_trace_level() >= 2)
      C_use_ansi_colours = 1;
@@ -4288,21 +4224,7 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
   if (opt.no_colours)
      C_use_colours = C_use_ansi_colours = 0;
 
-  if (argc >= 2 && argv[optind])
-  {
-    int i;
-
-    *fspec = STRDUP (argv[optind]);
-    if (new_argc > optind)
-         opt.remaining_arg_pos = new_argc - optind - 1;
-    else opt.remaining_arg_pos = optind + 1;
-
-    DEBUGF (1, "*fspec: \"%s\", optind: %d, __argc: %d, new_argc: %d, opt.remaining_arg_pos: %d\n",
-            *fspec, optind, __argc, new_argc, opt.remaining_arg_pos);
-
-    for (i = opt.remaining_arg_pos; i < __argc; i++)
-        DEBUGF (1, "argv[%d]: '%s'\n", i, __argv[i]);
-  }
+  return (1);
 }
 
 /**
@@ -4311,8 +4233,6 @@ static void parse_cmdline (int argc, char *const *argv, char **fspec)
  */
 static void MS_CDECL cleanup (void)
 {
-  int i;
-
   /* If we're called from the SIGINT thread, don't do any Python stuff.
    * That will probably crash in Py_Finalize().
    */
@@ -4330,10 +4250,8 @@ static void MS_CDECL cleanup (void)
   FREE (user_env_path);
   FREE (user_env_lib);
   FREE (user_env_inc);
-
-  FREE (opt.file_spec_re);
-  FREE (opt.file_spec);
   FREE (vcache_fname);
+  FREE (opt.file_spec);
 
   free_all_compilers();
 
@@ -4346,8 +4264,7 @@ static void MS_CDECL cleanup (void)
   smartlist_free_all (opt.evry_host);
   smartlist_free_all (opt.owners);
 
-  for (i = 0; i < new_argc && i < DIM(new_argv)-1; i++)
-      FREE (new_argv[i]);
+  getopt_free (&opt.cmd_line);
 
   cfg_ignore_exit();
 
@@ -4405,6 +4322,8 @@ static void MS_CDECL halt (int sig)
 
 static void init_all (void)
 {
+  char buf [_MAX_PATH];
+
   atexit (cleanup);
   crtdbug_init();
 
@@ -4412,6 +4331,12 @@ static void init_all (void)
   memset (&opt, 0, sizeof(opt));
   opt.add_cwd = 1;
   opt.under_conemu = C_conemu_detected();
+
+  if (GetModuleFileName(NULL, buf, sizeof(buf)))
+       who_am_I = STRDUP (buf);
+  else who_am_I = STRDUP (__argv[0]);
+
+  program_name = who_am_I;
 
   C_use_colours = 1;  /* Turned off by "--no-colour" */
 
@@ -4444,13 +4369,15 @@ static void init_all (void)
   }
 }
 
-int MS_CDECL main (int argc, char **argv)
+int MS_CDECL main (void)
 {
   int found = 0;
 
   init_all();
 
-  parse_cmdline (argc, argv, &opt.file_spec);
+  parse_cmdline();
+  if (!eval_options())
+     return (1);
 
   cfg_ignore_init ("%APPDATA%\\envtool.cfg");
   check_sys_dirs();
@@ -4494,39 +4421,40 @@ int MS_CDECL main (int argc, char **argv)
   if (!opt.file_spec)
      usage ("You must give a ~1filespec~0 to search for.\n");
 
-  opt.file_spec_re = STRDUP (opt.file_spec);
-
-  if (!opt.use_regex)
+  if (!opt.evry_raw)
   {
-    char *end, *dot, *fspec;
-
-    if (strchr(opt.file_spec,'~') > opt.file_spec)
+    if (!opt.use_regex)
     {
-      fspec = opt.file_spec;
-      opt.file_spec = _fix_path (fspec, NULL);
-      FREE (fspec);
+      char *end, *dot, *fspec;
+
+      if (strchr(opt.file_spec,'~') > opt.file_spec)
+      {
+        fspec = opt.file_spec;
+        opt.file_spec = _fix_path (fspec, NULL);
+        FREE (fspec);
+      }
+
+      end = strrchr (opt.file_spec, '\0');
+      dot = strrchr (opt.file_spec, '.');
+      if (opt.do_pkg && !dot && end > opt.file_spec && end[-1] != '*')
+         opt.file_spec = _stracat (opt.file_spec, ".pc*");
+
+      else if (!dot && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
+          opt.file_spec = _stracat (opt.file_spec, ".*");
     }
-
-    end = strrchr (opt.file_spec, '\0');
-    dot = strrchr (opt.file_spec, '.');
-    if (opt.do_pkg && !dot && end > opt.file_spec && end[-1] != '*')
-       opt.file_spec = _stracat (opt.file_spec, ".pc*");
-
-    else if (!dot && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
-        opt.file_spec = _stracat (opt.file_spec, ".*");
-  }
-  else
-  {
-    re_err = regcomp (&re_hnd, opt.file_spec_re, opt.case_sensitive ? 0 : REG_ICASE);
-    re_alloc = TRUE;
-    if (re_err)
+    else
     {
-      regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
-      WARN ("Invalid regular expression \"%s\": %s\n", opt.file_spec_re, re_errbuf);
+      re_err = regcomp (&re_hnd, opt.file_spec, opt.case_sensitive ? 0 : REG_ICASE);
+      re_alloc = TRUE;
+      if (re_err)
+      {
+        regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
+        WARN ("Invalid regular expression \"%s\": %s\n", opt.file_spec, re_errbuf);
+      }
     }
   }
 
-  DEBUGF (1, "file_spec: '%s', file_spec_re: '%s'.\n", opt.file_spec, opt.file_spec_re);
+  DEBUGF (1, "opt.file_spec: '%s'\n", opt.file_spec);
 
   if (!opt.no_sys_env)
      found += scan_system_env();
@@ -5376,23 +5304,17 @@ static void test_ETP_host (void)
  */
 static int test_python_funcs (void)
 {
+  const command_line *c;
   char *str = NULL;
 
   if (halt_flag)
      return (1);
 
-  py_test();
+// py_test();
 
-  if (opt.file_spec) /* Should be equal to '__argv[opt.remaining_arg_pos-1]' */
-  {
-    char **argv = alloca (sizeof(char*) * (1 + __argc - opt.remaining_arg_pos));
-    int    i, j;
-
-    argv[0] = opt.file_spec;
-    for (j = 1, i = opt.remaining_arg_pos; i <= __argc; i++, j++)
-        argv[j] = __argv[i];
-    str = py_execfile (argv);
-  }
+  c = &opt.cmd_line;
+  if (c->argc0 > 0)
+     str = py_execfile ((const char**)(c->argv + c->argc0));
 
   FREE (str);
   return (0);
@@ -5694,7 +5616,7 @@ static int do_tests (void)
 
 static void print_build_cflags (void)
 {
-#if defined(CFLAGS)
+#if defined(CFLAGS) && !defined(DOING_MAKE_DEPEND)
   #include CFLAGS
   C_puts ("\n    ");
   C_puts_long_line (cflags, 4);
@@ -5705,7 +5627,7 @@ static void print_build_cflags (void)
 
 static void print_build_ldflags (void)
 {
-#if defined(LDFLAGS)
+#if defined(LDFLAGS) && !defined(DOING_MAKE_DEPEND)
   #include LDFLAGS
   C_puts ("\n    ");
   C_puts_long_line (ldflags, 4);
