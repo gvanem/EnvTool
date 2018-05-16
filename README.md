@@ -1,4 +1,4 @@
-# EnvTool v1.1:
+# EnvTool v1.2:
 
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/gvanem/envtool?branch=master&svg=true)](https://ci.appveyor.com/project/gvanem/envtool)
 
@@ -259,6 +259,10 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
         Added reading of an config-file; "%APPDATA%\envtool.cfg" is read at startup
         to support files to ignore. Copy the included "envtool.cfg" to your "%APPDATA"
         folder if needed.
+
+  1.2:  Modifiers for "--evry" option is now possible. E.g.
+          envtool --evry *.exe rc:today                     - find today's changes of all *.exe files.
+          envtool --evry M*.mp3 artist:Madonna "year:<2002" - find all Madonna M*.mp3 titles issued prior to 2002.
 
 ```
 
