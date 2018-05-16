@@ -2243,18 +2243,21 @@ typedef struct {
  * \param[in] wide TRUE if the \c av->wide[] array should be created.
  *                 FALSE if the \c av->ascii[] array should be created.
  */
-static int make_arg_vector (arg_vector *av, char **argv, BOOL wide)
+static int make_arg_vector (arg_vector *av, const char **argv, BOOL wide)
 {
-  int i;
+  int i, num;
 
-  memset (av, '\0', sizeof(*av));
+  av->ascii = NULL;
+  av->wide  = NULL;
+  av->argc  = 0;
 
   for (i = 0; argv[i]; i++)
       av->argc++;
+  num = av->argc + 1;
 
   if (wide)
-       av->wide  = MALLOC ((av->argc+1) * sizeof(wchar_t**));
-  else av->ascii = MALLOC ((av->argc+1) * sizeof(char**));
+       av->wide  = CALLOC (num, sizeof(wchar_t*));
+  else av->ascii = CALLOC (num, sizeof(char*));
 
   for (i = 0; i < av->argc; i++)
   {
@@ -2262,12 +2265,6 @@ static int make_arg_vector (arg_vector *av, char **argv, BOOL wide)
          av->wide[i]  = (*Py_DecodeLocale) (argv[i], NULL);
     else av->ascii[i] = STRDUP (argv[i]);
   }
-
-  /* Terminate arg-vector
-   */
-  if (wide)
-       av->wide[i]  = NULL;
-  else av->ascii[i] = NULL;
 
   DEBUGF (1, "av->argc: %d\n", av->argc);
   for (i = 0; i <= av->argc; i++)
@@ -2315,9 +2312,8 @@ static void free_arg_vector (arg_vector *av)
  * \param[in] py_argv  The Python-script to run must be in \c py_argv[0].\n
  *                     The remaining command-line is in \c py_argv[1..].
  */
-char *py_execfile (char **py_argv)
+char *py_execfile (const char **py_argv)
 {
-  char        file_buf [_MAX_PATH];
   char       *str, *prog, *py_file;
   const char *fmt;
   arg_vector av;
@@ -2339,8 +2335,13 @@ char *py_execfile (char **py_argv)
     return (NULL);
   }
 
-  py_file = _fix_path (py_argv[0], file_buf);
-  py_argv[0] = py_file;
+  if (PySys_SetArgvEx == NULL && !py_init_embedding(g_py))
+  {
+    DEBUGF (1, "py_init_embedding() failed.\n");
+    return (NULL);
+  }
+
+  py_file = (char*) py_argv[0];
 
   if (g_py->ver_major >= 3)
   {
@@ -2364,7 +2365,7 @@ char *py_execfile (char **py_argv)
    * 'exec()' or 'execfile()' calls.
    * Caller must call 'FREE(str)' on this value when done.
    */
-  DEBUGF (2, "str:\n%s\n", str ? str : "<none>");
+  DEBUGF (1, "str:\n%s\n", str ? str : "<none>");
   free_arg_vector (&av);
   return (str);
 }
