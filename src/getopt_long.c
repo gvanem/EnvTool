@@ -714,7 +714,7 @@ void getopt_parse (struct command_line *c)
 
   DEBUGF2 (0, "c->argc: %d\n", c->argc);
 
-  for (i = j = k = l = 0; i < (volatile int)c->argc; )
+  for (i = j = k = l = 0; i < c->argc; )
   {
     wchar_t *warg = NULL;
     char    *aarg;
