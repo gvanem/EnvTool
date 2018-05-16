@@ -2125,6 +2125,42 @@ char *_stracat (char *s1, const char *s2)
 }
 
 /**
+ * Create a joined string from an array of strings.
+ *
+ * \param[in] arr  the array of strings to join and return as a single string.
+ * \param[in] sep  the separator between the \c arr elements; after the first up-to the 2nd last
+ *
+ * \retval  \c NULL if \c arr is empty
+ * \retval  A \c MALLOC()'ed string if the concatinated result.
+ */
+char *_strjoin (char * const *arr, const char *sep)
+{
+  char  *p,  *ret = NULL;
+  int    i, num;
+  size_t sz = 0;
+
+  if (!arr)
+     return (NULL);
+
+  /* Get the needed size for 'ret'
+   */
+  for (i = num = 0; arr[i]; i++, num++)
+      sz += strlen (arr[i]) + strlen(sep) + 1;
+  if (sz == 0)
+     return (NULL);
+
+  ret = p = MALLOC (sz);
+  for (i = 0; arr[i]; i++)
+  {
+    strcpy (p, arr[i]);
+    if (i < num-1)
+       strcat (p, sep);
+    p = strchr (p, '\0');
+  }
+  return (ret);
+}
+
+/**
  * For consistency and nice looks, replace (single or multiple) '\\'
  * with single '/' if use == '/'. And vice-versa.
  * All (?) Windows core functions functions should handle
