@@ -42,61 +42,55 @@ static smartlist_t *ignore_list = NULL;
  * \param[in] line  the prepped string-value from the file opened in
  *                  \ref cfg_ignore_init().
  */
-static void cfg_parse (smartlist_t *sl, char *line)
+static void cfg_parse (smartlist_t *sl, const char *line)
 {
-  char   ignore [256], *p, *q;
+  char   ignore [256];
+  char  *start, *copy;
   struct ignore_node *node = NULL;
-  BOOL   add_it = FALSE;
+  BOOL   quoted = FALSE;
+  int    num;
   static const char *section = NULL;
 
-  strip_nl (line);
-  p = str_trim (line);
+  /* Fast exit on simple lines
+   */
+  if (*line == '\0' || *line == '\r' || *line == '\n')
+     return;
 
-  if (*p == '[')
+  copy  = STRDUP (line);
+  start = str_ltrim (copy);
+
+  if (*start == '[')
   {
-    unsigned idx = list_lookup_value (p, sections, DIM(sections));
+    unsigned idx = list_lookup_value (strip_nl(start), sections, DIM(sections));
 
     if (idx == UINT_MAX)
-         WARN ("Ignoring unknown section: %s.\n", p);
+         WARN ("Ignoring unknown section: %s.\n", start);
     else section = sections[idx].name;   /* remember the section for next line */
-    return;
+    goto quit;
   }
 
   if (!section)
-     return;
-
-  /* Remove trailing comments and spaces before that.
-   */
-  q = strchr (line, '#');
-  if (q)
-  {
-    *q-- = '\0';
-    while (*q == ' ' || *q == '\t')
-       *q-- = '\0';
-  }
+     goto quit;
 
   ignore[0] = '\0';
+  num = sscanf (start,"ignore = \"%255[^\"]\"", ignore);
+  if (num == 1)
+       quoted = TRUE;
+  else num = sscanf (start, "ignore = %255[^#\r\n]", ignore);
 
-  if (sscanf(p, "ignore = %256s", ignore) == 1 && ignore[0] != '\"')
-     add_it = TRUE;
-
-  p = strchr (line, '\0');
-  q = strchr (line, '\"');
-  if (ignore[0] == '\"' && p[-1] == '\"' && p - q >= 3 && p < line+sizeof(ignore))
-  {
-    p[-1] = '\0';
-    _strlcpy (ignore, q+1, sizeof(ignore));
-    add_it = TRUE;
-  }
-
-  if (add_it)
+  if (num == 1)
   {
     node = MALLOC (sizeof(*node));
     node->section = section;
-    node->value   = STRDUP (ignore);
+    node->value   = STRDUP (str_ltrim(ignore));
     smartlist_add (sl, node);
-    DEBUGF (3, "%s: '%s'.\n", section, ignore);
+    DEBUGF (3, "%s: %s: '%s'\n", quoted ? "quoted" : "unquoted", node->section, node->value);
   }
+  else
+    DEBUGF (3, "num=%d, ignore: '%s'.\n", num, ignore);
+
+quit:
+  FREE (copy);
 }
 
 /**
@@ -111,7 +105,7 @@ int cfg_ignore_init (const char *fname)
   DEBUGF (3, "file: %s\n", file);
   if (file)
   {
-    ignore_list = smartlist_read_file (file, (smartlist_parse_func)cfg_parse);
+    ignore_list = smartlist_read_file (file, cfg_parse);
     FREE (file);
   }
   cfg_ignore_dump();
