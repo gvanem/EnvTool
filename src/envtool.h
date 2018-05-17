@@ -357,7 +357,6 @@ struct prog_options {
        BOOL         evry_raw;      /* use raw non-regex searches */
        void        *evry_host;     /* A smartlist_t */
        char        *file_spec;
-       char        *spec_extras;
        int          remaining_arg_pos;
        command_line cmd_line;
      };
