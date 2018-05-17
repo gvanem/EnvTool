@@ -82,7 +82,7 @@ static void cfg_parse (smartlist_t *sl, const char *line)
   {
     node = MALLOC (sizeof(*node));
     node->section = section;
-    node->value   = STRDUP (str_ltrim(ignore));
+    node->value   = STRDUP (str_rtrim(ignore));
     smartlist_add (sl, node);
     DEBUGF (3, "%s: %s: '%s'\n", quoted ? "quoted" : "unquoted", node->section, node->value);
   }
