@@ -2312,10 +2312,11 @@ static void free_arg_vector (arg_vector *av)
  * \param[in] py_argv  The Python-script to run must be in \c py_argv[0].\n
  *                     The remaining command-line is in \c py_argv[1..].
  */
-char *py_execfile (const char **py_argv)
+char *py_execfile (const char **py_argv, BOOL capture)
 {
   char       *str, *prog, *py_file;
-  const char *fmt;
+  const char *prog0, *fmt;
+  size_t      size;
   arg_vector av;
 
   /* 'py_which' is set by option "--py=pyX" or the first supported
@@ -2356,16 +2357,37 @@ char *py_execfile (const char **py_argv)
     fmt = PY_EXEC2_FMT();
   }
 
-  prog = alloca (strlen(fmt) + 2 * strlen(py_file) + 1);
-  sprintf (prog, fmt, py_file, py_file);
+  if (capture)
+       prog0 = "";
+  else prog0 = "sys.stdout = old_stdout\n";
+
+  size = strlen(prog0) + strlen(fmt) + 2 * strlen(py_file);
+  prog = alloca (size);
+
+  if (!capture)
+  {
+    strcpy (prog, prog0);
+    snprintf (prog+strlen(prog0), size, fmt, py_file, py_file);
+  }
+  else
+    snprintf (prog, size, fmt, py_file, py_file);
 
   str = call_python_func (g_py, prog);
 
-  /* The 'str' should now contain the Python output of one of the above
-   * 'exec()' or 'execfile()' calls.
-   * Caller must call 'FREE(str)' on this value when done.
-   */
-  DEBUGF (1, "str:\n%s\n", str ? str : "<none>");
+  if (capture)
+  {
+    /* The 'str' should now contain the Python output of one of the above
+     * 'exec()' or 'execfile()' calls.
+     * Caller must call 'FREE(str)' on this value when done.
+     */
+    DEBUGF (1, "capture: TRUE, str:\n%s\n", str ? str : "<none>");
+  }
+  else
+  {
+    /* The 'str' should now be empty since 'sys.stdout' was not captured.
+     */
+    DEBUGF (1, "capture: FALSE, str:\n%s\n", str ? str : "<none>");
+  }
   free_arg_vector (&av);
   return (str);
 }
