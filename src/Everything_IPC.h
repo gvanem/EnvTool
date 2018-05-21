@@ -1,4 +1,6 @@
-
+/** \file    Everything_IPC.h
+ *  \ingroup EveryThing_SDK
+ */
 // Everything IPC
 
 #ifndef _EVERYTHING_IPC_H_

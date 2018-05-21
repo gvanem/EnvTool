@@ -1,3 +1,6 @@
+/** \file auth.h
+ * \ingroup Authentication
+ */
 #ifndef _AUTH_H_
 #define _AUTH_H_
 

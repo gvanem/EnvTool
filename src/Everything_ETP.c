@@ -1,174 +1,37 @@
 /** \file    Everything_ETP.c
  *  \ingroup EveryThing_ETP
  *  \brief
- *    Functions for remote queries using EveryThing's ETP protocol.
+ *    Functions for remote queries using EveryThing's FTP protocol.
  *
- *   ref: http://www.voidtools.com/support/everything/etp/     \n
- *   ref: https://www.voidtools.com/forum/viewtopic.php?t=1790 \n
+ *   ref: http://www.voidtools.com/support/everything/etp/     <br>
+ *   ref: https://www.voidtools.com/forum/viewtopic.php?t=1790 <br>
  *
- * This file is part of envtool.
+ * To do a remote EveryThing search, connect to a remote ETP-server, login,
+ * send the `EVERYTHING SEARCH` and parameters.
  *
- * By Gisle Vanem <gvanem@yahoo.no> August 2017.
- */
-#include <stdio.h>
-#include <stdlib.h>
-
-#if defined(__CYGWIN__) && !defined(__USE_W32_SOCKETS)
-  #include <sys/select.h>
-  #include <sys/socket.h>
-  #include <sys/ioctl.h>
-  #include <arpa/inet.h>
-  #include <netdb.h>
-  #include <errno.h>
-
-  #define CYGWIN_POSIX
-#else
-
-  /** Suppress warning for 'inet_addr()' and 'gethostbyname()'
-   */
-  #define _WINSOCK_DEPRECATED_NO_WARNINGS
-  #include <winsock2.h>
-  #include <windows.h>
-#endif
-
-#include "color.h"
-#include "envtool.h"
-#include "auth.h"
-#include "Everything_ETP.h"
-
-#ifndef CONN_TIMEOUT
-/**\def CONN_TIMEOUT the connect() timeout for a non-blocking connection. */
-#define CONN_TIMEOUT 3000   /* 3 sec */
-#endif
-
-#ifndef RECV_TIMEOUT
-/**\def RECV_TIMEOUT the SO_RCVTIMEO used in setsockopt() */
-#define RECV_TIMEOUT 2000   /* 2 sec */
-#endif
-
-#ifndef MAX_RECV_BUF
-/**\def MAX_RECV_BUF size of receiver buffer */
-#define MAX_RECV_BUF (16*1024)
-#endif
-
-#if defined(CYGWIN_POSIX)
-  #define SOCKET             int
-  #define INVALID_SOCKET     -1
-  #undef  WSAETIMEDOUT
-  #define WSAETIMEDOUT       ETIMEDOUT
-  #define WSAGetLastError()  errno
-  #define WSASetLastError(e) errno = e
-  #define closesocket(s)     close(s)
-#endif
-
-DWORD ETP_total_rcv;
-DWORD ETP_num_evry_dups;
-
-/* Forward definition.
- */
-struct state_CTX;
-
-/**
- * \typedef ETP_state
- * All state-functions must match this function-type.
- */
-typedef BOOL (*ETP_state) (struct state_CTX *ctx);
-
-/** \struct IO_buf
- * Buffered I/O stream
- */
-struct IO_buf {
-       char   buffer [MAX_RECV_BUF]; /* the input buffer */
-       char  *buffer_pos;            /* current position in the buffer */
-       size_t buffer_left;           /* number of bytes left in the buffer:
-                                      * buffer_left = buffer_end - buffer_pos */
-       int    buffer_read;           /* used by rbuf_read_char() */
-     };
-
-/**
- * \struct state_CTX
- * The context used throughout the ETP transfer.
- * Keeping this together should make the ETP transfer
- * fully reentrant.
- */
-struct state_CTX {
-       ETP_state          state;            /** Current state function */
-       struct sockaddr_in sa;               /** Used in 'state_resolve()' and 'state_xx_connect()' */
-       SOCKET             sock;             /** Set in 'state_xx_connect()' */
-       int                port;             /** The server destination port to use */
-       char              *raw_url;          /** URL on raw form given in do_check_evry_ept() */
-       char               hostname [200];   /** Name of host to connect to */
-       char               username [30];    /** Name of user */
-       char               password [30];    /** And his password (if any) */
-       BOOL               use_netrc;        /** Use the '%APPDATA/.netrc' file */
-       BOOL               use_authinfo;     /** Use the '%APPDATA/.authinfo' file */
-       DWORD              timeout;
-       int                retries;
-       int                ws_err;           /** Last WSAGetError() */
-       unsigned           results_expected; /** The number of matches we're expecting */
-       unsigned           results_got;      /** The number of matches we got */
-       unsigned           results_ignore;   /** The number of matches we ignored */
-       struct IO_buf      recv;             /** The IO_buf for reception */
-       struct IO_buf      trace;            /** The IO_buf for tracing the protocol */
-
-       /* These are set in state_PATH()
-        */
-       time_t             mtime;
-       UINT64             fsize;
-       char               path [_MAX_PATH];
-     };
-
-/**
- * Local functions; prototypes.
- */
-static int         parse_host_spec      (struct state_CTX *ctx, const char *pattern, ...);
-static void        connect_common_init  (struct state_CTX *ctx, const char *which_state);
-static void        connect_common_final (struct state_CTX *ctx, int err);
-static void        set_nonblock         (SOCKET sock, DWORD non_block);
-static const char *ws2_strerror         (int err);
-
-static int         rbuf_read_char  (struct state_CTX *ctx, char *store);
-static const char *ETP_tracef      (struct state_CTX *ctx, const char *fmt, ...);
-static const char *ETP_state_name  (ETP_state f);
-
-static BOOL state_init                 (struct state_CTX *ctx);
-static BOOL state_exit                 (struct state_CTX *ctx);
-static BOOL state_parse_url            (struct state_CTX *ctx);
-static BOOL state_netrc_lookup         (struct state_CTX *ctx);
-static BOOL state_authinfo_lookup      (struct state_CTX *ctx);
-static BOOL state_send_login           (struct state_CTX *ctx);
-static BOOL state_send_pass            (struct state_CTX *ctx);
-static BOOL state_await_login          (struct state_CTX *ctx);
-static BOOL state_send_query           (struct state_CTX *ctx);
-static BOOL state_200                  (struct state_CTX *ctx);
-static BOOL state_RESULT_COUNT         (struct state_CTX *ctx);
-static BOOL state_PATH                 (struct state_CTX *ctx);
-static BOOL state_closing              (struct state_CTX *ctx);
-static BOOL state_resolve              (struct state_CTX *ctx);
-static BOOL state_blocking_connect     (struct state_CTX *ctx);
-static BOOL state_non_blocking_connect (struct state_CTX *ctx);
-
-/*
- * Do a remote EveryThing search.
- * Connect to a remote ETP-server, login, send the SEARCH and parameters.
- * The protocol goes something like this (1st attempt of MSC in Doxygen)
+ * The protocol goes something like this (mscgen tool diagram):
  *
  * \msc "ETP Protocol" width=10cm height=20cm
  *   arcgradient = 8;
- *   a[label="Client"], b[label="Server"], c[label="Server error", URL="\ref state_closing"];
- *   a => b [label="USER xx"];
- *   a <= b [label="230.."];
- *   c <= b [label="!230.."];
- *   a => b [label="EVERYTHING SEARCH"];
- * \endmsc
- */
-
-/**
- * Do a remote EveryThing search:
- *   Connect to a remote ETP-server, login, send the SEARCH and parameters.
+ *   a[label="Client"], b[label="Server"], c[label="Server error", url="\ref state_closing"];
+ *   a => b [label="USER user",                                    url="\ref state_send_login"];
+ *   a <= b [label="230 Welcome to Everything ETP/FTP",            url="\ref state_send_login"];
+ *   a <= b [label="331 Password required for user",               url="\ref state_await_login"];
+ *   a => b [label="PASS password",                                url="\ref state_send_pass"];
+ *   c <= b [label="530 Login or password incorrect!",             url="\ref state_await_login"];
+ *   a <= b [label="230 Logged on.",                               url="\ref state_await_login"];
+ *   a => b [label="EVERYTHING REGEX 1",                           url="\ref state_send_query"];
+ *   a => b [label="EVERYTHING SEARCH filespec",                   url="\ref state_send_query"];
+ *   a => b [label="EVERYTHING QUERY",                             url="\ref state_send_query"];
+ *   a <= b [label="RESULT_COUNT N",                               url="\ref state_RESULT_COUNT"];
+ *   a <= b [label="PATH file 1",                                  url="\ref state_PATH"];
+ *   -----  [label="for all files until N paths received",         url="\ref state_PATH"];
+ *   a <= b [label="200 End",                                      url="\ref state_closing"];
  *
- * The protocol goes something like this:
- * \verbatim
+ * \endmsc
+ *
+ * Or in plain notation:
+ * \code
  *    C -> USER anonymous (or <none>)
  *    C -> EVERYTHING SEARCH <spec>
  *    C -> EVERYTHING PATH_COLUMN 1
@@ -180,11 +43,10 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx);
  *    S ->  RESULT_COUNT 3
  *    ...
  *    S -> 200 End.
- * \endverbatim
+ * \endcode
  *
  * Which can be accomplished with a .bat-file and a plain ftp client:
- *
- * \verbatim
+ * \code
  *  @echo off
  *  echo USER                                     > etp-commands
  *  echo QUOTE EVERYTHING SEARCH notepad.exe     >> etp-commands
@@ -223,28 +85,180 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx);
  *  200 End.
  *  ftp> BYE
  *  221 Goodbye.
+ * \endcode
  *
- * \endverbatim
+ * This file is part of envtool.
+ *
+ * By Gisle Vanem <gvanem@yahoo.no> August 2017.
  */
+#include <stdio.h>
+#include <stdlib.h>
+
+#if defined(__CYGWIN__) && !defined(__USE_W32_SOCKETS)
+  #include <sys/select.h>
+  #include <sys/socket.h>
+  #include <sys/ioctl.h>
+  #include <arpa/inet.h>
+  #include <netdb.h>
+  #include <errno.h>
+
+  #define CYGWIN_POSIX
+#else
+
+  /** Suppress warning for `inet_addr()` and `gethostbyname()`
+   */
+  #define _WINSOCK_DEPRECATED_NO_WARNINGS
+  #include <winsock2.h>
+  #include <windows.h>
+#endif
+
+#include "color.h"
+#include "envtool.h"
+#include "auth.h"
+#include "Everything_ETP.h"
+
+/**\def CONN_TIMEOUT
+ * the `connect()` timeout for a non-blocking connection.
+ */
+#ifndef CONN_TIMEOUT
+#define CONN_TIMEOUT 3000   /* 3 sec */
+#endif
+
+/**\def RECV_TIMEOUT
+ * the `SO_RCVTIMEO` used in `setsockopt()`
+ */
+#ifndef RECV_TIMEOUT
+#define RECV_TIMEOUT 2000   /* 2 sec */
+#endif
+
+/**\def MAX_RECV_BUF
+ * size of receive buffer
+ */
+#ifndef MAX_RECV_BUF
+#define MAX_RECV_BUF (16*1024)
+#endif
+
+#if defined(CYGWIN_POSIX)
+  #define SOCKET             int
+  #define INVALID_SOCKET     -1
+  #undef  WSAETIMEDOUT
+  #define WSAETIMEDOUT       ETIMEDOUT
+  #define WSAGetLastError()  errno
+  #define WSASetLastError(e) errno = e
+  #define closesocket(s)     close(s)
+#endif
+
+DWORD ETP_total_rcv;
+DWORD ETP_num_evry_dups;
+
+/* Forward definition.
+ */
+struct state_CTX;
+
+/**
+ * \typedef ETP_state
+ * All state-functions must match this function-type.
+ */
+typedef BOOL (*ETP_state) (struct state_CTX *ctx);
+
+/** \struct IO_buf
+ * Buffered I/O stream
+ */
+struct IO_buf {
+       char   buffer [MAX_RECV_BUF];   /**< the input/trace buffer */
+       char  *buffer_pos;              /**< current position in the buffer */
+       size_t buffer_left;             /**< number of bytes left in the buffer: <br>
+                                        * `buffer_left = buffer_end - buffer_pos`
+                                        */
+       int    buffer_read;             /**< used by `rbuf_read_char()` */
+     };
+
+/**
+ * \struct state_CTX
+ * The context used throughout the ETP transfer.
+ * Keeping this together should make the ETP transfer
+ * fully reentrant.
+ */
+struct state_CTX {
+       ETP_state          state;            /**< Current state function */
+       struct sockaddr_in sa;               /**< Used in state_resolve(), state_blocking_connect() and state_non_blocking_connect() */
+       SOCKET             sock;             /**< Set in state_blocking_connect() and state_non_blocking_connect() */
+       int                port;             /**< The server destination port to use */
+       char              *raw_url;          /**< URL on raw form given in do_check_evry_ept() */
+       char               hostname [200];   /**< Name of host to connect to */
+       char               username [30];    /**< Name of user */
+       char               password [30];    /**< And his password (if any) */
+       BOOL               use_netrc;        /**< Use the `%APPDATA%/.netrc` file */
+       BOOL               use_authinfo;     /**< Use the `%APPDATA%/.authinfo` file */
+       DWORD              timeout;          /**< The socket timeout (= `RECV_TIMEOUT`) */
+       int                retries;          /**< The retry counter; between 0 and `MAX_RETRIES` */
+       int                ws_err;           /**< Last `WSAGetError()` */
+       unsigned           results_expected; /**< The number of matches we're expecting */
+       unsigned           results_got;      /**< The number of matches we got */
+       unsigned           results_ignore;   /**< The number of matches we ignored */
+       struct IO_buf      recv;             /**< The `IO_buf` for reception */
+       struct IO_buf      trace;            /**< The `IO_buf` for tracing the protocol */
+
+       /* These are set in state_PATH().
+        */
+       time_t             mtime;             /**< The `time_t` value of `path` */
+       UINT64             fsize;             /**< The file-size value of `path` (`(INT64)-1` for folders) */
+       char               path [_MAX_PATH];  /**< The name of file or folder */
+     };
+
+/**
+ * Local functions; prototypes.
+ */
+static int         parse_host_spec      (struct state_CTX *ctx, const char *pattern, ...);
+static void        connect_common_init  (struct state_CTX *ctx, const char *which_state);
+static void        connect_common_final (struct state_CTX *ctx, int err);
+static void        set_nonblock         (SOCKET sock, DWORD non_block);
+static const char *ws2_strerror         (int err);
+
+static int         rbuf_read_char  (struct state_CTX *ctx, char *store);
+static const char *ETP_tracef      (struct state_CTX *ctx, const char *fmt, ...);
+static const char *ETP_state_name  (ETP_state f);
+
+static BOOL state_init                 (struct state_CTX *ctx);
+static BOOL state_exit                 (struct state_CTX *ctx);
+static BOOL state_parse_url            (struct state_CTX *ctx);
+static BOOL state_netrc_lookup         (struct state_CTX *ctx);
+static BOOL state_authinfo_lookup      (struct state_CTX *ctx);
+static BOOL state_send_login           (struct state_CTX *ctx);
+static BOOL state_send_pass            (struct state_CTX *ctx);
+static BOOL state_await_login          (struct state_CTX *ctx);
+static BOOL state_send_query           (struct state_CTX *ctx);
+static BOOL state_200                  (struct state_CTX *ctx);
+static BOOL state_RESULT_COUNT         (struct state_CTX *ctx);
+static BOOL state_PATH                 (struct state_CTX *ctx);
+static BOOL state_closing              (struct state_CTX *ctx);
+static BOOL state_resolve              (struct state_CTX *ctx);
+static BOOL state_blocking_connect     (struct state_CTX *ctx);
+static BOOL state_non_blocking_connect (struct state_CTX *ctx);
 
 /**
  * Receive a response with timeout.
- * Stop when we get an '\r\n' terminated ASCII-line.
+ * Stop when we get an `"\r\n"` terminated ASCII-line.
  *
- * opt.use_buffered_io == 1:
- *   Use the buffered I/O setup in 'rbuf_read_char()' and 'rbuf_fill_buf()'.
+ * * `opt.use_buffered_io == 1`:
+ *    Use the buffered I/O setup in rbuf_read_char().
  *
- * opt.use_buffered_io == 0:
- *   Call 'recv()' for 1 character at a time!
+ * * `opt.use_buffered_io == 0`:
+ *   Call `recv()` for 1 character at a time! <br>
  *   This is to keep it simple; avoid the need for (a non-blocking socket and)
- *   'select()'. But the 'recv()' will hang if used against a non "line oriented"
- *   protocol. But only for max 2 seconds since 'setsockopt()' with 'SO_RCVTIMEO'
+ *   `select()`. <br>
+ *   But the `recv()` will hang if used against a non "line oriented"
+ *   protocol. But only for max 2 seconds since `setsockopt()` with `SO_RCVTIMEO`
  *   was set to 2 sec.
  *
- *   Practice shows this is just a bit slower than the 'rbuf_read_char()' method since
- *   Winsock2 provides good buffering with the above 'setsockopt()' call. The question
- *   is if this causes a higher number of kernel switches. And thus lower performance
- *   on slower CPUs.
+ *   Practice shows this is just a bit slower than the rbuf_read_char() method since
+ *   Winsock2 provides good buffering with the above `setsockopt()` call. <br>
+ *   The question is if this causes a higher number of kernel switches. And thus
+ *   lower performance on slower CPUs.
+ *
+ * \param[in] ctx      the context we work with.
+ * \param[in] out_buf  the location of the buffer to save too.
+ * \param[in] out_len  the length of the buffer for saving.
  */
 static char *recv_line (struct state_CTX *ctx, char *out_buf, size_t out_len)
 {
@@ -261,7 +275,7 @@ static char *recv_line (struct state_CTX *ctx, char *out_buf, size_t out_len)
     {
       num++;
       *out_buf++ = ch;
-      if (ch == '\n')    /* Assumes '\r' already was received */
+      if (ch == '\n')    /* Assumes `\r` already was received */
          break;
     }
     if (rc <= 0)
@@ -287,7 +301,10 @@ static char *recv_line (struct state_CTX *ctx, char *out_buf, size_t out_len)
 
 /**
  * Send a single-line command to the server side.
- * Do not use a "\r\n" termination; it will be added here.
+ * Do not use a `"\r\n"` termination; it will be added here.
+ *
+ * \param[in] ctx  the context we work with.
+ * \param[in] fmt  the var-arg format of what to send.
  */
 static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
 {
@@ -308,9 +325,12 @@ static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
 }
 
 /**
- * Print the resulting match:
- *  'name' is either a file-name within a 'ctx->path' (is_dir=FALSE).
- *  Or a folder-name within a 'ctx->path'             (is_dir=TRUE).
+ * Print the resulting match.
+ *
+ * \param[in] ctx    the context we work with.
+ * \param[in] name   Either a file-name or a folder-name within a `ctx->path`
+ * \param[in] is_dir If `FALSE`, `name` is treated as a file-name. <br>
+ *                   if `TRUE`,  `name` is treated as a folder-name.
  */
 static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_dir)
 {
@@ -334,9 +354,11 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
 }
 
 /**
- * Print a warning for a failed login or a non-existant.
- * And optionally what action to take next.
- */
+ * Print a warning for a failed login.
+ * Optionally print what action it will take next.
+  *
+ * \param[in] ctx  the context we work with.
+*/
 static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
 {
   const char *next_action = "\n";
@@ -367,9 +389,12 @@ static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
 }
 
 /**
- * PATH state: gooble up the results.
- * Expect 'results_expected' results set in 'RESULT_COUNT_state()'.
- * When "200 End" is received, enter 'state_closing'.
+ * `PATH` state: gooble up the results.
+ *
+ * Expect `results_expected` results set in state_RESULT_COUNT(). <br>
+ * When `"200 End"` is received, enter state_closing().
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_PATH (struct state_CTX *ctx)
 {
@@ -399,7 +424,7 @@ static BOOL state_PATH (struct state_CTX *ctx)
 
   if (!strncmp(rx, "FILE ", 5))
   {
-    ETP_tracef (ctx, "file: %s", rx + 5);
+    ETP_tracef (ctx, "file: %s", rx+5);
     report_file_ept (ctx, rx + 5, FALSE);
     return (TRUE);
   }
@@ -431,8 +456,12 @@ static BOOL state_PATH (struct state_CTX *ctx)
 }
 
 /**
- * RESULT_COUNT state: get the "RESULT_COUNT n\r\n" string.
- * Goto 'state_PATH()'.
+ * `RESULT_COUNT` state.
+ *
+ * get the `"RESULT_COUNT N\r\n"` string.
+ * And enter state_PATH().
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_RESULT_COUNT (struct state_CTX *ctx)
 {
@@ -455,9 +484,12 @@ static BOOL state_RESULT_COUNT (struct state_CTX *ctx)
 }
 
 /**
- * State entered after commands was sent:
- *   Swallow received lines until "200-xx\r\n" is received.
- *   Then enter 'state_RESULT_COUNT()'.
+ * State entered after commands was sent.
+ *
+ * Swallow received lines until `"200-xx\r\n"` is received.
+ * Then enter state_RESULT_COUNT().
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_200 (struct state_CTX *ctx)
 {
@@ -476,7 +508,9 @@ static BOOL state_200 (struct state_CTX *ctx)
 }
 
 /**
- * Close the socket and goto 'state_exit'.
+ * Close the socket and enter state_exit().
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_closing (struct state_CTX *ctx)
 {
@@ -493,27 +527,33 @@ static BOOL state_closing (struct state_CTX *ctx)
 }
 
 /**
- * Send the search parameters and the QUERY command.
- * If the 'send()' call fail, enter 'state_closing'.
- * Otherwise, enter 'state_200'.
+ * Send the search parameters and the `"QUERY x"` command.
  *
- * \todo: Maybe sending all these commands in one 'send()'
- *        is better?
+ * If the `send()` call fails, enter state_closing().
+ * Otherwise, enter state_200().
+ *
+ * \todo Maybe sending all these commands in one `send()`
+ *       is better?
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_send_query (struct state_CTX *ctx)
 {
-  /* If raw query, send 'file_spec' query as-is below
+  /* If raw query, send `file_spec` query as-is
    */
-  if (!opt.evry_raw)
+  if (opt.evry_raw)
+     send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
+  else
   {
-    /* Always send a "REGEX 1", but translate from a shell-pattern if 'opt.use_regex == 0'.
+    /* Always send a "REGEX 1", but translate from a shell-pattern if
+     * `opt.use_regex == 0`.
      */
     send_cmd (ctx, "EVERYTHING REGEX 1");
-    if (!opt.use_regex)
-       send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(opt.file_spec));
+    if (opt.use_regex)
+         send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(opt.file_spec));
+    else send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
   }
 
-  send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
   send_cmd (ctx, "EVERYTHING CASE %d", opt.case_sensitive);
   send_cmd (ctx, "EVERYTHING PATH_COLUMN 1");
   send_cmd (ctx, "EVERYTHING SIZE_COLUMN 1");
@@ -526,15 +566,23 @@ static BOOL state_send_query (struct state_CTX *ctx)
 }
 
 /**
- * Send the USER name and optionally the 'ctx->password'.
- * "USER" can be empty if the remote Everything.ini has a
- * setting like:
- *   etp_server_username=
+ * Send the USER name and optionally the `ctx->password`.
  *
- * If the .ini-file contains:
+ * `USER` can be empty if the remote `Everything.ini` has a
+ * setting like:
+ * \code
+ *   etp_server_username=
+ * \endcode
+ *
+ * I.e. it ignores passwords! But if `Everthing.ini` contains:
+ * \code
  *   etp_server_username=foo
  *   etp_server_password=bar
- * 'ctx->username' and 'ctx->password' MUST match 'foo/bar'.
+ * \endcode
+ *
+ * `ctx->username` and `ctx->password` **must** match `foo/bar`.
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_send_login (struct state_CTX *ctx)
 {
@@ -568,10 +616,13 @@ static BOOL state_send_login (struct state_CTX *ctx)
 }
 
 /**
- * We sent the USER/PASS commands.
- * Await the "230 Logged on" message and enter 'state_send_query'.
- * If server replies with a "530" message ("Login or password incorrect"),
- * enter 'state_closing'.
+ * We sent the `USER` / `PASS` commands.
+ *
+ * Await the `"230 Logged on"` message and enter state_send_query(). <br>
+ * If server replies with a `"530"` message (`"Login or password incorrect"`),
+ * enter state_closing().
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_await_login (struct state_CTX *ctx)
 {
@@ -586,7 +637,7 @@ static BOOL state_await_login (struct state_CTX *ctx)
     return (TRUE);
   }
 
-  /* Any "5xx" message or a timeout is fatal here; enter 'state_closing'.
+  /** Any `"5xx"` message or a timeout is fatal here; enter state_closing().
    */
   snprintf (buf, sizeof(buf), "Failed to login; USER %s.\n", ctx->username);
   WARN (buf);
@@ -596,9 +647,12 @@ static BOOL state_await_login (struct state_CTX *ctx)
 }
 
 /**
- * We're prepared to send a password. But if server replies with
- * "230 Logged on", we know it ignores passwords (dangerous!).
- * So proceed to 'state_send_query' state.
+ * We're prepared to send a password.
+ *
+ * But if server replies with `"230 Logged on"`, we know it ignores
+ * passwords (dangerous!). So simply proceed to state_send_query() state.
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_send_pass (struct state_CTX *ctx)
 {
@@ -614,12 +668,17 @@ static BOOL state_send_pass (struct state_CTX *ctx)
 }
 
 /**
- * Check if 'ctx->hostname' is simply an IPv4-address.
- * If TRUE
- *   Enter 'state_blocking_connect' or 'state_non_blocking_connect'.
- * else
- *   Call 'gethostbyname()' to get the IPv4-address.
- *   Then enter 'state_blocking_connect' or 'state_non_blocking_connect'.
+ * Check if `ctx->hostname` is simply an IPv4-address.
+ *
+ * If TRUE,
+ *   enter state_blocking_connect() or state_non_blocking_connect().<br>
+ * otherwise,
+ *   call `gethostbyname()` to get the IPv4-address. <br>
+ *   Then enter state_blocking_connect() or state_non_blocking_connect().
+ *
+ * \param[in] ctx  the context we work with.
+ *
+ * \note Using `gethostbyname()` could block for a long period.
  */
 static BOOL state_resolve (struct state_CTX *ctx)
 {
@@ -675,22 +734,25 @@ fail:
   return (TRUE);
 }
 
-/**
- * When the IPv4-address is known, perform the non-blocking 'connect()'.
- * The 'ctx->sock' is already in non-block state.
- * Loop here until 'WSAWOULDBLOCK' is no longer a result in 'select()'.
- * If successful, enter 'state_send_login'.
- *
- * \def SELECT_TIME_USEC
- *      select() timeout for each try (in usec)
+/**\def SELECT_TIME_USEC
+ *      `select()` timeout for each try (in usec)
  */
 #define SELECT_TIME_USEC (500*1000)
 
-/** \def MAX_RETRIES
- *       Max retries is the result of CONN_TIMEOUT (in msec)
+/**\def MAX_RETRIES
+ *      Max retries is the result of `CONN_TIMEOUT` (in msec)
  */
 #define MAX_RETRIES (1000 * CONN_TIMEOUT / SELECT_TIME_USEC)
 
+/**
+ * When the IPv4-address is known, perform the non-blocking `connect()`.
+ *
+ * The `ctx->sock` is already in non-block state.
+ * Loop here until `WSAWOULDBLOCK` is no longer a result in `select()`.
+ * If successful, enter state_send_login().
+ *
+ * \param[in] ctx  the context we work with.
+ */
 static BOOL state_non_blocking_connect (struct state_CTX *ctx)
 {
   struct timeval tv;
@@ -704,6 +766,11 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx)
     connect_common_final (ctx, WSAETIMEDOUT);
     return (TRUE);
   }
+  if (halt_flag > 0)  /* SIGINT caught */
+  {
+    connect_common_final (ctx, WSAECONNREFUSED); /* Any better error-code? */
+    return (TRUE);
+  }
 
   FD_ZERO (&wr_fds);
   FD_ZERO (&ex_fds);
@@ -715,17 +782,17 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx)
   rc = select (ctx->sock+1, NULL, &wr_fds, &ex_fds, &tv);
   if (rc >= 1)
   {
-    /* socket writable; connected
-     */
     if (FD_ISSET(ctx->sock,&wr_fds))
     {
+      /* socket writable; connected
+       */
       connect_common_final (ctx, 0);
       set_nonblock (ctx->sock, 0);
     }
-    /* socket exception; not connected
-     */
     else if (FD_ISSET(ctx->sock,&ex_fds))
     {
+      /* socket exception; not connected
+       */
       int opt_val = 0;
       int opt_len = sizeof(opt_val);
 
@@ -738,8 +805,10 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx)
 }
 
 /**
- * When the IPv4-address is known, perform the blocking 'connect()'.
- * If successful, enter 'state_send_login'.
+ * When the IPv4-address is known, perform the blocking `connect()`.
+ * If successful, enter state_send_login().
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_blocking_connect (struct state_CTX *ctx)
 {
@@ -752,8 +821,11 @@ static BOOL state_blocking_connect (struct state_CTX *ctx)
 }
 
 /**
- * Lookup the USER/PASSWORD for 'ctx->hostname' in the '~/.netrc' file.
- * Enter 'state_send_login' even if USER/PASSWORD are not found.
+ * Lookup the `USER` / `PASSWORD` for `ctx->hostname` in the `~/.netrc` file.
+ *
+ * Enter state_send_login() even if `USER` / `PASSWORD` are not found.
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_netrc_lookup (struct state_CTX *ctx)
 {
@@ -789,8 +861,11 @@ static BOOL state_netrc_lookup (struct state_CTX *ctx)
 }
 
 /**
- * Lookup the USER/PASSWORD for 'ctx->hostname' in the '~/.authinfo' file.
- * Enter 'state_send_login' even if USER/PASSWORD are not found.
+ * Lookup the `USER`, `PASSWORD` and `port` for `ctx->hostname` in the `~/.authinfo` file.
+ *
+ * Enter state_send_login() even if `USER` / `PASSWORD` are not found.
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_authinfo_lookup (struct state_CTX *ctx)
 {
@@ -820,7 +895,7 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
    */
   ctx->use_authinfo = FALSE;
 
-  /* If "~/.authinfo" login failed, maybe try "~/.netrc" next?
+  /* If "~/.authinfo" lookup failed, maybe try "~/.netrc" next?
    */
   if (!okay && ctx->use_netrc)
        ctx->state = state_netrc_lookup;
@@ -830,10 +905,13 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
 }
 
 /**
- * Check if 'ctx->raw_url' matches one of these formats:
- *   "user:passwd@host_or_IP-address<:port>".    Both user-name and password (+ port).
- *   "user@host_or_IP-address<:port>".           Only user-name (+ port).
- *   "host_or_IP-address<:port>".                Only host/IP-address (+ port).
+ * Check if `ctx->raw_url` matches one of these formats:
+ *
+ *  \li \c "user:passwd@host_or_IP-address<:port>"    Both user-name and password (+ port).
+ *  \li \c "user@host_or_IP-address<:port>"           Only user-name (+ port).
+ *  \li \c "host_or_IP-address<:port>"                Only host/IP-address (+ port).
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_parse_url (struct state_CTX *ctx)
 {
@@ -841,7 +919,7 @@ static BOOL state_parse_url (struct state_CTX *ctx)
 
   ETP_tracef (ctx, "Cracking the host-spec: '%s'.\n", ctx->raw_url);
 
-  /* Assume we must use '~/.netrc' or '~/.authifo'.
+  /* Assume we must use `~/.netrc` or `~/.authifo`.
    */
   ctx->use_netrc = ctx->use_authinfo = TRUE;
 
@@ -868,18 +946,37 @@ static BOOL state_parse_url (struct state_CTX *ctx)
     }
   }
 
-  if (ctx->use_authinfo)    /* Try parsing a '~/.authinfo' first */
-       ctx->state = state_authinfo_lookup;
+  if (ctx->use_authinfo)
+  {
+    /** If using a `~/.authinfo` file, enter state_authinfo_lookup().
+     */
+    ctx->state = state_authinfo_lookup;
+  }
   else if (ctx->use_netrc)
-       ctx->state = state_netrc_lookup;
-  else ctx->state = state_resolve;
-
+  {
+    /** If using a `~/.netrc` file, enter state_netrc_lookup().
+     */
+    ctx->state = state_netrc_lookup;
+  }
+  else
+  {
+    /** If a username, password (and possibly a port) was specified in the URL.<br>
+     *  Thus go directly to state_resolve().
+     */
+    ctx->state = state_resolve;
+  }
   return (TRUE);
 }
 
 /**
  * The first state-machine function we enter.
- * Initialise Winsock and create the socket.
+ *
+ * If `CYGWIN_POSIX` is defined, simply create the TCP socket. <br>
+ * Otherwise initialise Winsock and create the TCP socket.
+ *
+ * Enter state_parse_url() state.
+ *
+ * \param[in] ctx  the context we work with.
  */
 static BOOL state_init (struct state_CTX *ctx)
 {
@@ -920,6 +1017,9 @@ static BOOL state_init (struct state_CTX *ctx)
 
 /**
  * The last state-machine function we enter.
+ *
+ * \param[in] ctx   the context we work with.
+ * \retval    FALSE forces run_state_machine() to quit it's loop
  */
 static BOOL state_exit (struct state_CTX *ctx)
 {
@@ -932,7 +1032,11 @@ static BOOL state_exit (struct state_CTX *ctx)
 }
 
 /**
- * Run the state-machine until a state-function returns FALSE.
+ * Run the state-machine until a state-function returns FALSE. <br>
+ * Or the SIGINT handler detects user pressing `^C` (i.e `halt_flag` becomes non-zero). <br>
+ * The state-function is always set to `ctx->state`.
+ *
+ * \param[in] ctx  the context we work with.
  */
 static void run_state_machine (struct state_CTX *ctx)
 {
@@ -943,13 +1047,15 @@ static void run_state_machine (struct state_CTX *ctx)
 
     if (opt.debug >= 2)
     {
+      int save;
+
       C_printf ("~2%s~0 -> ~2%s\n~6", ETP_state_name(old_state), ETP_state_name(ctx->state));
 
       /* Set raw mode in case 'ctx->trace.buffer' contains a "~".
        */
-      C_setraw (1);
+      save = C_setraw (1);
       C_puts (ETP_tracef(ctx, NULL));
-      C_setraw (0);
+      C_setraw (save);
       C_puts ("~0\n");
     }
     if (!rc)
@@ -964,7 +1070,11 @@ static void run_state_machine (struct state_CTX *ctx)
 }
 
 /**
- * Common stuff done before both a blocking and non-blocking 'connect()'.
+ * Common stuff done before both a blocking and non-blocking `connect()`.
+ *
+ * \param[in] ctx          the context we work with.
+ * \param[in] which_state  the name of the state we're about to enter after this call
+ *                         (for ETP_tracef() only).
  */
 static void connect_common_init (struct state_CTX *ctx, const char *which_state)
 {
@@ -989,8 +1099,12 @@ static void connect_common_init (struct state_CTX *ctx, const char *which_state)
 }
 
 /**
- * Common stuff done after both 'state_blocking_connect()' and
- * 'state_non_blocking_connect()'.
+ * Common stuff done after both state_blocking_connect() and
+ * state_non_blocking_connect().
+ *
+ * \param[in] ctx  the context we work with.
+ * \param[in] err  If `!0`, this is the error-code from the last Winsock called prior to entering here.<br>
+ *                 If `0`, the last Winsock called prior to entering here, succeeded (we got connected).
  */
 static void connect_common_final (struct state_CTX *ctx, int err)
 {
@@ -1038,8 +1152,8 @@ static const char *ws2_strerror (int err)
 
 /**
  * Return error-string for 'err' for Winsock error-codes.
- * These strings are stored by "kernel32.dll" and not
- * "ws2_32.dll".
+ * These strings are stored by `kernel32.dll` and not
+ * `ws2_32.dll`.
  */
 static const char *ws2_strerror (int err)
 {
@@ -1062,8 +1176,11 @@ static const char *ws2_strerror (int err)
 #endif
 
 /**
- * Save a piece of trace-information into the context.
- * Retrieve it when 'fmt == NULL'.
+ * Save or retrieve a piece of trace-information into the context.
+ *
+ * \param[in] ctx  the context we work with.
+ * \param[in] fmt  If `!NULL`, a var-arg format and parameters to trace. <br>
+ *                 If `NULL`, return the pointer to any previous trace-information.
  */
 static const char *ETP_tracef (struct state_CTX *ctx, const char *fmt, ...)
 {
@@ -1126,12 +1243,12 @@ static const char *ETP_state_name (ETP_state f)
 }
 
 /**
- * Called from envtool.c:
- *   if the 'opt.evry_host' smartlist is not empty, this function gets called
+ * Called from `envtool.c`:
+ *   if the `opt.evry_host` smartlist is not empty, this function gets called
  *   for each ETP-host in the smartlist.
  *
- * \todo:
- *   The 'netrc_init()' + 'netrc_exit()' is currently done for each host.
+ * \todo
+ *   The `netrc_init()` and `netrc_exit()` is currently done for each host.
  *   Should do something better.
  */
 int do_check_evry_ept (const char *host)
@@ -1150,21 +1267,21 @@ int do_check_evry_ept (const char *host)
   ctx.trace.buffer_pos  = ctx.trace.buffer;
   ctx.trace.buffer_left = sizeof(ctx.trace.buffer);
   ctx.recv.buffer_pos   = ctx.recv.buffer;
-  ctx.recv.buffer_left  = 0;    /* Gets set in 'rbuf_read_char()' */
+  ctx.recv.buffer_left  = 0;    /* Gets set in `rbuf_read_char()' */
 
   run_state_machine (&ctx);
   return (ctx.results_got - ctx.results_ignore);
 }
 
 /**
- * _MSC_VER <= 1700 (Visual Studio 2012 or older) is lacking 'vsscanf()'.
- * Create our own using 'sscanf()'. Scraped from:
+ * `_MSC_VER <= 1700` (Visual Studio 2012 or older) is lacking `vsscanf()`.
+ * Create our own using `sscanf()`. <br>
+ * Scraped from:
  *   https://stackoverflow.com/questions/2457331/replacement-for-vsscanf-on-msvc
  *
- * If using the Windows-Kit ('_VCRUNTIME_H' is defined) it should have a
- * working 'vsscanf()'. I'm not sure if using MSC_VER <= 1700 with the
- * Windows-Kit is possible. But if using Clang-cl, test this function with
- * it.
+ * If using the Windows-Kit (`_VCRUNTIME_H` is defined) it should have a
+ * working `vsscanf()`. I'm not sure if using `_MSC_VER <= 1700` with the Windows-Kit is possible. <br>
+ * But if using `clang-cl`, test this function with it.
  */
 #if (defined(_MSC_VER) && (_MSC_VER <= 1800) && !defined(_VCRUNTIME_H)) || defined(__clang__)
   static int _vsscanf2 (const char *buf, const char *fmt, va_list args)
@@ -1199,12 +1316,14 @@ static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...)
 }
 
 /**
- * Read at most 'sizeof(ctx->recv.buffer)' bytes from 'ctx->sock',
- * storing them to 'ctx->recv.buffer'. This uses select() to timeout
- * the stale connections
+ * Read at most `sizeof(ctx->recv.buffer)` bytes from `ctx->sock`,
+ * storing them to `ctx->recv.buffer`. This uses `select()` to timeout
+ * a stale connection.
  *
- * Note: Winsock ignores the first argument in 'select()'.
- *       All needed information is really in the 'fd_set's.
+ * \param[in] ctx  the context we work with.
+ *
+ * \note Winsock ignores the first argument in `select()`.
+ *       All needed information is really in the `fd_set`s. <br>
  *       But we use it for Cygwin (which tries hard to be POSIX compatible).
  */
 static int rbuf_read_sock (struct state_CTX *ctx)
@@ -1229,20 +1348,18 @@ static int rbuf_read_sock (struct state_CTX *ctx)
 }
 
 /**
- * Read a character from 'ctx->recv.buffer'.
+ * Read a character from `ctx->recv.buffer`.
  *
- * If there is something in the buffer, the character is returned from
- * 'ctx->recv.buffer_pos'.
- *
- * Otherwise, refill the buffer using 'rbuf_read_sock()'.
+ * \param[in] ctx    the context we work with.
+ * \param[in] store  the location to store the buffered or first received character to.
  */
 static int rbuf_read_char (struct state_CTX *ctx, char *store)
 {
   if (ctx->recv.buffer_left == 0)
   {
-   /* If nothing left in 'ctx->recv.buffer', refill the buffer
-    * using the above 'rbuf_read_sock()'.
-    */
+    /** If nothing left in 'ctx->recv.buffer', refill the buffer
+     *  calling `rbuf_read_sock()`.
+     */
     int num;
 
     ctx->recv.buffer_pos = ctx->recv.buffer;
@@ -1252,6 +1369,10 @@ static int rbuf_read_char (struct state_CTX *ctx, char *store)
     ctx->recv.buffer_read = num;
     ctx->recv.buffer_left = num;
   }
+
+  /**
+   * Otherwise, the character is returned from `ctx->recv.buffer_pos`.
+   */
   *store = *ctx->recv.buffer_pos++;
   ctx->recv.buffer_left--;
   return (1);

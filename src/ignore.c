@@ -4,6 +4,9 @@
  * \brief
  *   Support for reading a config-file with things to
  *   ignore at run-time.
+ *
+ * This file will probably be extended to handle configuration of
+ * other settings later.
  */
 #include "envtool.h"
 #include "color.h"
@@ -27,20 +30,20 @@ struct ignore_node {
        char       *value;    /** The value to ignore */
      };
 
-/** A dynamic array of \c "ignore_node".
+/** A dynamic array of ignore_node.
  * \anchor ignore_list
  */
 static smartlist_t *ignore_list = NULL;
 
 /**
- * Callback for \ref smartlist_read_file():
+ * Callback for smartlist_read_file():
  *
  * Accepts only strings like "ignore = xx" from the config-file.
  * Add to \ref ignore_list in the correct \c sections[] slot.
  *
  * \param[in] sl    the smartlist to add the string-value to.
  * \param[in] line  the prepped string-value from the file opened in
- *                  \ref cfg_ignore_init().
+ *                  cfg_ignore_init().
  */
 static void cfg_parse (smartlist_t *sl, const char *line)
 {
@@ -143,7 +146,7 @@ int cfg_ignore_lookup (const char *section, const char *value)
 }
 
 /**
- * Help indices for \ref cfg_ignore_first() and \ref cfg_ignore_next().
+ * Help indices for cfg_ignore_first() and cfg_ignore_next().
  */
 static int  next_idx = -1;
 static UINT curr_sec = UINT_MAX;
@@ -236,7 +239,7 @@ void cfg_ignore_dump (void)
 
 /**
  * Free the memory allocated in the \c ignore_list smartlist.
- * Called from \ref cleanup in envtool.c.
+ * Called from cleanup() in envtool.c.
  */
 void cfg_ignore_exit (void)
 {

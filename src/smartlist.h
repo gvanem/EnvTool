@@ -1,3 +1,6 @@
+/** \file smartlist.h
+ *  \ingroup Misc
+ */
 #ifndef _SMARTLIST_H
 #define _SMARTLIST_H
 

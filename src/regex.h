@@ -21,6 +21,9 @@
    Boston, MA 02111-1307, USA.
  */
 
+/** \file regex.h
+ *  \ingroup Misc
+ */
 #ifndef __REGEXP_LIBRARY_H__
 #define __REGEXP_LIBRARY_H__
 

@@ -4,12 +4,22 @@
  * Print to console using embedded colour-codes inside the string-format.
  *
  * \eg{.}
- *   \code{.cpp}
+ *   \code{.c}
  *     C_printf ("~4Hello ~2world~0.\n");
  *   \endcode
  *   will print to stdout with \c Hello mapped to colour 4
  *   and \c world mapped to colour 2.
- *   See the \c colour_map[] array below.
+ *   See the \ref colour_map[] array below.
+ *
+ * By default, the colour indices maps to these foreground colour:
+ * \li 0: the startup forground *and* background colour.
+ * \li 1: bright cyan foreground.
+ * \li 2: bright green foreground.
+ * \li 3: bright yellow foreground.
+ * \li 4: bright magenta foreground.
+ * \li 5: bright red foreground.
+ * \li 6: bright white foreground.
+ * \li 7: dark cyan foreground.
  *
  * by G. Vanem <gvanem@yahoo.no> 2011.
  */
@@ -24,7 +34,7 @@
 
 /**
  * \note
- *   We do not depend on other local .h-files other than \c "color.h".
+ *   We do not depend on other local .h-files other than "color.h".
  *   Thus it's easy to use this module in other projects.
  */
 #include "color.h"
@@ -71,7 +81,9 @@ extern int         is_cygwin_tty (int fd);
 #endif
 
 /**
- * The program using \c color.c must set this to 1.
+ * The app using color.c must set to \b 1 prior to
+ * calling the below \ref C_printf() or \ref C_puts() functions.
+ * For CygWin, if this is \b !0, it will set \ref C_use_ansi_colours.
  */
 int C_use_colours = 0;
 
@@ -80,24 +92,24 @@ int C_use_colours = 0;
  * lacking WinCon support), this variable means we must use ANSI-sequences to set colours.
  *
  * If running under ConEmu (detecting a valid \c %ConEmuHWND% window and \c %ConEmuANSI=ON),
- * this variable is set to '1' to use a more rich set of ANSI-colours.
+ * this variable is set to \b 1 to use a more rich set of ANSI-colours.
  */
 int C_use_ansi_colours = 0;
 
 /**
- * When this is set to '0', CygWin / ConEmu will also uses WinCon API to set colours.
+ * When this is set to \b 0, CygWin / ConEmu will also uses WinCon API to set colours.
  */
 int C_no_ansi = 1;
 
 /**
- * The program using color.c must set this to 1 if \c fwrite() shall
- * be used in \c C_flush(). This can be needed to synchronize the output
+ * The program using color.c must set this to \b 1 if \c fwrite() shall
+ * be used in \ref C_flush(). This can be needed to synchronize the output
  * with other calls (libraries?) that writes to stdout using \c fwrite().
  */
 int C_use_fwrite = 0;
 
 /**
- * A count of number of times \c C_flush() was called with nothing
+ * A count of number of times \ref C_flush() was called with nothing
  * in the trace-buffer.
  */
 unsigned C_redundant_flush = 0;
@@ -106,27 +118,52 @@ void (*C_write_hook) (const char *buf) = NULL;
 
 static char   c_buf [C_BUF_SIZE];
 static char  *c_head, *c_tail;
-static FILE  *c_out = NULL;
 static int    c_raw = 0;
 static int    c_binmode = 0;
-static size_t c_screen_width = UINT_MAX;
 static BOOL   c_always_set_bg = FALSE;
 static BOOL   c_exited = FALSE;
 
+/** The \c FILE to print to. This is set to \c stdout in \ref C_init().
+ */
+static FILE *c_out = NULL;
+
+/** The width of the screen obtained from \c GetConsoleScreenBufferInfo()
+ *  or \c %COLUMNS in \ref C_init().
+ */
+static size_t c_screen_width = UINT_MAX;
+
+/** The console-buffer information initialised by
+ *  \c GetConsoleScreenBufferInfo() in \ref C_init().
+ */
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
-static CRITICAL_SECTION           crit;
+
+/** The critical section structure initialised by
+ *  \c InitializeCriticalSection() in \ref C_init().
+ */
+static CRITICAL_SECTION crit;
 
 static HANDLE console_hnd = INVALID_HANDLE_VALUE;
 
 /**
- * This is also configurable from the calling side
- * via the \c C_init_colour_map() function.
+ * Array of colour indices to WinCon colour values (foreground and background combined).
+ *
+ * This map is also configurable from the calling side via the C_init_colour_map()
+ * function. The default colours are set in C_init().
  */
 static WORD colour_map [8];
+
+/**
+ * Array of colour indices to ANSI-sequences (foreground and background combined).
+ *
+ * This map is set when the \ref colour_map[] is set.
+ */
 static char colour_map_ansi [DIM(colour_map)] [20];
 
 static const char *wincon_to_ansi (WORD col);
 
+/**
+ * Returns 1 if detected running under the ConEmu program.
+ */
 int C_conemu_detected (void)
 {
   const char *conemu_hwnd = getenv ("ConEmuHWND");
@@ -158,10 +195,10 @@ int C_trace_level (void)
 }
 
 /**
- * Customize the \c colour_map[1..N].
+ * Customize the \ref colour_map[1..N].
  * Must be a list terminated by 0.
  *
- * \c colour_map[0] can \b not be modified. It is reserved for the default
+ * \ref colour_map[0] can \b not be modified. It is reserved for the default
  * colour. I.e. the active colour in effect when program started.
  */
 int C_init_colour_map (unsigned short col, ...)
@@ -197,8 +234,8 @@ int C_init_colour_map (unsigned short col, ...)
   }
 
   /**
-   * Fill the ANSI-sequence array by looping over \c colour_map_ansi[].
-   * \note the size of both \c colour_map_ansi[] and \c colour_map[] \b are equal.
+   * Fill the ANSI-sequence array by looping over \ref colour_map_ansi[].
+   * \note the size of both \ref colour_map_ansi[] and \ref colour_map[] \b are equal.
    */
   for (i = 0; i < DIM(colour_map_ansi); i++)
   {
@@ -226,7 +263,7 @@ int C_setraw (int raw)
 
 /**
  * Sets binary or cooked output mode.
- * \param[in] bin bin = 1: do not convert \c '\\n' into \c '\\r\\n'.
+ * \param[in] bin bin = 1: do not convert \c '\\n' into \c '\\r\\n'.<br>
  *                bin = 0: do convert \c '\\n' into \c '\\r\\n' (\b default).
  * \return the previous mode.
  */
@@ -261,10 +298,10 @@ void C_exit (void)
  *  \li Get the console-buffer information from Windows Console.
  *  \li If the console is not redirected:
  *     1. get the screen height and width.
- *     2. setup the \c colour_map[] array and optionally the
- *        \c colour_map_ansi[] array if ANSI output is wanted.
- *  \li Set \c c_out to default \c stdout and setup buffer head and tail.
- *  \li Initialise the critical-section structure.
+ *     2. setup the \ref colour_map[] array and the
+ *        \ref colour_map_ansi[] array. Even if ANSI output is \b not wanted.
+ *  \li Set \ref c_out to default \c stdout and setup buffer head and tail.
+ *  \li Initialise the critical-section structure \ref crit.
  */
 static int C_init (void)
 {
@@ -451,7 +488,7 @@ static const char *wincon_to_ansi (WORD col)
 
 /**
  * Set console colour using an ANSI sequence.
- * The corresponding WinCon colour set in \c colour_map[] is used as a lookup-value.
+ * The corresponding WinCon colour set in \ref colour_map[] is used as a lookup-value.
  */
 void C_set_ansi (unsigned short col)
 {
@@ -713,7 +750,7 @@ void C_puts_long_line (const char *start, size_t indent)
 }
 
 /**
- * Return the \c 'c_screen_width'.
+ * Return the \ref c_screen_width.
  */
 size_t C_screen_width (void)
 {

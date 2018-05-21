@@ -1,3 +1,6 @@
+/** \file dirlist.h
+ *  \ingroup Misc
+ */
 #ifndef _DIRLIST_H
 #define _DIRLIST_H
 

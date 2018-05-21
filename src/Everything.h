@@ -24,6 +24,9 @@
 // SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
+/** \file    Everything.h
+ *  \ingroup EveryThing_SDK
+ */
 #ifndef _EVERYTHING_DLL_
 #define _EVERYTHING_DLL_
 

@@ -12,40 +12,27 @@
 extern "C" {
 #endif
 
-/* These are the default colour that 'C_init_colour_map()' is initialised with.
+/**
+ * These are the default colour that \ref C_init_colour_map() is initialised with.
  * Can be used like:
- *  C_printf ("  " C_BR_RED "<not found>" C_DEFAULT);
+ * \code
+ *   C_printf ("  " C_BR_RED "<not found>" C_DEFAULT);
+ * \endcode
  *
- * But not after 'C_init_colour_map()' has been called with custom colours.
+ * But not after \ref C_init_colour_map() has been called to alter these
+ * colours with something else.
  */
-#define C_BR_GREEN    "~2"   /* bright green */
-#define C_BR_YELLOW   "~3"   /* bright yellow */
-#define C_BR_MEGENTA  "~4"   /* bright magenta */
-#define C_BR_RED      "~5"   /* bright red */
-#define C_BR_WHITE    "~6"   /* bright white */
-#define C_BR_CYAN     "~7"   /* dark cyan */
-#define C_DEFAULT     "~0"   /* restore default colour */
+#define C_BR_GREEN    "~2"   /**< bright green */
+#define C_BR_YELLOW   "~3"   /**< bright yellow */
+#define C_BR_MEGENTA  "~4"   /**< bright magenta */
+#define C_BR_RED      "~5"   /**< bright red */
+#define C_BR_WHITE    "~6"   /**< bright white */
+#define C_BR_CYAN     "~7"   /**< dark cyan */
+#define C_DEFAULT     "~0"   /**< restore default colour */
 
-/**
- * The app using color.c must set to 1 prior to
- * calling the below \c C_xx() functions.
- * For CygWin, if this is > 1, it means to use ANSI-sequences to set colours.
- */
 extern int C_use_colours;
-
-/**
- * For CygWin, this variable means we must use ANSI-sequences to set colours.
- */
 extern int C_use_ansi_colours;
-
-/**
- * Unless this is set. Then CygWin also uses WinCon API to set colours.
- */
 extern int C_no_ansi;
-
-/**
- * Set this to 1 to use \c fwrite() in \c C_flush().
- */
 extern int C_use_fwrite;
 
 /*
@@ -55,9 +42,6 @@ extern int C_use_fwrite;
 #define _Printf_format_string_
 #endif
 
-/**
- * Count of unneeded \c C_flush() calls. I.e. calls where length of buffer is 0.
- */
 extern unsigned C_redundant_flush;
 
 extern int C_printf (_Printf_format_string_ const char *fmt, ...)
@@ -84,14 +68,10 @@ extern void   C_puts_long_line (const char *start, size_t indent);
 extern int    C_init_colour_map (unsigned short col1, ...);
 extern size_t C_screen_width (void);
 extern int    C_trace_level (void);
-
-/**
- * Returns 1 if detected running under the ConEmu program.
- */
-extern int C_conemu_detected (void);
+extern int    C_conemu_detected (void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /* _COLOR_H */

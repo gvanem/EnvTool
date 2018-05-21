@@ -1,3 +1,6 @@
+/** \file EveryThing_ETP.h
+ *  \ingroup EveryThing_ETP
+ */
 #ifndef _EVERYTHING_ETP_H_
 #define _EVERYTHING_ETP_H_
 

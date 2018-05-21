@@ -1,11 +1,10 @@
 /**\file    auth.c
  * \ingroup Authentication
- * \brief
- *   Functions for parsing and lookup of host/user records in:
- *   \verbatim %APPDATA%/.netrc    \endverbatim and
- *   \verbatim %APPDATA%/.authinfo \endverbatim
  *
- * Used in remote queries in Everything_ETP.c.
+ * Used to login to a remote EveryThing FTP-server before doing queries.
+ *
+ * The syntax \c "~/xx" (meaning file \c "xx" in the user's home directory) really
+ * means \c "%APPDATA%\\xx".
  *
  * This file is part of envtool.
  *
@@ -16,20 +15,25 @@
 #include "smartlist.h"
 #include "auth.h"
 
+/**\struct login_info
+ * Data for each parsed entry in either `~/.netrc` or `~/.authinfo`.
+ */
 struct login_info {
-       BOOL  is_default;
-       BOOL  is_netrc;
-       char *host;
-       char *user;
-       char *passw;
-       int   port;
+       BOOL  is_default; /**< This is the `default` user/password entry for non-matching lookups */
+       BOOL  is_netrc;   /**< This entry is in the `~/.netrc` file */
+       char *host;       /**< The hostname of the entry */
+       char *user;       /**< The username of the entry */
+       char *passw;      /**< The password of the entry */
+       int   port;       /**< The network port of the entry. Only if from `~/.authinfo` */
      };
 
+/** The smartlist of "struct login_info" entries.
+ */
 static smartlist_t *login_list = NULL;
 
 /**
- * Common to both \c netrc_init() and \c authinfo_init().
- * The \c login_list is grown in the below \c parser functions.
+ * Common to both netrc_init() and authinfo_init().
+ * The \ref login_list is grown in the below \c parser functions.
  */
 static int common_init (const char *fname, smartlist_parse_func parser)
 {
@@ -54,7 +58,8 @@ static int common_init (const char *fname, smartlist_parse_func parser)
 }
 
 /**
- * Free the memory allocated in the \c login_list smartlist.
+ * Free the memory allocated in the \ref login_list smartlist.<br>
+ * But only if \c 'li->is_netrc' matches \c 'is_netrc'.
  */
 static void common_exit (BOOL is_netrc)
 {
@@ -95,12 +100,13 @@ static void common_exit (BOOL is_netrc)
 }
 
 /**
- * Search the \c login_list smartlist for \c host.
+ * Search the \ref login_list smartlist for \c host.<br>
+ * The \c 'li->is_netrc' must also match \c 'is_netrc'.
  */
 static const struct login_info *common_lookup (const char *host, BOOL is_netrc)
 {
   const struct login_info *def_li = NULL;
-  int   i, max = login_list ? smartlist_len (login_list) : 0;
+  int   i, save, max = login_list ? smartlist_len (login_list) : 0;
 
   for (i = 0; i < max; i++)
   {
@@ -118,9 +124,9 @@ static const struct login_info *common_lookup (const char *host, BOOL is_netrc)
 
     if (opt.do_tests)
     {
-      C_setraw (1);
+      save = C_setraw (1);
       C_printf ("  %s", buf);
-      C_setraw (0);
+      C_setraw (save);
     }
     else
       DEBUGF (3, buf);
@@ -135,11 +141,11 @@ static const struct login_info *common_lookup (const char *host, BOOL is_netrc)
 
 /**
  * Parse a line from \c ~/.netrc. Match lines like:
- *   \verbatim machine <host> login <user> password <password> \endverbatim
+ *   \code machine <host> login <user> password <password> \endcode
  * Or
- *   \verbatim default login <user> password <password> \endverbatim
+ *   \code default login <user> password <password> \endcode
  *
- * And add to the \c login_list smartlist.
+ * And add to the \ref login_list smartlist.
  */
 static void netrc_parse (smartlist_t *sl, const char *line)
 {
@@ -172,9 +178,9 @@ static void netrc_parse (smartlist_t *sl, const char *line)
 
 /**
  * Parse a line from \c ~/.authinfo. Match lines like:
- *   \verbatim  machine <host> port <num> login <user> password <password> \endverbatim
+ *   \code machine <host> port <num> login <user> password <password> \endcode
  * Or
- *   \verbatim default port <num> login <user> password <password> \endverbatim
+ *   \code default port <num> login <user> password <password> \endcode
  *
  * And add to the \c login_list smartlist.
  */
@@ -210,28 +216,40 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
      smartlist_add (sl, li);
 }
 
+/**
+ * Open and parse the \c "%APPDATA%\\.netrc" file.
+ */
 int netrc_init (void)
 {
   return common_init ("%APPDATA%\\.netrc", netrc_parse);
 }
 
+/**
+ * Open and parse the \c "%APPDATA%\\.authinfo" file.
+ */
 int authinfo_init (void)
 {
   return common_init ("%APPDATA%\\.authinfo", authinfo_parse);
 }
 
+/**
+ * Free the login_list entries assosiated with the \c "%APPDATA%\\.netrc" file.
+ */
 void netrc_exit (void)
 {
   common_exit (TRUE);
 }
 
+/**
+ * Free the login_list entries assosiated with the \c "%APPDATA%\\.authinfo" file.
+ */
 void authinfo_exit (void)
 {
   common_exit (FALSE);
 }
 
 /**
- * Use this externally:
+ * Use this externally like:
  * \c 'netrc_lookup (NULL, NULL, NULL)' can be used for test/debug.
  */
 int netrc_lookup (const char *host, const char **user, const char **passw)
@@ -249,7 +267,7 @@ int netrc_lookup (const char *host, const char **user, const char **passw)
 }
 
 /**
- * Use this externally:
+ * Use this externally like:
  * \c 'authinfo_lookup (NULL, NULL, NULL, NULL)' can be used for test/debug.
  */
 int authinfo_lookup (const char *host, const char **user, const char **passw, int *port)

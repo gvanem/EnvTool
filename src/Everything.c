@@ -33,7 +33,7 @@
  */
 
 /** \file    Everything.c
- *  \ingroup EveryThing
+ *  \ingroup EveryThing_SDK
  *  \brief
  *    The EveryThing SDK for user queries.
  */

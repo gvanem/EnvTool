@@ -55,32 +55,32 @@ HANDLE kernel32_hnd;
 
 #if !defined(_CRTDBG_MAP_ALLOC)
   /**
-   * Internal memory-leak tracker that is \b only enabled in
-   * \c _RELEASE builds.
-   * Since \c _DEBUG builds (on MSVC at least), should be good enough.
+   * Internal memory-leak tracker that is *only* enabled in
+   * `_RELEASE` builds.
+   * Since `_DEBUG` builds (on MSVC at least), should be good enough.
    *
    * All these allocations starts with this header.
    *
    * \struct mem_head
    */
   struct mem_head {
-         unsigned long    marker;     /** Magic marker. Equals MEM_MARKER or MEM_FREED */
-         size_t           size;       /** length of allocation including the size of this header */
-         char             file [20];  /** allocation happened in file */
-         unsigned         line;       /** and at line */
-         struct mem_head *next;       /** size is 36 bytes = 24h */
+         unsigned long    marker;     /**< Magic marker. Equals MEM_MARKER or MEM_FREED */
+         size_t           size;       /**< length of allocation including the size of this header */
+         char             file [20];  /**< allocation happened in file */
+         unsigned         line;       /**< and at line */
+         struct mem_head *next;       /**< size is 36 bytes = 24h */
        };
 
-  static struct mem_head *mem_list = NULL; /** The linked list of our allocations */
-  static size_t mem_reallocs = 0;          /** # of realloc() */
-  static DWORD  mem_max         = 0;       /** Max bytes allocated at one time */
-  static DWORD  mem_allocated   = 0;       /** Total bytes allocated */
-  static DWORD  mem_deallocated = 0;       /** Bytes deallocated */
-  static size_t mem_allocs      = 0;       /** # of allocations */
-  static size_t mem_frees       = 0;       /** # of mem-frees */
+  static struct mem_head *mem_list = NULL; /**< The linked list of our allocations */
+  static size_t mem_reallocs = 0;          /**< Number of realloc() */
+  static DWORD  mem_max         = 0;       /**< Max bytes allocated at one time */
+  static DWORD  mem_allocated   = 0;       /**< Total bytes allocated */
+  static DWORD  mem_deallocated = 0;       /**< Bytes deallocated */
+  static size_t mem_allocs      = 0;       /**< Number of allocations */
+  static size_t mem_frees       = 0;       /**< Number of mem-frees */
 
   /**
-   * Add this memory block to the \c mem_list.
+   * Add this memory block to the \ref mem_list.
    * \param[in] m    the block to add.
    * \param[in] file the file where the allocation occured.
    * \param[in] line the line of the file where the allocation occured.
@@ -98,14 +98,14 @@ HANDLE kernel32_hnd;
   }
 
   /**
-   *\def IS_MARKER(m)
-   * Verify that the memory block \c m is valid; either marked as used (\b MEM_MARKER) or
-   * as freed (\b MEM_FREED).
+   * \def IS_MARKER(m)
+   * Verify that the memory block \c m is valid;<br>
+   * either marked as used (\b MEM_MARKER) or as freed (\b MEM_FREED).
    */
   #define IS_MARKER(m) ( ( (m)->marker == MEM_MARKER) || ( (m)->marker == MEM_FREED) )
 
   /**
-   * Delete this memory block from the \c mem_list.
+   * Delete this memory block from the \ref mem_list.
    * \param[in] m    the block to delete.
    * \param[in] line the line where this function was called.
    */
@@ -139,10 +139,10 @@ HANDLE kernel32_hnd;
 
 #ifdef NOT_USED
 /**
- * Returns a pointer to the \c mem_head for this \c ptr.
+ * Returns a pointer to the `mem_head` for this `ptr`.
  *
- * \param[in] ptr the pointer to get the \c mem_head for.
- * \return the \c mem_head
+ * \param[in] ptr the pointer to get the `mem_head` for.
+ * \retval    the `mem_head`
  */
 static struct mem_head *mem_list_get_head (void *ptr)
 {
@@ -156,20 +156,23 @@ static struct mem_head *mem_list_get_head (void *ptr)
 #endif
 
 /**
- * We need to use \c K32GetModuleFileNameExA, \c IsWow64Process and
- * \c SetThreadErrorMode dynamically (since these are not available on Win-XP).
- * Try to load them from \c kernel32.dll only once.
+ * We need to use `K32GetModuleFileNameExA()`, `IsWow64Process()` and
+ * `SetThreadErrorMode()` dynamically (since these are not available on Win-XP).
+ * Try to load them from `kernel32.dll` only once.
  *
  * \typedef func_GetModuleFileNameEx
+ * \typedef func_SetThreadErrorMode
+ * \typedef func_IsWow64Process
  */
 typedef BOOL (WINAPI *func_GetModuleFileNameEx) (HANDLE proc, DWORD flags, char *fname, DWORD size);
 typedef BOOL (WINAPI *func_SetThreadErrorMode) (DWORD new_mode, DWORD *old_mode);
 typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
 
 /**
- * Window Vista's+ 'SearchPath()' (in Kernel32.dll) uses this function while
+ * Window Vista's+ `SearchPath()` (in `kernel32.dll`) uses this function while
  * searching for .EXEs.
- * \todo: Could be used in 'searchpath_internal()'?
+ *
+ * \todo Could be used in searchpath_internal()?
  *
  * Ref:
  *   https://msdn.microsoft.com/en-us/library/ms684269
@@ -213,10 +216,10 @@ void init_misc (void)
 }
 
 /**
- * If given a \c fname without any extension, open the \c fname and check if
+ * If given a `fname` without any extension, open the `fname` and check if
  * there's a she-bang line on 1st line.
  *
- * Accepts \c "#!/xx" or \c "#! /xx".
+ * Accepts `"#!/xx"` or `"#! /xx"`.
  */
 const char *check_if_shebang (const char *fname)
 {
@@ -601,7 +604,7 @@ time_t FILETIME_to_time_t (const FILETIME *ft)
  *                     Or NULL if our own process.
  * \param[in] filename Assumed to hold \c MAX_PATH characters.
  * \retval FALSE if this function is not available.
- * \return the return value from \c (*p_GetModuleFileNameEx)().
+ * \retval the return value from \c (*p_GetModuleFileNameEx)().
  */
 BOOL get_module_filename_ex (HANDLE proc, char *filename)
 {
@@ -1225,6 +1228,10 @@ int fnmatch_case (int flags)
   return (flags);
 }
 
+/**
+ * File-name match.
+ * Match a `string` against a `pattern` for a match.
+ */
 int fnmatch (const char *pattern, const char *string, int flags)
 {
   char c, test;
@@ -1621,7 +1628,10 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
   DEBUGF (1, "file: %s, attr: 0x%08lX, err: %s\n",
           file, (unsigned long)attr, win_strerror(err));
 
-#if 0   /* \todo: Need to check for Hidden/System files here */
+#if 0
+  /** \todo
+   * Need to check for Hidden/System files here
+   */
   if (attr == FILE_ATTRIBUTE_HIDDEN || attr == FILE_ATTRIBUTE_SYSTEM)
   {
     time_t   mtime = 0;
@@ -2027,8 +2037,8 @@ const char *get_user_name (void)
 }
 
 /**
- * Similar to strncpy(), but always returns 'dst' with 0-termination.
- * Does *not* return a 'size_t' as Posix 'strlcpy()' does.
+ * Similar to `strncpy()`, but always returns `dst` with 0-termination.
+ * Does *not* return a `size_t` as Posix `strlcpy()` does.
  */
 char *_strlcpy (char *dst, const char *src, size_t len)
 {
@@ -2130,8 +2140,8 @@ char *_stracat (char *s1, const char *s2)
  * \param[in] arr  the array of strings to join and return as a single string.
  * \param[in] sep  the separator between the \c arr elements; after the first up-to the 2nd last
  *
- * \retval  \c NULL if \c arr is empty
- * \retval  A \c MALLOC()'ed string if the concatinated result.
+ * \retval  NULL  if \c arr is empty
+ * \retval  !NULL a \c MALLOC()'ed string of the concatinated result.
  */
 char *_strjoin (char * const *arr, const char *sep)
 {
@@ -2926,6 +2936,8 @@ char *popen_last_line (void)
  * \retval -1   if \c "/bin/sh" is not found for Cygwin.
  * \retval -1   if \c cmd was not found or \c _popen() fails for some reason. \c errno should be set.
  * \retval >=0  total number of matches from \c callback.
+ *
+ * \anchor popen_run
  */
 int popen_run (popen_callback callback, const char *cmd)
 {
@@ -2973,7 +2985,8 @@ quit:
 }
 
 /**
- * A var-arg version of 'popen_run()'.
+ * A var-arg version of \c popen_run().
+ * \anchor popen_runf
  */
 int popen_runf (popen_callback callback, const char *fmt, ...)
 {

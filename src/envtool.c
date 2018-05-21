@@ -6,13 +6,13 @@
  *   for correctness and check where a specific file is in corresponding
  *   environment variable.
  *
- *  \eg{1} \c "envtool --path notepad.exe" first checks the \c \%PATH\% env-var
- *          for consistency (reports missing directories in \c \%PATH\%) and \n
- *          prints all the locations of \c "notepad.exe".
+ *  \eg{1} `envtool --path notepad.exe` first checks the `%PATH%` env-var
+ *          for consistency (reports missing directories in `%PATH%`) and
+ *          prints all the locations of `notepad.exe`.
  *
- *  \eg{2} \c "envtool --inc afxwin.h" first checks the \c \%INCLUDE\% env-var
- *          for consistency (reports missing directories in \c \%INCLUDE\%) and \n
- *          prints all the locations of \c "afxwin.h".
+ *  \eg{2} `envtool --inc afxwin.h` first checks the `%INCLUDE%` env-var
+ *          for consistency (reports missing directories in `%INCLUDE%`) and
+ *          prints all the locations of `afxwin.h`.
  *
  * By Gisle Vanem <gvanem@yahoo.no> August 2011 - 2017.
  *
@@ -157,7 +157,7 @@ volatile int halt_flag;
  *      Unless one of the '<path>/<prefix>-gcc.exe' are in the
  *      "[Compiler]" ignore-list.
  *
- * \todo: add more prefixes from envtool.cfg here?
+ * \todo add more prefixes from envtool.cfg here?
  */
 static const char *gnu_prefixes[] = {
                   "x86_64-w64-mingw32",
@@ -181,35 +181,36 @@ static int   get_pkg_config_info (char **exe_p, struct ver_info *ver);
 static int   get_cmake_info (char **exe_p, struct ver_info *ver);
 
 /**
- * \todo: Add support for 'kpathsea'-like path searches (which some TeX programs uses).
- *        E.g. if a PATH (or INCLUDE etc.) component contains \c "/foo/bar//", the search will
- *             do a recursive search for all files (and dirs) under \c "/foo/bar/".
- *        Ref. http://tug.org/texinfohtml/kpathsea.html
+ * \todo Add support for *kpathsea*-like path searches (which some TeX programs uses).
+ *       E.g. if a `PATH` (or INCLUDE etc.) component contains `/foo/bar//`, the search will
+ *            do a recursive search for all files (and dirs) under `/foo/bar/`.
+ *       Ref. http://tug.org/texinfohtml/kpathsea.html
  *
- * \todo: In 'report_file()', test if a file (in \c %PATH, \c %INCLUDE or \c %LIB) is
- *        shadowed by an older file of the same name (ahead of the newer file).
- *        Warn if this is the case.
+ * \todo In `report_file()`, test if a file (in `%PATH`, `%INCLUDE` or `%LIB`) is
+ *       shadowed by an older file of the same name (ahead of the newer file).
+ *       Warn if this is the case.
  *
- * \todo: Add sort option: on date/time.
- *                         on filename.
- *                         on file-size.
+ * \todo Add sort option: on date/time.
+ *                        on filename.
+ *                        on file-size.
  *
- * \todo: Add \c --locate option (or in combination with \c --evry option?) to
- *        look into GNU \em locatedb (\c %LOCATE_PATH=/cygdrive/f/Cygwin32/locatedb)
- *        information too.
+ * \todo Add `--locate` option (or in combination with `--evry` option?) to
+ *       look into GNU's `locatedb` (`%LOCATE_PATH=/cygdrive/f/Cygwin32/locatedb`)
+ *       information too.
  *
- * \todo: Add a \c --check option for 64-bit Windows to check that all .DLLs in:\br
- *             \c "%SystemRoot%\System32" are 64-bit and
- *             \c "%SystemRoot%\SysWOW64" are 32-bit.
+ * \todo Add a `--check` option for 64-bit Windows to check that all .DLLs in:\n
+ *            \c "%SystemRoot%\\System32" are 64-bit and
+ *            \c "%SystemRoot%\\SysWOW64" are 32-bit.
  *
- *        E.g. \verbatim
- *            pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
- *            Machine:                      014C (i386)
- *            Machine:                      014C (i386)
- *            ....
- *            \endverbatim
+ *       E.g.
+ *        ```
+ *           pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
+ *           Machine:                      014C (i386)
+ *           Machine:                      014C (i386)
+ *           ....
+ *        ```
  *
- *        Also check their Wintrust signature status and version information.
+ *       Also check their Wintrust signature status and version information.
  */
 
 /*
@@ -251,10 +252,10 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
 }
 
 /**
- * The SendMessage() calls could hang if EveryThing is busy updating itself or
+ * The `SendMessage()` calls could hang if EveryThing is busy updating itself or
  * stuck for some reason.
  *
- * \todo: This should be done in a thread.
+ * \todo This should be done in a thread.
  */
 static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
 {
@@ -2269,29 +2270,34 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
 }
 
 /**
- * \todo: If the result returns a file on a remote disk (X:) and the
- *        remote computer is down, EveryThing will return the
- *        the entry in it's database. But then the stat() below
- *        will fail after a long SMB timeout (SessTimeOut, default 60 sec).
+ * \todo If the result returns a file on a remote disk (X:) and the
+ *       remote computer is down, EveryThing will return the
+ *       the entry in it's database. But then the stat() below
+ *       will fail after a long SMB timeout (SessTimeOut, default 60 sec).
  *
- *        Try to detect this if 'file[0:1]' is 'X:' prior to calling
- *        'stat()'. Use:
- *          GetFileAttributes(file) and test if GetLastError()
- *          returns ERROR_BAD_NETPATH.  ??
+ *       Try to detect this if 'file[0:1]' is 'X:' prior to calling
+ *       'stat()'. Use:
+ *         GetFileAttributes(file) and test if GetLastError()
+ *         returns ERROR_BAD_NETPATH.  ??
  *
- *  Or simply exclude the remote disk 'X:' in the query. E.g.:
+ *  Or simply exclude the remote disk `X:` in the query. E.g.:
+ *   ```
  *    C:\> envtool --evry foxitre*.exe
+ *   ```
  *  should query for:
+ *   ```
  *    ^[^X]:\\.*foxitre.*\.exe$
+ *   ```
  *
- * But then we need a-priori knowledge that 'X:' is remote. Like
- *  'C:\> net use'  does:
- *
- *  Status       Local     External                  Network
- *  -------------------------------------------------------------------------------
- *  Disconnected X:        \\DONALD\X-PARTITION      Microsoft Windows Network
- *  ^^
- *   where to get this state?
+ * But then we need a-priori knowledge that `X:` is remote. Like
+ *  `C:\> net use` does:
+ *  \code
+ *   Status       Local     External                  Network
+ *   -------------------------------------------------------------------------------
+ *   Disconnected X:        \\DONALD\X-PARTITION      Microsoft Windows Network
+ *   ^^
+ *   \endcode
+ *  where to get this state?
  */
 static int report_evry_file (const char *file, time_t mtime, UINT64 fsize)
 {
@@ -2637,7 +2643,7 @@ static int do_check_manpath (void)
   BOOL   save1, save2, done_cwd = FALSE;
   static const char env_name[] = "MANPATH";
 
-  /* \todo:
+  /* \todo
    *   This should be all directories matching "man?[pn]" or "cat?[pn]".
    *   Make this array into a smartlist too?
    */
@@ -2960,7 +2966,7 @@ static void free_all_compilers (void)
  * \li if \c cc->full_name is non-NULL (i.e. found), check the ignore-list for that.
  * \li if \c cc->full_name is NULL, check the ignore-list for the \c cc->short_name.
  *
- * \eg{.} if the config-file contains a "ignore = i386-mingw32-gcc.exe", and
+ * \eg{.} if the config-file contains a \c "ignore = i386-mingw32-gcc.exe", and
  *        \c "i386-mingw32-gcc.exe" is not found, don't try to spawn it (since it
  *        will fail).
  */
@@ -3384,7 +3390,7 @@ static void add_gnu_compilers (void)
 
 /**
  * Simple; only add the first "cl.exe" found on PATH.
- * \todo:
+ * \todo
  *   do as with "envtool --path cl.exe" does and add all "cl.exe" found
  *   on PATH to the list.
  */

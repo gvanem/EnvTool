@@ -1,11 +1,8 @@
 /** \file    getopt_long.c
  *  \ingroup Misc
  *  \brief
- *    Function for parsing the program command-line.
+ *    Functions for parsing the program command-line.
  */
-
-/* $OpenBSD: getopt_long.c,v 1.22 2006/10/04 21:29:04 jmc Exp $    */
-/*  $NetBSD: getopt_long.c,v 1.15 2002/01/31 22:43:40 tv Exp $  */
 
 /*
  * Copyright (c) 2002 Todd C. Miller <Todd.Miller@courtesan.com>
@@ -43,7 +40,7 @@
  *    documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * AS IS AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
  * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
  * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
  * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
@@ -68,11 +65,23 @@
 
 #define PRINT_ERROR ((opterr) && (*options != ':'))
 
-#define FLAG_PERMUTE    0x01    /** permute non-options to the end of argv */
-#define FLAG_ALLARGS    0x02    /** treat non-options as args to option "-1" */
-#define FLAG_LONGONLY   0x04    /** operate as getopt_long_only */
+/**
+ * \def FLAGS_PERMUTE   permute non-options to the end of argv
+ * \def FLAGS_ALLARGS   treat non-options as args to option "-1"
+ * \def FLAGS_LONGONLY  operate as getopt_long_only()
+ */
+#define FLAG_PERMUTE    0x01
+#define FLAG_ALLARGS    0x02
+#define FLAG_LONGONLY   0x04
 
 /** Return values
+ *
+ * \def BADCH
+ *  If getopt() encounters an option character that was not in optstring, then `?` is returned.
+ *
+ * \def BADARG
+ *  If getopt() encounters an option with a missing argument, then the return value depends on
+ *  the first character in `optstring`: if it is `:`, then `:` is returned; otherwise `?` is returned.
  */
 #define BADCH       (int)'?'
 #define BADARG      ((*options == ':') ? (int)':' : (int)'?')
@@ -88,13 +97,13 @@
 char *optarg;
 int   optind, opterr = 1, optopt;
 
-static const char *place = EMSG; /** option letter processing */
+static const char *place = EMSG; /**< option letter processing */
 
-static int nonopt_start = -1;    /** first non option argument (for permute) */
-static int nonopt_end   = -1;    /** first option after non options (for permute) */
+static int nonopt_start = -1;    /**< first non option argument (for permute) */
+static int nonopt_end   = -1;    /**< first option after non options (for permute) */
 static int dash_prefix  = NO_PREFIX;
 
-/** Error messages
+/* Error messages
  */
 static const char recargchar[]   = "option requires an argument -- %c";
 static const char illoptchar[]   = "illegal option -- %c"; /* From P1003.2 */
@@ -158,7 +167,7 @@ static void permute_args (int panonopt_start, int panonopt_end,
 }
 
 /**
- * Print a warning on stderr.
+ * Print a warning to stderr.
  */
 static void warnx (const char *fmt, ...)
 {
@@ -173,8 +182,12 @@ static void warnx (const char *fmt, ...)
 }
 
 /**
- * Parse long options in argc/argv argument vector.
- * Returns -1 if short_too is set and the option does not match long_options.
+ * Parse long options in `argc` / `argv` argument vector.
+ *
+ * \retval -1     if `short_too` is set and the option does not match `long_options`.
+ * \retval BADCH  if no match found.
+ * \retval BADARG if option is missing required argument.
+ * \retval 0      if option and possibly an argument was found.
  */
 static int parse_long_options (char *const *nargv, const char *options,
                                const struct option *long_options,
@@ -255,7 +268,7 @@ static int parse_long_options (char *const *nargv, const char *options,
   {
     /* ambiguous abbreviation */
     if (PRINT_ERROR)
-        warnx (ambig, current_dash, (int)current_argv_len, current_argv);
+       warnx (ambig, current_dash, (int)current_argv_len, current_argv);
     optopt = 0;
     return (BADCH);
   }
@@ -265,10 +278,8 @@ static int parse_long_options (char *const *nargv, const char *options,
     if (long_options[match].has_arg == no_argument && has_equal)
     {
       if (PRINT_ERROR)
-          warnx (noarg, current_dash, (int)current_argv_len, current_argv);
+         warnx (noarg, current_dash, (int)current_argv_len, current_argv);
 
-      /* XXX: GNU sets optopt to val regardless of flag
-       */
       if (long_options[match].flag == NULL)
            optopt = long_options[match].val;
       else optopt = 0;
@@ -293,10 +304,8 @@ static int parse_long_options (char *const *nargv, const char *options,
       /* Missing argument; leading ':' indicates no error should be generated.
        */
       if (PRINT_ERROR)
-          warnx (recargstring, current_dash, current_argv);
+         warnx (recargstring, current_dash, current_argv);
 
-      /* XXX: GNU sets optopt to val regardless of flag
-       */
       if (long_options[match].flag == NULL)
            optopt = long_options[match].val;
       else optopt = 0;
@@ -312,7 +321,7 @@ static int parse_long_options (char *const *nargv, const char *options,
       return (-1);
     }
     if (PRINT_ERROR)
-        warnx (illoptstring, current_dash, current_argv);
+       warnx (illoptstring, current_dash, current_argv);
     optopt = 0;
     return (BADCH);
   }
@@ -329,7 +338,7 @@ static int parse_long_options (char *const *nargv, const char *options,
 }
 
 /**
- * Parse argc/argv argument vector.
+ * Parse `argc` / `argv` argument vector.
  * Called by user level routines.
  */
 static int getopt_internal (int nargc, char * const *nargv,
@@ -367,7 +376,7 @@ static int getopt_internal (int nargc, char * const *nargv,
   optarg = NULL;
 
 start:
-  if (!*place)                /* update scanning pointer */
+  if (!*place)              /* update scanning pointer */
   {
     if (optind >= nargc)    /* end of argument vector */
     {
@@ -530,7 +539,7 @@ start:
       {
         place = EMSG;
         if (PRINT_ERROR)
-            warnx (recargchar, optchar);
+           warnx (recargchar, optchar);
         optopt = optchar;
         return (BADARG);
       }
@@ -547,18 +556,18 @@ start:
 }
 
 /**
- * Parse argc/argv argument vector.
+ * Parse `argc` / `argv` argument vector.
  */
 int getopt (int nargc, char * const *nargv, const char *options)
 {
   /** We don't pass FLAG_PERMUTE to getopt_internal() since
    *  the BSD getopt(3) (unlike GNU) has never done this.
    */
-  return getopt_internal(nargc, nargv, options, NULL, NULL, 0);
+  return getopt_internal (nargc, nargv, options, NULL, NULL, 0);
 }
 
 /**
- * Parse argc/argv argument vector.
+ * Parse `argc` / `argv` argument vector.
  */
 int getopt_long (int nargc, char * const *nargv, const char *options,
                  const struct option *long_options, int *idx)
@@ -568,7 +577,7 @@ int getopt_long (int nargc, char * const *nargv, const char *options,
 }
 
 /**
- * Parse \c argc / \c argv argument vector.
+ * Parse `argc` / `argv` argument vector.
  */
 int getopt_long_only (int nargc, char * const *nargv, const char *options,
                       const struct option *long_options, int *idx)
@@ -587,23 +596,36 @@ static void dummy_set_opt (int o, const char *arg)
 }
 
 /**
- * The 'file' exists. Open it, get it's length, allocate space for it.
- * One unescaped file-line is one element.
- * Escaped lines (like \"foo\") will be taken care of by \c CommandLineToArgvW().
+ * Read a `file` and return it as one `wchar_t` string.
+ * The `file` is known to exist.
+ *
+ *  + Open it in read-mode / binary.
+ *  + Determine it's length.
+ *  + Allocate space for it.
+ *  + Read into `c->file_wbuf` one by one character.
+ *
+ * One unescaped file-line is one element. Escaped lines (like `\"foo\"`)
+ * will be taken care of by `CommandLineToArgvW()`.
  *
  * A file like:
+ * \code
  *   element-1 element-2 element-3 \"element-3a\" "element-3b"
  *   element-4
  *   "element-4a element-4b"
+ *   "element \"number\" 5"
+ * \endcode
  *
- * shall be  turned into a vector with these elements:
- *   element-1
+ * shall be turned into a vector (`wfileV[]` below) with these wide-char elements:
+ * \code
+ *   element-1              at wfileV [0]
  *   element-2
  *   element-3
  *   "element-3a"
  *   element-3b
  *   element-4
- *   "element-4a element-4b"
+ *   element-4a element-4b
+ *   element "number" 5     at wfileV [7]
+ * \endcode
  */
 static void read_file_as_wchar_t (struct command_line *c, const char *file)
 {
@@ -657,25 +679,30 @@ static void dump_argv (const struct command_line *c, unsigned line)
  * Parse the short and long options from these sources in order:
  *  \li the \c c->env_opt variable.
  *  \li the command-line given by \c GetCommandLineW().
- *  \li any elements found in a \c @response_file.
+ *  \li any elements found in a \c "@response_file".
  *
  * Match elements in all sources against the \c c->short_opt and \c c->long_opt
  * and call corresponding \c c->set_short_opt and \c c->set_long_opt functions.
  *
- * A command-line like this shuld be legal:
- *  program --arg1 @response-file-1 --arg2  @response-file-2 --arg3
+ * A command-line like this should be legal:
+ *  \code
+ *    program --arg1 @response-file-1 --arg2  @response-file-2 --arg3
+ *  \endcode
  *
  * \param[in] c  The structure defining how the command-line is to be set and parsed.
+ *
+ * \note the reason for converting the command-line into a \c wchar_t array, is that
+ *       there is no \c CommandLineToArgvA. Only \c CommandLineToArgvW.
  */
 void getopt_parse (struct command_line *c)
 {
   int         i, j, k, l;
-  int         wargC  = 0;       /** wide count of cmd-line elements */
-  int         wenvC  = 0;       /** wide count of \c c->env_opt elements */
-  int         wfileC = 0;       /** wide count of response-file elements */
-  wchar_t   **wargV  = NULL;    /** wide array of cmd-line elements */
-  wchar_t   **wenvV  = NULL;    /** wide array of \c c->env_opt elements */
-  wchar_t   **wfileV = NULL;    /** wide array of response-file elements */
+  int         wargC  = 0;       /* wide count of cmd-line elements */
+  int         wenvC  = 0;       /* wide count of \c c->env_opt elements */
+  int         wfileC = 0;       /* wide count of response-file elements */
+  wchar_t   **wargV  = NULL;    /* wide array of cmd-line elements */
+  wchar_t   **wenvV  = NULL;    /* wide array of \c c->env_opt elements */
+  wchar_t   **wfileV = NULL;    /* wide array of response-file elements */
   const char *env, *file;
   wchar_t    *cmd = GetCommandLineW();
   wchar_t     wenv_buf [1000];
@@ -750,8 +777,10 @@ void getopt_parse (struct command_line *c)
     WideCharToMultiByte (acp, 0, warg, wcslen(warg), aarg, wlen, 0, 0);
     aarg [wlen] = '\0';
 
-    /* A response file. If it doesn't exist, simply add '@file' to 'c->argv[i]'.
-     * Do not support '@file' inside a response-file.
+    /* The cmd-line contains a response file. If it doesn't exist, simply add
+     * '@file' to 'c->argv[i]'.
+     * We do not support a '@file' inside a response-file; it will be passed
+     * on as-is.
      */
     if (!c->file_wbuf && aarg[0] == '@' && FILE_EXISTS(aarg+1))
     {
@@ -796,21 +825,21 @@ void getopt_parse (struct command_line *c)
    * Use a \c "+" first in \c getopt_long() options. This will disable the
    * GNU extensions that allow non-options to come before options.
    * E.g. a command-line like:
-   *      \verbatim
+   *      \code
    *        envtool --path foo* -d
-   *      \endverbatim
+   *      \endcode
    *
    *      is equivalent to:
-   *      \verbatim
+   *      \code
    *        envtool --path -d foo*
-   *      \endverbatim
+   *      \endcode
    *
    * We do not want that since whatever comes after \c "foo*" should be
    * pointed to by \c 'c->argv[c->argc0]'.
    * See \c py_execfile() below for an example.
    */
 
-  opt.debug = 0;
+  opt.debug = 0;  /* let getopt_long() set this again */
 
   while (1)
   {

@@ -6,7 +6,8 @@
 #include "envtool.h"
 #include "smartlist.h"
 
-/**
+/**\typedef struct smartlist_t
+ *
  * From Tor's src/common/container.h:
  *
  * A resizeable list of pointers, with associated helpful functionality.
@@ -16,33 +17,37 @@
  * and macros defined here.
  */
 typedef struct smartlist_t {
-        /*
-         * 'list' (of anything) has enough capacity to store exactly 'capacity'
-         * elements before it needs to be resized. Only the first 'num_used'
-         * (<= capacity) elements point to valid data.
+        /**
+         * `list` (of anything) has enough capacity to store exactly `capacity`
+         * elements before it needs to be resized. Only the first `num_used`
+         * (`<= capacity`) elements point to valid data.
          */
         void **list;
         int    num_used;
         int    capacity;
       } smartlist_t;
 
-/*
+/** \def SMARTLIST_DEFAULT_CAPACITY
+ *
  * All newly allocated smartlists have this capacity.
- * I.e. room for 16 elements in 'smartlist_t::list[]'.
+ * I.e. room for 16 elements in `smartlist_t::list[]`.
  */
 #define SMARTLIST_DEFAULT_CAPACITY  16
 
-/*
- * A smartlist can hold 'INT_MAX' (2147483647) number of
- * elements in 'smartlist_t::list[]'.
+/** \def SMARTLIST_MAX_CAPACITY
+ *
+ * A smartlist can hold `INT_MAX` (2147483647) number of
+ * elements in `smartlist_t::list[]`.
  */
 #define SMARTLIST_MAX_CAPACITY  INT_MAX
 
 #if defined(_CRTDBG_MAP_ALLOC)
- /*
-  * In MSVC '_DEBUG' mode (-MDd), if 'free()' was called on 'sl', the start-value
-  * (or the whole block?) gets filled with '0xDDDDDDD'.
-  * Also the value '0xFDFDFDFD' is automatically placed before and after the heap block.
+ /**
+  * \def ASSERT_VAL
+  *
+  * In MSVC `_DEBUG` mode (`-MDd`), if `free()' was called on `sl`, the start-value
+  * (or the whole block?) gets filled with `0xDDDDDDD`. <br>
+  * Also the value `0xFDFDFDFD` is automatically placed before and after the heap block. <br>
   * Ref:
   *   http://www.highprogrammer.com/alan/windev/visualstudio.html
   */
@@ -55,8 +60,8 @@ typedef struct smartlist_t {
   #define ASSERT_VAL(ptr) (void) 0
 #endif
 
-/*
- * Return the number of items in 'sl'.
+/**
+ * Return the number of items in `sl`.
  */
 int smartlist_len (const smartlist_t *sl)
 {
@@ -65,8 +70,8 @@ int smartlist_len (const smartlist_t *sl)
   return (sl->num_used);
 }
 
-/*
- * Return the 'idx'th element of 'sl'.
+/**
+ * Return the `idx`-th element of `sl`.
  */
 void *smartlist_get (const smartlist_t *sl, int idx)
 {
@@ -77,8 +82,8 @@ void *smartlist_get (const smartlist_t *sl, int idx)
   return (sl->list[idx]);
 }
 
-/*
- * Set the 'idx'th element of 'sl' to 'val'.
+/**
+ * Set the `idx`-th element of `sl` to `val`.
  */
 void smartlist_set (smartlist_t *sl, int idx, void *val)
 {
@@ -89,7 +94,7 @@ void smartlist_set (smartlist_t *sl, int idx, void *val)
   sl->list[idx] = val;
 }
 
-/*
+/**
  * Allocate and return an empty smartlist.
  */
 smartlist_t *smartlist_new (void)
@@ -99,7 +104,7 @@ smartlist_t *smartlist_new (void)
   return smartlist_init (sl);
 }
 
-/*
+/**
  * Initialise a new smartlist.
  */
 smartlist_t *smartlist_init (smartlist_t *sl)
@@ -113,7 +118,7 @@ smartlist_t *smartlist_init (smartlist_t *sl)
   return (sl);
 }
 
-/*
+/**
  * Deallocate a smartlist. Does not release storage associated with the
  * list's elements.
  */
@@ -129,7 +134,7 @@ void smartlist_free (smartlist_t *sl)
   }
 }
 
-/*
+/**
  * Deallocate a smartlist and associated storage in the list's elements.
  */
 void smartlist_free_all (smartlist_t *sl)
@@ -149,8 +154,8 @@ void smartlist_free_all (smartlist_t *sl)
   smartlist_free (sl);
 }
 
-/*
- * Make sure that 'sl' can hold at least 'num' entries.
+/**
+ * Make sure that `sl` can hold at least `num` entries.
  */
 void smartlist_ensure_capacity (smartlist_t *sl, size_t num)
 {
@@ -173,8 +178,8 @@ void smartlist_ensure_capacity (smartlist_t *sl, size_t num)
   }
 }
 
-/*
- * Append element to the end of the list.
+/**
+ * Append `element` to the end of the `sl` list.
  */
 void smartlist_add (smartlist_t *sl, void *element)
 {
@@ -183,10 +188,10 @@ void smartlist_add (smartlist_t *sl, void *element)
   sl->list [sl->num_used++] = element;
 }
 
-/*
- * Remove the 'idx'-th element of 'sl':
- *   if 'idx' is not the last element, swap the last element of 'sl'
- *   into the 'idx'-th space.
+/**
+ * Remove the `idx`-th element of `sl`: <br>
+ *  - if `idx` is not the last element, swap the last element of `sl`
+ *    into the `idx`-th space.
  */
 void smartlist_del (smartlist_t *sl, int idx)
 {
@@ -199,10 +204,10 @@ void smartlist_del (smartlist_t *sl, int idx)
   sl->list [sl->num_used] = NULL;
 }
 
-/*
- * Remove the 'idx'-th element of 'sl':
- *   if 'idx' is not the last element, move all subsequent elements back one
- *   space. Return the old value of the 'idx'-th element.
+/**
+ * Remove the `idx`-th element of `sl`: <br>
+ *  - if `idx` is not the last element, move all subsequent elements back one
+ *    space. Return the old value of the `idx`-th element.
  */
 void smartlist_del_keeporder (smartlist_t *sl, int idx)
 {
@@ -223,7 +228,7 @@ void smartlist_del_keeporder (smartlist_t *sl, int idx)
 }
 
 /**
- * Remove all elements from the list.
+ * Remove all elements from the list `sl`.
  */
 void smartlist_clear (smartlist_t *sl)
 {
@@ -233,7 +238,7 @@ void smartlist_clear (smartlist_t *sl)
 }
 
 /**
- * As above, but call a 'free_fn' for all items first.
+ * Like `smartlist_clear()`, but call a `free_fn` for all items first.
  */
 void smartlist_wipe (smartlist_t *sl, void (*free_fn)(void *a))
 {
@@ -246,8 +251,8 @@ void smartlist_wipe (smartlist_t *sl, void (*free_fn)(void *a))
 }
 
 /**
- * Given a sorted smartlist 'sl' and the comparison function used to
- * sort it, return number of duplicate members.
+ * Given a sorted smartlist `sl` and the comparison function (`compare`)
+ * used to sort it, return number of duplicate members.
  */
 int smartlist_duplicates (smartlist_t *sl, smartlist_sort_func compare)
 {
@@ -263,10 +268,11 @@ int smartlist_duplicates (smartlist_t *sl, smartlist_sort_func compare)
 }
 
 /**
- * Given a sorted smartlist 'sl' and the comparison function used to
- * sort it, remove all duplicate members. If 'free_fn' is provided, calls
- * 'free_fn' on each duplicate. Otherwise, just removes them.
- * Preserves order.
+ * Given a sorted smartlist `sl` and the comparison function (`compare`)
+ * used to sort it, remove all duplicate members.<br>
+ * If `free_fn` is provided, calls `free_fn` on each duplicate. <br>
+ * Otherwise, just removes them. <br>
+ * Preserves the list order.
  */
 void smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, void (*free_fn)(void *a))
 {
@@ -284,8 +290,8 @@ void smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, void (*f
   }
 }
 
-/*
- * Open a file and return parsed lines as a smartlist.
+/**
+ * Open a file and return the parsed lines as a smartlist.
  */
 smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
 {
@@ -312,7 +318,7 @@ smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
   return (sl);
 }
 
-/*
+/**
  * Dump a smartlist of text-lines to a file.
  */
 int smartlist_write_file (smartlist_t *sl, const char *file)
@@ -330,8 +336,8 @@ int smartlist_write_file (smartlist_t *sl, const char *file)
   return (1);
 }
 
-/*
- * Append each element from 'sl2' to the end of 'sl1'.
+/**
+ * Append each element from `sl2` to the end of `sl1`.
  */
 void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
 {
@@ -343,7 +349,7 @@ void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
   ASSERT (sl2);
   ASSERT_VAL (sl2);
 
-  if (sl2->num_used == 0) /* 'sl2' is empty */
+  if (sl2->num_used == 0) /* `sl2` is empty */
      return;
 
   new_size = (size_t)sl1->num_used + (size_t)sl2->num_used;
@@ -355,8 +361,8 @@ void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
 }
 
 /**
- * Insert the value 'val' as the new 'idx' element of 'sl',
- * moving all items previously at 'idx' or later forward one space.
+ * Insert the value `val` as the new `idx`-th element of `sl`,
+ * moving all items previously at `idx` or later forward one space.
  */
 void smartlist_insert (smartlist_t *sl, int idx, void *val)
 {
@@ -381,8 +387,8 @@ void smartlist_insert (smartlist_t *sl, int idx, void *val)
 }
 
 /**
- * Exchange the elements at indices 'idx1'' and 'idx2' of the
- * smartlist 'sl'.
+ * Exchange the elements at indices `idx1` and `idx2` of the
+ * smartlist `sl`.
  */
 void smartlist_swap (smartlist_t *sl, int idx1, int idx2)
 {
@@ -395,17 +401,29 @@ void smartlist_swap (smartlist_t *sl, int idx1, int idx2)
   }
 }
 
-/*
- * Sort the members of 'sl' into an order defined by
- * the ordering function 'compare', which returns less then 0 if a
- * precedes b, greater than 0 if b precedes a, and 0 if a 'equals' b.
+/**\typedef int (*UserCmpFunc) (const void *, const void *);
  *
- * Do it via '__cdecl local_compare()' since the caller's 'compare' may
- * be '__fastcall. Only important for MSVC.
+ * The `__cdecl` or `__fastcall` type of user's compare function.<br>
+ * Since `qsort()` needs a `__cdecl` compare function, we sort via
+ * a function of this type.
  */
 typedef int (*UserCmpFunc) (const void *, const void *);
+
+/** The actual pointer to the user's compare function
+ */
 static UserCmpFunc user_compare;
 
+/**
+ * Sort the members of `sl` into an order defined by
+ * the ordering function `compare`, which
+ *
+ *  - returns less then 0 if `a` precedes `b`.
+ *  - greater than 0 if `b` precedes `a`.
+ *  - and 0 if `a` equals `b`.
+ *
+ * Do it via `__cdecl local_compare()` since the caller's `compare` may
+ * be `__fastcall`. Only important for MSVC.
+ */
 static int __cdecl local_compare (const void *a, const void *b)
 {
   return (*user_compare) (a, b);
@@ -422,14 +440,18 @@ void smartlist_sort (smartlist_t *sl, smartlist_sort_func compare)
 }
 
 #if defined(NOT_USED_YET)
-/*
- * Assuming the members of 'sl' are in order, return the index of the
- * member that matches 'key'.  If no member matches, return the index of
- * the first member greater than 'key', or 'smartlist_len(sl)' if no member
- * is greater than 'key'.  Set 'found_out to true on a match, to false otherwise.
- * Ordering and matching are defined by a 'compare' function that returns 0 on
- * a match; less than 0 if key is less than member, and greater than 0 if key
- * is greater then member.
+/**
+ * Assuming the members of `sl` are in order, return the index of the
+ * member that matches `key`. <br>
+ * If no member matches, return the index of the first member greater than `key`,
+ * or `smartlist_len(sl)` if no member is greater than `key`. <br>
+ * Set `found_out` to `TRUE` on a match, to `FALSE` otherwise.
+ *
+ * Ordering and matching are defined by a `compare` function that
+ *
+ *  - returns 0 on a match.
+ *  - less than 0 if `key` is less than member.
+ *  - and greater than 0 if `key` is greater then member.
  */
 int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
                            smartlist_compare_func compare, int *found_out)
@@ -565,11 +587,14 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
   return (lo);
 }
 
-/*
- * Assuming the members of 'sl' are in order, return a pointer to the
- * member that matches 'key'. Ordering and matching are defined by a
- * 'compare' function that returns 0 on a match; less than 0 if key is
- * less than member, and greater than 0 if key is greater then member.
+/**
+ * Assuming the members of `sl` are in order, return a pointer to the
+ * member that matches `key`. Ordering and matching are defined by a
+ * `compare` function that
+ *
+ *  - returns 0 on a match.
+ *  - less than 0 if `key` is less than member.
+ *  - and greater than 0 if `key` is greater than member.
  */
 void *smartlist_bsearch (const smartlist_t *sl, const void *key,
                          int (*compare)(const void *key, const void **member))

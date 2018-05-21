@@ -1,43 +1,73 @@
-/* Defines all the groups here: */
+/* Define all the groups here: */
 
-/**\addtogroup Authentication Auth - User and password retrieval
- *  @{
+/**\addtogroup Authentication User and password retrieval
+ * @{
+ *   Functions for parsing and lookup of host/user records in:
+ *   \li \c %APPDATA%/.netrc  and
+ *   \li \c %APPDATA%/.authinfo
+ *
+ * @}
  */
-/** @} */
 
-/**\addtogroup Color printf()-style printing with colours
- *  @{
+/**\addtogroup Color  printf()-style printing with colours
+ * @{
+ *
+ * @}
  */
-/** @} */
 
 /**\addtogroup Envtool Main functions
- *  @{
+ * @{
+ *
+ * @}
  */
-/** @} */
 
 /**\addtogroup Envtool_PY Python functions
- *  @{
+ * @{
+ *    This consists of the files:
+ *      \li envtool_py.c
+ *      \li envtool_py.h
+ *
+ * @}
  */
-/** @} */
 
-/**\addtogroup EveryThing Interface for the EveryThing database
-*  @{
-*/
-/** @} */
-
-/**\addtogroup EveryThing_ETP Remote queries using EveryThing's ETP protocol
- *  @{
+/**\addtogroup EveryThing_SDK  EveryThing SDK
+ * @{
+ *    This SDK consists of the files:
+ *      \li Everything.c
+ *      \li Everything.h
+ *      \li Everything_IPC.h
+ *  @}
  */
-/** @} */
 
-/**\addtogroup Misc Misc - Various support functions
- *  @{
+/**\addtogroup EveryThing_ETP  Remote FTP queries
+ * @{
+ *   This consists of the files:
+ *     \li Everything_ETP.c
+ *     \li Everything_ETP.h
+ *
+ * @}
  */
-/** @} */
 
+/**\addtogroup Misc  Misc - Various support functions
+ * @{
+ *   This consists of the files:
+ *     \li dirlist.c, dirlist.h
+ *     \li getopt_long.c, getopt_long.h
+ *     \li ignore.c, ignore.h
+ *     \li misc.c, misc.h
+ *     \li regex.c, regex.h
+ *     \li searchpath.c
+ *     \li show_ver.c
+ *     \li smartlist.c, smartlist.h
+ *     \li win_trust.c, win_trust.h
+ *     \li win_ver.c
+ * @}
+ */
 
-/** \mainpage Envtool
-    \ingroup  Envtool
+/**
+
+\mainpage Envtool
+\ingroup  Envtool
 
 <h2>Introduction</h2>
 
@@ -53,8 +83,8 @@ The following modes handles these environment variables:
   <tr><td>\c --man               <td>Check and search in \c \%MANPATH\%.
   <tr><td>\c --path              <td>Check and search in \c \%PATH\%.
   <tr><td>\c --pkg               <td>Check and search in \c \%PKG_CONFIG_PATH\%.
-  <tr><td>\c --python[=\em X]    <td>Check and search in \c \%PYTHONPATH\% and \c sys.path[].\n
-                                     The \em X selects a specific Python (if found). Can be one of these:\n
+  <tr><td>\c --python[=\em X]    <td>Check and search in \c \%PYTHONPATH\% and \c sys.path[]. <br>
+                                     The \em X selects a specific Python (if found). Can be one of these: <br>
                                      <table>
                                        <tr><td>\c all    <td>Use all Python programs found on \c \%PATH\%.
                                                              This is the default.
@@ -91,51 +121,51 @@ Envtool contains a lot of options. These are:
   <tr><td>\c --owner=\em [X] <td> Shown only owners matching \c X.
   <tr><td>\c --owner=\em [!X]<td> Shown only owners \b not matching \c X.
   <tr><td>\c --pe           <td> Print checksum, version-info and signing status for PE-files.
-  <tr><td>\c --32           <td> Tell \c prefix -gcc to return only 32-bit libs in \c --lib mode.\n
+  <tr><td>\c --32           <td> Tell \c prefix -gcc to return only 32-bit libs in \c --lib mode. <br>
                                  Report only 32-bit PE-files with \c --pe option.
-  <tr><td>\c --64           <td> Tell \c prefix -gcc to return only 64-bit libs in \c --lib mode.\n
+  <tr><td>\c --64           <td> Tell \c prefix -gcc to return only 64-bit libs in \c --lib mode. <br>
                                  Report only 64-bit PE-files with \c --pe option.
   <tr><td>\c -c             <td> Don't add current directory to search-lists.
   <tr><td>\c -C             <td> Be case-sensitive.
   <tr><td>\c -d, \c --debug <td> Set debug level (\c -dd sets \c PYTHONVERBOSE=1 in \c --python mode).
   <tr><td>\c -D, \c --dir   <td> Looks only for directories matching \c \<file-spec\>.
   <tr><td>\c -H, \c --host  <td> Hostname/IPv4-address for remote FTP \c --evry searches.
-                                 Can be used multiple times. Alternative syntax is \c --evry:host\[:port].
+                                 Can be used multiple times. <br>
+                                 Alternative syntax is \c --evry:host\[:port].
 
   <tr><td>\c --evry remote FTP options: <td>
   <tr><td>\c --nonblock-io  <td> connects using non-blocking I/O.
   <tr><td>\c --buffered-io  <td> use buffering to receive the data.
 
   <tr><td>\c -r, \c --regex <td> Enable Regular Expressions in all \c --mode searches.
-  <tr><td>\c -s, \c --size  <td> Show size of file(s) found. With \c --dir option, recursively show
-                                 The size of all files under directories matching \c \<file-spec\>.
+  <tr><td>\c -s, \c --size  <td> Show size of file(s) found. With \c --dir option, recursively show <br>
+                                 the size of all files under directories matching \c \<file-spec\>.
   <tr><td>\c -q, \c --quiet <td> Disable warnings.
   <tr><td>\c -t             <td> Do some internal tests.
   <tr><td>\c -T             <td> Show file times in sortable decimal format. E.g. \c "20121107.180658".
   <tr><td>\c -u             <td> Show all paths on Unix format. E.g. \c c:/ProgramFiles/.
   <tr><td>\c -v             <td> Increase verbose level (currently only used in \c --pe).
-  <tr><td>\c -V             <td> Show basic program version information.\n
+  <tr><td>\c -V             <td> Show basic program version information. <br>
                                  \c -VV and \c -VVV  prints much more information.
   <tr><td>\c -h, \c -?      <td> Show this help.
 </table>
 
-The \c prefix es are:
-- \c  x86_64-w64-mingw32
-- \c  i386-mingw32
-- \c  i686-w64-mingw32
-- \c  avr               for Arduino gcc development on Atmel processors
+The `prefix`es are:
+  + `x86_64-w64-mingw32`
+  + `i386-mingw32`
+  + `i686-w64-mingw32`
+  + `avr`               for Arduino gcc development on Atmel processors
 
 To avoid specifying an option every time you run Envtool, that can also be specified in an
-environment variable \c ENVTOOL_OPTIONS.\n
+environment variable `ENVTOOL_OPTIONS`.<br>
 For example:
-  \verbatim
+  ```
     set ENVTOOL_OPTIONS=--no-app
-  \endverbatim
+  ```
 
-will use the option \c --no-app every time Envool is invoked.
+will use the option `--no-app` every time Envtool is invoked.
 
 <h2>Other Features</h2>
 
 
 */
-

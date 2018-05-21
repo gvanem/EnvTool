@@ -300,10 +300,29 @@ extern "C" {
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
+/** \enum SignStatus
+ *  Used with the "--pe" and "--signed[=0|1]" options to filter PE-files
+ *  according to signed-status. This signed-status is obtained by wintrust_check().
+ */
 typedef enum SignStatus {
+       /** Do not report signed status of any PE-files. <br>
+         * I.e. option `"--signed[=0|1]"` was not used.
+         */
         SIGN_CHECK_NONE,
+
+        /** Report signed status of all PE-files. <br>
+         * I.e. option `"--signed"` was used.
+         */
         SIGN_CHECK_ALL,
+
+        /** Report only unsigned PE-files. <br>
+         *  I.e. option `"--signed=0"` was used.
+         */
         SIGN_CHECK_UNSIGNED,
+
+        /** Report only signed PE-files. <br>
+         *  I.e. option `"--signed=1"` was used.
+         */
         SIGN_CHECK_SIGNED
       } SignStatus;
 
@@ -465,14 +484,15 @@ extern BOOL is_directory_readable (const char *path);
 extern BOOL is_directory_writable (const char *path);
 
 
-/* Functions for handling Reparse Points:
- * (Junctions and Symlinks).
+/** Functions for handling Reparse Points:
+ *  (Junctions and Symlinks).
  */
 extern const char *last_reparse_err;
 extern BOOL        get_reparse_point (const char *dir, char *result,
                                       BOOL return_print_name);
 
-/*
+/** \struct ver_info
+ *
  * Generic program version information (in resource).
  *
  *  Implemented by        | For what
@@ -482,26 +502,28 @@ extern BOOL        get_reparse_point (const char *dir, char *result,
  *  get_PE_version_info() | PE-image version info.
  */
 struct ver_info {
-       unsigned val_1;   /* Major */
-       unsigned val_2;   /* Minor */
-       unsigned val_3;   /* Micro */
-       unsigned val_4;   /* Build (unused in envtool_py.c) */
+       unsigned val_1;   /**< Major */
+       unsigned val_2;   /**< Minor */
+       unsigned val_3;   /**< Micro */
+       unsigned val_4;   /**< Build (unused in envtool_py.c) */
      };
 
-/* Generic search-list type.
+/** \struct search_list
+ *  A generic search-list type.
  */
 struct search_list {
-       unsigned    value;
-       const char *name;
+       unsigned    value;  /**< the value */
+       const char *name;   /**< the name of the assosited value */
      };
 
-/* For check_if_PE().
+/** \enum Bitness
+ *  Used by check_if_PE() to retrieve the bitness of a PE-file.
  */
 enum Bitness {
-     bit_unknown = 0,
-     bit_16,
-     bit_32,
-     bit_64
+     bit_unknown = 0, /**< the bitness is unknown (not a PE-file?). */
+     bit_16,          /**< 16-bit MSDOS file; never really set. */
+     bit_32,          /**< 32-bit PE-file. */
+     bit_64           /**< 64-bit PE-file. */
    };
 
 extern const char *list_lookup_name (unsigned value, const struct search_list *list, int num);
@@ -532,19 +554,29 @@ extern DWORD       reg_swap_long (DWORD val);
 extern void crtdbug_init (void);
 extern void crtdbug_exit (void);
 
-/*
- * buf_printf() stuff
+/** \struct FMT_buf
+ *  The type used in formatting a string-buffer on the stack.<br>
+ *  Used by buf_printf() and buf_puts().
  */
-typedef struct {
-        char   *buffer;        /* the 'alloca() buffer */
-        char   *buffer_start;  /* as above + 4 bytes (past the marker) */
-        char   *buffer_pos;    /* current position in the buffer */
-        size_t  buffer_size;   /* number of bytes allocated in the buffer */
-        size_t  buffer_left;   /* number of bytes left in the buffer */
+typedef struct FMT_buf {
+        char   *buffer;        /**< the 'alloca() buffer */
+        char   *buffer_start;  /**< as above + 4 bytes (past the marker) */
+        char   *buffer_pos;    /**< current position in the buffer */
+        size_t  buffer_size;   /**< number of bytes allocated in the buffer */
+        size_t  buffer_left;   /**< number of bytes left in the buffer */
       } FMT_buf;
 
+/** \def FMT_BUF_MARKER
+ *  A magic marker to detect under/over-run of a FMT_buf.
+ */
 #define FMT_BUF_MARKER  0xDEAFBABE
 
+/** \def BUF_INIT()
+ *  Macro to setup the FMT_buf on stack.
+ *   \param fmt_buf  The buffer-structure to initialise.
+ *   \param size     The size to allocate for the maximum string.
+ *                   4 bytes are added to this to fit the magic markers.
+ */
 #define BUF_INIT(fmt_buf, size) do {                               \
         DWORD   *_marker;                                          \
         FMT_buf *_buf = fmt_buf;                                   \
@@ -653,7 +685,31 @@ extern int   fnmatch      (const char *pattern, const char *string, int flags);
 extern int   fnmatch_case (int flags);
 extern char *fnmatch_res  (int rc);
 
-/* Handy macros:
+/* Handy macros: */
+
+/** \def DIM(arr)
+ *   Return the number of elements in an arbitrary array.
+ *   \param arr the array.
+ *
+ * \def ARGSUSED(foo)
+ *   Avoid a compiler warning on an used variable.
+ *   \param foo the variable.
+ *
+ * \def DEBUGF(level, ...)
+ *   Print a debug-statement if opt.debug >= level.
+ *   \param level  the level needed to trigger a print-out.
+ *   \param ...    a var-arg list of format an arguments (just like `printf()`).
+ *
+ * \def DEBUG_NL(level)
+ *   Print a newline if opt.debug >= level.
+ *
+ * \def WARN(...)
+ *   Unless "--quiet" option was used, print a warning in red colour.
+ *   \param ...   a var-arg list of format an arguments (just like `printf()`).
+ *
+ * \def FATAL(...)
+ *   Print a fatal message on `stderr` And exit the program.
+ *   \param ...   a var-arg list of format an arguments (just like `printf()`).
  */
 #define DIM(arr)       (int) (sizeof(arr) / sizeof(arr[0]))
 #define ARGSUSED(foo)  (void)foo

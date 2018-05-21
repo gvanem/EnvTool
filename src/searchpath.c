@@ -38,7 +38,7 @@ int searchpath_pos (void)
  *
  * \note: if \c env_var is just a dirname, the \c file is just tested for
  *        presence in current directory and that dirname.
- *        \eg
+ *        \eg{.}
  *        \code{c}
  *          searchpath ("SWAPFILE.SYS", "c:\\")
  *        \endcode would simply return \c \"C:\\SWAPFILE.SYS\".
