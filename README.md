@@ -262,6 +262,7 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
 
   1.2:  Modifiers for "--evry" option is now possible. E.g.
           envtool --evry *.exe rc:today                     - find today's changes of all *.exe files.
+          envtool --evry Makefile.am content:pod2man        - find Makefile.am with pod2man commands.
           envtool --evry M*.mp3 artist:Madonna "year:<2002" - find all Madonna M*.mp3 titles issued prior to 2002.
 
 ```
