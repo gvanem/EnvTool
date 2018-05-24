@@ -332,7 +332,7 @@ struct prog_options {
        int          quiet;
        int          fatal_flag;
        int          quotes_warn;
-       int          add_cwd;
+       int          no_cwd;
        int          show_unix_paths;
        int          show_owner;
        void        *owners;          /* A smartlist_t */

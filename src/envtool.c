@@ -551,8 +551,8 @@ static int show_help (void)
           "    ~6--signed~0       check for ~4all~0 digital signature with the ~6--pe~0 option.\n"
           "    ~6--signed=0~0     report only PE-files files that are ~4unsigned~0.\n"
           "    ~6--signed=1~0     report only PE-files files that are ~4signed~0.\n"
-          "    ~6-c~0             don't add current directory to search-lists.\n"
-          "    ~6-C~0             be case-sensitive.\n"
+          "    ~6--no-cwd~0       don't add current directory to search-lists.\n"
+          "    ~6-c~0             be case-sensitive.\n"
           "    ~6-d~0, ~6--debug~0    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
           "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n");
 
@@ -873,7 +873,7 @@ static void free_dir_array (void)
  * This works since we handle only one env-var at a time. The 'dir_array[]'
  * gets cleared in 'free_dir_array()' first (in case it was used already).
  *
- * Add current working directory first if 'opt.add_cwd' is TRUE.
+ * Add current working directory first if 'opt.no_cwd' is FALSE.
  *
  * Convert CygWin style paths to Windows paths: "/cygdrive/x/.." -> "x:/.."
  */
@@ -908,7 +908,7 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
   * the %C_INCLUDE_PATH% by default.
   */
   i = 0;
-  if (opt.add_cwd && !is_cwd)
+  if (!opt.no_cwd && is_cwd)
      add_to_dir_array (current_dir, 1, __LINE__);
 
   max = INT_MAX;
@@ -2657,15 +2657,15 @@ static int do_check_manpath (void)
   /* Do not implicit add current directory in searches.
    * Unless '%MANPATH' contain a "./;" or a ".\;".
    */
-  save1 = opt.add_cwd;
-  opt.add_cwd = FALSE;
+  save1 = opt.no_cwd;
+  opt.no_cwd = 1;
 
   orig_e = getenv_expand (env_name);
   list   = orig_e ? split_env_var (env_name, orig_e) : NULL;
   if (!list)
   {
     WARN ("Env-var %s not defined.\n", env_name);
-    opt.add_cwd = save1;
+    opt.no_cwd = save1;
     return (0);
   }
 
@@ -2711,7 +2711,7 @@ static int do_check_manpath (void)
     }
   }
 
-  opt.add_cwd  = save1;
+  opt.no_cwd   = save1;
   opt.man_mode = save2;
   free_dir_array();
   FREE (orig_e);
@@ -3764,7 +3764,7 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
     return (0);
   }
 
-  if (opt.add_cwd)
+  if (!opt.no_cwd)
      add_to_dir_array (current_dir, 1, __LINE__);
 
   watcom_dir[0] = getenv_expand (dir0);
@@ -3818,10 +3818,10 @@ static int do_check_watcom_includes (void)
   else split_env_var ("%NT_INCLUDE%", watcom_dir[3]);
 
   /* This will append to what was inserted in \c 'dir_array' above.
-   * Do not add \c ".\\" again (set \c opt.add_cwd to 0).
+   * Do not add \c ".\\" again (set \c opt.no_cwd to 1).
    */
-  save = opt.add_cwd;
-  opt.add_cwd = 0;
+  save = opt.no_cwd;
+  opt.no_cwd = 1;
   if (!setup_watcom_dirs("%WATCOM%\\h", "%WATCOM%\\h\\nt", "%WATCOM%\\lh"))
      goto quit;
 
@@ -3840,7 +3840,7 @@ static int do_check_watcom_includes (void)
   }
 
 quit:
-  opt.add_cwd = save;
+  opt.no_cwd = save;
   free_watcom_dirs();
   free_dir_array();
   return (found);
@@ -3916,7 +3916,8 @@ static const struct option long_options[] = {
            { "owner",       optional_argument, NULL, 0 },
            { "check",       no_argument,       NULL, 0 },    /* 35 */
            { "signed",      optional_argument, NULL, 0 },
-           { NULL,          no_argument,       NULL, 0 }     /* 37 */
+           { "no-cwd",      no_argument,       NULL, 0 },    /* 37 */
+           { NULL,          no_argument,       NULL, 0 }
          };
 
 static int *values_tab[] = {
@@ -3956,7 +3957,8 @@ static int *values_tab[] = {
             &opt.no_watcom,       /* 33 */
             &opt.show_owner,
             &opt.do_check,        /* 35 */
-            (int*)&opt.signed_status
+            (int*)&opt.signed_status,
+            &opt.no_cwd
           };
 
 /*
@@ -4082,9 +4084,6 @@ static void set_short_option (int o, const char *arg)
          opt.dir_mode = 1;
          break;
     case 'c':
-         opt.add_cwd = 0;
-         break;
-    case 'C':
          opt.case_sensitive = 1;
          break;
     case 'k':
@@ -4183,7 +4182,7 @@ static void parse_cmdline (void)
   command_line *c = &opt.cmd_line;
 
   c->env_opt       = "ENVTOOL_OPTIONS";
-  c->short_opt     = "+cChH:vVdDkrstTuq";
+  c->short_opt     = "+chH:vVdDkrstTuq";
   c->long_opt      = long_options;
   c->set_short_opt = set_short_option;
   c->set_long_opt  = set_long_option;
@@ -4336,7 +4335,6 @@ static void init_all (void)
 
   tzset();
   memset (&opt, 0, sizeof(opt));
-  opt.add_cwd = 1;
   opt.under_conemu = C_conemu_detected();
 
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
@@ -5477,8 +5475,8 @@ static int do_check (void)
 
   /* Do not implicit add current directory in these searches.
    */
-  save = opt.add_cwd;
-  opt.add_cwd = 0;
+  save = opt.no_cwd;
+  opt.no_cwd = 1;
 
   for (i = 0, env = envs[0]; i < DIM(envs) && env; env = envs[++i])
   {
@@ -5512,7 +5510,7 @@ static int do_check (void)
    */
 #endif
 
-  opt.add_cwd = save;
+  opt.no_cwd = save;
   return (0);
 }
 
@@ -5567,8 +5565,8 @@ static int do_tests (void)
   test_split_env ("INCLUDE");
 #endif
 
-  save = opt.add_cwd;
-  opt.add_cwd = 0;
+  save = opt.no_cwd;
+  opt.no_cwd = 0;
 #ifdef __CYGWIN__
   setenv ("FOO", "/cygdrive/c", 1);
 #else
@@ -5576,7 +5574,7 @@ static int do_tests (void)
 #endif
 
   test_split_env ("FOO");
-  opt.add_cwd = save;
+  opt.no_cwd = save;
 
   test_searchpath();
   test_fnmatch();
