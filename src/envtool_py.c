@@ -1226,32 +1226,38 @@ static char *popen_run_py (const struct python_info *py, const char *py_prog, BO
 /**
  * \def PY_LIST_MODULES
  *   The Python program to print the modules in py_print_modules().
- */
-#define PY_LIST_MODULES()                                                            \
-        "import os, sys, re, zipfile\n"                                              \
-        PY_IMPORT_PIP()                                                              \
-        "\n"                                                                         \
-        "def is_zipfile (path):\n"                                                   \
-        "  return zipfile.is_zipfile (path)\n"                                       \
-        "\n"                                                                         \
-        "def list_modules():\n"                                                      \
-        "  packages = pip.get_installed_distributions (local_only=False, skip=())\n" \
-        "  package_list = []\n"                                                      \
-        "  for p in packages:\n"                                                     \
-        "    if os.path.isdir (p.location):\n"                                       \
-        "      loc = p.location + \'\\\\\'\n"                                        \
-        "    elif is_zipfile (p.location):\n"                                        \
-        "      loc = p.location + \' (ZIP)\'\n"                                      \
-        "    elif not os.path.exists (p.location):\n"                                \
-        "      loc = p.location + \' !\'\n"                                          \
-        "    else:\n"                                                                \
-        "      loc = p.location\n"                                                   \
-        "    ver = \"v.%.6s\" % p.version\n"                                         \
-        "    package_list.append (\"%-20s %-10s -> %s\" % (p.key, ver, loc))\n"      \
-        "\n"                                                                         \
-        "  for p in sorted (package_list):\n"                                        \
-        "    print (p)\n"                                                            \
-        "\n"                                                                         \
+ *   If the 'get_installed_distributions()' is an obsolete function, try
+ *   'pkg_resources.working_set' instead.
+  */
+#define PY_LIST_MODULES()                                                              \
+        "import os, sys, re, zipfile\n"                                                \
+        PY_IMPORT_PIP()                                                                \
+        "\n"                                                                           \
+        "def is_zipfile (path):\n"                                                     \
+        "  return zipfile.is_zipfile (path)\n"                                         \
+        "\n"                                                                           \
+        "def list_modules():\n"                                                        \
+        "  try:\n"                                                                     \
+        "    packages = pip.get_installed_distributions (local_only=False, skip=())\n" \
+        "  except AttributeError:\n"                                                   \
+        "    import pkg_resources\n"                                                   \
+        "    packages = pkg_resources.working_set\n"                                   \
+        "  package_list = []\n"                                                        \
+        "  for p in packages:\n"                                                       \
+        "    if os.path.isdir (p.location):\n"                                         \
+        "      loc = p.location + \'\\\\\'\n"                                          \
+        "    elif is_zipfile (p.location):\n"                                          \
+        "      loc = p.location + \' (ZIP)\'\n"                                        \
+        "    elif not os.path.exists (p.location):\n"                                  \
+        "      loc = p.location + \' !\'\n"                                            \
+        "    else:\n"                                                                  \
+        "      loc = p.location\n"                                                     \
+        "    ver = \"v.%.6s\" % p.version\n"                                           \
+        "    package_list.append (\"%-20s %-10s -> %s\" % (p.key, ver, loc))\n"        \
+        "\n"                                                                           \
+        "  for p in sorted (package_list):\n"                                          \
+        "    print (p)\n"                                                              \
+        "\n"                                                                           \
         "list_modules()\n"
 
 /**
