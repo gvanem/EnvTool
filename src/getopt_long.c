@@ -97,6 +97,22 @@
 char *optarg;
 int   optind, opterr = 1, optopt;
 
+static unsigned debugf_line;
+
+#define DEBUGF_LEVEL 2
+
+#undef  DEBUGF
+#define DEBUGF(...)                                    \
+        do {                                           \
+          if (opt.debug >= DEBUGF_LEVEL) {             \
+             debug_printf ("getopt_long.c(%u): ",      \
+                           debugf_line ? debugf_line : \
+                           __LINE__);                  \
+             debug_printf (__VA_ARGS__);               \
+             debugf_line = 0;                          \
+          }                                            \
+        } while (0)
+
 static const char *place = EMSG; /**< option letter processing */
 
 static int nonopt_start = -1;    /**< first non option argument (for permute) */
@@ -634,7 +650,7 @@ static void read_file_as_wchar_t (struct command_line *c, const char *file)
   int   ch;
   BOOL  escpaped = FALSE;
 
-  DEBUGF (2, "filelength: %lu.\n", flen);
+  DEBUGF ("filelength: %lu.\n", flen);
   c->file_wbuf = MALLOC (2*(flen+1));
   for (i = 0; i < flen; i++)
   {
@@ -652,26 +668,19 @@ static void read_file_as_wchar_t (struct command_line *c, const char *file)
   fclose (f);
 }
 
-#define DEBUGF2(line, ...)                          \
-        do {                                        \
-          if (opt.debug >= 2) {                     \
-             debug_printf ("getopt_long.c(%u): ",   \
-                           line ? line : __LINE__); \
-             debug_printf (__VA_ARGS__);            \
-          }                                         \
-        } while (0)
-
 static void dump_argv (const struct command_line *c, unsigned line)
 {
   const char *p;
   int   i;
 
-  DEBUGF2 (line, "c->argc: %d\n", c->argc);
+  debugf_line = line;
+  DEBUGF ("c->argc: %d\n", c->argc);
   for (i = 0; c->argv && i <= c->argc; i++)
   {
     p = c->argv[i];
-    DEBUGF2 (line, "c->argv[%2d]: %-40.40s (0x%p)\n",
-             i, (p && IsBadReadPtr(p,40)) ? "<bogus>" : p, p);
+    debugf_line = line;
+    DEBUGF ("c->argv[%2d]: %-40.40s (0x%p)\n",
+            i, (p && IsBadReadPtr(p,40)) ? "<bogus>" : p, p);
   }
 }
 
@@ -732,14 +741,14 @@ void getopt_parse (struct command_line *c)
   }
 
   if (wcsstr(cmd,L" -d"))    /* because getopt_long hasn't been called yet */
-     opt.debug = 2;
+     opt.debug = DEBUGF_LEVEL;
 
   wargV = CommandLineToArgvW (cmd, &wargC);
   c->argc  = wargC + wenvC;
   c->argv  = CALLOC (sizeof(char*), c->argc + 1);
   c->argc0 = 0;
 
-  DEBUGF2 (0, "c->argc: %d\n", c->argc);
+  DEBUGF ("c->argc: %d\n", c->argc);
 
   for (i = j = k = l = 0; i < c->argc; )
   {
@@ -761,8 +770,8 @@ void getopt_parse (struct command_line *c)
       warg = wargV [j++];
     }
 
-    DEBUGF2 (0, "i: %2d, j: %2d, k: %2d, l: %2d, c->argc: %2d, warg: '%" WIDESTR_FMT "'.\n",
-             i, j, k, l, c->argc, warg);
+    DEBUGF ("i: %2d, j: %2d, k: %2d, l: %2d, c->argc: %2d, warg: '%" WIDESTR_FMT "'.\n",
+            i, j, k, l, c->argc, warg);
 
     /* We reached the end of all sources
      */
@@ -788,7 +797,8 @@ void getopt_parse (struct command_line *c)
       read_file_as_wchar_t (c, file);
       wfileV = CommandLineToArgvW (c->file_wbuf, &wfileC);
 
-      DEBUGF2 (0, "file: %s, wfileV: 0x%p, wfileC: %d\n", file, wfileV, wfileC);
+      DEBUGF ("file: %s, wfileV: 0x%p, wfileC: %d\n", file, wfileV, wfileC);
+
       if (wfileV && wfileC > 0)  /* Insert wfileV[] on next loop(s)  */
       {
         c->argc--;    /* since '@file' argument shall be dropped from 'c->argv[]' */
@@ -854,7 +864,7 @@ void getopt_parse (struct command_line *c)
        break;
   }
 
-  DEBUGF2 (0, "c->argc: %d, optind: %d\n", c->argc, optind);
+  DEBUGF ("c->argc: %d, optind: %d\n", c->argc, optind);
 
   if (c->argc > optind)
      c->argc0 = optind;
