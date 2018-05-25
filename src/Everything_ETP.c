@@ -912,6 +912,11 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
  *  \li \c "host_or_IP-address<:port>"                Only host/IP-address (+ port).
  *
  * \param[in] ctx  the context we work with.
+ *
+ * \todo Fix the "~/.netrc" vs "~/.authinfo" preference selection:
+ *       if a non-default entry is found in "~/.netrc", do not try to use a default
+ *       entry from "~/.authinfo". Or vice versa. Hence we *must* parse both files
+ *       first before we send any `USER` or `PASSWORD` commands.
  */
 static BOOL state_parse_url (struct state_CTX *ctx)
 {
