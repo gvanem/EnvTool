@@ -1225,9 +1225,9 @@ static char *popen_run_py (const struct python_info *py, const char *py_prog, BO
 
 /**
  * \def PY_LIST_MODULES
- *   The Python program to print the modules in py_print_modules().
- *   If the 'get_installed_distributions()' is an obsolete function, try
- *   'pkg_resources.working_set' instead.
+ *   The Python program to print the modules in `py_print_modules()`.
+ *   If the `get_installed_distributions()` is an obsoleted PIP function,
+ *   try the `pkg_resources.working_set` instead.
   */
 #define PY_LIST_MODULES()                                                              \
         "import os, sys, re, zipfile\n"                                                \
