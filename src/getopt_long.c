@@ -654,7 +654,7 @@ static void read_file_as_wchar_t (struct command_line *c, const char *file)
 
 #define DEBUGF2(line, ...)                          \
         do {                                        \
-          if (opt.debug >= 1) {                     \
+          if (opt.debug >= 2) {                     \
              debug_printf ("getopt_long.c(%u): ",   \
                            line ? line : __LINE__); \
              debug_printf (__VA_ARGS__);            \
@@ -732,7 +732,7 @@ void getopt_parse (struct command_line *c)
   }
 
   if (wcsstr(cmd,L" -d"))    /* because getopt_long hasn't been called yet */
-    opt.debug = 1;
+     opt.debug = 2;
 
   wargV = CommandLineToArgvW (cmd, &wargC);
   c->argc  = wargC + wenvC;
