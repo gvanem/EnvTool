@@ -4200,9 +4200,9 @@ static void parse_cmdline (void)
     opt.file_spec = _strjoin (c->argv + c->argc0, " ");
   }
 
-  DEBUGF (1, "c->argc0:      %d\n", c->argc0);
-  DEBUGF (1, "opt.file_spec: %s'\n", opt.file_spec);
-  DEBUGF (1, "opt.evry_raw:  %d\n", opt.evry_raw);
+  DEBUGF (2, "c->argc0:      %d\n", c->argc0);
+  DEBUGF (2, "opt.file_spec: %s'\n", opt.file_spec);
+  DEBUGF (2, "opt.evry_raw:  %d\n", opt.evry_raw);
 }
 
 /**
