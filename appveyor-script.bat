@@ -18,8 +18,8 @@ setlocal
 if "%APPVEYOR_BUILD_FOLDER%" == "" (
   set APPVEYOR_BUILD_FOLDER=%CD%
 ) else (
-  set PATH=%PATH%;c:\Python34
-  rem echo "%PATH%"
+  set PATH="%PATH%";c:\Python34
+  echo "%PATH%"
 )
 
 if %1. == build. goto build
