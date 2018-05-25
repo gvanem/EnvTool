@@ -2,6 +2,11 @@
 ::
 :: AppVeyor .bat-file to run the "msbuild" program or the tests.
 ::
+:: Do not confuse 'appveyor.yml' by the 'cd ' below.
+::
+setlocal
+
+::
 :: Since only AppVeyor's Python2.7 is in the PATH by default.
 :: Add this Python 3.4 (x86).
 ::
@@ -14,7 +19,7 @@ echo Usage: %0 "build / test"
 exit /b 0
 
 :build
-  cd src
+  cd %APPVEYOR_BUILD_FOLDER%\src
   msbuild -nologo -p:Configuration=Release -p:Platform="Win32" envtool.sln
   exit /b 0
 
@@ -22,6 +27,7 @@ exit /b 0
 :: Run some "envtool" tests.
 ::
 :test
+  cd %APPVEYOR_BUILD_FOLDER%\src
   set COLUMNS=120
   echo Testing version output
   envtool -VVV
