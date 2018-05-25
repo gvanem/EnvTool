@@ -5104,7 +5104,8 @@ static void test_ReparsePoints (void)
  */
 static void test_auth (void)
 {
-  int rc1, rc2;
+  const char *appdata = getenv ("APPDATA");
+  int   rc1, rc2;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
@@ -5117,12 +5118,12 @@ static void test_auth (void)
   netrc_exit();
   authinfo_exit();
 
-  C_printf ("  Parsing \"%%APPDATA%%\\.netrc\"    ");
+  C_printf ("  Parsing ~6%s\\.netrc~0    ", appdata);
   if (rc1 == 0)
        C_puts ("~5failed.~0\n");
   else C_puts ("~3okay.~0\n");
 
-  C_printf ("  Parsing \"%%APPDATA%%\\.authinfo\" ");
+  C_printf ("  Parsing ~6%s\\.authinfo~0 ", appdata);
   if (rc2 == 0)
        C_puts ("~5failed.~0\n");
   else C_puts ("~3okay.~0\n");
@@ -5586,8 +5587,9 @@ static int do_tests (void)
   test_ReparsePoints();
 
   if (!stricmp(get_user_name(),"APPVYR-WIN\\appveyor"))
-       test_AppVeyor();
-  else test_auth();
+     test_AppVeyor();
+
+  test_auth();
 
   test_libssp();
   return (0);
