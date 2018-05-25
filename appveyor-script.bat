@@ -15,12 +15,9 @@ setlocal
 ::   Python 3.4 (x86) to the PATH.
 ::
 ::
-if "%APPVEYOR_BUILD_FOLDER%" == "" (
-  set APPVEYOR_BUILD_FOLDER=%CD%
-) else (
-  set PATH="%PATH%";c:\Python34
-  echo "%PATH%"
-)
+if "%APPVEYOR_BUILD_FOLDER%" == "" set APPVEYOR_BUILD_FOLDER=%CD%
+
+set PATH=%PATH%;c:\Python34
 
 if %1. == build. goto build
 if %1. == test.  goto test
