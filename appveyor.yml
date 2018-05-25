@@ -13,7 +13,7 @@ build_script:
     - envtool --test --python=py2
 
     - echo Testing Python3 test output
-    - envtool --test --python=py3
+    - set PATH=%PATH%;c:\Python34 & envtool --test --python=py3
 
     - echo Testing ETP-searches (should fail)
     - envtool --test --evry:ftp.github.com
