@@ -62,6 +62,9 @@ goto :EOF
   :: echo Testing win_glob
   :: win_glob -fr "c:\Program Files (x86)\CMake"
 
+  cd %APPVEYOR_BUILD_FOLDER%
+  del /q .netrc .authinfo
+
   goto :EOF
 
 ::
