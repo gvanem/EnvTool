@@ -31,17 +31,18 @@ int searchpath_pos (void)
 }
 
 /**
- * Search \c %env_var for the first 'file' (not a \c file_spec).
+ * Search `%env_var` for the first 'file' (not a `file_spec`).
  * If successful, store the full pathname in static buffer and return a
- * pointer to it. If not sucessful, return NULL.
- * This is what the Borland \c searchpath() library function does.
+ * pointer to it. If not successful, return `NULL`.
+ * This is what the Borland `searchpath()` library function does.
  *
- * \note: if \c env_var is just a dirname, the \c file is just tested for
- *        presence in current directory and that dirname.
+ * \note: if `env_var` is just a directory name, the `file` is just tested for
+ *        presence in that directory name.
  *        \eg{.}
- *        \code{c}
+ *        ```c
  *          searchpath ("SWAPFILE.SYS", "c:\\")
- *        \endcode would simply return \c \"C:\\SWAPFILE.SYS\".
+ *        ```
+ *        would simply return `C:\\SWAPFILE.SYS\`.
  */
 static char *searchpath_internal (const char *file, const char *env_var, char *found)
 {
@@ -143,7 +144,7 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
   /* If the file name includes slashes or the drive letter, maybe they
    * already have a good name.
    */
-  if (strpbrk(file, "/\\:") != 0 && FILE_EXISTS(file))
+  if (strpbrk(file, "/\\:") && FILE_EXISTS(file))
   {
     if (IS_SLASH(file[0]) || file[1] == ':' ||
         ((file[0] == '.' && IS_SLASH(file[1])) ||
