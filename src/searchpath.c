@@ -57,6 +57,7 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
     errno = EINVAL;
     return (NULL);
   }
+
   if (!strncmp(file,"\\\\.\\",4))
   {
     DEBUGF (1, "Not handling UNC-names: '%s'\n", file);
@@ -159,13 +160,8 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
       strcpy (found, ".\\");
       strcat (found, file);
     }
-    FREE (p);
-    FREE (path);
     last_pos = 0;
-
-    if (strstr(found,".."))
-       _fix_path (found, found);
-    return (found);
+    goto was_found;
   }
 
   test_dir = path;
@@ -188,31 +184,33 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
     }
 
     if (FILE_EXISTS(found))
-    {
-      FREE (p);
-      FREE (path);
-      if (strstr(found,".."))
-         _fix_path (found, found);
-      return (found);
-    }
+       goto was_found;
 
     if (*dp == 0)   /* We have reached the end of "%env_val" */
        break;
+
     test_dir = dp + 1;
     last_pos++;
   }
   while (*test_dir);
 
+  /* FIXME: perhaps now that we failed to find it, we should try the
+   * basename alone?
+   */
   FREE (p);
   FREE (path);
 
-  /* FIXME: perhaps now that we failed to find it, we should try the
-   * basename alone, like BC does?  But let somebody complain about
-   * this first... ;-)
-   */
   last_pos = -1;
   errno = ENOENT;
   return (NULL);
+
+was_found:
+  FREE (p);
+  FREE (path);
+
+  if (strstr(found,".."))
+     _fix_path (found, found);
+  return (found);
 }
 
 /**
