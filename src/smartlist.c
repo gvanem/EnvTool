@@ -422,9 +422,12 @@ static UserCmpFunc user_compare;
  *  - and 0 if `a` equals `b`.
  *
  * Do it via `__cdecl local_compare()` since the caller's `compare` may
- * be `__fastcall`. Only important for MSVC.
+ * be `__fastcall`.
+ *
+ * Only important for MSVC.
+ * OpenWatcom does *not* require the compare function to be `__cdecl`.
  */
-static int __cdecl local_compare (const void *a, const void *b)
+static int MS_CDECL local_compare (const void *a, const void *b)
 {
   return (*user_compare) (a, b);
 }
