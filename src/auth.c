@@ -100,7 +100,7 @@ static void common_exit (BOOL is_netrc)
 }
 
 /**
- * Search the \ref login_list smartlist for \c host.<br>
+ * Search the \ref login_list smartlist for \c host. <br>
  * The \c 'li->is_netrc' must also match \c 'is_netrc'.
  */
 static const struct login_info *common_lookup (const char *host, BOOL is_netrc)
