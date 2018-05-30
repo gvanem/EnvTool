@@ -94,7 +94,7 @@ struct directory_array {
        int      is_native;   /* and is it a native dir; like %WinDir\sysnative */
        int      is_dir;      /* and is it a dir; _S_ISDIR() */
        int      is_cwd;      /* and is it equal to current_dir[] */
-       int      exp_ok;      /* ExpandEnvironmentStrings() returned with no '%'? */
+       int      exp_ok;      /* expand_env_var() returned with no '%'? */
        int      num_dup;     /* is duplicated elsewhere in %VAR%? */
        BOOL     check_empty; /* check if it contains at least 1 file? */
        unsigned line;        /* Debug: at what line was add_to_dir_array() called */
@@ -115,8 +115,8 @@ static smartlist_t *dir_array, *reg_array;
 struct prog_options opt;
 
 char   sys_dir        [_MAX_PATH];  /* E.g. "c:\Windows\System32" */
-char   sys_native_dir [_MAX_PATH];  /* Not for WIN64 */
-char   sys_wow64_dir  [_MAX_PATH];  /* Not for WIN64 */
+char   sys_native_dir [_MAX_PATH];  /* E.g. "c:\Windows\sysnative". Not for WIN64 */
+char   sys_wow64_dir  [_MAX_PATH];  /* E.g. "c:\Windows\SysWOW64". Not for WIN64 */
 
 static UINT64   total_size = 0;
 static DWORD    num_version_ok = 0;
@@ -147,6 +147,8 @@ static regmatch_t re_matches[3];  /* regex sub-expressions */
 static int        re_err;         /* last regex error-code */
 static char       re_errbuf[300]; /* regex error-buffer */
 static int        re_alloc;       /* the above 're_hnd' was allocated */
+
+static HMODULE user_env_hnd = INVALID_HANDLE_VALUE;
 
 volatile int halt_flag;
 
@@ -622,7 +624,7 @@ static int show_help (void)
  * Add the 'dir' to the 'dir_array' smartlist.
  * 'is_cwd' == 1 if 'dir' == current working directory.
  *
- * Since this function could be called with a 'dir' from ExpandEnvironmentStrings(),
+ * Since this function could be called with a 'dir' from `expand_env_var()`,
  * we check here if it returned with no '%'.
  */
 void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
@@ -645,14 +647,18 @@ void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
   d->line    = line;
 
   /* Can we have >1 native dirs?
+   *
+   * Use 'stricmp()' since on MinGW-w64, a native directory becomes partially
+   * uppercase for some strange reason.
+   * E.g. "C:\WINDOWS\sysnative".
    */
-  d->is_native = (str_equal(dir,sys_native_dir) == 0);
+  d->is_native = (stricmp(dir,sys_native_dir) == 0);
 
-  /* Some issue with OpenWatcom's 'stat()' on a sys_native directory.
+  /* Some issue with MinGW and OpenWatcom's 'stat()' on a sys_native directory.
    * Even though 'GetFileAttributes()' in 'safe_stat()' says it's a
    * directory, 'stat()' doesn't report it as such. So just fake it.
    */
-#if defined(__WATCOMC__)
+#if defined(__MINGW32__) || defined(__WATCOMC__)
   if (d->is_native && !d->exist)
   {
     d->exist  = TRUE;
@@ -1316,7 +1322,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
      * don't set 'found_everything_db_dirty=1' when we don't 'have_sys_native_dir'.
      */
     if (mtime == 0 &&
-        (!have_sys_native_dir || !str_equal_n(file,sys_native_dir,strlen(sys_native_dir))))
+        (!have_sys_native_dir || !stricmp(file,sys_native_dir,strlen(sys_native_dir))))
        have_it = FALSE;
 #endif
 
@@ -1587,8 +1593,7 @@ static void final_report (int found)
   }
   else if (opt.PE_check)
   {
-    C_printf (" %lu have PE-version info.",
-              (unsigned long)num_version_ok, plural_str(num_version_ok,"is","are"));
+    C_printf (" %lu have PE-version info.", (unsigned long)num_version_ok);
 
     if (opt.signed_status != SIGN_CHECK_NONE)
        C_printf (" %lu %s verified.",
@@ -1661,6 +1666,89 @@ static char *fix_filespec (char **sub_dir)
   return (fspec);
 }
 
+/** \typedef func_ExpandEnvironmentStringsForUserA
+ *
+ * Since this function is not available on Win-XP, dynamically load "userenv.dll"
+ * and get the function-pointer to `ExpandEnvironmentStringsForUserA()`.
+ *
+ * \note The MSDN documentation for `ExpandEnvironmentStringsForUser`()` is
+ *       wrong. The return-value is *not* a `BOOL`, but it returns the length
+ *       of the expanded buffer (similar to `ExpandEnvironmentStrings()`).
+ *
+ *       Ref: https://msdn.microsoft.com/en-us/library/windows/desktop/bb762275(v=vs.85).aspx
+ */
+typedef DWORD (WINAPI *func_ExpandEnvironmentStringsForUserA) (
+                       HANDLE      token,
+                       const char *src,
+                       char       *dest,
+                       DWORD       dest_size);
+
+static func_ExpandEnvironmentStringsForUserA p_ExpandEnvironmentStringsForUser;
+
+static BOOL load_userenv_dll (void)
+{
+  static BOOL done = FALSE;
+
+  if (!done)
+  {
+    done = TRUE;
+    user_env_hnd = LoadLibrary ("userenv.dll");
+    if (!user_env_hnd || user_env_hnd == INVALID_HANDLE_VALUE)
+       return (FALSE);
+
+    p_ExpandEnvironmentStringsForUser = (func_ExpandEnvironmentStringsForUserA)
+      GetProcAddress (user_env_hnd, "ExpandEnvironmentStringsForUserA");
+
+    DEBUGF (2, "p_ExpandEnvironmentStringsForUser -> 0x%p.\n",
+            p_ExpandEnvironmentStringsForUser);
+  }
+  return (p_ExpandEnvironmentStringsForUser ? TRUE : FALSE);
+}
+
+/**
+ * Unload "userenv.dll" in the `cleanup()` function.
+ */
+static void unload_userenv_dll (void)
+{
+  if (user_env_hnd != INVALID_HANDLE_VALUE)
+     FreeLibrary (user_env_hnd);
+  p_ExpandEnvironmentStringsForUser = NULL;
+}
+
+/**
+ * Expand an environment variable for current user or for SYSTEM.
+ * The `for_system = TRUE` user will do similar to what 4NT/TCC's
+ * `set /m foo` command does.
+ *
+ * \param in  The data to expand the environment variable(s) in.
+ * \param out The buffer that receives the expanded variable.
+ *
+ * \note `in` and `out` can point to the same buffer.
+ */
+static const char *expand_env_var (const char *in, char *out, size_t out_len, BOOL for_system)
+{
+  char  exp_buf [MAX_ENV_VAR];
+  DWORD rc;
+
+  if (!load_userenv_dll())
+     for_system = FALSE;
+
+  strcpy (exp_buf, "<none>");
+
+  if (for_system)
+       rc = (*p_ExpandEnvironmentStringsForUser) (NULL, in, exp_buf, sizeof(exp_buf));
+  else rc = ExpandEnvironmentStrings (in, exp_buf, sizeof(exp_buf));
+
+  if (for_system && rc == 0)
+       DEBUGF (1, "    ExpandEnvironmentStringsForUser() failed: %s.\n",
+               win_strerror(GetLastError()));
+  else DEBUGF (1, "    %s(): rc: %lu, out: \"%s\"\n",
+               for_system ? "ExpandEnvironmentStringsForUser" : "ExpandEnvironmentStrings",
+               (u_long)rc, exp_buf);
+
+  return _strlcpy (out, exp_buf, out_len);
+}
+
 static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **ret)
 {
   HKEY   key = NULL;
@@ -1701,16 +1789,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
     val64 = *(LONG64*) &data[0];
 
     if (type == REG_EXPAND_SZ && strchr(data,'%'))
-    {
-      char  exp_buf [MAX_ENV_VAR] = "<none>";
-      DWORD rc2 = ExpandEnvironmentStrings (data, exp_buf, sizeof(exp_buf));
-
-      DEBUGF (1, "    ExpandEnvironmentStrings(): rc2: %lu, exp_buf: \"%s\"\n",
-              (u_long)rc2, exp_buf);
-
-      if (rc2 > 0)
-         _strlcpy (data, exp_buf, sizeof(data));
-    }
+       expand_env_var (data, data, sizeof(data), TRUE);
 
     switch (type)
     {
@@ -1819,7 +1898,7 @@ static void build_reg_array_app_path (HKEY top_key)
  * There can only be one of each of these under each registry 'sub_key'.
  * (otherwise the registry is truly messed up). Return first of each found.
  *
- * If one of these still contains a "%value%" after ExpandEnvironmentStrings(),
+ * If one of these still contains a "%value%" after expand_env_var(),
  * this is checked later.
  */
 static void scan_reg_environment (HKEY top_key, const char *sub_key,
@@ -1845,13 +1924,7 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
        break;
 
     if (type == REG_EXPAND_SZ && strchr(value,'%'))
-    {
-      char  exp_buf [MAX_ENV_VAR];
-      DWORD ret = ExpandEnvironmentStrings (value, exp_buf, sizeof(exp_buf));
-
-      if (ret > 0)
-         strncpy (value, exp_buf, sizeof(value));
-    }
+       expand_env_var (value, value, sizeof(value), TRUE);
 
     if (!strcmp(name,"PATH"))
        *path = STRDUP (value);
@@ -2300,7 +2373,7 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  *   \endcode
  *  where to get this state?
  */
-static int report_evry_file (const char *file, time_t mtime, UINT64 fsize)
+static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL *is_shadow)
 {
   struct stat st;
   BOOL        is_dir = FALSE;
@@ -2308,6 +2381,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize)
   DWORD       attr;
 
   memset (&st, '\0', sizeof(st));
+  *is_shadow = FALSE;
 
   /* Do not use the slower 'safe_stat()' unless needed.
    * See below.
@@ -2320,7 +2394,10 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize)
   {
     file2 = get_sysnative_file (file, &st);
     if (file2 != file)
-       DEBUGF (1, "shadow: '%s' -> '%s'\n", file, file2);
+    {
+      DEBUGF (1, "shadow: '%s' -> '%s'\n", file, file2);
+      *is_shadow = TRUE;
+    }
     file = file2;
   }
 
@@ -2505,6 +2582,7 @@ static int do_check_evry (void)
     char   file [_MAX_PATH];
     UINT64 fsize = (__int64)-1;  /* since a 0-byte file is valid */
     time_t mtime = 0;
+    BOOL   is_shadow = FALSE;
 
     if (halt_flag > 0)
        break;
@@ -2563,9 +2641,10 @@ static int do_check_evry (void)
     {
       if (!opt.dir_mode && prev[0] && !strcmp(prev, file))
          num_evry_dups++;
-      else if (report_evry_file(file, mtime, fsize))
+      else if (report_evry_file(file, mtime, fsize, &is_shadow))
          found++;
-      _strlcpy (prev, file, sizeof(prev));
+      if (!is_shadow)
+         _strlcpy (prev, file, sizeof(prev));
     }
   }
   return (found);
@@ -4274,6 +4353,8 @@ static void MS_CDECL cleanup (void)
 
   cfg_ignore_exit();
 
+  unload_userenv_dll();
+
   if (halt_flag == 0 && opt.debug > 0)
      mem_report();
 
@@ -5379,14 +5460,19 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
 
   for (i = 0; i < max; i++)
   {
+    char fbuf [_MAX_PATH];
+
     arr = smartlist_get (list, i);
+    slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
+
     if (!arr->exist)
     {
-      snprintf (status, status_sz, "~5Missing dir~0: ~3\"%s\"~0", arr->dir);
-      break;
+      snprintf (status, status_sz, "~5Missing dir~0: ~3\"%s\"~0", fbuf);
+      if (!opt.verbose)
+         break;
     }
     else if (opt.verbose)
-      C_printf ("     [%2d]: ~3%s~0\n", i, arr->dir);
+      C_printf ("     [%2d]: ~3%s~0\n", i, fbuf);
   }
 
   if (max == 0)
@@ -5397,6 +5483,7 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
 #ifndef __CYGWIN__
   FREE (value);
 #endif
+
   free_dir_array();
   opt.conv_cygdrive = save;
   path_separator = ';';
@@ -5411,11 +5498,13 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
  *
  * Print results here since there can be so many missing files/directories.
  */
-static void check_reg_key (HKEY top_key, const char *reg_key)
+static void check_reg_key (HKEY key)
 {
-  int i, errors, max, indent = sizeof("Checking");
+  int i, errors, max, raw, indent = sizeof("Checking");
 
-  build_reg_array_app_path (top_key);
+  C_printf ("Checking ~6%s\\%s~0:\n", reg_top_key_name(key), REG_APP_PATH);
+
+  build_reg_array_app_path (key);
   sort_reg_array();
 
   max  = smartlist_len (reg_array);
@@ -5423,17 +5512,32 @@ static void check_reg_key (HKEY top_key, const char *reg_key)
   {
     const struct registry_array *arr = smartlist_get (reg_array, i);
     char  fqfn [_MAX_PATH];
+    char  fbuf [_MAX_PATH];
 
-    if (!is_directory(arr->path) && !cfg_ignore_lookup("[Registry]",arr->path))
+    slashify2 (fbuf, arr->path, opt.show_unix_paths ? '/' : '\\');
+
+    if (opt.verbose)
     {
-      C_printf ("%*c~5Missing dir~0: ~3%s~0\n", indent, ' ', arr->path);
+      C_printf ("   [%2d]: ~3", i);
+      raw = C_setraw (1);     /* In case 'fbuf' contains a "~". */
+      C_puts (fbuf);
+      C_setraw (raw);
+      C_puts ("~0\n");
+    }
+
+    if (!is_directory(fbuf) && !cfg_ignore_lookup("[Registry]",fbuf))
+    {
+      C_printf ("%*c~5Missing dir~0: ~3%s~0\n", indent, ' ', fbuf);
       errors++;
       continue;
     }
-    snprintf (fqfn, sizeof(fqfn), "%s\\%s", arr->path, arr->fname);
+
+    snprintf (fqfn, sizeof(fqfn), "%s\\%s", fbuf, arr->fname);
+    slashify2 (fbuf, fqfn, opt.show_unix_paths ? '/' : '\\');
+
     if (!arr->exist && !cfg_ignore_lookup("[Registry]",fqfn))
     {
-      C_printf ("%*c~5Missing file~0: ~3%s~0\n", indent, ' ', fqfn);
+      C_printf ("%*c~5Missing file~0: ~3%s~0\n", indent, ' ', fbuf);
       errors++;
     }
   }
@@ -5448,7 +5552,6 @@ static void check_reg_key (HKEY top_key, const char *reg_key)
 
   C_printf ("~6%2d~0 elements\n", max);
   free_reg_array();
-  ARGSUSED (reg_key);
 }
 
 /*
@@ -5484,16 +5587,24 @@ static int do_check (void)
     int  num, indent = sizeof("CPLUS_INCLUDE_PATH") - strlen(env);
     char status [100+_MAX_PATH];
 
+    C_printf ("Checking ~6%%%s%%~0:%*c", env, indent, ' ');
+    if (opt.verbose)
+       C_putc ('\n');
+
     check_env_val (env, &num, status, sizeof(status));
-    C_printf ("Checking ~6%%%s%%~0:%*c~6%2d~0 elements, %s\n", env, indent, ' ', num, status);
+    C_printf ("%2d~0 elements, %s\n", num, status);
+    if (opt.verbose)
+       C_putc ('\n');
   }
 
   C_putc ('\n');
-  C_printf ("Checking ~6HKCU\\%s~0:\n", REG_APP_PATH);
-  check_reg_key (HKEY_CURRENT_USER, REG_APP_PATH);
+  check_reg_key (HKEY_CURRENT_USER);
+  if (opt.verbose)
+     C_putc ('\n');
 
-  C_printf ("Checking ~6HKLM\\%s~0:\n", REG_APP_PATH);
-  check_reg_key (HKEY_LOCAL_MACHINE, REG_APP_PATH);
+  check_reg_key (HKEY_LOCAL_MACHINE);
+  if (opt.verbose)
+     C_putc ('\n');
 
 #if 0
   /*
