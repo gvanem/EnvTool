@@ -148,8 +148,6 @@ static int        re_err;         /* last regex error-code */
 static char       re_errbuf[300]; /* regex error-buffer */
 static int        re_alloc;       /* the above 're_hnd' was allocated */
 
-static HMODULE user_env_hnd = INVALID_HANDLE_VALUE;
-
 volatile int halt_flag;
 
 /*
@@ -1666,87 +1664,29 @@ static char *fix_filespec (char **sub_dir)
   return (fspec);
 }
 
-/** \typedef func_ExpandEnvironmentStringsForUserA
- *
- * Since this function is not available on Win-XP, dynamically load "userenv.dll"
- * and get the function-pointer to `ExpandEnvironmentStringsForUserA()`.
- *
- * \note The MSDN documentation for `ExpandEnvironmentStringsForUser`()` is
- *       wrong. The return-value is *not* a `BOOL`, but it returns the length
- *       of the expanded buffer (similar to `ExpandEnvironmentStrings()`).
- *
- *       Ref: https://msdn.microsoft.com/en-us/library/windows/desktop/bb762275(v=vs.85).aspx
- */
-typedef DWORD (WINAPI *func_ExpandEnvironmentStringsForUserA) (
-                       HANDLE      token,
-                       const char *src,
-                       char       *dest,
-                       DWORD       dest_size);
-
-static func_ExpandEnvironmentStringsForUserA p_ExpandEnvironmentStringsForUser;
-
-static BOOL load_userenv_dll (void)
-{
-  static BOOL done = FALSE;
-
-  if (!done)
-  {
-    done = TRUE;
-    user_env_hnd = LoadLibrary ("userenv.dll");
-    if (!user_env_hnd || user_env_hnd == INVALID_HANDLE_VALUE)
-       return (FALSE);
-
-    p_ExpandEnvironmentStringsForUser = (func_ExpandEnvironmentStringsForUserA)
-      GetProcAddress (user_env_hnd, "ExpandEnvironmentStringsForUserA");
-
-    DEBUGF (2, "p_ExpandEnvironmentStringsForUser -> 0x%p.\n",
-            p_ExpandEnvironmentStringsForUser);
-  }
-  return (p_ExpandEnvironmentStringsForUser ? TRUE : FALSE);
-}
-
-/**
- * Unload "userenv.dll" in the `cleanup()` function.
- */
-static void unload_userenv_dll (void)
-{
-  if (user_env_hnd != INVALID_HANDLE_VALUE)
-     FreeLibrary (user_env_hnd);
-  p_ExpandEnvironmentStringsForUser = NULL;
-}
-
 /**
  * Expand an environment variable for current user or for SYSTEM.
- * The `for_system = TRUE` user will do similar to what 4NT/TCC's
- * `set /m foo` command does.
  *
  * \param in  The data to expand the environment variable(s) in.
  * \param out The buffer that receives the expanded variable.
  *
  * \note `in` and `out` can point to the same buffer.
  */
-static const char *expand_env_var (const char *in, char *out, size_t out_len, BOOL for_system)
+static void expand_env_var (const char *in, char *out, size_t out_len, BOOL for_system)
 {
-  char  exp_buf [MAX_ENV_VAR];
-  DWORD rc;
-
-  if (!load_userenv_dll())
-     for_system = FALSE;
-
-  strcpy (exp_buf, "<none>");
+  char *rc;
 
   if (for_system)
-       rc = (*p_ExpandEnvironmentStringsForUser) (NULL, in, exp_buf, sizeof(exp_buf));
-  else rc = ExpandEnvironmentStrings (in, exp_buf, sizeof(exp_buf));
+        rc = getenv_expand_sys (in);
+   else rc = getenv_expand (in);
 
-  if (for_system && rc == 0)
-       DEBUGF (1, "    ExpandEnvironmentStringsForUser() failed: %s.\n",
-               win_strerror(GetLastError()));
-  else DEBUGF (1, "    %s(): rc: %lu, out: \"%s\"\n",
-               for_system ? "ExpandEnvironmentStringsForUser" : "ExpandEnvironmentStrings",
-               (u_long)rc, exp_buf);
-
-  return _strlcpy (out, exp_buf, out_len);
+  if (rc)
+  {
+    _strlcpy (out, rc, out_len);
+    FREE (rc);
+  }
+  else
+    _strlcpy (out, "<none>", out_len);
 }
 
 static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **ret)
@@ -4353,7 +4293,7 @@ static void MS_CDECL cleanup (void)
 
   cfg_ignore_exit();
 
-  unload_userenv_dll();
+  exit_misc();
 
   if (halt_flag == 0 && opt.debug > 0)
      mem_report();
@@ -5472,7 +5412,7 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
          break;
     }
     else if (opt.verbose)
-      C_printf ("     [%2d]: ~3%s~0\n", i, fbuf);
+      C_printf ("     [%2d]: ~6%s~0\n", i, fbuf);
   }
 
   if (max == 0)
@@ -5502,7 +5442,7 @@ static void check_reg_key (HKEY key)
 {
   int i, errors, max, raw, indent = sizeof("Checking");
 
-  C_printf ("Checking ~6%s\\%s~0:\n", reg_top_key_name(key), REG_APP_PATH);
+  C_printf ("Checking ~3%s\\%s~0:\n", reg_top_key_name(key), REG_APP_PATH);
 
   build_reg_array_app_path (key);
   sort_reg_array();
@@ -5518,7 +5458,7 @@ static void check_reg_key (HKEY key)
 
     if (opt.verbose)
     {
-      C_printf ("   [%2d]: ~3", i);
+      C_printf ("   [%2d]: ~6", i);
       raw = C_setraw (1);     /* In case 'fbuf' contains a "~". */
       C_puts (fbuf);
       C_setraw (raw);
@@ -5587,7 +5527,7 @@ static int do_check (void)
     int  num, indent = sizeof("CPLUS_INCLUDE_PATH") - strlen(env);
     char status [100+_MAX_PATH];
 
-    C_printf ("Checking ~6%%%s%%~0:%*c", env, indent, ' ');
+    C_printf ("Checking ~3%%%s%%~0:%*c", env, indent, ' ');
     if (opt.verbose)
        C_putc ('\n');
 

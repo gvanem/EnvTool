@@ -213,8 +213,6 @@ static int         parse_host_spec      (struct state_CTX *ctx, const char *patt
 static void        connect_common_init  (struct state_CTX *ctx, const char *which_state);
 static void        connect_common_final (struct state_CTX *ctx, int err);
 static void        set_nonblock         (SOCKET sock, DWORD non_block);
-static const char *ws2_strerror         (int err);
-
 static int         rbuf_read_char  (struct state_CTX *ctx, char *store);
 static const char *ETP_tracef      (struct state_CTX *ctx, const char *fmt, ...);
 static const char *ETP_state_name  (ETP_state f);
@@ -1143,42 +1141,6 @@ static void set_nonblock (SOCKET sock, DWORD non_block)
   ioctlsocket (sock, FIONBIO, &non_block);
 #endif
 }
-
-#if defined(CYGWIN_POSIX)
-/**
- * If we use POSIX sockets in Cygwin, the 'err' is really 'errno'.
- * And the error-string for 'err' is simply from 'strerror()'.
- */
-static const char *ws2_strerror (int err)
-{
-  return strerror (err);
-}
-#else
-
-/**
- * Return error-string for 'err' for Winsock error-codes.
- * These strings are stored by `kernel32.dll` and not
- * `ws2_32.dll`.
- */
-static const char *ws2_strerror (int err)
-{
-  static char buf [500];
-
-  if (err == 0)
-     return ("No error");
-
-  init_misc();
-
-  if (kernel32_hnd != INVALID_HANDLE_VALUE &&
-     FormatMessageA (FORMAT_MESSAGE_FROM_HMODULE,
-                     kernel32_hnd, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                     buf, sizeof(buf), NULL))
-     return strip_nl (buf);
-
-  snprintf (buf, sizeof(buf), "%d?", err);
-  return (buf);
-}
-#endif
 
 /**
  * Save or retrieve a piece of trace-information into the context.

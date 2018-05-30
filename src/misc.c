@@ -51,7 +51,7 @@
 #define TOUPPER(c)    toupper ((int)(c))
 #define TOLOWER(c)    tolower ((int)(c))
 
-HANDLE kernel32_hnd;
+static HANDLE kernel32_hnd, userenv_hnd;
 
 #if !defined(_CRTDBG_MAP_ALLOC)
   /**
@@ -179,10 +179,27 @@ typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
  */
 typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_name);
 
-static func_GetModuleFileNameEx             p_GetModuleFileNameEx;
-static func_SetThreadErrorMode              p_SetThreadErrorMode;
-static func_IsWow64Process                  p_IsWow64Process;
-static func_NeedCurrentDirectoryForExePathA p_NeedCurrentDirectoryForExePathA;
+/** \typedef func_ExpandEnvironmentStringsForUserA
+ *
+ * Since this function is not available on Win-XP, dynamically load "userenv.dll"
+ * and get the function-pointer to `ExpandEnvironmentStringsForUserA()`.
+ *
+ * \note The MSDN documentation for `ExpandEnvironmentStringsForUser`()` is
+ *       wrong. The return-value is *not* a `BOOL`, but it returns the length
+ *       of the expanded buffer (similar to `ExpandEnvironmentStrings()`).
+ *       Ref: https://msdn.microsoft.com/en-us/library/windows/desktop/bb762275(v=vs.85).aspx
+ */
+typedef DWORD (WINAPI *func_ExpandEnvironmentStringsForUserA) (
+                       HANDLE      token,
+                       const char *src,
+                       char       *dest,
+                       DWORD       dest_size);
+
+static func_GetModuleFileNameEx              p_GetModuleFileNameEx;
+static func_SetThreadErrorMode               p_SetThreadErrorMode;
+static func_IsWow64Process                   p_IsWow64Process;
+static func_NeedCurrentDirectoryForExePathA  p_NeedCurrentDirectoryForExePathA; /* not used */
+static func_ExpandEnvironmentStringsForUserA p_ExpandEnvironmentStringsForUserA;
 
 /**
  * Initialise the above function pointers once.
@@ -195,24 +212,54 @@ void init_misc (void)
      return;
 
   kernel32_hnd = LoadLibrary ("kernel32.dll");
+  userenv_hnd  = LoadLibrary ("userenv.dll");
+
   if (!kernel32_hnd || kernel32_hnd == INVALID_HANDLE_VALUE)
   {
     DEBUGF (1, "Failed to load kernel32.dll; %s\n", win_strerror(GetLastError()));
-    return;
+    kernel32_hnd = NULL;
   }
 
-  p_GetModuleFileNameEx = (func_GetModuleFileNameEx)
-                            GetProcAddress (kernel32_hnd, "K32GetModuleFileNameExA");
+  if (!userenv_hnd || userenv_hnd == INVALID_HANDLE_VALUE)
+  {
+    DEBUGF (1, "Failed to load userenv.dll; %s\n", win_strerror(GetLastError()));
+    userenv_hnd = NULL;
+  }
 
-  p_SetThreadErrorMode = (func_SetThreadErrorMode)
-                           GetProcAddress (kernel32_hnd, "SetThreadErrorMode");
+  if (kernel32_hnd)
+  {
+    p_GetModuleFileNameEx = (func_GetModuleFileNameEx)
+                              GetProcAddress (kernel32_hnd, "K32GetModuleFileNameExA");
 
-  p_IsWow64Process = (func_IsWow64Process)
-                       GetProcAddress (kernel32_hnd, "IsWow64Process");
+    p_SetThreadErrorMode = (func_SetThreadErrorMode)
+                             GetProcAddress (kernel32_hnd, "SetThreadErrorMode");
 
-  p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)
-                                         GetProcAddress (kernel32_hnd, "NeedCurrentDirectoryForExePathA");
+    p_IsWow64Process = (func_IsWow64Process)
+                         GetProcAddress (kernel32_hnd, "IsWow64Process");
+
+    p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)
+                                           GetProcAddress (kernel32_hnd, "NeedCurrentDirectoryForExePathA");
+  }
+
+  if (userenv_hnd)
+  {
+    p_ExpandEnvironmentStringsForUserA = (func_ExpandEnvironmentStringsForUserA)
+                                           GetProcAddress (userenv_hnd, "ExpandEnvironmentStringsForUserA");
+  }
   done = TRUE;
+}
+
+/**
+ * Unload `kernel32.dll` and `userenv.dll` when the above function pointes are
+ * no longer needed.
+ */
+void exit_misc (void)
+{
+  if (kernel32_hnd)
+     FreeLibrary (kernel32_hnd);
+  if (userenv_hnd)
+     FreeLibrary (userenv_hnd);
+  kernel32_hnd = userenv_hnd = NULL;
 }
 
 /**
@@ -315,7 +362,7 @@ int check_if_gzip (const char *fname)
   BOOL   is_gzip, is_tgz;
   int    rc = 0;
 
-  /** Accept only \c ".gz" or \c ".tgz" extensions.
+  /** Accept only `.gz`, `.tgz` or `.tar.gz` extensions.
    */
   ext = get_file_ext (fname);
   is_gzip = (stricmp(ext,"gz") == 0);
@@ -2297,6 +2344,42 @@ char *win_strerror (unsigned long err)
   return (buf);
 }
 
+#if defined(__CYGWIN__) && !defined(__USE_W32_SOCKETS)
+/**
+ * If we use POSIX sockets in Cygwin, the 'err' is really 'errno'.
+ * And the error-string for 'err' is simply from 'strerror()'.
+ */
+char *ws2_strerror (int err)
+{
+  return strerror (err);
+}
+#else
+
+/**
+ * Return error-string for 'err' for Winsock error-codes.
+ * These strings are stored by `kernel32.dll` and not in
+ * `ws2_32.dll`.
+ */
+char *ws2_strerror (int err)
+{
+  static char buf [500];
+
+  if (err == 0)
+     return ("No error");
+
+  init_misc();
+
+  if (kernel32_hnd &&
+      FormatMessageA (FORMAT_MESSAGE_FROM_HMODULE,
+                     kernel32_hnd, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                     buf, sizeof(buf), NULL))
+     return strip_nl (buf);
+
+  snprintf (buf, sizeof(buf), "%d?", err);
+  return (buf);
+}
+#endif
+
 #if !defined(_CRTDBG_MAP_ALLOC)
 /**
  * A \c strdup() that fails if no memory. It's pretty hopeless to continue
@@ -3038,6 +3121,41 @@ char *getenv_expand (const char *variable)
 
   rc = (env && env[0]) ? STRDUP(env) : NULL;
   DEBUGF (3, "env: '%s', expanded: '%s'\n", orig_var, rc);
+  return (rc);
+}
+
+/**
+ * As above, but expand an environment variable for SYSTEM.
+ * This will do similar to what 4NT/TCC's `set /m foo` command does.
+ *
+ * \param  variable   The environment variable to expand.
+ * \retval an allocated string of the expanded result.
+ * \retval NULL if the expansion failed.
+ */
+
+char *getenv_expand_sys (const char *variable)
+{
+  DWORD size = 0;
+  char  buf [MAX_ENV_VAR];
+  char *rc = NULL;
+
+  init_misc();
+
+  if (!p_ExpandEnvironmentStringsForUserA)
+  {
+    DEBUGF (1, "p_ExpandEnvironmentStringsForUserA not available. Using  ExpandEnvironmentStrings() instead.\n");
+    rc = getenv_expand (variable);
+  }
+  else
+  {
+    size = (*p_ExpandEnvironmentStringsForUserA) (NULL, variable, buf, sizeof(buf));
+    if (size == 0)
+       DEBUGF (1, "ExpandEnvironmentStringsForUser() failed: %s.\n",
+               win_strerror(GetLastError()));
+
+    if (size > 0)
+       rc = STRDUP (buf);
+  }
   return (rc);
 }
 
