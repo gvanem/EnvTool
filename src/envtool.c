@@ -2963,9 +2963,9 @@ typedef struct compiler_info {
  */
 static smartlist_t *all_cc = NULL;
 
-static size_t longest_cc = 0;
-static BOOL   ignore_all_gcc = FALSE;
-static BOOL   ignore_all_gpp = FALSE;
+static size_t longest_cc        = 0;
+static BOOL   ignore_all_gcc    = FALSE;
+static BOOL   ignore_all_gpp    = FALSE;
 static BOOL   looks_like_cygwin = FALSE;
 static BOOL   found_search_line = FALSE;
 static char  *cygwin_root       = NULL;
@@ -3271,7 +3271,7 @@ static void gnu_add_gpp_path (void)
 
 static int setup_gcc_includes (const compiler_info *cc)
 {
-  const char *gcc = cc->short_name;
+  const char *gcc = cc->full_name;
   int   found;
 
   free_dir_array();
@@ -3298,7 +3298,7 @@ static int setup_gcc_includes (const compiler_info *cc)
 
 static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
 {
-  const char *m_cpu, *gcc = cc->short_name;
+  const char *m_cpu, *gcc = cc->full_name;
   int   found, duplicates;
 
   free_dir_array();
@@ -3675,7 +3675,7 @@ static void searchpath_all_cc (BOOL print_info, BOOL print_lib_path)
   ignore_all_gcc = ignore_all_gnus (CC_GNU_GCC);
   ignore_all_gpp = ignore_all_gnus (CC_GNU_GPP);
 
-  DEBUGF (1, "\nignore_all_gcc: %d, ignore_all_gpp: %d.\n", ignore_all_gcc, ignore_all_gpp);
+  DEBUGF (1, "ignore_all_gcc: %d, ignore_all_gpp: %d.\n", ignore_all_gcc, ignore_all_gpp);
 
   if (!print_info)
      return;
@@ -3734,7 +3734,7 @@ static int check_gnu_includes (compiler_type type, int *num_dirs)
     if (cc->type == type && !cc->ignore && setup_gcc_includes(cc) > 0)
     {
       env = (cc->type == CC_GNU_GCC) ? "%C_INCLUDE_PATH%" : "%CPLUS_INCLUDE_PATH%";
-      snprintf (report, sizeof(report), "Matches in %s %s path:\n", cc->short_name, env);
+      snprintf (report, sizeof(report), "Matches in %s %s path:\n", cc->full_name, env);
       report_header = report;
       found += process_gcc_dirs (cc->short_name, num_dirs);
     }
@@ -3769,7 +3769,7 @@ static int do_check_gcc_library_paths (void)
   int   i, max;
   BOOL  is_gnu;
   const compiler_info *cc;
-  const char    *gcc;
+  const char          *gcc;
 
   max = smartlist_len (all_cc);
 
@@ -3780,7 +3780,7 @@ static int do_check_gcc_library_paths (void)
     if (is_gnu && !cc->ignore && setup_gcc_library_path(cc,TRUE) > 0)
     {
       gcc = cc->short_name;
-      snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", gcc);
+      snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", cc->full_name);
       report_header = report;
       found += process_gcc_dirs (gcc, &num_dirs);
     }
@@ -3822,7 +3822,7 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
 
   if (ignored >= found)
   {
-    DEBUGF (1, "All Watcom compilers ignored.\n");
+    DEBUGF (1, "All Watcom compilers were ignored.\n");
     return (0);
   }
 
@@ -3897,13 +3897,15 @@ static int do_check_watcom_includes (void)
    */
   make_unique_dir_array ("%NT_INCLUDE%");
 
+  report_header = "Matches in %NT_INCLUDE:\n";
+
   max = smartlist_len (dir_array);
   for (i = 0; i < max; i++)
   {
     struct directory_array *arr = smartlist_get (dir_array, i);
 
     found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
-                          arr->is_dir, arr->exp_ok, "WATCOM", NULL, 0);
+                          arr->is_dir, arr->exp_ok, "WATCOM", HKEY_INC_LIB_FILE, FALSE);
   }
 
 quit:
@@ -3928,13 +3930,15 @@ static int do_check_watcom_library_paths (void)
   if (!setup_watcom_dirs("%WATCOM%\\lib386", "%WATCOM%\\lib386\\nt", "%WATCOM%\\lib386\\linux"))
      return (0);
 
+  report_header = "Matches in %WATCOM libraries:\n";
+
   max = smartlist_len (dir_array);
   for (i = found = 0; i < max; i++)
   {
     struct directory_array *arr = smartlist_get (dir_array, i);
 
     found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
-                          arr->is_dir, arr->exp_ok, "WATCOM", NULL, 0);
+                          arr->is_dir, arr->exp_ok, "WATCOM", HKEY_INC_LIB_FILE, FALSE);
   }
   dump_dir_array ("Watcom libs", "");
   free_watcom_dirs();
@@ -3943,25 +3947,32 @@ static int do_check_watcom_library_paths (void)
 }
 
 /**
- * Stuff for Borland compilers.
+ * Common stuff for Borland checking.
  */
 static char *bcc_root = NULL;
 
 typedef void (*bcc_parser_func) (smartlist_t *sl, char *line);
 
 /**
- * Check in Borland's include-directories which are given by
- * <bcc_root>\bcc32.cfg or <bcc_root>\bcc32c.cfg:
+ * Check in Borland's include-directories which are given by the format in
+ * <bcc_root>\bcc32c.cfg:
  * ```
  *  -isystem @\..\include\dinkumware64
  *  -isystem @\..\include\windows\crtl
+ * ```
+ *
+ * Or the older format in <bcc_root>\bcc32.cfg:
+ * ```
+ *  -I<inc_path1>;<inc_path2>...
  * ```
  */
 static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
 {
   const char *isystem = "-isystem @\\..\\";
 
-  line = strip_nl (line);
+  line = strip_nl (str_ltrim(line));
+  DEBUGF (2, "line: %s.\n", line);
+
   if (!strnicmp(line,isystem,strlen(isystem)))
   {
     char dir [MAX_PATH];
@@ -3970,22 +3981,33 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
     DEBUGF (2, "dir: %s.\n", dir);
     add_to_dir_array (dir, FALSE, __LINE__);
   }
+  else if (!strncmp(line,"-I",2))
+  {
+    split_env_var ("Borland INC", line+2);
+  }
   ARGSUSED (sl);
 }
 
 /**
- * Check in Borland's library-directories which are given by
- * <bcc_root>\bcc32.cfg or <bcc_root>\bcc32c.cfg:
+ * Check in Borland's library-directories which are given by the format in
+ * <bcc_root>\bcc32c.cfg:
  * ```
  *   -L@\..\lib\win32c\debug
  *   -L@\..\lib\win32c\release
+ * ```
+ *
+ * Or the older format in <bcc_root>\bcc32.cfg:
+ * ```
+ *  -L<lib_path1>;<lib_path2>...
  * ```
  */
 static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
 {
   const char *Ldir = "-L@\\..\\";
 
-  line = strip_nl (line);
+  line = strip_nl (str_ltrim(line));
+  DEBUGF (2, "line: %s.\n", line);
+
   if (!strnicmp(line,Ldir,strlen(Ldir)))
   {
     char dir [MAX_PATH];
@@ -3994,10 +4016,14 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
     DEBUGF (2, "dir: %s.\n", dir);
     add_to_dir_array (dir, FALSE, __LINE__);
   }
+  else if (!strncmp(line,"-L",2))
+  {
+    split_env_var ("Borland LIB", line+2);
+  }
   ARGSUSED (sl);
 }
 
-static int setup_borland_dirs (bcc_parser_func parser)
+static const char *setup_borland_dirs (bcc_parser_func parser)
 {
   const struct compiler_info *cc;
   const char  *full_name = NULL;
@@ -4012,7 +4038,7 @@ static int setup_borland_dirs (bcc_parser_func parser)
   for (i = found = ignored = 0; i < max; i++)
   {
     cc = smartlist_get (all_cc, i);
-    if (cc->type != CC_BORLAND || cc->ignore)
+    if (!cc->full_name || cc->type != CC_BORLAND)
        continue;
 
     found++;
@@ -4026,13 +4052,13 @@ static int setup_borland_dirs (bcc_parser_func parser)
   if (found == 0)
   {
     DEBUGF (1, "No Borland compilers found.\n");
-    return (0);
+    return (NULL);
   }
 
   if (ignored >= found)
   {
-    DEBUGF (1, "All Borland compilers ignored.\n");
-    return (0);
+    DEBUGF (1, "All Borland compilers were ignored.\n");
+    return (NULL);
   }
 
   bcc_root = strlwr (STRDUP(full_name));
@@ -4054,18 +4080,28 @@ static int setup_borland_dirs (bcc_parser_func parser)
   if (!dir_list)
   {
     FREE (bcc_root);
-    return (0);
+    return (NULL);
   }
   smartlist_free (dir_list);  /* No need for this */
-  return (1);
+  return (full_name);
 }
 
+/**
+ * Check the first 'bcc*.exe' found for an internal INCLUDE search.
+ *
+ * \todo should search headers for all 'bcc*.exe' found in 'add_borland_compilers()'
+ */
 static int do_check_borland_includes (void)
 {
-  int i, max, found = 0;
+  int         i, max, found = 0;
+  const char *cc_name = setup_borland_dirs (bcc32_cfg_parse_inc);
+  char        report [_MAX_PATH+50];
 
-  if (!setup_borland_dirs(bcc32_cfg_parse_inc))
+  if (!cc_name)
      return (0);
+
+  snprintf (report, sizeof(report), "Matches in %s headers:\n", cc_name);
+  report_header = report;
 
   max = smartlist_len (dir_array);
   for (i = 0; i < max; i++)
@@ -4073,19 +4109,30 @@ static int do_check_borland_includes (void)
     struct directory_array *arr = smartlist_get (dir_array, i);
 
     found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
-                          arr->is_dir, arr->exp_ok, "BORLAND INC", NULL, 0);
+                          arr->is_dir, arr->exp_ok, "BORLAND INC",
+                          HKEY_INC_LIB_FILE, FALSE);
   }
   free_dir_array();
   FREE (bcc_root);
   return (found);
 }
 
+/**
+ * Check the first 'bcc*.exe' found for an internal LIB search.
+ *
+ * \todo should search libraries for all 'bcc*.exe' found in 'add_borland_compilers()'
+ */
 static int do_check_borland_library_paths (void)
 {
-  int i, max, found = 0;
+  int  i, max, found = 0;
+  const char *cc_name = setup_borland_dirs (bcc32_cfg_parse_lib);
+  char        report [_MAX_PATH+50];
 
-  if (!setup_borland_dirs(bcc32_cfg_parse_lib))
+  if (!cc_name)
      return (0);
+
+  snprintf (report, sizeof(report), "Matches in %s libraries:\n", cc_name);
+  report_header = report;
 
   max = smartlist_len (dir_array);
   for (i = 0; i < max; i++)
@@ -4095,7 +4142,8 @@ static int do_check_borland_library_paths (void)
     DEBUGF (1, "arr->dir: %s.\n", arr->dir);
 
     found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
-                          arr->is_dir, arr->exp_ok, "BORLAND LIBS", NULL, 0);
+                          arr->is_dir, arr->exp_ok, "BORLAND LIBS",
+                          HKEY_INC_LIB_FILE, FALSE);
   }
   free_dir_array();
   FREE (bcc_root);
@@ -4717,16 +4765,12 @@ int MS_CDECL main (void)
     found += do_check_env ("LIB", FALSE);
 
     if (!opt.no_watcom)
-    {
-      report_header = "Matches in %WATCOM libraries:\n";
-      found += do_check_watcom_library_paths();
-    }
+       found += do_check_watcom_library_paths();
+
     if (!opt.no_borland)
-    {
-      report_header = "Matches in Borland's libraries:\n";
-      found += do_check_borland_library_paths();
-    }
-    if (!opt.no_gcc && !opt.no_gpp)
+       found += do_check_borland_library_paths();
+
+    if (!(opt.no_gcc && opt.no_gpp))   /* Ignore all 'gcc.exe' and g++.exe' */
        found += do_check_gcc_library_paths();
   }
 
@@ -4736,15 +4780,10 @@ int MS_CDECL main (void)
     found += do_check_env ("INCLUDE", FALSE);
 
     if (!opt.no_watcom)
-    {
-      report_header = "Matches in %NT_INCLUDE:\n";
-      found += do_check_watcom_includes();
-    }
+       found += do_check_watcom_includes();
+
     if (!opt.no_borland)
-    {
-      report_header = "Matches in Borland's headers:\n";
       found += do_check_borland_includes();
-    }
 
     if (!opt.no_gcc)
        found += do_check_gcc_includes();
