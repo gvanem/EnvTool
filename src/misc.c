@@ -2775,7 +2775,7 @@ const char *get_time_str (time_t t)
     static const char *months [12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
                                      };
-    const  char *_month;
+    const char *_month;
 
     if (tm->tm_mon >= 0 && tm->tm_mon < DIM(months))
          _month = months [tm->tm_mon];
