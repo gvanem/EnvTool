@@ -11,9 +11,17 @@
  *
  * The protocol goes something like this (mscgen tool diagram):
  *
- * \msc "ETP Protocol" width=10cm height=20cm
- *   arcgradient = 8;
- *   a[label="Client"], b[label="Server"], c[label="Server error", url="\ref state_closing"];
+ * \msc "ETP Protocol" width=25cm height=20cm
+ *
+ *   arcgradient="4", hscale="2";
+ *
+ *   a[label="Client"], b[label="Server"], c[label="Server error"], d[label="~/.authinfo lookup"], e[label="~/.netrc lookup"], f[label="~/envtool.cfg lookup"];
+ *   a => d [label="Check ~/.authinfo",                            url="\ref state_authinfo_lookup"];
+ *   d => e [label="Not found, check ~/.netrc",                    url="\ref state_netrc_lookup"];
+ *   e => a [label="Host found",                                   url="\ref state_send_login"];
+ *   e => f [label="Not found, check ~/envtool.cfg",               url="\ref state_envtool_cfg_lookup"];
+ *   f => a [label="Host found",                                   url="\ref state_send_login"];
+ *   f => a [label="Not found (try login anuway)",                 url="\ref state_send_login"];
  *   a => b [label="USER user",                                    url="\ref state_send_login"];
  *   a <= b [label="230 Welcome to Everything ETP/FTP",            url="\ref state_send_login"];
  *   a <= b [label="331 Password required for user",               url="\ref state_await_login"];
@@ -25,7 +33,7 @@
  *   a => b [label="EVERYTHING QUERY",                             url="\ref state_send_query"];
  *   a <= b [label="RESULT_COUNT N",                               url="\ref state_RESULT_COUNT"];
  *   a <= b [label="PATH file 1",                                  url="\ref state_PATH"];
- *   -----  [label="for all files until N paths received",         url="\ref state_PATH"];
+ *   ---    [label="for all files until N paths received",         url="\ref state_PATH"];
  *   a <= b [label="200 End",                                      url="\ref state_closing"];
  *
  * \endmsc
@@ -222,6 +230,7 @@ static BOOL state_exit                 (struct state_CTX *ctx);
 static BOOL state_parse_url            (struct state_CTX *ctx);
 static BOOL state_netrc_lookup         (struct state_CTX *ctx);
 static BOOL state_authinfo_lookup      (struct state_CTX *ctx);
+static BOOL state_envtool_cfg_lookup   (struct state_CTX *ctx);
 static BOOL state_send_login           (struct state_CTX *ctx);
 static BOOL state_send_pass            (struct state_CTX *ctx);
 static BOOL state_await_login          (struct state_CTX *ctx);
@@ -829,7 +838,7 @@ static BOOL state_netrc_lookup (struct state_CTX *ctx)
 {
   const char *user  = NULL;
   const char *passw = NULL;
-  BOOL  okay = (netrc_init() && netrc_lookup(ctx->hostname, &user, &passw));
+  BOOL        okay = netrc_lookup (ctx->hostname, &user, &passw);
 
   if (!okay)
      login_warning (ctx, FALSE);
@@ -843,8 +852,6 @@ static BOOL state_netrc_lookup (struct state_CTX *ctx)
 
   ETP_tracef (ctx, "Got USER: %s and PASS: %s in '%%APPDATA%%\\.netrc' for '%s'\n",
               user ? user : "<None>", passw ? passw : "<none>", ctx->hostname);
-
-  netrc_exit();
 
   /* Do not attempt "~/.netrc" login ever again.
    */
@@ -870,7 +877,7 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
   const char *user  = NULL;
   const char *passw = NULL;
   int         port = 0;
-  BOOL        okay = (authinfo_init() && authinfo_lookup(ctx->hostname, &user, &passw, &port));
+  BOOL        okay = authinfo_lookup (ctx->hostname, &user, &passw, &port);
 
   if (!okay)
      login_warning (ctx, TRUE);
@@ -887,8 +894,6 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
   ETP_tracef (ctx, "Got USER: %s, PASS: %s and PORT: %u in '%%APPDATA%%\\.authinfo' for '%s'\n",
               user ? user : "<None>", passw ? passw : "<none>", ctx->port, ctx->hostname);
 
-  authinfo_exit();
-
   /* Do not attempt "~/.authinfo" login ever again.
    */
   ctx->use_authinfo = FALSE;
@@ -900,6 +905,21 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
   else ctx->state = state_resolve;
 
   return (TRUE);
+}
+
+/**
+ * Lookup the `USER`, `PASSWORD` and `port` for `ctx->hostname` in the `~/envtool.cfg` file.
+ *
+ * Enter state_send_login() even if `USER` / `PASSWORD` are not found.
+ *
+ * \param[in] ctx  the context we work with.
+ *
+ * \note Currently not used.
+ */
+static BOOL state_envtool_cfg_lookup (struct state_CTX *ctx)
+{
+  ARGSUSED (ctx);
+  return (FALSE);
 }
 
 /**
@@ -1213,10 +1233,6 @@ static const char *ETP_state_name (ETP_state f)
  * Called from `envtool.c`:
  *   if the `opt.evry_host` smartlist is not empty, this function gets called
  *   for each ETP-host in the smartlist.
- *
- * \todo
- *   The `netrc_init()` and `netrc_exit()` is currently done for each host.
- *   Should do something better.
  */
 int do_check_evry_ept (const char *host)
 {
