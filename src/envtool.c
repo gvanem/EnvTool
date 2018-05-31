@@ -1667,8 +1667,10 @@ static char *fix_filespec (char **sub_dir)
 /**
  * Expand an environment variable for current user or for SYSTEM.
  *
- * \param in  The data to expand the environment variable(s) in.
- * \param out The buffer that receives the expanded variable.
+ * \param in         The data to expand the environment variable(s) in.
+ * \param out        The buffer that receives the expanded variable.
+ * \param out_len    The size of `out` buffer.
+ * \param for_system If TRUE, search the `SYSTEM` environment for the `in` variable.
  *
  * \note `in` and `out` can point to the same buffer.
  */
@@ -2905,6 +2907,8 @@ static int do_check_cmake (void)
 
       snprintf (dir, sizeof(dir), "%s\\..\\share\\cmake-%d.%d\\Modules",
                 cmake_root, cmake_major, cmake_minor);
+      _fix_path (dir, dir);
+
       DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
               cmake_major, cmake_minor, cmake_micro, dir);
 
@@ -4293,6 +4297,10 @@ static void MS_CDECL cleanup (void)
 
   cfg_ignore_exit();
 
+  netrc_exit();
+  authinfo_exit();
+  envtool_cfg_exit();
+
   exit_misc();
 
   if (halt_flag == 0 && opt.debug > 0)
@@ -5126,26 +5134,26 @@ static void test_ReparsePoints (void)
 static void test_auth (void)
 {
   const char *appdata = getenv ("APPDATA");
-  int   rc1, rc2;
+  int   rc1, rc2, rc3;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
-  netrc_init();
-  authinfo_init();
-
   rc1 = netrc_lookup (NULL, NULL, NULL);
   rc2 = authinfo_lookup (NULL, NULL, NULL, NULL);
+  rc3 = envtool_cfg_lookup (NULL, NULL, NULL, NULL);
 
-  netrc_exit();
-  authinfo_exit();
-
-  C_printf ("  Parsing ~6%s\\.netrc~0    ", appdata);
+  C_printf ("  Parsing ~6%s\\.netrc~0      ", appdata);
   if (rc1 == 0)
        C_puts ("~5failed.~0\n");
   else C_puts ("~3okay.~0\n");
 
-  C_printf ("  Parsing ~6%s\\.authinfo~0 ", appdata);
+  C_printf ("  Parsing ~6%s\\.authinfo~0   ", appdata);
   if (rc2 == 0)
+       C_puts ("~5failed.~0\n");
+  else C_puts ("~3okay.~0\n");
+
+  C_printf ("  Parsing ~6%s\\envtool.cfg~0 ", appdata);
+  if (rc3 == 0)
        C_puts ("~5failed.~0\n");
   else C_puts ("~3okay.~0\n");
 }
