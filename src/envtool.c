@@ -539,6 +539,7 @@ static int show_help (void)
           "                              ~3HKLM\\" REG_APP_PATH "~0.\n"
           "    ~6--no-colour~0    don't print using colours.\n"
           "    ~6--no-ansi~0      don't print colours using ANSI sequences (effective for CygWin/ConEmu only).\n"
+          "    ~6--no-borland~0   don't check for Borland in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--no-watcom~0    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--owner~0        shown owner of the file (shows all owners).\n"
           "    ~6--owner~0=~3spec~0   shown only files/directories matching owner ~3spec~0.\n"
@@ -2938,13 +2939,15 @@ static int do_check_cmake (void)
 }
 
 /**
- * Handling of GNU-compilers ('*gcc.exe', '*g++.exe'), MSVC and Watcom.
+ * Handling of GNU-compilers ('*gcc.exe', '*g++.exe'), MSVC, clang-cl, Borland and Watcom.
  */
 typedef enum compiler_type {
              CC_UNKNOWN = 0,
              CC_GNU_GCC,      /* Some sort of (prefixed) '*gcc.exe' */
              CC_GNU_GPP,      /* Some sort of (prefixed) '*g++.exe' */
              CC_MSVC,
+             CC_CLANG_CL,
+             CC_BORLAND,
              CC_WATCOM
            } compiler_type;
 
@@ -3017,6 +3020,11 @@ static void compiler_check_ignore (compiler_info *cc)
   /* "envtool --no-watcom .." given and this \c 'cc->type == CC_WATCOM'.
    */
   else if (cc->type == CC_WATCOM && opt.no_watcom)
+     ignore = TRUE;
+
+  /* "envtool --no-borland .." given and this \c 'cc->type == CC_BORLAND'.
+   */
+  else if (cc->type == CC_BORLAND && opt.no_borland)
      ignore = TRUE;
 
   else if (cc->full_name)
@@ -3431,6 +3439,41 @@ static void add_msvc_compilers (void)
   smartlist_add (all_cc, cl);
 }
 
+static void add_clang_cl_compilers (void)
+{
+  compiler_info *clang = CALLOC (sizeof(*clang), 1);
+  const char    *full_name;
+
+  clang->type       = CC_CLANG_CL;
+  clang->short_name = STRDUP ("clang-cl.exe");
+  full_name         = searchpath (clang->short_name, "PATH");
+  if (full_name)
+      clang->full_name = STRDUP (full_name);
+  smartlist_add (all_cc, clang);
+}
+
+static void add_borland_compilers (void)
+{
+  static const char *borland[] = {
+                    "bcc32.exe",
+                    "bcc32c.exe"
+                  };
+  int i;
+
+  for (i = 0; i < DIM(borland); i++)
+  {
+    compiler_info *bcc = CALLOC (sizeof(*bcc), 1);
+    const char    *full_name;
+
+    bcc->type       = CC_BORLAND;
+    bcc->short_name = STRDUP (borland[i]);
+    full_name       = searchpath (bcc->short_name, "PATH");
+    if (full_name)
+       bcc->full_name = STRDUP (full_name);
+    smartlist_add (all_cc, bcc);
+  }
+}
+
 static void add_watcom_compilers (void)
 {
   static const char *wcc[] = {
@@ -3619,6 +3662,8 @@ static void searchpath_all_cc (BOOL print_info, BOOL print_lib_path)
 
   add_gnu_compilers();
   add_msvc_compilers();
+  add_clang_cl_compilers();
+  add_borland_compilers();
   add_watcom_compilers();
 
   max = smartlist_len (all_cc);
@@ -3794,7 +3839,6 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
   watcom_dir[1] = getenv_expand (dir1);
   watcom_dir[2] = getenv_expand (dir2);
 
-
   /* This directory exist only on newer Watcom distos.
    * Like "%WATCOM%\\lh" for Linux headers.
    */
@@ -3898,6 +3942,166 @@ static int do_check_watcom_library_paths (void)
   return (found);
 }
 
+/**
+ * Stuff for Borland compilers.
+ */
+static char *bcc_root = NULL;
+
+typedef void (*bcc_parser_func) (smartlist_t *sl, char *line);
+
+/**
+ * Check in Borland's include-directories which are given by
+ * <bcc_root>\bcc32.cfg or <bcc_root>\bcc32c.cfg:
+ * ```
+ *  -isystem @\..\include\dinkumware64
+ *  -isystem @\..\include\windows\crtl
+ * ```
+ */
+static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
+{
+  const char *isystem = "-isystem @\\..\\";
+
+  line = strip_nl (line);
+  if (!strnicmp(line,isystem,strlen(isystem)))
+  {
+    char dir [MAX_PATH];
+
+    snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(isystem));
+    DEBUGF (2, "dir: %s.\n", dir);
+    add_to_dir_array (dir, FALSE, __LINE__);
+  }
+  ARGSUSED (sl);
+}
+
+/**
+ * Check in Borland's library-directories which are given by
+ * <bcc_root>\bcc32.cfg or <bcc_root>\bcc32c.cfg:
+ * ```
+ *   -L@\..\lib\win32c\debug
+ *   -L@\..\lib\win32c\release
+ * ```
+ */
+static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
+{
+  const char *Ldir = "-L@\\..\\";
+
+  line = strip_nl (line);
+  if (!strnicmp(line,Ldir,strlen(Ldir)))
+  {
+    char dir [MAX_PATH];
+
+    snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(Ldir));
+    DEBUGF (2, "dir: %s.\n", dir);
+    add_to_dir_array (dir, FALSE, __LINE__);
+  }
+  ARGSUSED (sl);
+}
+
+static int setup_borland_dirs (bcc_parser_func parser)
+{
+  const struct compiler_info *cc;
+  const char  *full_name = NULL;
+  const char  *short_name = NULL;
+  smartlist_t *dir_list;
+  char        *bin_dir;
+  char         bcc_cfg [_MAX_PATH];
+  int          i, max = smartlist_len (all_cc);
+  int          found, ignored;
+  int          slash = (opt.show_unix_paths ? '/' : '\\');
+
+  for (i = found = ignored = 0; i < max; i++)
+  {
+    cc = smartlist_get (all_cc, i);
+    if (cc->type != CC_BORLAND || cc->ignore)
+       continue;
+
+    found++;
+    if (cc->ignore)
+       ignored++;
+
+    full_name  = cc->full_name;
+    short_name = cc->short_name;
+  }
+
+  if (found == 0)
+  {
+    DEBUGF (1, "No Borland compilers found.\n");
+    return (0);
+  }
+
+  if (ignored >= found)
+  {
+    DEBUGF (1, "All Borland compilers ignored.\n");
+    return (0);
+  }
+
+  bcc_root = strlwr (STRDUP(full_name));
+  bin_dir =  strrchr (bcc_root, slash);
+  *bin_dir = '\0';
+  bin_dir =  strrchr (bcc_root, slash);
+  *bin_dir = '\0';
+
+  DEBUGF (1, "bcc_root: %s, short_name: %s\n", bcc_root, short_name);
+
+  /* Get the 'bcc*.cfg' filename.
+   * <bcc_root>\bccX.exe -> <bcc_root>\bccX.cfg
+   */
+  snprintf (bcc_cfg, sizeof(bcc_cfg), "%s\\bin\\%.*s.cfg", bcc_root, strrchr(short_name,'.')-short_name, short_name);
+
+  DEBUGF (1, "bcc_cfg: %s.\n", bcc_cfg);
+
+  dir_list = smartlist_read_file (bcc_cfg, (smartlist_parse_func)parser);
+  if (!dir_list)
+  {
+    FREE (bcc_root);
+    return (0);
+  }
+  smartlist_free (dir_list);  /* No need for this */
+  return (1);
+}
+
+static int do_check_borland_includes (void)
+{
+  int i, max, found = 0;
+
+  if (!setup_borland_dirs(bcc32_cfg_parse_inc))
+     return (0);
+
+  max = smartlist_len (dir_array);
+  for (i = 0; i < max; i++)
+  {
+    struct directory_array *arr = smartlist_get (dir_array, i);
+
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
+                          arr->is_dir, arr->exp_ok, "BORLAND INC", NULL, 0);
+  }
+  free_dir_array();
+  FREE (bcc_root);
+  return (found);
+}
+
+static int do_check_borland_library_paths (void)
+{
+  int i, max, found = 0;
+
+  if (!setup_borland_dirs(bcc32_cfg_parse_lib))
+     return (0);
+
+  max = smartlist_len (dir_array);
+  for (i = 0; i < max; i++)
+  {
+    struct directory_array *arr = smartlist_get (dir_array, i);
+
+    DEBUGF (1, "arr->dir: %s.\n", arr->dir);
+
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
+                          arr->is_dir, arr->exp_ok, "BORLAND LIBS", NULL, 0);
+  }
+  free_dir_array();
+  FREE (bcc_root);
+  return (found);
+}
+
 /*
  * getopt_long() processing.
  */
@@ -3936,51 +4140,53 @@ static const struct option long_options[] = {
            { "buffered-io", no_argument,       NULL, 0 },    /* 31 */
            { "nonblock-io", no_argument,       NULL, 0 },
            { "no-watcom",   no_argument,       NULL, 0 },    /* 33 */
-           { "owner",       optional_argument, NULL, 0 },
-           { "check",       no_argument,       NULL, 0 },    /* 35 */
-           { "signed",      optional_argument, NULL, 0 },
-           { "no-cwd",      no_argument,       NULL, 0 },    /* 37 */
-           { NULL,          no_argument,       NULL, 0 }
+           { "no-borland",  no_argument,       NULL, 0 },
+           { "owner",       optional_argument, NULL, 0 },    /* 35 */
+           { "check",       no_argument,       NULL, 0 },
+           { "signed",      optional_argument, NULL, 0 },    /* 37 */
+           { "no-cwd",      no_argument,       NULL, 0 },
+           { NULL,          no_argument,       NULL, 0 }     /* 39 */
          };
 
 static int *values_tab[] = {
             NULL,
-            NULL,                 /* 1 */
+            NULL,                     /* 1 */
             NULL,
-            &opt.do_include,      /* 3 */
+            &opt.do_include,          /* 3 */
             &opt.do_path,
-            &opt.do_lib,          /* 5 */
+            &opt.do_lib,              /* 5 */
             &opt.do_python,
-            &opt.dir_mode,        /* 7 */
+            &opt.dir_mode,            /* 7 */
             NULL,
-            &opt.no_sys_env,      /* 9 */
+            &opt.no_sys_env,          /* 9 */
             &opt.no_usr_env,
-            &opt.no_app_path,     /* 11 */
+            &opt.no_app_path,         /* 11 */
             NULL,
-            NULL,                 /* 13 */
+            NULL,                     /* 13 */
             &opt.no_gcc,
-            &opt.no_gpp,          /* 15 */
+            &opt.no_gpp,              /* 15 */
             &opt.verbose,
-            &opt.PE_check,        /* 17 */
+            &opt.PE_check,            /* 17 */
             &opt.no_colours,
-            &opt.no_colours,      /* 19 */
+            &opt.no_colours,          /* 19 */
             &opt.do_evry,
-            &opt.use_regex,       /* 21 */
+            &opt.use_regex,           /* 21 */
             &opt.show_size,
-            &opt.do_man,          /* 23 */
+            &opt.do_man,              /* 23 */
             &opt.do_cmake,
-            &opt.do_pkg,          /* 25 */
+            &opt.do_pkg,              /* 25 */
             &opt.only_32bit,
-            &opt.only_64bit,      /* 27 */
+            &opt.only_64bit,          /* 27 */
             &opt.gcc_no_prefixed,
-            &opt.no_ansi,         /* 29 */
+            &opt.no_ansi,             /* 29 */
             (int*)&opt.evry_host,
-            &opt.use_buffered_io, /* 31 */
+            &opt.use_buffered_io,     /* 31 */
             &opt.use_nonblock_io,
-            &opt.no_watcom,       /* 33 */
-            &opt.show_owner,
-            &opt.do_check,        /* 35 */
-            (int*)&opt.signed_status,
+            &opt.no_watcom,           /* 33 */
+            &opt.no_borland,
+            &opt.show_owner,          /* 35 */
+            &opt.do_check,
+            (int*)&opt.signed_status, /* 37 */
             &opt.no_cwd
           };
 
@@ -4515,7 +4721,11 @@ int MS_CDECL main (void)
       report_header = "Matches in %WATCOM libraries:\n";
       found += do_check_watcom_library_paths();
     }
-
+    if (!opt.no_borland)
+    {
+      report_header = "Matches in Borland's libraries:\n";
+      found += do_check_borland_library_paths();
+    }
     if (!opt.no_gcc && !opt.no_gpp)
        found += do_check_gcc_library_paths();
   }
@@ -4529,6 +4739,11 @@ int MS_CDECL main (void)
     {
       report_header = "Matches in %NT_INCLUDE:\n";
       found += do_check_watcom_includes();
+    }
+    if (!opt.no_borland)
+    {
+      report_header = "Matches in Borland's headers:\n";
+      found += do_check_borland_includes();
     }
 
     if (!opt.no_gcc)
