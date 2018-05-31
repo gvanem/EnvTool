@@ -20,7 +20,8 @@ static const struct search_list sections[] = {
                               { 0, "[Compiler]" },
                               { 1, "[Registry]" },
                               { 2, "[Python]" },
-                              { 3, "[PE-resources]" }
+                              { 3, "[PE-resources]" },
+                              { 4, "[Login]" }  /* Only used in auth.c */
                             };
 
 /**\struct ignore_node

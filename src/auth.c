@@ -15,21 +15,41 @@
 #include "smartlist.h"
 #include "auth.h"
 
+/**\typedef login_source
+ * The source of the login information_:
+ * either `~/.netrc`, `~/.authinfo` or `~/envtool.cfg`.
+ */
+typedef enum login_source {
+        LOGIN_NETRC = 1,
+        LOGIN_AUTHINFO,
+        LOGIN_ENVTOOL_CFG,
+      } login_source;
+
 /**\struct login_info
- * Data for each parsed entry in either `~/.netrc` or `~/.authinfo`.
+ * Data for each parsed entry from one of the files in `enum login_source`.
  */
 struct login_info {
-       BOOL  is_default; /**< This is the `default` user/password entry for non-matching lookups */
-       BOOL  is_netrc;   /**< This entry is in the `~/.netrc` file */
-       char *host;       /**< The hostname of the entry */
-       char *user;       /**< The username of the entry */
-       char *passw;      /**< The password of the entry */
-       int   port;       /**< The network port of the entry. Only if from `~/.authinfo` */
+       BOOL         is_default;  /**< This is the `default` user/password entry for non-matching lookups */
+       login_source src;         /**< Which file this entry came from */
+       char        *host;        /**< The hostname of the entry */
+       char        *user;        /**< The username of the entry */
+       char        *passw;       /**< The password of the entry */
+       int          port;        /**< The network port of the entry. Only if from `~/.authinfo` or `~/envtool.cfg` */
      };
 
 /** The smartlist of "struct login_info" entries.
  */
 static smartlist_t *login_list = NULL;
+
+/**
+ * Return the name of the login source.
+ */
+static const char *login_src_name (enum login_source src)
+{
+  return (src == LOGIN_NETRC       ? "NETRC"       :
+          src == LOGIN_AUTHINFO    ? "AUTHINFO"    :
+          src == LOGIN_ENVTOOL_CFG ? "ENVTOOL_CFG" : "?");
+}
 
 /**
  * Common to both netrc_init() and authinfo_init().
@@ -59,26 +79,29 @@ static int common_init (const char *fname, smartlist_parse_func parser)
 
 /**
  * Free the memory allocated in the \ref login_list smartlist.<br>
- * But only if \c 'li->is_netrc' matches \c 'is_netrc'.
+ * But only if \c 'li->src' matches \c 'src'.
  */
-static void common_exit (BOOL is_netrc)
+static void common_exit (enum login_source src)
 {
   int i, max;
 
   if (!login_list)
-     return;
+  {
+    DEBUGF (2, "%s: length of list now: %s\n", login_src_name(src), "<N/A>");
+    return;
+  }
 
   max = smartlist_len (login_list);
-  DEBUGF (2, "is_netrc: %d, length of list now: %d\n", is_netrc, max);
+  DEBUGF (2, "%s: length of list now: %d\n", login_src_name(src), max);
 
   for (i = 0; i < max; i++)
   {
     struct login_info *li = smartlist_get (login_list, i);
 
-    DEBUGF (2, "i: %2d, li->is_netrc: %d, do %sdelete this.\n",
-            i, li->is_netrc, (li->is_netrc == is_netrc) ? "" : "not ");
+    DEBUGF (2, "i: %d, %-12s, do %sdelete this.\n",
+            i,  login_src_name(li->src), (li->src == src) ? "" : "not ");
 
-    if (li->is_netrc != is_netrc)
+    if (li->src != src)
        continue;
 
     FREE (li->host);
@@ -101,9 +124,9 @@ static void common_exit (BOOL is_netrc)
 
 /**
  * Search the \ref login_list smartlist for \c host. <br>
- * The \c 'li->is_netrc' must also match \c 'is_netrc'.
+ * The \c 'li->src' must also match \c 'src'.
  */
-static const struct login_info *common_lookup (const char *host, BOOL is_netrc)
+static const struct login_info *common_lookup (const char *host, enum login_source src)
 {
   const struct login_info *def_li = NULL;
   int   i, save, max = login_list ? smartlist_len (login_list) : 0;
@@ -113,14 +136,15 @@ static const struct login_info *common_lookup (const char *host, BOOL is_netrc)
     const struct login_info *li = smartlist_get (login_list, i);
     char  buf [300];
 
-    if (li->is_netrc != is_netrc)
+    if (li->src != src)
        continue;
 
     if (li->is_default)
        def_li = li;
 
-    snprintf (buf, sizeof(buf), "is_netrc: %d, host: '%s', user: '%s', passw: '%s', port: %d\n",
-              li->is_netrc, li->is_default ? "*default*" : li->host, li->user, li->passw, li->port);
+    snprintf (buf, sizeof(buf), "%-12s host: '%s', user: '%s', passw: '%s', port: %d\n",
+              login_src_name(li->src), li->is_default ? "*default*" : li->host,
+              li->user, li->passw, li->port);
 
     if (opt.do_tests)
     {
@@ -162,7 +186,7 @@ static void netrc_parse (smartlist_t *sl, const char *line)
     li->host     = STRDUP (host);
     li->user     = STRDUP (user);
     li->passw    = STRDUP (passw);
-    li->is_netrc = TRUE;
+    li->src      = LOGIN_NETRC;
   }
   else if (sscanf(line, fmt2, user, passw) == 2)
   {
@@ -170,7 +194,7 @@ static void netrc_parse (smartlist_t *sl, const char *line)
     li->user       = STRDUP (user);
     li->passw      = STRDUP (passw);
     li->is_default = TRUE;
-    li->is_netrc   = TRUE;
+    li->src        = LOGIN_NETRC;
   }
   if (li)
      smartlist_add (sl, li);
@@ -201,7 +225,7 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
     li->user     = STRDUP (user);
     li->passw    = STRDUP (passw);
     li->port     = port;
-    li->is_netrc = FALSE;
+    li->src      = LOGIN_AUTHINFO;
   }
   else if (sscanf(line, fmt2, &port, user, passw) == 3 && port > 0 && port < USHRT_MAX)
   {
@@ -210,26 +234,104 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
     li->passw      = STRDUP (passw);
     li->port       = port;
     li->is_default = TRUE;
-    li->is_netrc   = FALSE;
+    li->src        = LOGIN_AUTHINFO;
   }
   if (li)
      smartlist_add (sl, li);
 }
 
 /**
- * Open and parse the \c "%APPDATA%\\.netrc" file.
+ * Parse a line from \c ~/envtool.cfg. Match lines like:
+ *   ```
+ *    [Login]
+ *    <host> = <user> / <password> / port <port>
+ *   ```
+ * And add to the \c login_list smartlist.
  */
-int netrc_init (void)
+static void envtool_cfg_parse (smartlist_t *sl, const char *line)
 {
-  return common_init ("%APPDATA%\\.netrc", netrc_parse);
+  static BOOL        got_section = FALSE;
+  struct login_info *li = NULL;
+  char   host [256];
+  char   user [256];
+  char   passw[256];
+  char  *copy, *start;
+  int    port = 0, num = 0;
+
+  /* Fast exit on simple lines
+   */
+  if (*line == '\0' || *line == '\r' || *line == '\n')
+     return;
+
+  copy  = STRDUP (line);
+  start = strip_nl (str_trim(copy));
+
+  if (!got_section && !strnicmp(start,"[Login]",7))
+  {
+    got_section = TRUE;
+  }
+  else if (got_section)
+  {
+    if (start[0] == '[')
+      got_section = FALSE;
+    else
+    {
+      num = sscanf (start, "%255[^ =] = %255[^ /] / %255[^ /] / port %d", host, user, passw, &port);
+      if (num >= 3)
+      {
+        li = CALLOC (1, sizeof(*li));
+        li->host     = STRDUP (host);
+        li->user     = STRDUP (user);
+        li->passw    = STRDUP (passw);
+        li->port     = port;
+        li->src      = LOGIN_ENVTOOL_CFG;
+      }
+    }
+  }
+
+  if (got_section)
+     DEBUGF (1, "start: '%s', num: %d.\n", start, num);
+
+  FREE (copy);
+
+  if (li)
+     smartlist_add (sl, li);
 }
 
 /**
- * Open and parse the \c "%APPDATA%\\.authinfo" file.
+ * Open and parse the \c "%APPDATA%\\.netrc" file only once.
  */
-int authinfo_init (void)
+static int netrc_init (void)
 {
-  return common_init ("%APPDATA%\\.authinfo", authinfo_parse);
+  static int last_rc = -1;
+
+  if (last_rc == -1)
+     last_rc = common_init ("%APPDATA%\\.netrc", netrc_parse);
+  return (last_rc);
+}
+
+/**
+ * Open and parse the \c "%APPDATA%\\.authinfo" file only once.
+ */
+static int authinfo_init (void)
+{
+  static int last_rc = -1;
+
+  if (last_rc == -1)
+     last_rc = common_init ("%APPDATA%\\.authinfo", authinfo_parse);
+  return (last_rc);
+}
+
+/**
+ * Open and parse the \c "%APPDATA%\\envtool.cfg" file only once.
+ */
+static int envtool_cfg_init (void)
+{
+  static int last_rc = -1;
+
+  if (last_rc == -1)
+     last_rc = common_init ("%APPDATA%\\envtool.cfg", envtool_cfg_parse);
+  return (last_rc);
 }
 
 /**
@@ -237,7 +339,7 @@ int authinfo_init (void)
  */
 void netrc_exit (void)
 {
-  common_exit (TRUE);
+  common_exit (LOGIN_NETRC);
 }
 
 /**
@@ -245,35 +347,19 @@ void netrc_exit (void)
  */
 void authinfo_exit (void)
 {
-  common_exit (FALSE);
+  common_exit (LOGIN_AUTHINFO);
 }
 
 /**
- * Use this externally like:
- * \c 'netrc_lookup (NULL, NULL, NULL)' can be used for test/debug.
+ * Free the login_list entries assosiated with the \c "%APPDATA%\\envtool.cfg" file.
  */
-int netrc_lookup (const char *host, const char **user, const char **passw)
+void envtool_cfg_exit (void)
 {
-  const struct login_info *li = common_lookup (host, TRUE);
-
-  if (!li)
-     return (0);
-
-  if (user)
-     *user = li->user;
-  if (passw)
-     *passw = li->passw;
-  return (1);
+  common_exit (LOGIN_ENVTOOL_CFG);
 }
 
-/**
- * Use this externally like:
- * \c 'authinfo_lookup (NULL, NULL, NULL, NULL)' can be used for test/debug.
- */
-int authinfo_lookup (const char *host, const char **user, const char **passw, int *port)
+static int return_login (const struct login_info *li, const char **user, const char **passw, int *port)
 {
-  const struct login_info *li = common_lookup (host, FALSE);
-
   if (!li)
      return (0);
 
@@ -284,5 +370,55 @@ int authinfo_lookup (const char *host, const char **user, const char **passw, in
   if (port)
      *port = li->port;
   return (1);
+}
+
+/**
+ * Use this externally like:
+ * \c 'netrc_lookup (NULL, NULL, NULL)' can be used for test/debug.
+ */
+int netrc_lookup (const char *host, const char **user, const char **passw)
+{
+  const struct login_info *li;
+
+  if (!netrc_init())
+     return (0);
+
+  li = common_lookup (host, LOGIN_NETRC);
+  return return_login (li, user, passw, NULL);
+}
+
+/**
+ * Use this externally like:
+ * \c 'authinfo_lookup (NULL, NULL, NULL, NULL)' can be used for test/debug.
+ */
+int authinfo_lookup (const char *host, const char **user, const char **passw, int *port)
+{
+  const struct login_info *li;
+
+  if (!authinfo_init())
+     return (0);
+
+  li = common_lookup (host, LOGIN_AUTHINFO);
+  return return_login (li, user, passw, port);
+}
+
+/**
+ * Use this externally like:
+ * \c 'envtool_cfg_lookup (NULL, NULL, NULL, NULL)' can be used for test/debug.
+ */
+int envtool_cfg_lookup (const char *host, const char **user, const char **passw, int *port)
+{
+  const struct login_info *li;
+
+  if (!envtool_cfg_init())
+     return (0);
+
+  li = common_lookup (host, LOGIN_ENVTOOL_CFG);
+
+  /* Since a `~/envtool.cfg` does not have a default login entry,
+   */
+  if (!li && !host)
+     return (1);
+  return return_login (li, user, passw, port);
 }
 
