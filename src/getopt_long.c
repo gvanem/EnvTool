@@ -603,7 +603,8 @@ int getopt_long_only (int nargc, char * const *nargv, const char *options,
 }
 
 /**
- * Dummy function when caller did set his own functions.
+ * Dummy function used when caller did not set his own `set_option` functions
+ * to set either a short or long option.
  */
 static void dummy_set_opt (int o, const char *arg)
 {
@@ -740,7 +741,7 @@ void getopt_parse (struct command_line *c)
     }
   }
 
-  if (wcsstr(cmd,L" -d"))    /* because getopt_long hasn't been called yet */
+  if (wcsstr(cmd,L" -dd"))    /* because getopt_long hasn't been called yet */
      opt.debug = DEBUGF_LEVEL;
 
   wargV = CommandLineToArgvW (cmd, &wargC);
