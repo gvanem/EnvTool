@@ -1010,7 +1010,7 @@ static const char *py_relative (struct python_info *py, const char *file)
      rel = relative_to_user_site (py, file);
 
   if (rel)
-    return (rel);
+     return (rel);
 
   /* Returns 'file' unchanged except for the slashes.
    */
@@ -2004,11 +2004,12 @@ void py_searchpaths (void)
 {
   struct python_info *pi;
   const char *ignored;
+  char  fname [_MAX_PATH] = { '\0' };
   int   i, num = 0, max = smartlist_len (py_programs);
+  int   slash  = (opt.show_unix_paths ? '/' : '\\');
 
   for (i = 0; i < max; i++)
   {
-    char  fname [_MAX_PATH] = { '\0' };
     char  version [12] = { '\0' };
     char *bitness = "?";
 
@@ -2021,7 +2022,7 @@ void py_searchpaths (void)
 
     if (pi->exe_name)
     {
-      slashify2 (fname, pi->exe_name, opt.show_unix_paths ? '/' : '\\');
+      slashify2 (fname, pi->exe_name, slash);
       num++;
     }
 
@@ -2067,7 +2068,8 @@ void py_searchpaths (void)
   {
     if (i == 0)
        C_puts ("\n   Ignored:\n");
-    C_printf ("       %s\n", ignored);
+    slashify2 (fname, ignored, slash);
+    C_printf ("       %s\n", fname);
   }
 }
 
