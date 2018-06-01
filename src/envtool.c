@@ -122,6 +122,7 @@ static UINT64   total_size = 0;
 static DWORD    num_version_ok = 0;
 static DWORD    num_verified = 0;
 static DWORD    num_evry_dups = 0;
+static DWORD    num_evry_ignored = 0;
 static BOOL     have_sys_native_dir = FALSE;
 static BOOL     have_sys_wow64_dir  = FALSE;
 
@@ -1533,6 +1534,7 @@ static void final_report (int found)
 {
   BOOL do_warn = FALSE;
   char duplicates [50] = "";
+  char ignored [50] = "";
 
   if ((found_in_hkey_current_user || found_in_hkey_current_user_env ||
        found_in_hkey_local_machine || found_in_hkey_local_machine_sess_man) &&
@@ -1578,8 +1580,12 @@ static void final_report (int found)
      snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)",
                (unsigned long)ETP_num_evry_dups);
 
-  C_printf ("%s match%s found for \"%s\"%s.",
-            dword_str((DWORD)found), (found == 0 || found > 1) ? "es" : "", opt.file_spec, duplicates);
+  if (num_evry_ignored)
+     snprintf (ignored, sizeof(ignored), " (%lu ignored)",
+               (unsigned long)num_evry_ignored);
+
+  C_printf ("%s match%s found for \"%s\"%s%s.",
+            dword_str((DWORD)found), (found == 0 || found > 1) ? "es" : "", opt.file_spec, duplicates, ignored);
 
   if (opt.show_size && total_size > 0)
      C_printf (" Totalling %s (%s bytes). ",
@@ -2538,6 +2544,12 @@ static int do_check_evry (void)
               evry_strerror(err));
       len = 0;
       break;
+    }
+
+    if (cfg_ignore_lookup("[EveryThing]",file))
+    {
+      num_evry_ignored++;
+      continue;
     }
 
     if (request_flags & EVERYTHING_REQUEST_DATE_MODIFIED)
@@ -3983,7 +3995,7 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
   }
   else if (!strncmp(line,"-I",2))
   {
-    split_env_var ("Borland INC", line+2);
+    split_env_var ("Borland INC", str_ltrim(line+2));
   }
   ARGSUSED (sl);
 }
@@ -4018,7 +4030,7 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
   }
   else if (!strncmp(line,"-L",2))
   {
-    split_env_var ("Borland LIB", line+2);
+    split_env_var ("Borland LIB", str_ltrim(line+2));
   }
   ARGSUSED (sl);
 }

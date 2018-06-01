@@ -21,7 +21,8 @@ static const struct search_list sections[] = {
                               { 1, "[Registry]" },
                               { 2, "[Python]" },
                               { 3, "[PE-resources]" },
-                              { 4, "[Login]" }  /* Only used in auth.c */
+                              { 4, "[EveryThing]" },
+                              { 5, "[Login]" }  /* Only used in auth.c */
                             };
 
 /**\struct ignore_node
@@ -137,9 +138,24 @@ int cfg_ignore_lookup (const char *section, const char *value)
   {
     const struct ignore_node *node = smartlist_get (ignore_list, i);
 
-    if (!stricmp(section, node->section) && !stricmp(value, node->value))
+     /* Not this section, try the next
+      */
+    if (stricmp(section, node->section))
+       continue;
+
+    /* An exact case-insensitive match
+     */
+    if (!stricmp(value, node->value))
     {
       DEBUGF (3, "Found '%s' in %s.\n", value, section);
+      return (1);
+    }
+
+    /* A wildcard case-insensitive match
+     */
+    if (fnmatch(node->value, value, FNM_FLAG_NOCASE) == FNM_MATCH)
+    {
+      DEBUGF (3, "Wilcard match for '%s' in %s.\n", value, section);
       return (1);
     }
   }
@@ -207,7 +223,7 @@ const char *cfg_ignore_next (const char *section)
   for (i = next_idx; i < max; i++)
   {
     node = smartlist_get (ignore_list, i);
-    if (!stricmp(section,sections[curr_sec].name) &&
+    if (!stricmp(section, sections[curr_sec].name) &&
         !stricmp(section, node->section))
     {
       next_idx = i + 1;
