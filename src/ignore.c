@@ -155,7 +155,7 @@ int cfg_ignore_lookup (const char *section, const char *value)
      */
     if (fnmatch(node->value, value, FNM_FLAG_NOCASE) == FNM_MATCH)
     {
-      DEBUGF (3, "Wilcard match for '%s' in %s.\n", value, section);
+      DEBUGF (3, "Wildcard match for '%s' in %s.\n", value, section);
       return (1);
     }
   }
