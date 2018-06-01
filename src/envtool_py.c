@@ -2006,7 +2006,7 @@ void py_searchpaths (void)
   const char *ignored;
   char  fname [_MAX_PATH] = { '\0' };
   int   i, num = 0, max = smartlist_len (py_programs);
-  int   slash  = (opt.show_unix_paths ? '/' : '\\');
+  char  slash  = (opt.show_unix_paths ? '/' : '\\');
 
   for (i = 0; i < max; i++)
   {
