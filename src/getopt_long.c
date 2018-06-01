@@ -99,7 +99,7 @@ int   optind, opterr = 1, optopt;
 
 static unsigned debugf_line;
 
-#define DEBUGF_LEVEL 2
+#define DEBUGF_LEVEL 3
 
 #undef  DEBUGF
 #define DEBUGF(...)                                    \
@@ -741,7 +741,7 @@ void getopt_parse (struct command_line *c)
     }
   }
 
-  if (wcsstr(cmd,L" -dd"))    /* because getopt_long hasn't been called yet */
+  if (wcsstr(cmd,L" -ddd"))    /* because getopt_long hasn't been called yet */
      opt.debug = DEBUGF_LEVEL;
 
   wargV = CommandLineToArgvW (cmd, &wargC);
