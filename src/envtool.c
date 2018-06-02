@@ -152,7 +152,7 @@ static int        re_alloc;       /* the above 're_hnd' was allocated */
 volatile int halt_flag;
 
 /*
- * The list of prefixes for gnu tools.
+ * The list of prefixes for gnu C/C++ compilers.
  * E.g. we try "gcc.exe" ... "avr-gcc.exe" to figure out the
  *      %C_INCLUDE_PATH, %CPLUS_INCLUDE_PATH and %LIBRARY_PATH.
  *      Unless one of the '<path>/<prefix>-gcc.exe' are in the
@@ -161,10 +161,11 @@ volatile int halt_flag;
  * \todo add more prefixes from envtool.cfg here?
  */
 static const char *gnu_prefixes[] = {
-                  "x86_64-w64-mingw32",
-                  "i386-mingw32",
-                  "i686-w64-mingw32",
-                  "avr"
+                  "",
+                  "x86_64-w64-mingw32-",
+                  "i386-mingw32-",
+                  "i686-w64-mingw32-",
+                  "avr-"
                 };
 
 /** Get the bitness (32/64-bit) of the EveryThing program.
@@ -595,8 +596,11 @@ static int show_help (void)
           "      ~3%LIBRARY_PATH%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
           "      These ~4<prefix>~0-es are built-in: ");
 
-  for (i = 0; i < DIM(gnu_prefixes); i++)
-      C_printf ("~6%s~0%s", gnu_prefixes[i], i <= DIM(gnu_prefixes)-2 ? ", " : ".");
+  for (i = 1; i < DIM(gnu_prefixes); i++)
+  {
+    size_t len = strlen (gnu_prefixes[i]);
+    C_printf ("~6%.*s~0%s", len-1, gnu_prefixes[i], i <= DIM(gnu_prefixes)-2 ? ", " : ".");
+  }
 
   C_puts ("\n\n"
           "  ~2[3]~0 The ~6--python~0 option can be detailed further with ~3=X~0:\n");
@@ -3393,29 +3397,22 @@ static int process_gcc_dirs (const char *gcc, int *num_dirs)
  */
 static void add_gnu_compilers (void)
 {
-  size_t i, num_gnu = 1 + DIM(gnu_prefixes);
   char   short_name[30];
+  size_t i;
 
-  for (i = 0; i < num_gnu; i++)
+  for (i = 0; i < DIM(gnu_prefixes); i++)
   {
     compiler_info *gcc = CALLOC (sizeof(*gcc), 1);
     compiler_info *gpp = CALLOC (sizeof(*gpp), 1);
 
-    if (i == 0)
-    {
-      gcc->short_name = STRDUP ("gcc.exe");
-      gpp->short_name = STRDUP ("g++.exe");
-    }
-    else
-    {
-      snprintf (short_name, sizeof(short_name)-1, "%s-gcc.exe", gnu_prefixes[i-1]);
-      gcc->short_name = STRDUP (short_name);
-      gcc->no_prefix  = opt.gcc_no_prefixed;
+    snprintf (short_name, sizeof(short_name)-1, "%sgcc.exe", gnu_prefixes[i]);
+    gcc->short_name = STRDUP (short_name);
+    gcc->no_prefix  = (i > 0 && opt.gcc_no_prefixed);
 
-      snprintf (short_name, sizeof(short_name)-1, "%s-g++.exe", gnu_prefixes[i-1]);
-      gpp->short_name = STRDUP (short_name);
-      gpp->no_prefix  = opt.gcc_no_prefixed;
-    }
+    snprintf (short_name, sizeof(short_name)-1, "%sg++.exe", gnu_prefixes[i]);
+    gpp->short_name = STRDUP (short_name);
+    gpp->no_prefix  = (i > 0 && opt.gcc_no_prefixed);
+
     gcc->type = CC_GNU_GCC;
     gpp->type = CC_GNU_GPP;
 
