@@ -3453,15 +3453,24 @@ static void add_msvc_compilers (void)
 
 static void add_clang_cl_compilers (void)
 {
-  compiler_info *clang = CALLOC (sizeof(*clang), 1);
-  const char    *full_name;
+  static const char *clang[] = {
+                    "clang-cl.exe",
+                    "clang.exe"
+                  };
+  int i;
 
-  clang->type       = CC_CLANG_CL;
-  clang->short_name = STRDUP ("clang-cl.exe");
-  full_name         = searchpath (clang->short_name, "PATH");
-  if (full_name)
-      clang->full_name = STRDUP (full_name);
-  smartlist_add (all_cc, clang);
+  for (i = 0; i < DIM(clang); i++)
+  {
+    compiler_info *cl = CALLOC (sizeof(*cl), 1);
+    const char    *full_name;
+
+    cl->type       = CC_CLANG_CL;
+    cl->short_name = STRDUP (clang[i]);
+    full_name      = searchpath (cl->short_name, "PATH");
+    if (full_name)
+        cl->full_name = STRDUP (full_name);
+    smartlist_add (all_cc, cl);
+  }
 }
 
 static void add_borland_compilers (void)
@@ -3557,7 +3566,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
   struct directory_array *arr;
   smartlist_t            *list;
   char                  **copy;
-  char                    slash = opt.show_unix_paths ? '/' : '\\';
+  char                    slash = (opt.show_unix_paths ? '/' : '\\');
   int                     i, j, max;
   static BOOL done_note = FALSE;
 
@@ -3757,7 +3766,8 @@ static int check_gnu_includes (compiler_type type, int *num_dirs)
 
 static int do_check_gcc_includes (void)
 {
-  int num_dirs, found = check_gnu_includes (CC_GNU_GCC, &num_dirs);
+  int num_dirs;
+  int found = check_gnu_includes (CC_GNU_GCC, &num_dirs);
 
   if (num_dirs == 0 && !ignore_all_gcc)  /* Impossible unless we ignore all '*gcc' */
      WARN ("No gcc.exe programs returned any include paths.\n");
@@ -3766,7 +3776,8 @@ static int do_check_gcc_includes (void)
 
 static int do_check_gpp_includes (void)
 {
-  int num_dirs, found = check_gnu_includes (CC_GNU_GPP, &num_dirs);
+  int num_dirs;
+  int found = check_gnu_includes (CC_GNU_GPP, &num_dirs);
 
   if (num_dirs == 0 && !ignore_all_gpp)  /* Impossible unless we ignore all '*g++.exe' */
      WARN ("No g++.exe programs returned any include paths.\n");
@@ -3916,7 +3927,7 @@ static int do_check_watcom_includes (void)
   {
     struct directory_array *arr = smartlist_get (dir_array, i);
 
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, TRUE,
                           arr->is_dir, arr->exp_ok, "WATCOM", HKEY_INC_LIB_FILE, FALSE);
   }
 
@@ -3949,7 +3960,7 @@ static int do_check_watcom_library_paths (void)
   {
     struct directory_array *arr = smartlist_get (dir_array, i);
 
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, TRUE,
                           arr->is_dir, arr->exp_ok, "WATCOM", HKEY_INC_LIB_FILE, FALSE);
   }
   dump_dir_array ("Watcom libs", "");
@@ -4035,131 +4046,112 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
   ARGSUSED (sl);
 }
 
-static const char *setup_borland_dirs (bcc_parser_func parser)
+/**
+ * Setup Borland directories for either a INC or LIB search.
+ */
+static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
 {
-  const struct compiler_info *cc;
-  const char  *full_name = NULL;
-  const char  *short_name = NULL;
   smartlist_t *dir_list;
   char        *bin_dir;
   char         bcc_cfg [_MAX_PATH];
-  int          i, max = smartlist_len (all_cc);
-  int          found, ignored;
   int          slash = (opt.show_unix_paths ? '/' : '\\');
 
-  for (i = found = ignored = 0; i < max; i++)
-  {
-    cc = smartlist_get (all_cc, i);
-    if (!cc->full_name || cc->type != CC_BORLAND)
-       continue;
-
-    found++;
-    if (cc->ignore)
-       ignored++;
-
-    full_name  = cc->full_name;
-    short_name = cc->short_name;
-  }
-
-  if (found == 0)
-  {
-    DEBUGF (1, "No Borland compilers found.\n");
-    return (NULL);
-  }
-
-  if (ignored >= found)
-  {
-    DEBUGF (1, "All Borland compilers were ignored.\n");
-    return (NULL);
-  }
-
-  bcc_root = strlwr (STRDUP(full_name));
+  bcc_root = strlwr (STRDUP(cc->full_name));
   bin_dir =  strrchr (bcc_root, slash);
   *bin_dir = '\0';
   bin_dir =  strrchr (bcc_root, slash);
   *bin_dir = '\0';
 
-  DEBUGF (1, "bcc_root: %s, short_name: %s\n", bcc_root, short_name);
+  DEBUGF (2, "bcc_root: %s, short_name: %s\n", bcc_root, cc->short_name);
 
-  /* Get the 'bcc*.cfg' filename.
+  /* Get the 'bcc*.cfg' filename:
    * <bcc_root>\bccX.exe -> <bcc_root>\bccX.cfg
    */
-  snprintf (bcc_cfg, sizeof(bcc_cfg), "%s\\bin\\%.*s.cfg", bcc_root, strrchr(short_name,'.')-short_name, short_name);
+  snprintf (bcc_cfg, sizeof(bcc_cfg), "%s\\bin\\%.*s.cfg",
+            bcc_root, strrchr(cc->short_name,'.') - cc->short_name, cc->short_name);
 
-  DEBUGF (1, "bcc_cfg: %s.\n", bcc_cfg);
+  DEBUGF (2, "bcc_cfg: %s.\n", bcc_cfg);
 
   dir_list = smartlist_read_file (bcc_cfg, (smartlist_parse_func)parser);
   if (!dir_list)
   {
     FREE (bcc_root);
-    return (NULL);
+    return (FALSE);
   }
   smartlist_free (dir_list);  /* No need for this */
-  return (full_name);
+  return (TRUE);
+}
+
+static int do_check_borland_inc_lib (const char *inc_lib, const char *matches, bcc_parser_func parser)
+{
+  int   ignored, bcc_found, found = 0;
+  int   i, j, max_i, max_j;
+  const compiler_info *cc;
+
+  max_i = smartlist_len (all_cc);
+
+  for (i = bcc_found = ignored = 0; i < max_i; i++)
+  {
+    cc = smartlist_get (all_cc, i);
+    if (!cc->full_name || cc->type != CC_BORLAND)
+       continue;
+
+    bcc_found++;
+    if (cc->ignore)
+       ignored++;
+
+    if (!cc->ignore && setup_borland_dirs(cc, parser))
+    {
+      char report [_MAX_PATH+50];
+
+      snprintf (report, sizeof(report), matches, cc->full_name);
+      report_header = report;
+
+      max_j = smartlist_len (dir_array);
+      for (j = 0; j < max_j; j++)
+      {
+        struct directory_array *arr = smartlist_get (dir_array, j);
+
+        DEBUGF (1, "arr->dir: %s.\n", arr->dir);
+
+        found += process_dir (arr->dir, arr->num_dup, arr->exist, TRUE,
+                              arr->is_dir, arr->exp_ok, inc_lib,
+                              HKEY_INC_LIB_FILE, FALSE);
+      }
+      free_dir_array();
+      FREE (bcc_root);
+    }
+  }
+
+  if (bcc_found == 0)
+  {
+    DEBUGF (1, "No Borland compilers found.\n");
+    return (0);
+  }
+  if (ignored >= bcc_found)
+  {
+    DEBUGF (1, "All Borland compilers were ignored.\n");
+    return (0);
+  }
+  return (found);
 }
 
 /**
- * Check the first 'bcc*.exe' found for an internal INCLUDE search.
- *
- * \todo should search headers for all 'bcc*.exe' found in 'add_borland_compilers()'
+ * Check all 'bcc*.exe' found on PATH for an INC search.
  */
 static int do_check_borland_includes (void)
 {
-  int         i, max, found = 0;
-  const char *cc_name = setup_borland_dirs (bcc32_cfg_parse_inc);
-  char        report [_MAX_PATH+50];
-
-  if (!cc_name)
-     return (0);
-
-  snprintf (report, sizeof(report), "Matches in %s headers:\n", cc_name);
-  report_header = report;
-
-  max = smartlist_len (dir_array);
-  for (i = 0; i < max; i++)
-  {
-    struct directory_array *arr = smartlist_get (dir_array, i);
-
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
-                          arr->is_dir, arr->exp_ok, "BORLAND INC",
-                          HKEY_INC_LIB_FILE, FALSE);
-  }
-  free_dir_array();
-  FREE (bcc_root);
-  return (found);
+  return do_check_borland_inc_lib ("Borland INC", "Matches in %s headers:\n",
+                                   bcc32_cfg_parse_inc);
 }
 
 /**
- * Check the first 'bcc*.exe' found for an internal LIB search.
- *
- * \todo should search libraries for all 'bcc*.exe' found in 'add_borland_compilers()'
+ * Check all 'bcc*.exe' found on PATH for an LIB search.
  */
 static int do_check_borland_library_paths (void)
 {
-  int  i, max, found = 0;
-  const char *cc_name = setup_borland_dirs (bcc32_cfg_parse_lib);
-  char        report [_MAX_PATH+50];
-
-  if (!cc_name)
-     return (0);
-
-  snprintf (report, sizeof(report), "Matches in %s libraries:\n", cc_name);
-  report_header = report;
-
-  max = smartlist_len (dir_array);
-  for (i = 0; i < max; i++)
-  {
-    struct directory_array *arr = smartlist_get (dir_array, i);
-
-    DEBUGF (1, "arr->dir: %s.\n", arr->dir);
-
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, 0,
-                          arr->is_dir, arr->exp_ok, "BORLAND LIBS",
-                          HKEY_INC_LIB_FILE, FALSE);
-  }
-  free_dir_array();
-  FREE (bcc_root);
-  return (found);
+  return do_check_borland_inc_lib ("Borland LIB", "Matches in %s libraries:\n",
+                                   bcc32_cfg_parse_lib);
 }
 
 /*
