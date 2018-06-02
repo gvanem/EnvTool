@@ -2050,10 +2050,10 @@ void py_searchpaths (void)
 
       opt.cache_ver_level = 3;
       g_py = pi;
-      print_home_path (g_py, 18);
-      print_user_site_path (g_py, 18);
+      print_home_path (g_py, 15);
+      print_user_site_path (g_py, 15);
       get_sys_path (g_py);
-      print_sys_path (g_py, 18);
+      print_sys_path (g_py, 15);
       opt.cache_ver_level = save;
     }
   }
