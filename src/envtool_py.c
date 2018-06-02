@@ -2029,8 +2029,7 @@ void py_searchpaths (void)
     if (i == 0)
       C_putc ('\n');
 
-    C_printf ("   %s %-*s %-*s -> ~%c%s~0",
-              pi->is_default ? "~3(1)~0" : "   ",
+    C_printf ("    %-*s %-*s -> ~%c%s~0",
               1+longest_py_program, pi->program,
               2+longest_py_version, version,
               fname[0] ? '6' : '5',
@@ -2040,6 +2039,9 @@ void py_searchpaths (void)
        C_printf (" (embeddable, but not %s-bit)", bitness);
     else if (pi->dll_name)
        C_printf (" (%sembeddable)", pi->is_embeddable ? "": "not ");
+
+    if (pi->is_default)
+       C_puts ("  ~3(1)~0");
     C_putc ('\n');
 
     if (pi->exe_name && opt.do_version >= 3)
@@ -2057,8 +2059,8 @@ void py_searchpaths (void)
   }
 
   if (num > 0)
-       C_puts ("   ~3(1)~0 Default Python (first found on PATH).\n");
-  else C_puts ("   <None>.\n");
+       C_puts ("    ~3(1)~0 Default Python (first found on PATH).\n");
+  else C_puts ("    <None>.\n");
 
   /* Show the Python that were ignored.
    */
@@ -2067,9 +2069,9 @@ void py_searchpaths (void)
        ignored = cfg_ignore_next("[Python]"), i++)
   {
     if (i == 0)
-       C_puts ("\n   Ignored:\n");
+       C_puts ("\n    Ignored:\n");
     slashify2 (fname, ignored, slash);
-    C_printf ("       %s\n", fname);
+    C_printf ("      %s\n", fname);
   }
 }
 
