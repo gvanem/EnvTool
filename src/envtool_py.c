@@ -2030,8 +2030,8 @@ void py_searchpaths (void)
       C_putc ('\n');
 
     C_printf ("    %-*s %-*s -> ~%c%s~0",
-              1+longest_py_program, pi->program,
-              2+longest_py_version, version,
+              longest_py_program, pi->program,
+              longest_py_version, version,
               fname[0] ? '6' : '5',
               fname[0] ? fname : "Not found");
 
@@ -2050,10 +2050,10 @@ void py_searchpaths (void)
 
       opt.cache_ver_level = 3;
       g_py = pi;
-      print_home_path (g_py, 15);
-      print_user_site_path (g_py, 15);
+      print_home_path (g_py, 12);
+      print_user_site_path (g_py, 12);
       get_sys_path (g_py);
-      print_sys_path (g_py, 15);
+      print_sys_path (g_py, 12);
       opt.cache_ver_level = save;
     }
   }
