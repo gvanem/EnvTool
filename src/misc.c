@@ -3197,6 +3197,11 @@ char *translate_shell_pattern (const char *pattern)
             *out++ = '\\';
             break;
 
+       case '$':
+            *out++ = '\\';
+            *out++ = '$';
+            break;
+
        case '?':
             *out++ = '.';
             break;
