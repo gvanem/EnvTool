@@ -315,7 +315,7 @@ void seekdir2 (DIR2 *dp, long ofs)
 
 long telldir2 (DIR2 *dp)
 {
-  return (dp->dd_loc);
+  return (long) (dp->dd_loc);
 }
 
 void rewinddir2 (DIR2 *dp)

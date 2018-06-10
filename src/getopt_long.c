@@ -782,9 +782,9 @@ void getopt_parse (struct command_line *c)
       break;
     }
 
-    wlen = WideCharToMultiByte (acp, 0, warg, wcslen(warg), 0, 0, 0, 0);
+    wlen = WideCharToMultiByte (acp, 0, warg, (int)wcslen(warg), 0, 0, 0, 0);
     aarg = MALLOC (2 * (wlen+1));
-    WideCharToMultiByte (acp, 0, warg, wcslen(warg), aarg, wlen, 0, 0);
+    WideCharToMultiByte (acp, 0, warg, (int)wcslen(warg), aarg, (int)wlen, 0, 0);
     aarg [wlen] = '\0';
 
     /* The cmd-line contains a response file. If it doesn't exist, simply add

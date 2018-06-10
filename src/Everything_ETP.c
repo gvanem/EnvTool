@@ -786,7 +786,7 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx)
   tv.tv_sec  = 0;
   tv.tv_usec = SELECT_TIME_USEC;
 
-  rc = select (ctx->sock+1, NULL, &wr_fds, &ex_fds, &tv);
+  rc = (int) select ((int)(ctx->sock+1), NULL, &wr_fds, &ex_fds, &tv);
   if (rc >= 1)
   {
     if (FD_ISSET(ctx->sock,&wr_fds))
@@ -1323,7 +1323,7 @@ static int rbuf_read_sock (struct state_CTX *ctx)
     FD_SET (ctx->sock, &ex_fds);
     tv.tv_sec  = ctx->timeout / 1000;
     tv.tv_usec = ctx->timeout % 1000;
-    rc = select (ctx->sock+1, &rd_fds, NULL, &ex_fds, &tv);
+    rc = (int) select ((int)(ctx->sock+1), &rd_fds, NULL, &ex_fds, &tv);
     if (rc <= 0)
        return (rc);
   }

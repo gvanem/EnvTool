@@ -2637,7 +2637,7 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
 
   va_start (args, format);
   if (fmt_len > fmt_buf->buffer_size)
-     FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", 2*fmt_len);
+     FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", (int)(2*fmt_len));
 
   marker = (const DWORD*) fmt_buf->buffer;
   if (*marker != FMT_BUF_MARKER)
@@ -2658,7 +2658,7 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
    * Force next call to 'buf_printf()' to append at the 'end' position.
    */
   end = strchr (fmt_buf->buffer_pos, '\0');
-  len = end - fmt_buf->buffer_pos;
+  len = (int) (end - fmt_buf->buffer_pos);
 
   /* Assume 'len' is always positive.
    */
@@ -2675,7 +2675,7 @@ int buf_puts (FMT_buf *fmt_buf, const char *string)
   const DWORD *marker;
 
   if (str_len > fmt_buf->buffer_left)
-     FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", 1+str_len);
+     FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", (int)(1+str_len));
 
   marker = (const DWORD*) fmt_buf->buffer;
   if (*marker != FMT_BUF_MARKER)
@@ -2688,7 +2688,7 @@ int buf_puts (FMT_buf *fmt_buf, const char *string)
   strcpy (fmt_buf->buffer_pos, string);
   fmt_buf->buffer_left -= str_len;
   fmt_buf->buffer_pos  += str_len;
-  return (str_len);
+  return (int)(str_len);
 }
 
 void buf_reset (FMT_buf *fmt_buf)
@@ -3131,8 +3131,11 @@ char *getenv_expand (const char *variable)
  * \param  variable   The environment variable to expand.
  * \retval an allocated string of the expanded result.
  * \retval NULL if the expansion failed.
+ *
+ * \note If the SYSTEM is 64-bit and the program is 32-bit, the
+ *       'ExpandEnvironmentStringsForUserA()' system-call always seems to
+ *       use WOW64 to return a (possibly wrong) value.
  */
-
 char *getenv_expand_sys (const char *variable)
 {
   DWORD size = 0;
@@ -3155,6 +3158,7 @@ char *getenv_expand_sys (const char *variable)
 
     if (size > 0)
        rc = STRDUP (buf);
+    DEBUGF (3, "variable: '%s', expanded: '%s'\n", variable, rc);
   }
   return (rc);
 }
@@ -3312,7 +3316,7 @@ char *strreverse (char *str)
 {
   int i, j;
 
-  for (i = 0, j = strlen(str)-1; i < j; i++, j--)
+  for (i = 0, j = (int)strlen(str)-1; i < j; i++, j--)
   {
     char c = str[i];
     str[i] = str[j];
@@ -3440,7 +3444,7 @@ BOOL wchar_to_mbchar (size_t len, const wchar_t *buf, char *result)
   def_char = NULL;
 #endif
 
-  num = WideCharToMultiByte (cp, 0, buf, len, result, _MAX_PATH, def_char, NULL);
+  num = WideCharToMultiByte (cp, 0, buf, (int)len, result, _MAX_PATH, def_char, NULL);
   if (num == 0)
      return reparse_err (1, "WideCharToMultiByte(): %s\n",
                          win_strerror(GetLastError()));

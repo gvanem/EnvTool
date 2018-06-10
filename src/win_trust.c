@@ -698,7 +698,7 @@ static wchar_t *evil_char_to_wchar (const char *text)
   if (!text)
      return (NULL);
 
-  wsize = MultiByteToWideChar (CP_ACP, 0, text, strlen(text)+1, NULL, 0);
+  wsize = MultiByteToWideChar (CP_ACP, 0, text, (int)strlen(text)+1, NULL, 0);
   if (wsize == 0 || wsize > (ULONG_MAX/sizeof(wchar_t)))
   {
     if (wsize == 0)
@@ -707,7 +707,7 @@ static wchar_t *evil_char_to_wchar (const char *text)
   }
 
   wtext = MALLOC (wsize * sizeof(wchar_t));
-  if (wtext && !MultiByteToWideChar (CP_ACP, 0, text, strlen(text)+1, wtext, wsize))
+  if (wtext && !MultiByteToWideChar (CP_ACP, 0, text, (int)strlen(text)+1, wtext, wsize))
   {
     ERROR ("MultiByteToWideChar");
     return (NULL);

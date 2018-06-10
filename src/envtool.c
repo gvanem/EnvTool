@@ -48,6 +48,10 @@
 #include "envtool_py.h"
 #include "dirlist.h"
 
+#if defined(HAVE_FIND_VSTUDIO_C)
+  extern BOOL find_vstudio_init (void);
+#endif
+
 /**
  * <!-- \includedoc README.md ->
  * \image html  envtool-help.png "List of modes" width=10cm
@@ -1326,7 +1330,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
      * don't set 'found_everything_db_dirty=1' when we don't 'have_sys_native_dir'.
      */
     if (mtime == 0 &&
-        (!have_sys_native_dir || !stricmp(file,sys_native_dir,strlen(sys_native_dir))))
+        (!have_sys_native_dir || !strnicmp(file,sys_native_dir,strlen(sys_native_dir))))
        have_it = FALSE;
 #endif
 
@@ -2384,8 +2388,8 @@ static BOOL evry_IsDBLoaded (HWND wnd)
 
   if (wnd)
   {
-    loaded = SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_LOADED, 0);
-    busy   = SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_BUSY, 0);
+    loaded = (int) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_LOADED, 0);
+    busy   = (int) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_BUSY, 0);
   }
   DEBUGF (1, "wnd: %p, loaded: %d, busy: %d.\n", wnd, loaded, busy);
   return (loaded && !busy);
@@ -4269,7 +4273,7 @@ static void set_python_variant (const char *arg)
     for (i = 0; py[i] && left > 4; i++)
     {
       p += snprintf (p, left, "\"%s\", ", py[i]);
-      left = sizeof(buf) - (p - buf);
+      left = (int) (sizeof(buf) - (p - buf));
     }
     if (p > buf+2)
        p[-2] = '\0';
@@ -5787,7 +5791,7 @@ static int do_check (void)
 
   for (i = 0, env = envs[0]; i < DIM(envs) && env; env = envs[++i])
   {
-    int  num, indent = sizeof("CPLUS_INCLUDE_PATH") - strlen(env);
+    int  num, indent = (int) (sizeof("CPLUS_INCLUDE_PATH") - strlen(env));
     char status [100+_MAX_PATH];
 
     C_printf ("Checking ~3%%%s%%~0:%*c", env, indent, ' ');
@@ -5906,6 +5910,11 @@ static int do_tests (void)
   test_auth();
 
   test_libssp();
+
+#if defined(HAVE_FIND_VSTUDIO_C)
+  find_vstudio_init();
+#endif
+
   return (0);
 }
 
