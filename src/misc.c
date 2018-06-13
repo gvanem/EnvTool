@@ -3427,7 +3427,7 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
                                              FILE_ANY_ACCESS         /* == 0 */)
 #endif
 
-BOOL wchar_to_mbchar (size_t len, const wchar_t *buf, char *result)
+BOOL wchar_to_mbchar (char *result, size_t len, const wchar_t *buf)
 {
   int   num;
   DWORD cp;
@@ -3547,8 +3547,8 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   }
 
   if (return_print_name)
-     return wchar_to_mbchar (plen, print_name, result);
-  return wchar_to_mbchar (slen, sub_name, result);
+     return wchar_to_mbchar (result, plen, print_name);
+  return wchar_to_mbchar (result, slen, sub_name, result);
 }
 
 #if defined(__POCC__)

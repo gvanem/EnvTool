@@ -418,35 +418,36 @@ int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1
  */
 #define MAX_ENV_VAR  32767
 
-extern void   init_misc    (void);
-extern void   exit_misc    (void);
-extern char *_strlcpy      (char *dst, const char *src, size_t sz);
-extern char *_strrepeat    (int ch, size_t num);
-extern char *_strsep       (char **s, const char *delim);
-extern char *_stracat      (char *s1, const char *s2);
-extern char *_strjoin      (char *const *arr, const char *sep);
-extern char *strip_nl      (char *s);
-extern char *str_ltrim     (char *s);
-extern char *str_rtrim     (char *s);
-extern char *str_trim      (char *s);
-extern int   str_equal     (const char *s1, const char *s2);
-extern int   str_equal_n   (const char *s1, const char *s2, size_t len);
-extern char *str_shorten   (const char *str, size_t max_len);
-extern char *searchpath    (const char *file, const char *env_var);
-extern int   searchpath_pos(void);
-extern char *_fix_path     (const char *path, char *result);
-extern char *_fix_drive    (char *path);
-extern char *path_ltrim    (const char *p1, const char *p2);
-extern char *basename      (const char *fname);
-extern char *dirname       (const char *fname);
-extern int   _is_DOS83     (const char *fname);
-extern char *slashify      (const char *path, char use);
-extern char *slashify2     (char *buf, const char *path, char use);
-extern char *win_strerror  (unsigned long err);
-extern char *ws2_strerror  (int err);
+extern void   init_misc     (void);
+extern void   exit_misc     (void);
+extern char *_strlcpy       (char *dst, const char *src, size_t sz);
+extern char *_strrepeat     (int ch, size_t num);
+extern char *_strsep        (char **s, const char *delim);
+extern char *_stracat       (char *s1, const char *s2);
+extern char *_strjoin       (char *const *arr, const char *sep);
+extern char *strip_nl       (char *s);
+extern char *str_ltrim      (char *s);
+extern char *str_rtrim      (char *s);
+extern char *str_trim       (char *s);
+extern int   str_equal      (const char *s1, const char *s2);
+extern int   str_equal_n    (const char *s1, const char *s2, size_t len);
+extern char *str_shorten    (const char *str, size_t max_len);
+extern char *searchpath     (const char *file, const char *env_var);
+extern int   searchpath_pos (void);
+extern char *_fix_path      (const char *path, char *result);
+extern char *_fix_drive     (char *path);
+extern char *path_ltrim     (const char *p1, const char *p2);
+extern char *basename       (const char *fname);
+extern char *dirname        (const char *fname);
+extern int   _is_DOS83      (const char *fname);
+extern char *slashify       (const char *path, char use);
+extern char *slashify2      (char *buf, const char *path, char use);
+extern char *win_strerror   (unsigned long err);
+extern char *ws2_strerror   (int err);
+extern BOOL  wchar_to_mbchar(char *result, size_t len, const wchar_t *buf);
 
-extern void  set_error_mode(int on_off);
-extern int  _file_exists   (const char *file);
+extern void  set_error_mode (int on_off);
+extern int  _file_exists    (const char *file);
 
 extern char *getenv_expand     (const char *variable);
 extern char *getenv_expand_sys (const char *variable);
