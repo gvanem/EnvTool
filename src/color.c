@@ -61,7 +61,7 @@
                          } while (0)
 
 static int c_trace = 0;
-static const char *C_dump20 (const void *data_p, unsigned size);
+static const char *C_dump20 (const void *data_p, size_t size);
 extern int         is_cygwin_tty (int fd);
 
 #define TRACE(level, ...)  do {                             \
@@ -760,11 +760,11 @@ size_t C_screen_width (void)
 /**
  * Dump max 20 bytes of data as hex-printables.
  */
-static const char *C_dump20 (const void *data, unsigned size)
+static const char *C_dump20 (const void *data, size_t size)
 {
   static char ret [25];
-  unsigned  ofs;
-  int       ch;
+  size_t ofs;
+  int    ch;
 
   for (ofs = 0; ofs < sizeof(ret)-4 && ofs < size; ofs++)
   {
