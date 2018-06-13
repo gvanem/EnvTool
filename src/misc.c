@@ -3548,7 +3548,7 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 
   if (return_print_name)
      return wchar_to_mbchar (result, plen, print_name);
-  return wchar_to_mbchar (result, slen, sub_name, result);
+  return wchar_to_mbchar (result, slen, sub_name);
 }
 
 #if defined(__POCC__)
