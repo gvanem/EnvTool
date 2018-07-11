@@ -68,7 +68,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;_DEBUG;_CONSOLE;_CRT_NON_CONFORMING_SWPRINTFS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;_DEBUG;_CONSOLE;_CRT_NON_CONFORMING_SWPRINTFS;HAVE_FIND_VSTUDIO_C;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN %(AdditionalOptions)</AdditionalOptions>
@@ -81,7 +81,7 @@
       <ShowProgress>NotSet</ShowProgress>
       <Version>
       </Version>
-      <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;psapi.lib;crypt32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;psapi.lib;crypt32.lib;ws2_32.lib;ole32.lib;oleaut32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SetChecksum>true</SetChecksum>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
       <GenerateMapFile>true</GenerateMapFile>
@@ -98,7 +98,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;NDEBUG;_CONSOLE;_CRT_NON_CONFORMING_SWPRINTFS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;NDEBUG;_CONSOLE;_CRT_NON_CONFORMING_SWPRINTFS;HAVE_FIND_VSTUDIO_C;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN %(AdditionalOptions)</AdditionalOptions>
@@ -113,7 +113,7 @@
       <ShowProgress>NotSet</ShowProgress>
       <Version>
       </Version>
-      <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;psapi.lib;crypt32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;psapi.lib;crypt32.lib;ws2_32.lib;ole32.lib;oleaut32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SetChecksum>true</SetChecksum>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
       <GenerateMapFile>true</GenerateMapFile>
