@@ -22,7 +22,7 @@
 
 #include "envtool.h"
 
-#if defined(HAVE_FIND_VSTUDIO_C) /* Rest of file */
+#if defined(_MSC_VER) /* Rest of file */
 /*
  * Some of the contents of 'Python3.x\src\PC\external\include\Setup.Configuration.h:
  *
@@ -451,4 +451,4 @@ BOOL find_vstudio_init (void)
   CoUninitialize();
   return (rc);
 }
-#endif /* HAVE_FIND_VSTUDIO_C */
+#endif /* _MSC_VER */

@@ -48,7 +48,7 @@
 #include "envtool_py.h"
 #include "dirlist.h"
 
-#if defined(HAVE_FIND_VSTUDIO_C)
+#if defined(_MSC_VER)
   extern BOOL find_vstudio_init (void);
 #endif
 
@@ -5911,7 +5911,7 @@ static int do_tests (void)
 
   test_libssp();
 
-#if defined(HAVE_FIND_VSTUDIO_C)
+#if defined(_MSC_VER)
   find_vstudio_init();
 #endif
 
