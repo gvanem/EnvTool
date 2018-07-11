@@ -422,6 +422,11 @@ BOOL find_vstudio_init (void)
   build_GUIDs();
   g_iid = &IID_ISetupConfiguration;
 
+  /* Increase debug-level when running on AppVeyor (to see more details).
+   */
+  if (!stricmp(get_user_name(),"APPVYR-WIN\\appveyor"))
+     opt.debug = max (opt.debug, 1);
+
   DEBUGF (1, "\n");
 
   if (hr == RPC_E_CHANGED_MODE)
