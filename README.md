@@ -135,9 +135,15 @@ all directories with Unix man-pages, you can do this:
 (assuming you have only 1 set of man-pages from a CygWin install)
 
 Or to find only `foo*.bar` files under directory-branch(es) `misc`, you can do:
-
 ```
 envtool.exe --evry -r "misc\\.*\\foo.*\.bar"
+```
+
+Or how much space is *wasted* in your Python cach-files. This would tell you quickly:
+```
+  envtool.exe --evry -sD __pycache__*
+  ...
+  592 matches found for "__pycache__*". Totalling 125 MB (131,391,488 bytes).
 ```
 
 **E.g. 8**: More than one option-mode can combined. For example:
