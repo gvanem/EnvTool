@@ -2447,10 +2447,10 @@ static int do_check_evry (void)
       const char *end = strchr (opt.file_spec, '\0');
       size_t      len = strlen (opt.file_spec);
 
-      if (end[-2] == '.' && end[-1] == '*')
+      if (len >= 3 && end[-2] == '.' && end[-1] == '*')
          len -= 2;
-      DEBUGF (2, "Simple directory mode: 'folder: %.*s'\n", len, opt.file_spec);
-      snprintf (query_buf, sizeof(query_buf), "folder: %.*s", len, opt.file_spec);
+      snprintf (query_buf, sizeof(query_buf), "regex:^%.*s$ folder:", len, opt.file_spec);
+      DEBUGF (2, "Simple directory mode: '%'\n", query_buf);
     }
     else
     {
