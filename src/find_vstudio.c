@@ -49,9 +49,6 @@ static GUID  IID_ISetupConfiguration2;
 static void *g_this = NULL;
 static IID  *g_iid = NULL;
 
-#undef  _T
-#define _T(s) L##s
-
 static void print_and_compare_guid_str (const GUID *guid, const char *in)
 {
   char    a_result [40];
@@ -73,6 +70,9 @@ static void build_GUIDs (void)
   HRESULT hr;
   const char    *a_str;
   const wchar_t *w_str;
+
+  #undef  _T
+  #define _T(s)       L##s
   #define SET_GUID(a) do { a_str = a; w_str = _T(a); } while (0)
 
   /*
@@ -96,6 +96,8 @@ static void build_GUIDs (void)
   if (FAILED(hr))
        DEBUGF (1, "hr: %s\n", win_strerror(hr));
   else print_and_compare_guid_str (&IID_ISetupConfiguration2, a_str);
+
+  #undef  _T
 }
 
 typedef enum {
