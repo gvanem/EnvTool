@@ -2440,20 +2440,37 @@ static int do_check_evry (void)
       base = basename (opt.file_spec);
     }
 
-    /* If user didn't use the '-r/--regex' option, we must convert
-     * 'opt.file_spec into' a RegExp compatible format.
-     * E.g. "ez_*.py" -> "^ez_.*\.py$"
-     */
-    if (opt.use_regex)
-         len = snprintf (query_buf, sizeof(query_buf), "regex:%s", opt.file_spec);
-    else if (dir)
-         len = snprintf (query_buf, sizeof(query_buf), "regex:%s\\\\%s", dir, base);
-    else len = snprintf (query_buf, sizeof(query_buf), "regex:^%s$", translate_shell_pattern(opt.file_spec));
-
     /* With option '-D' / '--dir', match only folders.
      */
     if (opt.dir_mode && !opt.use_regex)
-       snprintf (query_buf+len, sizeof(query_buf)-len, " folder:");
+    {
+      const char *end = strchr (opt.file_spec, '\0');
+      size_t      len = strlen (opt.file_spec);
+
+      if (end[-2] == '.' && end[-1] == '*')
+         len -= 2;
+      DEBUGF (2, "Simple directory mode: 'folder: %.*s'\n", len, opt.file_spec);
+      snprintf (query_buf, sizeof(query_buf), "folder: %.*s", len, opt.file_spec);
+    }
+    else
+    {
+      if (opt.use_regex)
+      {
+        len = snprintf (query_buf, sizeof(query_buf), "regex:%s", opt.file_spec);
+        if (opt.dir_mode)
+           snprintf (query_buf+len, sizeof(query_buf)-len, " folder:");
+      }
+      else if (dir)
+      {
+        /* If user didn't use the '-r/--regex' option, we must convert
+         * 'opt.file_spec into' a RegExp compatible format.
+         * E.g. "ez_*.py" -> "^ez_.*\.py$"
+         */
+        len = snprintf (query_buf, sizeof(query_buf), "regex:%s\\\\%s", dir, base);
+      }
+      else
+        len = snprintf (query_buf, sizeof(query_buf), "regex:^%s$", translate_shell_pattern(opt.file_spec));
+    }
 
 #if 0   /* \todo Query contents with option "--grep" */
     if (opt.evry_grep && len > 0)
