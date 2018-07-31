@@ -463,7 +463,7 @@ static const char *wincon_to_ansi (WORD col)
   char  *p = ret;
 
   if (col == 0)
-     return ("\x1b[0m");
+     return ("\x1B[0m");
 
   fg  = col & 7;
   SGR = wincon_to_SGR [fg & ~FOREGROUND_INTENSITY];
@@ -471,7 +471,7 @@ static const char *wincon_to_ansi (WORD col)
 
   if (bold)
        p += snprintf (p, left, "\x1B[%d;1m", 30 + SGR);
-  else p += snprintf (p, left, "\x1B[%dm", 30 + SGR);
+  else p += snprintf (p, left, "\x1B[%d;0m", 30 + SGR);
   left -= (ret - p);
 
   bold = (col & BACKGROUND_INTENSITY);
