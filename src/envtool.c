@@ -4631,7 +4631,7 @@ static void MS_CDECL halt (int sig)
   }
 }
 
-static void init_all (void)
+static void init_all (const char **argv)
 {
   char buf [_MAX_PATH];
 
@@ -4644,7 +4644,7 @@ static void init_all (void)
 
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
-  else who_am_I = STRDUP (__argv[0]);
+  else who_am_I = STRDUP (argv[0]);
 
   program_name = who_am_I;
 
@@ -4679,11 +4679,11 @@ static void init_all (void)
   }
 }
 
-int MS_CDECL main (void)
+int MS_CDECL main (int argc, const char **argv)
 {
   int found = 0;
 
-  init_all();
+  init_all (argv);
 
   parse_cmdline();
   if (!eval_options())
@@ -4862,6 +4862,8 @@ int MS_CDECL main (void)
       found += do_check_evry();
     }
   }
+
+  ARGSUSED (argc);
 
   final_report (found);
   return (found ? 0 : 1);
