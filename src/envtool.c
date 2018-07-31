@@ -1495,7 +1495,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
     const char *link = get_man_link (file);
     const char *ext  = get_file_ext (file);
 
-    if (!link && !isdigit(*ext))
+    if (!link && !isdigit((int)*ext))
        link = get_gzip_link (file);
     if (link)
        buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(file), " ", link);
@@ -2450,7 +2450,7 @@ static int do_check_evry (void)
       if (slen >= 3 && end[-2] == '.' && end[-1] == '*')
          slen -= 2;
       snprintf (query_buf, sizeof(query_buf), "regex:^%.*s$ folder:", slen, opt.file_spec);
-      DEBUGF (2, "Simple directory mode: '%'\n", query_buf);
+      DEBUGF (2, "Simple directory mode: '%s'\n", query_buf);
     }
     else
     {
