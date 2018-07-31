@@ -2444,12 +2444,12 @@ static int do_check_evry (void)
      */
     if (opt.dir_mode && !opt.use_regex)
     {
-      const char *end = strchr (opt.file_spec, '\0');
-      size_t      len = strlen (opt.file_spec);
+      const char *end  = strchr (opt.file_spec, '\0');
+      size_t      slen = strlen (opt.file_spec);
 
-      if (len >= 3 && end[-2] == '.' && end[-1] == '*')
-         len -= 2;
-      snprintf (query_buf, sizeof(query_buf), "regex:^%.*s$ folder:", len, opt.file_spec);
+      if (slen >= 3 && end[-2] == '.' && end[-1] == '*')
+         slen -= 2;
+      snprintf (query_buf, sizeof(query_buf), "regex:^%.*s$ folder:", slen, opt.file_spec);
       DEBUGF (2, "Simple directory mode: '%'\n", query_buf);
     }
     else
