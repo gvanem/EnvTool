@@ -2734,7 +2734,7 @@ const char *get_file_size_str (UINT64 size)
 
   /* Round up
    */
-  snprintf (buf, sizeof(buf), "%4ld %s", (unsigned)size + rem, suffixes[i]);
+  snprintf (buf, sizeof(buf), "%4u %s", (unsigned)size + rem, suffixes[i]);
   return (buf);
 }
 
