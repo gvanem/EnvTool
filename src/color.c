@@ -43,6 +43,8 @@
   #include <unistd.h>
   #define _fileno(f)         fileno (f)
   #define _write(f,buf,len)  write (f,buf,len)
+  #define stricmp(s1, s2)    strcasecmp (s1, s2)
+
 #elif defined(_MSC_VER) && (_MSC_VER <= 1600)
   #define snprintf           _snprintf
 #endif
