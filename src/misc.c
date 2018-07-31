@@ -2719,12 +2719,10 @@ const char *get_file_size_str (UINT64 size)
   static char buf [10];
   int    i   = 0;
   int    rem = 0;
-  double sz;
 
   if (size == (__int64)-1)
      return strcpy (buf, "   ?   ");
 
-  sz = (double)size;
   while (size >= 1024ULL)
   {
     if ((size % 1024ULL) >= 512ULL)
