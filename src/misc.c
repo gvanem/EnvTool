@@ -2717,25 +2717,26 @@ const char *get_file_size_str (UINT64 size)
 {
   static const char *suffixes[] = { "B ", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB" };
   static char buf [10];
-  int    i = 0;
+  int    i   = 0;
+  int    rem = 0;
   double sz;
 
   if (size == (__int64)-1)
      return strcpy (buf, "   ?   ");
 
+  sz = (double)size;
   while (size >= 1024ULL)
   {
+    if ((size % 1024ULL) >= 512ULL)
+         rem = 1;
+    else rem = 0;
     size /= 1024ULL;
     i++;
   }
 
   /* Round up
    */
-  sz = floor ((double)size);
-  if (size >= sz + 0.5)
-     sz++;
-
-  snprintf (buf, sizeof(buf), "%4.0f %s", sz, suffixes[i]);
+  snprintf (buf, sizeof(buf), "%4ld %s", (unsigned)size + rem, suffixes[i]);
   return (buf);
 }
 
