@@ -131,7 +131,8 @@
   #define strnicmp(s1, s2, len)  strncasecmp (s1, s2, len)
   #define DEV_NULL               "/dev/null"
 
-  extern char *_itoa (int value, char *buf, int radix);
+  extern char  *_itoa (int value, char *buf, int radix);
+  extern UINT64 filelength (int fd);
 
 #else
   #include <direct.h>

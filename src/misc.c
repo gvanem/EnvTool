@@ -3350,6 +3350,25 @@ char *_itoa (int value, char *buf, int radix)
   buf [i] = '\0';
   return strreverse (buf);
 }
+
+/*
+ * 'filelength()' is not POSIX, so CygWin doesn't have it. Sigh!
+ * Simply use core Windows for this.
+ */
+UINT64 filelength (int fd)
+{
+  long  h = _get_osfhandle (fd);
+  LARGE_INTEGER size;
+  UINT64        rc;
+
+  if (h != -1 && GetFileSizeEx((HANDLE)h, &size))
+  {
+    rc = ((UINT64)size.HighPart << 32);
+    rc += size.LowPart;
+    return (rc);
+  }
+  return (0ULL);
+}
 #endif
 
 /*
