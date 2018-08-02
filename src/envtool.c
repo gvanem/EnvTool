@@ -2446,9 +2446,16 @@ static int do_check_evry (void)
       const char *end  = strchr (opt.file_spec, '\0');
       size_t      slen = strlen (opt.file_spec);
 
-      if (slen >= 3 && end[-2] == '.' && end[-1] == '*')
-         slen -= 2;
-      snprintf (query_buf, sizeof(query_buf), "regex:^%.*s$ folder:", slen, opt.file_spec);
+      len = snprintf (query_buf, sizeof(query_buf), "regex:^%s$", opt.file_spec);
+
+      if (slen >= 3 && end[-1] == '*')
+      {
+        if (end[-2] == '.')
+             len = snprintf (query_buf, sizeof(query_buf), "regex:^%.*s$", slen-2, opt.file_spec);
+        else len = snprintf (query_buf, sizeof(query_buf), "regex:^%s.*$", opt.file_spec);
+      }
+
+      snprintf (query_buf+len, sizeof(query_buf)-len, " folder:");
       DEBUGF (2, "Simple directory mode: '%s'\n", query_buf);
     }
     else
