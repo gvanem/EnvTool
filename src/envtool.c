@@ -621,6 +621,8 @@ static int show_help (void)
           "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
           "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0/~6--dir~0 is used, only\n"
           "              matching directories are reported.\n"
+          "  Quote argument if it contains a shell-character [~6^&%~0]."
+          " E.g. use ~6--regex \"^foo%%\\.exe$\"~0\n"
           "  Commonly used options can be set in ~3%ENVTOOL_OPTIONS%~0.\n");
   return (0);
 }
