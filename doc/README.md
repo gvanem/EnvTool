@@ -5,17 +5,23 @@ via the `envtool.Doxyfile` config-file.
 
 Running the command `doxygen envtool.Doxyfile`, requires `hhc.exe`.
 This is part of the **[Microsoft HTML Workshop](https://www.microsoft.com/en-us/download/details.aspx?id=21138)**.
-This will generate a compressed HTML-file of the generated documentation:
+This will generate the compressed HTML-file `envtool.chm` of the generated documentation.
 
-`envtool.chm` which can be view by the command `start envtool.chm`. Or loaded in the
+`envtool.chm` can be view by the command `start envtool.chm`. Or loaded in the
 excellent **[KchmViewer](http://www.ulduzsoft.com/linux/kchmviewer/getting-kchmviewer/)**.
 
-The commands can be either:
+But it's much easier using the GNU `Makefile` directly. Enter this directory
+and issue `make` or `mingw32-make` with one if these targets:
 ```
 make all   - should produce envtool.chm in this directory.
 make clean - should delete all generated files.
 ```
 
-*PS*. This file is written with the aid of the **[Atom](https://atom.io/)**
+*PS1*. When using the `Index` menu in `"c:\Windows\hh.exe"`, I will crash!
+  Some issue with how I or Doxygen creates the `output/index.hhk` file?
+	**[KchmViewer](http://www.ulduzsoft.com/linux/kchmviewer/getting-kchmviewer/)** does
+	not exhibit this bug.
+
+*PS2*. This file is written with the aid of the **[Atom](https://atom.io/)**
 editor and it's **[Markdown-Preview](https://atom.io/packages/markdown-preview)**.
 A real time-saver.
