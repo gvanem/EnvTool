@@ -21,7 +21,7 @@
  *   e => a [label="Host found",                                   url="\ref state_send_login"];
  *   e => f [label="Not found, check ~/envtool.cfg",               url="\ref state_envtool_cfg_lookup"];
  *   f => a [label="Host found",                                   url="\ref state_send_login"];
- *   f => a [label="Not found (try login anuway)",                 url="\ref state_send_login"];
+ *   f => a [label="Not found (try to login anuway)",              url="\ref state_send_login"];
  *   a => b [label="USER user",                                    url="\ref state_send_login"];
  *   a <= b [label="230 Welcome to Everything ETP/FTP",            url="\ref state_send_login"];
  *   a <= b [label="331 Password required for user",               url="\ref state_await_login"];
@@ -53,8 +53,9 @@
  *    S -> 200 End.
  * \endcode
  *
- * Which can be accomplished with a .bat-file and a plain ftp client:
+ * Which can be accomplished with a `test-etp.bat` file and the Windows ftp client:
  * \code
+ *  :: the test-etp.bat file
  *  @echo off
  *  echo USER                                     > etp-commands
  *  echo QUOTE EVERYTHING SEARCH notepad.exe     >> etp-commands
@@ -63,9 +64,11 @@
  *  echo QUOTE EVERYTHING DATE_MODIFIED_COLUMN 1 >> etp-commands
  *  echo QUOTE EVERYTHING QUERY                  >> etp-commands
  *  echo BYE                                     >> etp-commands
+ * \endcode
  *
- *  c:\> ftp -s:etp-commands 10.0.0.37
+ * And when executed like: `c:\> test-etp.bat & ftp -s:etp-commands 10.0.0.37`, should give:
  *
+ * \code
  *  Connected to 10.0.0.37.
  *  220 Welcome to Everything ETP/FTP
  *  530 Not logged on.
