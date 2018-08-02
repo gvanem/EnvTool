@@ -2443,19 +2443,7 @@ static int do_check_evry (void)
      */
     if (opt.dir_mode && !opt.use_regex)
     {
-      const char *end  = strchr (opt.file_spec, '\0');
-      size_t      slen = strlen (opt.file_spec);
-
-      len = snprintf (query_buf, sizeof(query_buf), "regex:^%s$", opt.file_spec);
-
-      if (slen >= 3 && end[-1] == '*')
-      {
-        if (end[-2] == '.')
-             len = snprintf (query_buf, sizeof(query_buf), "regex:^%.*s$", slen-2, opt.file_spec);
-        else len = snprintf (query_buf, sizeof(query_buf), "regex:^%s.*$", opt.file_spec);
-      }
-
-      snprintf (query_buf+len, sizeof(query_buf)-len, " folder:");
+      snprintf (query_buf, sizeof(query_buf), "regex:^%s$ folder:", translate_shell_pattern(opt.file_spec));
       DEBUGF (2, "Simple directory mode: '%s'\n", query_buf);
     }
     else
@@ -4737,7 +4725,7 @@ int MS_CDECL main (int argc, const char **argv)
   if (!opt.file_spec)
      usage ("You must give a ~1filespec~0 to search for.\n");
 
-  if (!opt.evry_raw)
+  if (!opt.evry_raw && !opt.dir_mode)
   {
     if (!opt.use_regex)
     {
