@@ -48,9 +48,7 @@
 #include "envtool_py.h"
 #include "dirlist.h"
 
-#if defined(_MSC_VER)
-  extern BOOL find_vstudio_init (void);
-#endif
+extern BOOL find_vstudio_init (void);
 
 /**
  * <!-- \includedoc README.md ->
@@ -205,10 +203,9 @@ static int   get_cmake_info (char **exe_p, struct ver_info *ver);
  *       information too.
  *
  * \todo Add a `--check` option for 64-bit Windows to check that all .DLLs in:\n
- *            \c "%SystemRoot%\\System32" are 64-bit and
- *            \c "%SystemRoot%\\SysWOW64" are 32-bit.
- *
- *       E.g.
+ *           \li `"%SystemRoot%\System32"` are 64-bit and
+ *           \li `"%SystemRoot%\SysWOW64"` are 32-bit.
+ *       \eg{.}
  *        ```
  *           pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
  *           Machine:                      014C (i386)
@@ -3996,13 +3993,13 @@ typedef void (*bcc_parser_func) (smartlist_t *sl, char *line);
 
 /**
  * Check in Borland's include-directories which are given by the format in
- * <bcc_root>\bcc32c.cfg:
+ * `<bcc_root>\bcc32c.cfg`:
  * ```
  *  -isystem @\..\include\dinkumware64
  *  -isystem @\..\include\windows\crtl
  * ```
  *
- * Or the older format in <bcc_root>\bcc32.cfg:
+ * Or the older format in `<bcc_root>\bcc32.cfg`:
  * ```
  *  -I<inc_path1>;<inc_path2>...
  * ```
@@ -4031,13 +4028,13 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
 
 /**
  * Check in Borland's library-directories which are given by the format in
- * <bcc_root>\bcc32c.cfg:
+ * `<bcc_root>\bcc32c.cfg`:
  * ```
  *   -L@\..\lib\win32c\debug
  *   -L@\..\lib\win32c\release
  * ```
  *
- * Or the older format in <bcc_root>\bcc32.cfg:
+ * Or the older format in `<bcc_root>\bcc32.cfg`:
  * ```
  *  -L<lib_path1>;<lib_path2>...
  * ```
@@ -5930,7 +5927,7 @@ static int do_tests (void)
 
   test_libssp();
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(_DEBUG)
   find_vstudio_init();
 #endif
 
