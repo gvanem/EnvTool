@@ -99,8 +99,8 @@ static HANDLE kernel32_hnd, userenv_hnd;
 
   /**
    * \def IS_MARKER(m)
-   * Verify that the memory block \c m is valid;<br>
-   * either marked as used (\b MEM_MARKER) or as freed (\b MEM_FREED).
+   * Verify that the memory block `m` is valid;<br>
+   * either marked as used (`MEM_MARKER`) or as freed (`MEM_FREED`).
    */
   #define IS_MARKER(m) ( ( (m)->marker == MEM_MARKER) || ( (m)->marker == MEM_FREED) )
 
@@ -319,7 +319,7 @@ const char *check_if_shebang (const char *fname)
 }
 
 /**
- * Open a \c fname and check if there's a \c "PK" signature in header.
+ * Open a `fname` and check if there's a `"PK"` signature in header.
  */
 int check_if_zip (const char *fname)
 {
@@ -348,7 +348,7 @@ int check_if_zip (const char *fname)
 }
 
 /**
- * Open a \c fname and check if there's a \c "GZIP" or \c "TAR.GZ" signature in header.
+ * Open a `fname` and check if there's a `"GZIP"` or `"TAR.GZ"` signature in header.
  * gzipped format:
  *   http://www.onicos.com/staff/iz/formats/gzip.html
  */
@@ -649,9 +649,9 @@ time_t FILETIME_to_time_t (const FILETIME *ft)
  *
  * \param[in] proc     The handle of the process to get the filname for.
  *                     Or NULL if our own process.
- * \param[in] filename Assumed to hold \c MAX_PATH characters.
- * \retval FALSE if this function is not available.
- * \retval the return value from \c (*p_GetModuleFileNameEx)().
+ * \param[in] filename Assumed to hold `MAX_PATH` characters.
+ * \retval FALSE       if this function is not available.
+ * \retval             the return value from `(*p_GetModuleFileNameEx)()`.
  */
 BOOL get_module_filename_ex (HANDLE proc, char *filename)
 {
@@ -713,6 +713,8 @@ static const char *sid_owner_cache (PSID sid)
  * \param[in,out] account_name_p  on input a caller-supplied 'char **' pointer.
  *                                on output (if success), set to the account-name of the owner.
  *                                Must be free()'d by the caller if set to non-NULL here.
+ * \param[out] sid_p              The `sid` for the `file` as obtained from `GetSecurityInfo()`.
+ *                                The caller must use `LocalFree()` on `*sid_p` if non-NULL.
  *
  * Adapted from:
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa446629(v=vs.85).aspx
@@ -1125,8 +1127,8 @@ int str_equal (const char *s1, const char *s2)
 }
 
 /**
- * Return a shorten string with length \c max_len such that
- * it looks like \c "abcde...12345".
+ * Return a shorten string with length `max_len` such that
+ * it looks like `"abcde...12345"`.
  * I.e. equally many starting and ending characters.
  */
 char *str_shorten (const char *str, size_t max_len)
@@ -1524,8 +1526,8 @@ wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
  *
  * I.e. turns 'path' into a fully-qualified path.
  *
- * \note the \c path doesn't have to exist.
- *       assumes \c result is at least \c _MAX_PATH characters long (if non-NULL).
+ * \note the `path` doesn't have to exist.
+ *       assumes `result` is at least `_MAX_PATH` characters long (if non-NULL).
  */
 char *_fix_path (const char *path, char *result)
 {
@@ -1568,7 +1570,7 @@ char *_fix_drive (char *path)
 }
 
 /**
- * Return TRUE if \c path starts with a drive-letter (A: - Z:).
+ * Return TRUE if `path` starts with a drive-letter (`A:` - `Z:`).
  */
 BOOL _has_drive (const char *path)
 {
@@ -1598,8 +1600,8 @@ const char *get_file_ext (const char *file)
 }
 
 /**
- * Returns TRUE if \c file is a directory.
- * CygWin MUST have a trailing '/' for directories.
+ * Returns TRUE if `file` is a directory.
+ * CygWin MUST have a trailing `/` for directories.
  */
 BOOL is_directory (const char *file)
 {
@@ -1628,15 +1630,15 @@ BOOL is_directory (const char *file)
 }
 
 /**
- * A bit safer \c stat().
- * If given a hidden / system file (like \c c:\\pagefile.sys), some
- * \c stat() implementations can crash. MSVC would be one case.
+ * A bit safer `stat()`.
+ * If given a hidden / system file (like `c:\\pagefile.sys`), some
+ * `stat()` implementations can crash. MSVC would be one case.
  *
- * \return any \c GetLastError() is set in \c *win_err.
- * \retval 0   okay (the same as \c stat()).
- * \retval -1  fail. \c errno set (the same as \c stat()).
+ * \return any `GetLastError()` is set in `*win_err`.
+ * \retval 0   okay (the same as `stat()`).
+ * \retval -1  fail. `errno` set (the same as `stat()`).
  *
- * \note directories are passed directly to \c stat().
+ * \note directories are passed directly to `stat()`.
  */
 int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 {
@@ -1649,8 +1651,8 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 
 #if defined(__CYGWIN__)
   /**
-   * Cannot use \c GetFileAttributes() in case \c file is on Posix form.
-   * E.g. "/cygdrive/c/foo"
+   * Cannot use `GetFileAttributes()` in case `file` is on Posix form.
+   * E.g. `"/cygdrive/c/foo"`.
    */
   if (!strncmp(file,"/cygdrive/",10) || !strncmp(file,"/usr",4) ||
       !strncmp(file,"/etc",4) || !strncmp(file,"~/",2))
@@ -1700,8 +1702,8 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 }
 
 /**
- * Create a \c \%TEMP-file.
- * \return The allocated name which caller must call \c FREE() on.
+ * Create a `\%TEMP-file`.
+ * \return The allocated name which caller must call `FREE()` on.
  */
 char *create_temp_file (void)
 {
@@ -1727,8 +1729,8 @@ char *create_temp_file (void)
  * Turn off default error-mode. E.g. if a CD-ROM isn't ready, we'll get a GUI
  * popping up to notify us. Turn that off and handle such errors ourself.
  *
- * \c SetErrorMode()       is per process.
- * \c SetThreadErrorMode() is per thread on Win-7+.
+ * `SetErrorMode()`       is per process. <br>
+ * `SetThreadErrorMode()` is per thread on Win-7+.
  */
 void set_error_mode (int restore)
 {
@@ -1759,10 +1761,10 @@ void set_error_mode (int restore)
 }
 
 /**
- * Get a cached \c cluster_size for \c disk. (<tt>A: - Z:</tt>).
- * Only works on local disks; I.e. <tt>disk-type == DRIVE_FIXED</tt>.
+ * Get a cached `cluster_size` for `disk`. (`A:` - `Z:`).
+ * Only works on local disks; I.e. `disk-type == DRIVE_FIXED`.
  * \retval TRUE  on success.
- * \retval FALSE if disk out of range or if \c GetDiskFreeSpace() fails.
+ * \retval FALSE if disk out of range or if `GetDiskFreeSpace()` fails.
  */
 BOOL get_disk_cluster_size (int disk, DWORD *size)
 {
@@ -1894,7 +1896,7 @@ BOOL get_volume_path (int disk, char **mount)
 }
 
 /**
- * Check if a disk is ready. disk is \c "['A'..'Z']".
+ * Check if a disk is ready. disk is `"['A'..'Z']"`.
  */
 int disk_ready (int disk)
 {
@@ -1962,7 +1964,7 @@ quit:
 }
 
 /**
- * Return a cached status for disk ready \c "['A'..'Z']".
+ * Return a cached status for disk ready `"['A'..'Z']"`.
  */
 BOOL chk_disk_ready (int disk)
 {
@@ -2185,10 +2187,10 @@ char *_stracat (char *s1, const char *s2)
  * Create a joined string from an array of strings.
  *
  * \param[in] arr  the array of strings to join and return as a single string.
- * \param[in] sep  the separator between the \c arr elements; after the first up-to the 2nd last
+ * \param[in] sep  the separator between the `arr` elements; after the first up-to the 2nd last
  *
- * \retval  NULL  if \c arr is empty
- * \retval  !NULL a \c MALLOC()'ed string of the concatinated result.
+ * \retval  NULL  if `arr` is empty
+ * \retval  !NULL a `MALLOC()`-ed string of the concatinated result.
  */
 char *_strjoin (char * const *arr, const char *sep)
 {
@@ -2247,8 +2249,8 @@ char *slashify (const char *path, char use)
 }
 
 /**
- * As above, but copy into \c buf.
- * \note \c path and \c buf can point to the same location.
+ * As above, but copy into `buf`.
+ * \note `path` and `buf` can point to the same location.
  */
 char *slashify2 (char *buf, const char *path, char use)
 {
@@ -2274,9 +2276,9 @@ char *slashify2 (char *buf, const char *path, char use)
 /**
  * Heuristic alert!
  *
- * Return 1 if file A is newer than file B.
- * Based on modification times 'mtime_a', 'mtime_b' and file-versions
- * returned from \c show_version_info().
+ * Return 1 if file `A` is newer than file `B`.
+ * Based on modification times `mtime_a`, `mtime_b` and file-versions
+ * returned from `show_version_info()`.
  *
  * Currently not used.
  */
@@ -2291,7 +2293,7 @@ int compare_file_time_ver (time_t mtime_a, time_t mtime_b,
 }
 
 /**
- * Return error-string for \c err from kernel32.dll.
+ * Return error-string for `err` from `kernel32.dll`.
  */
 static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
 {
@@ -2308,8 +2310,8 @@ static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
 }
 
 /**
- * Return err-number+string for \c err. Use only with \c GetLastError().
- * Does not handle libc \c errno's. Remove trailing \c [\\r\\n].
+ * Return err-number+string for `err`. Use only with `GetLastError()`.
+ * Does not handle libc `errno` values. Remove trailing `[\\r\\n]`.
  */
 char *win_strerror (unsigned long err)
 {
@@ -2382,8 +2384,8 @@ char *ws2_strerror (int err)
 
 #if !defined(_CRTDBG_MAP_ALLOC)
 /**
- * A \c strdup() that fails if no memory. It's pretty hopeless to continue
- * this program if \c strdup() fails.
+ * A `strdup()` that fails if no memory. It's pretty hopeless to continue
+ * this program if `strdup()` fails.
  */
 char *strdup_at (const char *str, const char *file, unsigned line)
 {
@@ -2403,7 +2405,7 @@ char *strdup_at (const char *str, const char *file, unsigned line)
 }
 
 /**
- * Similar to \c wcsdup()
+ * Similar to `wcsdup()`.
  */
 wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
 {
@@ -2424,8 +2426,8 @@ wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
 }
 
 /**
- * A \c malloc() that fails if no memory. It's pretty hopeless to continue
- * this program if \c malloc() fails.
+ * A `malloc()` that fails if no memory. It's pretty hopeless to continue
+ * this program if `malloc()` fails.
  */
 void *malloc_at (size_t size, const char *file, unsigned line)
 {
@@ -2446,8 +2448,8 @@ void *malloc_at (size_t size, const char *file, unsigned line)
 }
 
 /**
- * A \c calloc() that fails if no memory. It's pretty hopeless to continue
- * this program if \c calloc() fails.
+ * A `calloc()` that fails if no memory. It's pretty hopeless to continue
+ * this program if `calloc()` fails.
  */
 void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
 {
@@ -2468,8 +2470,8 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
 }
 
 /**
- * A \c realloc() that fails if no memory. It's pretty hopeless to continue
- * this program if \c realloc() fails.
+ * A `realloc()` that fails if no memory. It's pretty hopeless to continue
+ * this program if `realloc()` fails.
  */
 void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
 {
@@ -2503,7 +2505,7 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
 }
 
 /**
- * A \c free() that checks the \c ptr and decrements the \c mem_frees value.
+ * A `free()` that checks the `ptr` and decrements the `mem_frees` value.
  */
 void free_at (void *ptr, const char *file, unsigned line)
 {
@@ -2560,12 +2562,12 @@ void mem_report (void)
 static _CrtMemState last_state;
 
 /**
- * In \c _DEBUG-mode, remember the \c last_state as the CRT-memory
+ * In `_DEBUG`-mode, remember the `last_state` as the CRT-memory
  * start-up state.
  *
  * \note
  *   Enable this for MSVC and clang-cl only.
- *   The mem-checker in PellesC (which defines \c __POCC__ and \c _MSC_VER) is
+ *   The mem-checker in PellesC (which defines `__POCC__` and `_MSC_VER`) is
  *   somewhat buggy last time I checked. So leave that off.
  */
 void crtdbug_init (void)
@@ -2585,7 +2587,7 @@ void crtdbug_init (void)
 }
 
 /**
- * In \c _DEBUG-mode, compare the \c last_state set in crtdbug_init() to
+ * In `_DEBUG`-mode, compare the `last_state` set in `crtdbug_init()` to
  * check if there is a significant difference in the mem-state.
  *
  * This function should be called as late as possible.
@@ -2788,7 +2790,7 @@ const char *get_time_str (time_t t)
 /**
  * Function that prints the line argument while limiting it
  * to at most 'C_screen_width()'. If the console is redirected
- * (== 0), the "screen width" is infinite (or \c UINT_MAX).
+ * (`C_screen_width() == 0`), the "screen width" is infinite (or `UINT_MAX`).
  *
  * An appropriate number of spaces are added on subsequent lines.
  * Multiple spaces ("  ") are collapsed into one space.
@@ -2986,7 +2988,7 @@ static char *popen_setup (const char *cmd)
 
   len = strlen(setdos) + strlen(comspec) + strlen(cmd) + 1;
 
-  /* Allocate an extended command-line for \c _popen().
+  /* Allocate an extended command-line for `_popen()`.
    */
   cmd2 = MALLOC (len);
   strcpy (cmd2, setdos);
@@ -2997,7 +2999,7 @@ static char *popen_setup (const char *cmd)
 }
 
 /**
- * Return the last line in the \c fgets() loop below.
+ * Return the last line in the `fgets()` loop below.
  */
 static char popen_last[1000];
 
@@ -3010,14 +3012,14 @@ char *popen_last_line (void)
  * A wrapper for popen().
  *
  * \param[in] cmd       the program + args to run.
- * \param[in] callback  function to call for each line from \c popen().
+ * \param[in] callback  function to call for each line from `popen()`.
  *
  * This function should return number of matches.
- *  The \c callback is allowed to modify the \c buf given to it.
+ *  The `callback` is allowed to modify the `buf` given to it.
  *
- * \retval -1   if \c "/bin/sh" is not found for Cygwin.
- * \retval -1   if \c cmd was not found or \c _popen() fails for some reason. \c errno should be set.
- * \retval >=0  total number of matches from \c callback.
+ * \retval -1   if `"/bin/sh"` is not found for Cygwin.
+ * \retval -1   if `cmd` was not found or `_popen()` fails for some reason. `errno` should be set.
+ * \retval >=0  total number of matches from `callback`.
  *
  * \anchor popen_run
  */
@@ -3067,7 +3069,7 @@ quit:
 }
 
 /**
- * A var-arg version of \c popen_run().
+ * A var-arg version of `popen_run()`.
  * \anchor popen_runf
  */
 int popen_runf (popen_callback callback, const char *fmt, ...)
