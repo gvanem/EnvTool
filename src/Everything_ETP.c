@@ -559,7 +559,7 @@ static BOOL state_send_query (struct state_CTX *ctx)
      * `opt.use_regex == 0`.
      */
     send_cmd (ctx, "EVERYTHING REGEX 1");
-    if (opt.use_regex)
+    if (opt.use_regex == 0)
          send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(opt.file_spec));
     else send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
   }
