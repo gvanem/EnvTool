@@ -28,8 +28,6 @@
 
 #include "envtool.h"
 
-#define USE_FLAGS_DECODE 1
-
 #pragma pack (push,1)
 
 struct VS_VERSIONINFO {
@@ -153,7 +151,6 @@ static void do_printf (const char *fmt, ...)
   va_end (args);
 }
 
-#if USE_FLAGS_DECODE
 static const char *show_file_flags (DWORD dwFileFlags)
 {
   #define ADD_VALUE(v)  { v, S_##v }
@@ -169,97 +166,6 @@ static const char *show_file_flags (DWORD dwFileFlags)
 
   return flags_decode (dwFileFlags, flags, DIM(flags));
 }
-
-#else
-
-static const char *show_file_flags (DWORD dwFileFlags)
-{
-  static char s[200];
-  int pos = 0;
-
-  s[0] = '\0';
-
-#define VS_FF_KNOWNFLAGS (VS_FF_DEBUG        \
-                        | VS_FF_PRERELEASE   \
-                        | VS_FF_PATCHED      \
-                        | VS_FF_PRIVATEBUILD \
-                        | VS_FF_INFOINFERRED \
-                        | VS_FF_SPECIALBUILD)
-
-  if (dwFileFlags & ~VS_FF_KNOWNFLAGS)
-     pos += sprintf (s+pos, "0x%lX", (u_long)(dwFileFlags & ~VS_FF_KNOWNFLAGS));
-
-  if (dwFileFlags & VS_FF_DEBUG)
-  {
-    if (pos)
-    {
-      memcpy (s+pos, " | ", 3);
-      pos += 3;
-    }
-    memcpy (s+pos, S_VS_FF_DEBUG, sizeof(S_VS_FF_DEBUG));
-    pos += sizeof(S_VS_FF_DEBUG) - 1;
-  }
-
-  if (dwFileFlags & VS_FF_PRERELEASE)
-  {
-    if (pos)
-    {
-      memcpy (s+pos, " | ", 3);
-      pos += 3;
-    }
-    memcpy (s+pos, S_VS_FF_PRERELEASE, sizeof(S_VS_FF_PRERELEASE));
-    pos += sizeof(S_VS_FF_PRERELEASE) - 1;
-  }
-
-  if (dwFileFlags & VS_FF_PATCHED)
-  {
-    if (pos)
-    {
-      memcpy (s+pos, " | ", 3);
-      pos += 3;
-    }
-    memcpy (s+pos, S_VS_FF_PATCHED, sizeof(S_VS_FF_PATCHED));
-    pos += sizeof(S_VS_FF_PATCHED) - 1;
-  }
-
-  if (dwFileFlags & VS_FF_PRIVATEBUILD)
-  {
-    if (pos)
-    {
-      memcpy (s+pos, " | ", 3);
-      pos += 3;
-    }
-    memcpy (s+pos, S_VS_FF_PRIVATEBUILD, sizeof(S_VS_FF_PRIVATEBUILD));
-    pos += sizeof(S_VS_FF_PRIVATEBUILD) - 1;
-  }
-
-  if (dwFileFlags & VS_FF_INFOINFERRED)
-  {
-    if (pos)
-    {
-      memcpy (s+pos, " | ", 3);
-      pos += 3;
-    }
-    memcpy (s+pos, S_VS_FF_INFOINFERRED, sizeof(S_VS_FF_INFOINFERRED));
-    pos += sizeof(S_VS_FF_INFOINFERRED) - 1;
-  }
-
-  if (dwFileFlags & VS_FF_SPECIALBUILD)
-  {
-    if (pos)
-    {
-      memcpy (s+pos, " | ", 3);
-      pos += 3;
-    }
-    memcpy (s+pos, S_VS_FF_SPECIALBUILD, sizeof(S_VS_FF_SPECIALBUILD));
-    pos += sizeof(S_VS_FF_SPECIALBUILD) - 1;
-  }
-
-  if (!pos)
-     memcpy (s, "0", 2);
-  return (s);
-}
-#endif  /* USE_FLAGS_DECODE */
 
 /* ----- VS_VERSION.dwFileOS ----- */
 #define S_VOS_UNKNOWN             "VOS_UNKNOWN"
