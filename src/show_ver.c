@@ -200,10 +200,6 @@ static const char *show_file_OS (DWORD dwFileOS)
          return S_VOS_OS232;
     case VOS_NT:
          return S_VOS_NT;
-#if 0
-    case VOS__BASE:
-         return S_VOS__BASE;
-#endif
     case VOS__WINDOWS16:
          return S_VOS__WINDOWS16;
     case VOS__PM16:
