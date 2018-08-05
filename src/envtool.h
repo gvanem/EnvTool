@@ -539,9 +539,6 @@ extern const char *get_file_size_str (UINT64 size);
 extern const char *get_time_str (time_t t);
 extern const char *get_file_ext (const char *file);
 extern char       *create_temp_file (void);
-extern int         get_PE_version_info (const char *file, struct ver_info *ver);
-extern char       *get_PE_version_info_buf (void);
-extern void        get_PE_version_info_free (void);
 extern const char *check_if_shebang (const char *fname);
 extern int         check_if_zip (const char *fname);
 extern int         check_if_gzip (const char *fname);
@@ -559,6 +556,12 @@ extern DWORD       reg_swap_long (DWORD val);
 
 extern void crtdbug_init (void);
 extern void crtdbug_exit (void);
+
+/* Functions in show_ver.c
+ */
+extern int    get_PE_version_info (const char *file, struct ver_info *ver);
+extern char  *get_PE_version_info_buf (void);
+extern void   get_PE_version_info_free (void);
 
 /** \struct FMT_buf
  *  The type used in formatting a string-buffer on the stack.<br>
