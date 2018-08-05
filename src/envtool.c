@@ -5647,8 +5647,22 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
 }
 
 /**
- * Expand and check a single env-var for missing directories.
- * And return the number of elements in '*num'.
+ * Expand and check a single env-var for missing directories
+ * and trailing/leading white space.
+ *
+ * \eg{.}:
+ * ```
+ *   set LIB=c:\foo1\lib ;c:\foo2\lib;  ^
+ *           c:\foo3\lib;
+ * ```
+ *
+ * would leave trailing white-space in `c:\foo1\lib ;` and `c:\foo2\lib;  ` <br>
+ * and leading white-space in `        c:\foo3\lib`.
+ *
+ * \param[in]     env      the environment variable to check.
+ * \param[out]    num      the number of elements in the '*env' value.
+ * \param[in,out] status   the buffer to receive the state of the check.
+ * \param[in]     status_sz the size of the above buffer.
  */
 static void check_env_val (const char *env, int *num, char *status, size_t status_sz)
 {
@@ -5681,11 +5695,37 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
   for (i = 0; i < max; i++)
   {
     char fbuf [_MAX_PATH];
+    const char *start, *end;
 
     arr = smartlist_get (list, i);
+    start = arr->dir;
+    end   = arr->dir + strlen(arr->dir) - 1;
+
+    /* step over leading white-space
+     */
+    while (*start == ' ' || *start == '\t')
+       start++;
+
+    /* find trailing white-space
+     */
+    while (*end == ' ' || *end == '\t')
+       end--;
+
     slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
 
-    if (!arr->exist)
+    if (start > arr->dir)
+    {
+      snprintf (status, status_sz, "~5Leading white-space~0: ~3\"%s\"~0", fbuf);
+      if (!opt.verbose)
+         break;
+    }
+    else if (end < arr->dir + strlen(arr->dir) - 1)
+    {
+      snprintf (status, status_sz, "~5Trailing white-space~0: ~3\"%s\"~0", fbuf);
+      if (!opt.verbose)
+         break;
+    }
+    else if (!arr->exist)
     {
       snprintf (status, status_sz, "~5Missing dir~0: ~3\"%s\"~0", fbuf);
       if (!opt.verbose)
