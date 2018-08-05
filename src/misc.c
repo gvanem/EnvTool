@@ -250,15 +250,15 @@ void init_misc (void)
 }
 
 /**
- * Unload `kernel32.dll` and `userenv.dll` when the above function pointes are
- * no longer needed.
+ * Unload `userenv.dll` and `kernel32.dll` when the above function pointes are
+ * no longer needed. Do it in the reverse order of `LoadLibrary()`.
  */
 void exit_misc (void)
 {
-  if (kernel32_hnd)
-     FreeLibrary (kernel32_hnd);
   if (userenv_hnd)
      FreeLibrary (userenv_hnd);
+  if (kernel32_hnd)
+     FreeLibrary (kernel32_hnd);
   kernel32_hnd = userenv_hnd = NULL;
 }
 
