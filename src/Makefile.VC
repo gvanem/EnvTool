@@ -54,8 +54,8 @@ RCFLAGS = $(RCFLAGS) -DWIN64
 !endif
 
 OBJECTS = auth.obj envtool.obj envtool_py.obj color.obj dirlist.obj Everything.obj Everything_ETP.obj \
-          getopt_long.obj ignore.obj misc.obj searchpath.obj show_ver.obj smartlist.obj win_trust.obj \
-          win_ver.obj regex.obj find_vstudio.obj
+          getopt_long.obj ignore.obj misc.obj searchpath.obj show_ver.obj smartlist.obj sort.obj \
+          win_trust.obj win_ver.obj regex.obj find_vstudio.obj
 
 all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
 	copy /y envtool.exe ..
@@ -119,7 +119,7 @@ auth.obj:           auth.c color.h envtool.h smartlist.h auth.h
 envtool.res:        envtool.h
 envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h Everything_ETP.h \
                     envtool.h envtool_py.h dirlist.h auth.h color.h smartlist.h \
-                    cflags_MSVC.h ldflags_MSVC.h
+                    sort.h cflags_MSVC.h ldflags_MSVC.h
 envtool_py.obj:     envtool_py.c envtool.h envtool_py.h color.h dirlist.h smartlist.h
 Everything.obj:     Everything.c Everything.h Everything_IPC.h
 Everything_ETP.obj: Everything_ETP.c color.h envtool.h auth.h Everything_ETP.h

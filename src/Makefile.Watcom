@@ -25,6 +25,7 @@ OBJECTS = auth.obj           &
           searchpath.obj     &
           show_ver.obj       &
           smartlist.obj      &
+          sort.obj           &
           win_trust.obj      &
           win_ver.obj
 

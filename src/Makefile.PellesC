@@ -84,7 +84,7 @@ endif
 
 SOURCES = auth.c envtool.c envtool_py.c Everything.c Everything_ETP.c color.c \
           dirlist.c ignore.c getopt_long.c misc.c searchpath.c smartlist.c \
-          regex.c show_ver.c win_ver.c win_trust.c
+          show_ver.c sort.c regex.c win_ver.c win_trust.c
 
 OBJECTS = $(notdir $(SOURCES:.c=.obj))
 
@@ -145,7 +145,7 @@ define link_EXE
 endef
 
 envtool.res:        envtool.h
-envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h envtool.h envtool_py.h
+envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h envtool.h envtool_py.h sort.h
 envtool_py.obj:     envtool_py.c envtool.h envtool_py.h
 Everything.obj:     Everything.c Everything.h Everything_IPC.h
 Everything_ETP.obj: Everything_ETP.c envtool.h color.h
