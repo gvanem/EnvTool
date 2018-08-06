@@ -1,7 +1,10 @@
+/** \file sort.h
+ */
 #ifndef _SORT_H
 #define _SORT_H
 
 /** \enum SortMethod
+ *
  * Used with the "-S" or "--sort" cmd-line options to sort
  * matches on file-name, file-extension, date/time or size.
  * Always sort from low to high.

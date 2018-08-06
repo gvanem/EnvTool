@@ -1,5 +1,8 @@
 /**
- * Handling of sort options `-S` and `"--sort"`.
+ * \file    sort.c
+ * \ingroup Misc
+ * \brief
+ *   Handling of sort options `-S` and `"--sort"`.
  */
 #include "envtool.h"
 #include "sort.h"
@@ -42,11 +45,19 @@ static const char *get_methods (const struct search_list *l, size_t num)
   return (methods);
 }
 
+/**
+ * Return a comma separated list of the accepted short sort methods.
+ * \retval currently `"n,e,d,t,s"`.
+ */
 const char *get_sort_methods_short (void)
 {
   return get_methods (short_sort_methods, DIM(short_sort_methods));
 }
 
+/**
+ * Return a comma separated list of the accepted long sort methods.
+ * \retval currently `" name,ext,date,time,size"`.
+ */
 const char *get_sort_methods_long (void)
 {
   return get_methods (long_sort_methods, DIM(long_sort_methods));
