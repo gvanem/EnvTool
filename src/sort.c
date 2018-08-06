@@ -20,12 +20,11 @@ static const struct search_list long_sort_methods[] = {
            { SORT_FILE_SIZE,      "size" },
          };
 
-static char methods [200];
-
 static const char *get_methods (const struct search_list *l, size_t num)
 {
-  char  *p = methods;
-  size_t i, sz, left = sizeof(methods);
+  static char methods [200];
+  char   *p = methods;
+  size_t  i, sz, left = sizeof(methods);
 
   *p = '\0';
   for (i = 0; i < num && left > 2; i++, l++)
@@ -54,7 +53,13 @@ const char *get_sort_methods_long (void)
 }
 
 /**
- * Set `opt.sort_method` based on `short_opt` or `long_opt`.
+ * Called from the `getopt_long()` handlers (`set_short_option()` or `set_long_option()`
+ * in envtool.c) to set `opt.sort_method` based on `short_opt` or `long_opt`.
+ *
+ * \param[in] short_opt  If `!NULL`, match this against `short_sort_methods[]`.
+ * \param[in] long_opt   If `!NULL`, match this against `long_sort_methods[]`.
+ *
+ * \retval TRUE if a matching method was found.
  */
 BOOL set_sort_method (const char *short_opt, const char *long_opt)
 {
