@@ -47,6 +47,7 @@
 #include "envtool.h"
 #include "envtool_py.h"
 #include "dirlist.h"
+#include "sort.h"
 
 extern BOOL find_vstudio_init (void);
 
@@ -409,8 +410,8 @@ static void read_hook (smartlist_t *sl, const char *buf)
 }
 
 /**
- * \li Show some basic version information:    option \c -V.
- * \li Show more detailed version information: option \c -VV.
+ * \li Show some basic version information:    option `-V`.
+ * \li Show more detailed version information: option `-VV`.
  *
  * \anchor show_version
  */
@@ -543,6 +544,7 @@ static int show_help (void)
           "    ~6--no-colour~0    don't print using colours.\n"
           "    ~6--no-ansi~0      don't print colours using ANSI sequences (effective for CygWin/ConEmu only).\n"
           "    ~6--no-borland~0   don't check for Borland in ~6--include~0 or ~6--lib~0 mode.\n"
+          "    ~6--no-clang~0     don't check for Clang in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--no-watcom~0    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--owner~0        shown owner of the file (shows all owners).\n"
           "    ~6--owner~0=~3spec~0   shown only files/directories matching owner ~3spec~0.\n"
@@ -560,9 +562,13 @@ static int show_help (void)
           "    ~6-d~0, ~6--debug~0    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
           "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n");
 
-  C_puts ("    ~6-r~0, ~6--regex~0    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
-          "    ~6-s~0, ~6--size~0     show size of files or directories found.\n"
-          "    ~6-q~0, ~6--quiet~0    disable warnings.\n"
+  C_printf ("    ~6-r~0, ~6--regex~0    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
+            "    ~6-s~0, ~6--size~0     show size of files or directories found.\n"
+            "    ~6-S~3x~0, ~6--sort=~3y~0  sort files on ~3%s~0 / ", get_sort_methods_short());
+
+  C_printf ("~3%s~0 (not yet effective).\n", get_sort_methods_long());
+
+  C_puts ("    ~6-q~0, ~6--quiet~0    disable warnings.\n"
           "    ~6-t~0             do some internal tests. Use ~6--owner~0, ~6--py~0 or ~6--evry~0 for extra tests.\n"
           "    ~6-T~0             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
           "    ~6-u~0             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
@@ -1269,7 +1275,7 @@ static int get_trailing_indent (const char *file)
  * \param[in] file         the file or directory to report.
  * \param[in] mtime        the modification time of the file or directory (-1 if unknown).
  * \param[in] fsize        the allocated size of the file or directory (-1 if unknown).
- * \param[in] is_dir       TRUE if the \c file is a directory.
+ * \param[in] is_dir       TRUE if the `file` is a directory.
  * \param[in] is_junction  TRUE if file (i.e. directory) was a reparse-point) not used yet.
  * \param[in] key          the (pseudo) key the search was a result of.
  */
@@ -1616,13 +1622,13 @@ static void final_report (int found)
 
 /**
  * Check for suffix or trailing wildcards. If not found, add a
- * trailing \c "*".
+ * trailing `"*"`.
  *
- * If \c opt.file_spec starts with a subdir(s) part, return that in
- * \c '*sub_dir' with a trailing \c DIR_SEP. And return a \c 'fspec'
+ * If `opt.file_spec` starts with a subdir(s) part, return that in
+ * `*sub_dir` with a trailing `DIR_SEP`. And return a `fspec`
  * without the sub-dir part.
  *
- * Not used in \c "--evry" search.
+ * Not used in `"--evry"` search.
  */
 static char *fix_filespec (char **sub_dir)
 {
@@ -1632,9 +1638,9 @@ static char *fix_filespec (char **sub_dir)
   char  *lbracket, *rbracket;
 
   /**
-   * If we do e.g. \c "envtool --inc openssl/ssl.h", we must preserve
-   * the subdir part since \c FindFirstFile() doesn't give us this subdir
-   * part in \c ff_data.cFileName. It just returns the matching file(s)
+   * If we do e.g. `"envtool --inc openssl/ssl.h"`, we must preserve
+   * the subdir part since `FindFirstFile()` doesn't give us this subdir
+   * part in `ff_data.cFileName`. It just returns the matching file(s)
    * \b within that sub-directory.
    */
   *sub_dir = NULL;
@@ -1649,10 +1655,10 @@ static char *fix_filespec (char **sub_dir)
 
  /**
   * Since FindFirstFile() doesn't work with POSIX ranges, replace
-  * the range part in \c fspec with a \c '*'. This could leave a
-  * \c '**' in \c 'fspec', but that doesn't hurt.
+  * the range part in `fspec` with a `*`. This could leave a
+  * `**` in `fspec`, but that doesn't hurt.
   *
-  * \note We must still use \c opt.file_spec in \c fnmatch() for
+  * \note We must still use `opt.file_spec` in `fnmatch()` for
   *       a POSIX range to work below.
   */
   lbracket = strchr (fspec, '[');
@@ -1670,8 +1676,8 @@ static char *fix_filespec (char **sub_dir)
   {
     /** \todo
      * Check for POSIX ranges in the sub-dir part as we do above
-     * for the base \c fspec. The \c FindFirstFile() loop in
-     * \c process_dir() should then have another outer \b "directory-loop".
+     * for the base `fspec`. The `FindFirstFile()` loop in
+     * `process_dir()` should then have another outer \b "directory-loop".
      */
     WARN ("Ignoring wildcards in sub-dir part: '%s%s'.\n", *sub_dir, fspec);
   }
@@ -2031,9 +2037,9 @@ static int do_check_registry (void)
 
 /**
  * Check if directory is empty (no files or directories except
- * \c "." and \c "..").
+ * `"."` and `".."`).
  *
- * \note It is quite normal that e.g. \c "%INCLUDE" contain a directory with
+ * \note It is quite normal that e.g. `"%INCLUDE"` contain a directory with
  *       no .h-files but at least 1 subdirectory with .h-files.
  */
 static BOOL dir_is_empty (const char *dir)
@@ -3021,41 +3027,46 @@ static void free_all_compilers (void)
 /**
  * Check if we shall ignore this compiler.
  *
- * \li if \c cc->full_name is non-NULL (i.e. found), check the ignore-list for that.
- * \li if \c cc->full_name is NULL, check the ignore-list for the \c cc->short_name.
+ * \li if `cc->full_name` is non-NULL (i.e. found), check the ignore-list for that.
+ * \li if `cc->full_name` is NULL, check the ignore-list for the `cc->short_name`.
  *
- * \eg{.} if the config-file contains a \c "ignore = i386-mingw32-gcc.exe", and
- *        \c "i386-mingw32-gcc.exe" is not found, don't try to spawn it (since it
+ * \eg{.} if the config-file contains a `"ignore = i386-mingw32-gcc.exe"`, and
+ *        `"i386-mingw32-gcc.exe"` is not found, don't try to spawn it (since it
  *        will fail).
  */
 static void compiler_check_ignore (compiler_info *cc)
 {
   BOOL ignore = FALSE;
 
-  /* "envtool --no-prefix .." given and this \c 'cc->short_name' is
-   * a prefixed \c '*-gcc.exe' or \c '*-g++.exe'.
+  /* "envtool --no-prefix .." given and this `cc->short_name` is
+   * a prefixed `*-gcc.exe` or `*-g++.exe`.
    */
   if (cc->no_prefix)
      ignore = TRUE;
 
-  /* "envtool --no-gcc .." given and this \c 'cc->type == CC_GNU_GCC'.
+  /* "envtool --no-gcc .." given and this `cc->type == CC_GNU_GCC`.
    */
   else if (cc->type == CC_GNU_GCC && opt.no_gcc)
      ignore = TRUE;
 
-  /* "envtool --no-g++ .." given and this \c 'cc->type == CC_GNU_GPP'.
+  /* "envtool --no-g++ .." given and this `cc->type == CC_GNU_GPP`.
    */
   else if (cc->type == CC_GNU_GPP && opt.no_gpp)
      ignore = TRUE;
 
-  /* "envtool --no-watcom .." given and this \c 'cc->type == CC_WATCOM'.
+  /* "envtool --no-watcom .." given and this `cc->type == CC_WATCOM`.
    */
   else if (cc->type == CC_WATCOM && opt.no_watcom)
      ignore = TRUE;
 
-  /* "envtool --no-borland .." given and this \c 'cc->type == CC_BORLAND'.
+  /* "envtool --no-borland .." given and this `cc->type == CC_BORLAND`.
    */
   else if (cc->type == CC_BORLAND && opt.no_borland)
+     ignore = TRUE;
+
+  /* "envtool --no-clang .." given and this `cc->type == CC_CLANG_CL`.
+   */
+  else if (cc->type == CC_CLANG_CL && opt.no_clang)
      ignore = TRUE;
 
   else if (cc->full_name)
@@ -3074,11 +3085,11 @@ static void compiler_check_ignore (compiler_info *cc)
 
 /**
  * Having several gcc compilers installed makes it nearly impossible to
- * set \c C_INCLUDE_PATH to the desired compiler's include-dir. So Envtool
- * simply asks \c '*gcc.exe' for what it think is the include search-path.
- * Do that by spawning the \c '*gcc.exe' and parsing the include paths.
+ * set `C_INCLUDE_PATH` to the desired compiler's include-dir. So Envtool
+ * simply asks `*gcc.exe` for what it think is the include search-path.
+ * Do that by spawning the `*gcc.exe` and parsing the include paths.
  *
- * Same goes for the \c LIBRARY_PATH.
+ * Same goes for the `LIBRARY_PATH`.
  */
 static void check_if_cygwin (const char *path)
 {
@@ -3097,12 +3108,12 @@ static void check_if_cygwin (const char *path)
 }
 
 /*
- * In case the \c gcc is a CygWin gcc, we need to figure out the root-directory.
- * Since \c gcc reports \c C_INCLUDE_PATH like \c "/usr/lib/gcc/i686-w64-mingw32/6.4.0/include",
- * we must prefix this as \c "<cygwin_root>/usr/lib/gcc/i686-w64-mingw32/6.4.0/include".
+ * In case the `gcc` is a CygWin gcc, we need to figure out the root-directory.
+ * Since `gcc` reports `C_INCLUDE_PATH` like `"/usr/lib/gcc/i686-w64-mingw32/6.4.0/include"`,
+ * we must prefix this as `"<cygwin_root>/usr/lib/gcc/i686-w64-mingw32/6.4.0/include"`.
  *
- * Otherwise \c FILE_EXISTS() wont work for non-Cygwin targets.
- * An alternative would be to parse the \c "<cygwin_root>/etc/fstab" file!
+ * Otherwise `FILE_EXISTS()` wont work for non-Cygwin targets.
+ * An alternative would be to parse the `"<cygwin_root>/etc/fstab"` file!
  */
 static void setup_cygwin_root (const compiler_info *cc)
 {
@@ -3404,11 +3415,11 @@ static int process_gcc_dirs (const char *gcc, int *num_dirs)
 }
 
 /**
- * Add all supported GNU gcc/g++ compilers to the \c 'all_cc' smartlist.
- * But only add the first \c "*gcc.exe" / \c "*g++.exe"" found on PATH.
+ * Add all supported GNU gcc/g++ compilers to the `all_cc` smartlist.
+ * But only add the first `"*gcc.exe"` / `"*g++.exe"` found on `PATH`.
  *
- * The first pair added has no prefix (simply \c "gcc.exe" / \c "g++.exe").
- * The others pairs use the prefixes in \c 'gnu_prefixes[]'.
+ * The first pair added has no prefix (simply `"gcc.exe"` / `"g++.exe"`).
+ * The others pairs use the prefixes in `gnu_prefixes[]`.
  */
 static void add_gnu_compilers (void)
 {
@@ -3545,9 +3556,9 @@ static void add_watcom_compilers (void)
 }
 
 /**
- * This is used to find the longest \c cc->short_name. For aligning the 1st column
- * (e.g. \c "cl.exe") to fit the compiler with the longest \c cc->short_name.
- * I.e. \c "x86_64-w64-mingw32-gcc.exe".
+ * This is used to find the longest `cc->short_name`. For aligning the 1st column
+ * (e.g. `"cl.exe"`) to fit the compiler with the longest `cc->short_name`.
+ * I.e. `"x86_64-w64-mingw32-gcc.exe"`.
  */
 static size_t get_longest_short_name (void)
 {
@@ -3566,11 +3577,11 @@ static size_t get_longest_short_name (void)
 }
 
 /**
- * Print the internal \c "*gcc" or \c "*g++" \c LIBRARY_PATH returned from
- * \c 'setup_gcc_library_path()'.
- * I.e. only the directories \b not in \c %LIBRARY_PATH%.
+ * Print the internal `"*gcc"` or `"*g++"` `LIBRARY_PATH` returned from
+ * `setup_gcc_library_path()`.
+ * I.e. only the directories \b not in `%LIBRARY_PATH%`.
  *
- * If we have no \c %LIBRARY_PATH%, the \c 'copy[]' will contain only internal
+ * If we have no `%LIBRARY_PATH%`, the `copy[]` will contain only internal
  * directories.
  */
 static void print_gcc_internal_dirs (const char *env_name, const char *env_value)
@@ -3828,6 +3839,84 @@ static int do_check_gcc_library_paths (void)
   return (found);
 }
 
+/*
+ * Check along clang directories
+ */
+static int process_clang_dirs (const char *cc, int *num_dirs)
+{
+  int i, found, max = smartlist_len (dir_array);
+
+  for (i = found = 0; i < max; i++)
+  {
+    const struct directory_array *arr = smartlist_get (dir_array, i);
+
+    DEBUGF (2, "dir: %s\n", arr->dir);
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
+                          arr->is_dir, arr->exp_ok, cc, HKEY_INC_LIB_FILE, FALSE);
+  }
+  *num_dirs = max;
+  free_dir_array();
+  return (found);
+}
+
+static void clang_popen_warn (const compiler_info *cc, int rc)
+{
+  const char *err = popen_last_line();
+
+  if (*err != '\0')
+     err = strstr (err, "error: ");
+
+  WARN ("Calling %s returned %d", cc->full_name, rc);
+  if (err && !opt.quiet)
+     C_printf (":\n  %s.\n", err);
+}
+
+static int setup_clang_includes (const compiler_info *cc)
+{
+  int found;
+
+  free_dir_array();
+
+  /* We want the output of stderr only. But that seems impossible on CMD/4NT.
+   * Hence redirect stderr + stdout into the same pipe for us to read.
+   * Also assume that the '*gcc' is on PATH.
+   */
+  found_search_line = FALSE;
+
+  found = popen_runf (find_include_path_cb, CLANG_DUMP_FMT, cc->full_name, "");
+  if (found > 0)
+       DEBUGF (1, "found %d include paths for %s.\n", found, cc->full_name);
+  else clang_popen_warn (cc, found);
+  return (found);
+}
+
+/**
+ * Checking of clang include-dirs.
+ */
+static int do_check_clang_includes (void)
+{
+  char report [_MAX_PATH+50];
+  int  i, found, num_dirs = 0;
+  int  max = smartlist_len (all_cc);
+
+  for (i = found = 0; i < max; i++)
+  {
+    const compiler_info *cc = smartlist_get (all_cc, i);
+
+    if (cc->type == CC_CLANG_CL && !cc->ignore && setup_clang_includes(cc) > 0)
+    {
+      snprintf (report, sizeof(report), "Matches in %s %%INCLUDE%% path:\n", cc->full_name);
+      report_header = report;
+      found += process_clang_dirs (cc->short_name, &num_dirs);
+    }
+    FREE (cygwin_root);
+  }
+
+  if (num_dirs == 0)
+     WARN ("No clang.exe programs returned any include paths.\n");
+  return (found);
+}
+
 /**
  * Common stuff for Watcom checking.
  */
@@ -3903,11 +3992,11 @@ static void free_watcom_dirs (void)
  *   %WATCOM%\lh    (Linux headers in recent OpenWatcom)
  * \endcode
  *
- * And full path given by \c %NT_INCLUDE%.
+ * And full path given by `%NT_INCLUDE%`.
  *
- * \note We do not spawn \c "wcc*.exe" to ask for it's internal include-directory
- *   (as we do for \c "gcc*"). Simply search along the above directories.
- *   Does not searches \c "%INCLUDE%".
+ * \note We do not spawn `"wcc*.exe"` to ask for it's internal include-directory
+ *   (as we do for `"gcc*"`). Simply search along the above directories.
+ *   Does not searches `"%INCLUDE%"`.
  */
 static int do_check_watcom_includes (void)
 {
@@ -3919,15 +4008,15 @@ static int do_check_watcom_includes (void)
        DEBUGF (1, "Env-var %s not defined.\n", "%NT_INCLUDE%");
   else split_env_var ("%NT_INCLUDE%", watcom_dir[3]);
 
-  /* This will append to what was inserted in \c 'dir_array' above.
-   * Do not add \c ".\\" again (set \c opt.no_cwd to 1).
+  /* This will append to what was inserted in `dir_array` above.
+   * Do not add `".\\"` again (set `opt.no_cwd` to 1).
    */
   save = opt.no_cwd;
   opt.no_cwd = 1;
   if (!setup_watcom_dirs("%WATCOM%\\h", "%WATCOM%\\h\\nt", "%WATCOM%\\lh"))
      goto quit;
 
-  /* The above adding of \c "%NT_INCLUDE" will probably create duplicate
+  /* The above adding of `"%NT_INCLUDE"` will probably create duplicate
    * entries. Remove them.
    */
   make_unique_dir_array ("%NT_INCLUDE%");
@@ -4205,11 +4294,13 @@ static const struct option long_options[] = {
            { "nonblock-io", no_argument,       NULL, 0 },
            { "no-watcom",   no_argument,       NULL, 0 },    /* 33 */
            { "no-borland",  no_argument,       NULL, 0 },
-           { "owner",       optional_argument, NULL, 0 },    /* 35 */
-           { "check",       no_argument,       NULL, 0 },
-           { "signed",      optional_argument, NULL, 0 },    /* 37 */
-           { "no-cwd",      no_argument,       NULL, 0 },
-           { NULL,          no_argument,       NULL, 0 }     /* 39 */
+           { "no-clang",    no_argument,       NULL, 0 },    /* 35 */
+           { "owner",       optional_argument, NULL, 0 },
+           { "check",       no_argument,       NULL, 0 },    /* 37 */
+           { "signed",      optional_argument, NULL, 0 },
+           { "no-cwd",      no_argument,       NULL, 0 },    /* 39 */
+           { "sort",        required_argument, NULL, 0 },
+           { NULL,          no_argument,       NULL, 0 }     /* 41 */
          };
 
 static int *values_tab[] = {
@@ -4248,10 +4339,12 @@ static int *values_tab[] = {
             &opt.use_nonblock_io,
             &opt.no_watcom,           /* 33 */
             &opt.no_borland,
-            &opt.show_owner,          /* 35 */
-            &opt.do_check,
-            (int*)&opt.signed_status, /* 37 */
-            &opt.no_cwd
+            &opt.no_clang,            /* 35 */
+            &opt.show_owner,
+            &opt.do_check,            /* 37 */
+            (int*)&opt.signed_status,
+            &opt.no_cwd,              /* 39 */
+            (int*)&opt.sort_method
           };
 
 /*
@@ -4308,7 +4401,7 @@ static void set_evry_options (const char *arg)
 }
 
 /**
- * Set \c opt.signed_status based on "--owner" and any optional
+ * Set `opt.signed_status` based on `"--owner"` and any optional
  * parameters given to it.
  */
 static void set_signed_options (const char *arg)
@@ -4335,7 +4428,7 @@ static void set_signed_options (const char *arg)
 }
 
 /**
- * Set \c opt.owner based on "--owner" and any optional
+ * Set `opt.owner` based on `"--owner"` and any optional
  * parameters given to it.
  */
 static void set_owner_options (const char *arg)
@@ -4388,6 +4481,11 @@ static void set_short_option (int o, const char *arg)
     case 's':
          opt.show_size = 1;
          break;
+    case 'S':
+         if (!set_sort_method(arg, NULL))
+            usage ("Illegal \"-S\" method '%s'. Use one of: %s\n",
+                   arg, get_sort_methods_short());
+         break;
     case 'T':
          opt.decimal_timestamp = 1;
          break;
@@ -4435,6 +4533,14 @@ static void set_long_option (int o, const char *arg)
     return;
   }
 
+  if (!strcmp("sort",long_options[o].name))
+  {
+    if (!set_sort_method(NULL, arg))
+       usage ("Illegal \"-S\" method '%s'. Use one of: %s\n",
+              arg, get_sort_methods_long());
+    return;
+  }
+
   if (!strcmp("owner",long_options[o].name))
   {
     set_owner_options (arg);
@@ -4475,7 +4581,7 @@ static void parse_cmdline (void)
   command_line *c = &opt.cmd_line;
 
   c->env_opt       = "ENVTOOL_OPTIONS";
-  c->short_opt     = "+chH:vVdDkrstTuq";
+  c->short_opt     = "+chH:vVdDkrsS:tTuq";
   c->long_opt      = long_options;
   c->set_short_opt = set_short_option;
   c->set_long_opt  = set_long_option;
@@ -4527,7 +4633,7 @@ static int eval_options (void)
 }
 
 /**
- * The only \c atexit() function where all cleanup is done.
+ * The only `atexit()` function where all cleanup is done.
  * \anchor cleanup
  */
 static void MS_CDECL cleanup (void)
@@ -4806,6 +4912,9 @@ int MS_CDECL main (int argc, const char **argv)
 
     if (!opt.no_gpp)
        found += do_check_gpp_includes();
+
+    if (!opt.no_clang)
+       found += do_check_clang_includes();
   }
 
   if (opt.do_cmake)

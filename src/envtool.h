@@ -327,59 +327,63 @@ typedef enum SignStatus {
         SIGN_CHECK_SIGNED
       } SignStatus;
 
+enum SortMethod; /* forward; sort.h */
+
 struct prog_options {
-       int          debug;
-       int          verbose;
-       int          quiet;
-       int          fatal_flag;
-       int          quotes_warn;
-       int          no_cwd;
-       int          show_unix_paths;
-       int          show_owner;
-       void        *owners;          /* A smartlist_t */
-       int          decimal_timestamp;
-       int          no_sys_env;
-       int          no_usr_env;
-       int          no_app_path;
-       int          no_colours;
-       int          no_ansi;
-       int          use_regex;
-       int          use_buffered_io;
-       int          use_nonblock_io;
-       int          dir_mode;
-       int          man_mode;
-       int          PE_check;
-       SignStatus   signed_status;
-       int          help;
-       int          show_size;
-       int          only_32bit;
-       int          only_64bit;
-       int          gcc_no_prefixed;
-       int          no_gcc;
-       int          no_gpp;
-       int          no_watcom;
-       int          no_borland;
-       int          do_tests;
-       int          do_evry;
-       int          do_version;
-       int          do_path;
-       int          do_lib;
-       int          do_include;
-       int          do_python;
-       int          do_man;
-       int          do_cmake;
-       int          do_pkg;
-       int          do_check;
-       int          conv_cygdrive;
-       int          case_sensitive;
-       int          cache_ver_level;
-       int          keep_temp;
-       int          under_conemu;
-       BOOL         evry_raw;      /* use raw non-regex searches */
-       void        *evry_host;     /* A smartlist_t */
-       char        *file_spec;
-       int          remaining_arg_pos;
-       command_line cmd_line;
+       int             debug;
+       int             verbose;
+       int             quiet;
+       int             fatal_flag;
+       int             quotes_warn;
+       int             no_cwd;
+       int             show_unix_paths;
+       int             show_owner;
+       void           *owners;          /* A smartlist_t */
+       int             decimal_timestamp;
+       int             no_sys_env;
+       int             no_usr_env;
+       int             no_app_path;
+       int             no_colours;
+       int             no_ansi;
+       int             use_regex;
+       int             use_buffered_io;
+       int             use_nonblock_io;
+       int             dir_mode;
+       int             man_mode;
+       int             PE_check;
+       SignStatus      signed_status;
+       int             help;
+       int             show_size;
+       int             only_32bit;
+       int             only_64bit;
+       int             gcc_no_prefixed;
+       int             no_gcc;
+       int             no_gpp;
+       int             no_watcom;
+       int             no_borland;
+       int             no_clang;
+       int             do_tests;
+       int             do_evry;
+       int             do_version;
+       int             do_path;
+       int             do_lib;
+       int             do_include;
+       int             do_python;
+       int             do_man;
+       int             do_cmake;
+       int             do_pkg;
+       int             do_check;
+       int             conv_cygdrive;
+       int             case_sensitive;
+       int             cache_ver_level;
+       int             keep_temp;
+       int             under_conemu;
+       enum SortMethod sort_method;
+       BOOL            evry_raw;      /* use raw non-regex searches */
+       void           *evry_host;     /* A smartlist_t */
+       char           *file_spec;
+       int             remaining_arg_pos;
+       command_line    cmd_line;
      };
 
 extern struct prog_options opt;
