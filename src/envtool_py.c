@@ -156,8 +156,13 @@ static struct python_info all_py_programs[] = {
     { "pypy.exe",   PYPY_PYTHON,   FALSE, { "~\\libpypy-c.dll", NULL }, },
 
     /* CPython */
+#if defined(__CYGWIN__) && 0
+    { "python2.7.exe", PY3_PYTHON, TRUE,  { "~\\libpython%d.%d.dll", NULL }, },
+    { "python3.6m.exe", PY2_PYTHON, TRUE, { "~\\libpython%d.%d.dll", NULL }, },
+#else
     { "python.exe", PY3_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
     { "python.exe", PY2_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
+#endif
 
     /* IronPython */
     { "ipy.exe",    IRON2_PYTHON,  FALSE, { "~\\IronPython.dll", NULL }, },
