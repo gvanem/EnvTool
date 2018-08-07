@@ -3711,6 +3711,7 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
   struct compiler_info *cc;
   BOOL   at_least_one_gnu = FALSE;
   int    i, max, ignored, save = opt.cache_ver_level;
+  int    save_u;
 
   ASSERT (all_cc == NULL);
   all_cc = smartlist_new();
@@ -3718,15 +3719,21 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
   if (print_info && print_lib_path)
      opt.cache_ver_level = 3;
 
+  save_u = opt.show_unix_paths;
+  if (!print_info)
+     opt.show_unix_paths = 0;
+
   add_gnu_compilers();
   add_msvc_compilers();
   add_clang_cl_compilers();
   add_borland_compilers();
   add_watcom_compilers();
 
+  opt.show_unix_paths = save_u;
+
   max = smartlist_len (all_cc);
   for (i = 0; i < max; i++)
-     compiler_check_ignore (smartlist_get(all_cc, i));
+      compiler_check_ignore (smartlist_get(all_cc, i));
 
   longest_cc = get_longest_short_name();
 
@@ -3976,7 +3983,9 @@ static int do_check_clang_includes (void)
   {
     const compiler_info *cc = smartlist_get (all_cc, i);
 
-    if (cc->type == CC_CLANG_CL && !cc->ignore && setup_clang_includes(cc) > 0)
+    if (cc->type == CC_CLANG_CL && !cc->ignore &&
+        !stricmp("clang.exe",cc->short_name)   &&   /* Do it for clang.exe only */
+        setup_clang_includes(cc) > 0)
     {
       snprintf (report, sizeof(report), "Matches in %s %%INCLUDE%% path:\n", cc->full_name);
       report_header = report;
@@ -4257,12 +4266,11 @@ static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
   smartlist_t *dir_list;
   char        *bin_dir;
   char         bcc_cfg [_MAX_PATH];
-  int          slash = (opt.show_unix_paths ? '/' : '\\');
 
   bcc_root = strlwr (STRDUP(cc->full_name));
-  bin_dir =  strrchr (bcc_root, slash);
+  bin_dir =  strrchr (bcc_root, '\\');
   *bin_dir = '\0';
-  bin_dir =  strrchr (bcc_root, slash);
+  bin_dir =  strrchr (bcc_root, '\\');
   *bin_dir = '\0';
 
   DEBUGF (2, "bcc_root: %s, short_name: %s\n", bcc_root, cc->short_name);
