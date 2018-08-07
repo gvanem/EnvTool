@@ -179,7 +179,7 @@ static void get_evry_bitness (HWND wnd);
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
 static int   do_check (void);
 static int   do_tests (void);
-static void  searchpath_all_cc (BOOL print_info, BOOL print_lib_path);
+static void  search_and_add_all_cc (BOOL print_info, BOOL print_lib_path);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 static int   get_pkg_config_info (char **exe_p, struct ver_info *ver);
@@ -484,7 +484,7 @@ static int show_version (void)
     print_build_ldflags();
 
     C_printf ("\n  Compilers on ~3PATH~0:\n");
-    searchpath_all_cc (TRUE, opt.do_version >= 3);
+    search_and_add_all_cc (TRUE, opt.do_version >= 3);
 
     C_printf ("\n  Pythons on ~3PATH~0:");
     py_searchpaths();
@@ -2976,27 +2976,34 @@ static int do_check_cmake (void)
 }
 
 /**
- * Handling of GNU-compilers ('*gcc.exe', '*g++.exe'), MSVC, clang-cl, Borland and Watcom.
+ * Handling of GNU-compilers (`*gcc.exe`, `*g++.exe`), MSVC,
+ * clang-cl, Borland and Watcom.
+ *
+ * \enum compiler_type
  */
 typedef enum compiler_type {
-             CC_UNKNOWN = 0,
-             CC_GNU_GCC,      /* Some sort of (prefixed) '*gcc.exe' */
-             CC_GNU_GPP,      /* Some sort of (prefixed) '*g++.exe' */
-             CC_MSVC,
-             CC_CLANG_CL,
-             CC_BORLAND,
-             CC_WATCOM
+             CC_UNKNOWN = 0, /**< Unknown compiler (not initialised value) */
+             CC_GNU_GCC,     /**< Some sort of (prefixed) `*gcc.exe`. */
+             CC_GNU_GPP,     /**< Some sort of (prefixed) `*g++.exe`. */
+             CC_MSVC,        /**< A MSVC compiler */
+             CC_CLANG_CL,    /**< A clang/clang-cl compiler */
+             CC_BORLAND,     /**< A Borland / Embarcadero compiler */
+             CC_WATCOM       /**< A Watcom/OpenWatcom compiler */
            } compiler_type;
 
+/** \struct compiler_info
+ */
 typedef struct compiler_info {
-        char          *short_name;  /* the short name we're looking for on %PATH */
-        char          *full_name;   /* the full name if found %PATH */
-        compiler_type  type;        /* what type is it? */
-        BOOL           ignore;      /* shall we ignore it? */
-        BOOL           no_prefix;   /* shall we check gnu prefixed gcc/g++? */
+        char          *short_name;  /**< the short name we're looking for on `%PATH` */
+        char          *full_name;   /**< the full name if found `%PATH` */
+        compiler_type  type;        /**< what type is it? */
+        BOOL           ignore;      /**< shall we ignore it? */
+        BOOL           no_prefix;   /**< shall we check gnu prefixed gcc/g++? */
       } compiler_info;
 
-/* Info for all compiler is int this list; an array of 'compiler_info'
+/**
+ * The information for all added compilers is in this list;
+ * an array of `compiler_info` created by `search_and_add_all_cc()`.
  */
 static smartlist_t *all_cc = NULL;
 
@@ -3009,6 +3016,9 @@ static char  *cygwin_root       = NULL;
 static char   cygwin_fqfn [_MAX_PATH];
 static char  *watcom_dir[4];
 
+/**
+ * Free the memory allocated by `search_and_add_all_cc()`.
+ */
 static void free_all_compilers (void)
 {
   int i, max = all_cc ? smartlist_len (all_cc) : 0;
@@ -3033,6 +3043,8 @@ static void free_all_compilers (void)
  * \eg{.} if the config-file contains a `"ignore = i386-mingw32-gcc.exe"`, and
  *        `"i386-mingw32-gcc.exe"` is not found, don't try to spawn it (since it
  *        will fail).
+ *
+ * \param[in] cc the the `compiler_info` to check.
  */
 static void compiler_check_ignore (compiler_info *cc)
 {
@@ -3107,7 +3119,7 @@ static void check_if_cygwin (const char *path)
   }
 }
 
-/*
+/**
  * In case the `gcc` is a CygWin gcc, we need to figure out the root-directory.
  * Since `gcc` reports `C_INCLUDE_PATH` like `"/usr/lib/gcc/i686-w64-mingw32/6.4.0/include"`,
  * we must prefix this as `"<cygwin_root>/usr/lib/gcc/i686-w64-mingw32/6.4.0/include"`.
@@ -3304,10 +3316,10 @@ static void gnu_add_gpp_path (void)
 }
 
 #if defined(__CYGWIN__)
-  #define CLANG_DUMP_FMT "clang -v -dM -xc -c - < /dev/null 2>&1"
+  #define CLANG_DUMP_FMT "%s -v -dM -xc -c - < /dev/null 2>&1"
   #define GCC_DUMP_FMT   "%s %s -v -dM -xc -c - < /dev/null 2>&1"
 #else
-  #define CLANG_DUMP_FMT "clang -o NUL -v -dM -xc -c - < NUL 2>&1"
+  #define CLANG_DUMP_FMT "%s -o NUL -v -dM -xc -c - < NUL 2>&1"
   #define GCC_DUMP_FMT   "%s %s -o NUL -v -dM -xc -c - < NUL 2>&1"
 #endif             /* gcc ^, ^ '', '-m32' or '-m64' */
 
@@ -3477,8 +3489,8 @@ static void add_msvc_compilers (void)
 static void add_clang_cl_compilers (void)
 {
   static const char *clang[] = {
-                    "clang-cl.exe",
-                    "clang.exe"
+                    "clang.exe",
+                    "clang-cl.exe"
                   };
   int i;
 
@@ -3640,14 +3652,16 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
   free_dir_array();
 }
 
-/*
- * Called during 'envtool -VV' to print:
+/**
+ * Called during `envtool -VV` to print:
+ * ```
  *  Compilers on PATH:
  *    gcc.exe                    -> f:\MingW32\TDM-gcc\bin\gcc.exe
  *    ...
+ * ```
  *
- * 'envtool -VVV' (print_lib_path = TRUE) will print the internal
- * '*gcc' or '*g++' library paths too.
+ * `envtool -VVV (print_lib_path = TRUE)` will print the internal
+ * `*gcc` or `*g++` library paths too.
  */
 static void print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
 {
@@ -3692,7 +3706,7 @@ static BOOL ignore_all_gnus (compiler_type type)
   return (gnu_ignore >= num_gnu);
 }
 
-static void searchpath_all_cc (BOOL print_info, BOOL print_lib_path)
+static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
 {
   struct compiler_info *cc;
   BOOL   at_least_one_gnu = FALSE;
@@ -3883,9 +3897,68 @@ static int setup_clang_includes (const compiler_info *cc)
    */
   found_search_line = FALSE;
 
-  found = popen_runf (find_include_path_cb, CLANG_DUMP_FMT, cc->full_name, "");
+  found = popen_runf (find_include_path_cb, CLANG_DUMP_FMT, cc->full_name);
   if (found > 0)
        DEBUGF (1, "found %d include paths for %s.\n", found, cc->full_name);
+  else clang_popen_warn (cc, found);
+  return (found);
+}
+
+static int find_clang_library_path_cb (char *buf, int index)
+{
+  static const char prefix[] = "libraries: =";
+  char  *p, *tok;
+  int    i = 0;
+
+  if (strncmp(buf,prefix,sizeof(prefix)-1) || strlen(buf) <= sizeof(prefix))
+     return (0);
+
+  p = buf + sizeof(prefix) - 1;
+
+  for (i = 0, tok = strtok(p,";"); tok; tok = strtok(NULL,";"), i++)
+  {
+    char buf1 [_MAX_PATH];
+    char buf2 [_MAX_PATH];
+
+    _strlcpy (buf1, tok, sizeof(buf1));
+    _strlcpy (buf2, buf1, sizeof(buf2));
+
+#ifdef HAVE_STRCAT_S
+    strcat_s (buf1, sizeof(buf1), "\\lib\\windows");
+    strcat_s (buf2, sizeof(buf2), "\\..\\..");
+#else
+    strcat (buf1, "\\lib\\windows");
+    strcat (buf2, "\\..\\..");
+#endif
+
+    _fix_path (buf1, buf1);
+    _fix_path (buf2, buf2);
+
+    DEBUGF (2, "buf1: '%s'\n", buf1);
+    add_to_dir_array (buf1, FALSE, __LINE__);
+
+    DEBUGF (2, "buf2: '%s'\n", buf2);
+    add_to_dir_array (buf2, FALSE, __LINE__);
+  }
+  ARGSUSED (index);
+  return (2*i);
+}
+
+static int setup_clang_library_path (const compiler_info *cc)
+{
+  int found;
+
+  free_dir_array();
+
+  /* We want the output of stderr only. But that seems impossible on CMD/4NT.
+   * Hence redirect stderr + stdout into the same pipe for us to read.
+   * Also assume that the '*gcc' is on PATH.
+   */
+  found_search_line = FALSE;
+
+  found = popen_runf (find_clang_library_path_cb, "%s -print-search-dirs", cc->full_name);
+  if (found > 0)
+       DEBUGF (1, "found %d library paths for %s.\n", found, cc->full_name);
   else clang_popen_warn (cc, found);
   return (found);
 }
@@ -3914,6 +3987,35 @@ static int do_check_clang_includes (void)
 
   if (num_dirs == 0)
      WARN ("No clang.exe programs returned any include paths.\n");
+  return (found);
+}
+
+/**
+ * Checking of special clang library-dirs.
+ */
+static int do_check_clang_library_paths (void)
+{
+  char report [_MAX_PATH+50];
+  int  i, found, num_dirs = 0;
+  int  max = smartlist_len (all_cc);
+
+  for (i = found = 0; i < max; i++)
+  {
+    const compiler_info *cc = smartlist_get (all_cc, i);
+
+    if (cc->type == CC_CLANG_CL && !cc->ignore &&
+        !stricmp("clang.exe",cc->short_name)   &&   /* Do it for clang.exe only */
+        setup_clang_library_path(cc) > 0)
+    {
+      snprintf (report, sizeof(report), "Matches in %s %%LIB%% path:\n", cc->full_name);
+      report_header = report;
+      found += process_clang_dirs (cc->short_name, &num_dirs);
+    }
+    FREE (cygwin_root);
+  }
+
+  if (num_dirs == 0)
+     WARN ("\nNo clang.exe programs returned any library paths.\n");
   return (found);
 }
 
@@ -4818,7 +4920,7 @@ int MS_CDECL main (int argc, const char **argv)
      opt.no_sys_env = opt.no_usr_env = opt.no_app_path = 1;
 
   if (opt.do_lib || opt.do_include)
-     searchpath_all_cc (FALSE, FALSE);
+     search_and_add_all_cc (FALSE, FALSE);
 
   if (!(opt.do_path || opt.do_lib || opt.do_include))
      opt.no_sys_env = opt.no_usr_env = 1;
@@ -4894,6 +4996,9 @@ int MS_CDECL main (int argc, const char **argv)
 
     if (!(opt.no_gcc && opt.no_gpp))   /* Ignore all 'gcc.exe' and g++.exe' */
        found += do_check_gcc_library_paths();
+
+    if (!opt.no_clang)
+       found += do_check_clang_library_paths();
   }
 
   if (opt.do_include)
