@@ -773,6 +773,7 @@ INPUT = main_page.dox           \
         ../src/Everything.c     \
         ../src/Everything_ETP.c \
         ../src/dirlist.c        \
+        ../src/get_file_assoc.c \
         ../src/getopt_long.c    \
         ../src/ignore.c         \
         ../src/misc.c           \
@@ -792,6 +793,7 @@ INPUT = main_page.dox           \
         ../src/Everything.h     \
         ../src/Everything_ETP.h \
         ../src/Everything_IPC.h \
+        ../src/get_file_assoc.h \
         ../src/getopt_long.h    \
         ../src/ignore.h         \
         ../src/regex.h          \
