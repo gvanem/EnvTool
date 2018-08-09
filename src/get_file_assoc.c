@@ -2,18 +2,18 @@
  * \ingroup Misc
  *
  * \brief
- *   Gets the "File Associations" (`ASSOCSTR_EXECUTABLE`) for a file extension
- *   using `AssocQueryStringA()`:
- *   \ref https://docs.microsoft.com/en-us/windows/desktop/api/shlwapi/nf-shlwapi-assocquerystringa
+ *   Gets the **File Associations** (`ASSOCSTR_EXECUTABLE`) for a file extension
+ *   using `AssocQueryStringA()`: \n
+ *    https://docs.microsoft.com/en-us/windows/desktop/api/shlwapi/nf-shlwapi-assocquerystringa
  */
 #if !defined(_WIN32_WINNT)
   #undef  _WIN32_WINNT
-  #define _WIN32_WINNT   0x0A00      /* Windows-10 */
+  #define _WIN32_WINNT   0x0A00  /* Windows-10 */
 #endif
 
 #if !defined(_WIN32_IE)
   #undef  _WIN32_IE
-  #define _WIN32_IE  0x800  /* _WIN32_IE_IE80 */
+  #define _WIN32_IE      0x800   /* _WIN32_IE_IE80 */
 #endif
 
 #include <windows.h>
@@ -138,12 +138,13 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
 
 /**
  * Get the actual casing for a file-name by getting the short-name
- * and then the long-name. Internally, these functions seems to be using
- * `SHGetFileInfo()`.
+ * and then the long-name.\n
+ * Internally, these functions seems to be using `SHGetFileInfo()`: \n
+ *   https://docs.microsoft.com/en-us/windows/desktop/api/shellapi/nf-shellapi-shgetfileinfoa
  *
  * \param[in,out] file_p  A pointer to the file to be converted.\n
- *                        The new proper file-name is returned at the same location.
- *                        It assumes `*file_p` was allocated by get_file_assoc().\n
+ *                        The new proper file-name is returned at the same location.\n
+ *                        It assumes `*file_p` was allocated by get_file_assoc().
  *
  * \retval  TRUE  if the `*file_p` was converted successfully.
  * \retval  FALSE if the convertion failed, `*file_p` is unchanged.
@@ -153,7 +154,7 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
  *   `GetLongPathName()` does not touch that.
  *
  * \note
- *  Written with the inspiration from:
+ *  Written with the inspiration from: \n
  *    http://stackoverflow.com/questions/74451/getting-actual-file-name-with-proper-casing-on-windows
  */
 BOOL get_actual_filename (char **file_p)
