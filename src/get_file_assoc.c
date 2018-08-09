@@ -6,7 +6,10 @@
  *   using `AssocQueryStringA()`:
  *   \ref https://docs.microsoft.com/en-us/windows/desktop/api/shlwapi/nf-shlwapi-assocquerystringa
  */
-#if !defined(NTDDI_VERSION)
+#if !defined(_WIN32_WINNT) || !defined(NTDDI_VERSION)
+  #undef  _WIN32_WINNT
+  #define _WIN32_WINNT   0x0A00      /* WINVER_WIN10 */
+
   #undef  NTDDI_VERSION
   #define NTDDI_VERSION  0x0A000000  /* NTDDI_WIN10 */
 #endif

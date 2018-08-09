@@ -6,7 +6,7 @@
   <ItemDefinitionGroup>
     <CustomBuildStep>
       <Command>
-      echo const char *cflags  = "cl -nologo -c -MT -Zi -Zo -W3 -WX- -O2 -Oi -Oy- -GL -DWIN32 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE -DWIN32_LEAN_AND_MEAN -D_WIN32_IE=0x500 -D_CRT_NON_CONFORMING_SWPRINTFS -DNDEBUG -Gm- -EHsc -GS -Gy -fp:precise -Zc:wchar_t -Zc:forScope"; &gt; cflags_MSVC.h
+      echo const char *cflags  = "cl -nologo -c -MT -Zi -Zo -W3 -WX- -O2 -Oi -Oy- -GL -DWIN32 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl -D_WIN32_WINNT=0x0602 -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE -DWIN32_LEAN_AND_MEAN -D_WIN32_IE=0x500 -D_CRT_NON_CONFORMING_SWPRINTFS -DNDEBUG -Gm- -EHsc -GS -Gy -fp:precise -Zc:wchar_t -Zc:forScope"; &gt; cflags_MSVC.h
       echo const char *ldflags = "link -nologo -errorreport:none -out:envtool.exe -incremental:no version.lib advapi32.lib imagehlp.lib wintrust.lib psapi.lib crypt32.lib kernel32.lib user32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib ws2_32.lib -manifest:embed -debug -map:envtool.map -subsystem:console -opt:ref -opt:icf -tlbid:1 -dynamicbase -nxcompat -machine:x86 -safeseh Release/auth.obj Release/envtool.obj envtool_py.obj Release/find_vstudio.obj Release/color.obj Release/Everything.obj Release/Everything_ETP.obj Release/dirlist.obj Release/get_file_assoc.obj Release/getopt_long.obj Release/ignore.obj Release/misc.obj Release/searchpath.obj Release/show_ver.obj Release/smartlist.obj Release/sort.obj Release/win_trust.obj Release/win_ver.obj Release/envtool.res"; &gt; ldflags_MSVC.h
     </Command>
       <Outputs>None</Outputs>
@@ -71,7 +71,7 @@
       <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;_DEBUG;_CONSOLE;_CRT_NON_CONFORMING_SWPRINTFS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN /D_WIN32_WINNT=0x0602 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -101,7 +101,7 @@
       <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;NDEBUG;_CONSOLE;_CRT_NON_CONFORMING_SWPRINTFS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN /D_WIN32_WINNT=0x0602 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
