@@ -48,7 +48,7 @@ static const struct search_list assoc_values[] = {
                     ADD_VALUE (ASSOCSTR_DROPTARGET),
                     ADD_VALUE (ASSOCSTR_DELEGATEEXECUTE),
 #endif
-#if defined(_MSC_VER) && (NTDDI_VERSION >= NTDDI_WIN10)
+#if defined(_MSC_VER) && (_WIN32_WINNT >= 0x0A00)
                     ADD_VALUE (ASSOCSTR_PROGID),
                     ADD_VALUE (ASSOCSTR_APPID),
                     ADD_VALUE (ASSOCSTR_APPPUBLISHER),
