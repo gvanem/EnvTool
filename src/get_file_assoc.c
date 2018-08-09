@@ -6,12 +6,9 @@
  *   using `AssocQueryStringA()`:
  *   \ref https://docs.microsoft.com/en-us/windows/desktop/api/shlwapi/nf-shlwapi-assocquerystringa
  */
-#if !defined(_WIN32_WINNT) || !defined(NTDDI_VERSION)
+#if !defined(_WIN32_WINNT)
   #undef  _WIN32_WINNT
-  #define _WIN32_WINNT   0x0A00      /* WINVER_WIN10 */
-
-  #undef  NTDDI_VERSION
-  #define NTDDI_VERSION  0x0A000000  /* NTDDI_WIN10 */
+  #define _WIN32_WINNT   0x0A00      /* Windows-10 */
 #endif
 
 #if !defined(_WIN32_IE)
@@ -51,7 +48,7 @@ static const struct search_list assoc_values[] = {
                     ADD_VALUE (ASSOCSTR_DROPTARGET),
                     ADD_VALUE (ASSOCSTR_DELEGATEEXECUTE),
 #endif
-#if defined(_MSC_VER) && defined(NTDDI_VERSION) && (NTDDI_VERSION >= NTDDI_WIN10)
+#if defined(_MSC_VER) && (NTDDI_VERSION >= NTDDI_WIN10)
                     ADD_VALUE (ASSOCSTR_PROGID),
                     ADD_VALUE (ASSOCSTR_APPID),
                     ADD_VALUE (ASSOCSTR_APPPUBLISHER),
