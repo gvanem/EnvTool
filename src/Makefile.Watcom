@@ -18,6 +18,7 @@ OBJECTS = auth.obj           &
           envtool_py.obj     &
           Everything.obj     &
           Everything_ETP.obj &
+          get_file_assoc.obj &
           getopt_long.obj    &
           ignore.obj         &
           misc.obj           &

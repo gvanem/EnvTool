@@ -82,9 +82,10 @@ else
                Win/version.lib)
 endif
 
-SOURCES = auth.c envtool.c envtool_py.c Everything.c Everything_ETP.c color.c \
-          dirlist.c ignore.c getopt_long.c misc.c searchpath.c smartlist.c \
-          show_ver.c sort.c regex.c win_ver.c win_trust.c
+SOURCES = auth.c envtool.c envtool_py.c Everything.c Everything_ETP.c \
+          color.c dirlist.c ignore.c get_file_assoc.c getopt_long.c   \
+          misc.c searchpath.c smartlist.c show_ver.c sort.c regex.c   \
+          win_ver.c win_trust.c
 
 OBJECTS = $(notdir $(SOURCES:.c=.obj))
 
@@ -149,6 +150,7 @@ envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h envtoo
 envtool_py.obj:     envtool_py.c envtool.h envtool_py.h
 Everything.obj:     Everything.c Everything.h Everything_IPC.h
 Everything_ETP.obj: Everything_ETP.c envtool.h color.h
+get_file_assoc.obj: get_file_assoc.c envtool.h color.h get_file_assoc.h
 getopt_long.obj:    getopt_long.c getopt_long.h
 color.obj:          color.c color.h
 misc.obj:           misc.c envtool.h color.h

@@ -63,8 +63,8 @@ ifeq ($(USE_WS2_32),1)
 endif
 
 SOURCES = auth.c dirlist.c envtool.c envtool_py.c Everything.c Everything_ETP.c \
-          color.c getopt_long.c ignore.c misc.c regex.c searchpath.c show_ver.c \
-          smartlist.c sort.c win_trust.c win_ver.c
+          color.c get_file_assoc.c getopt_long.c ignore.c misc.c regex.c \
+          searchpath.c show_ver.c smartlist.c sort.c win_trust.c win_ver.c
 
 OBJECTS  = $(notdir $(SOURCES:.c=.o))
 PROGRAMS = envtool.exe win_glob.exe win_ver.exe win_trust.exe dirlist.exe
