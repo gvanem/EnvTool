@@ -216,7 +216,7 @@
 #define FILE_EXISTS(f)       _file_exists (f)
 #define IS_SLASH(c)          ((c) == '\\' || (c) == '/')
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
   #define ATTR_PRINTF(_1,_2) __attribute__((format(printf,_1,_2)))
   #define ATTR_UNUSED()      __attribute__((unused))
   #define WIDESTR_FMT        "S"
