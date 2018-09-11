@@ -428,8 +428,13 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
           psVal = (const wchar_t*) ROUND_POS (&pS->szKey[wcslen(pS->szKey)+1], pS, 4);
           vlen = (int)pS->wValueLength;
           vlen = min (500, vlen);  /* max 500 bytes */
+
+          CLANG_WFORMAT_OFF()
+
           do_printf ("  %-16S: %.*S%s\n", pS->szKey, vlen, psVal,  /* print <sKey> : <sValue> */
                      vlen < (int)pS->wValueLength ? "..." : "");
+
+          CLANG_WFORMAT_POP()
         }
       }
     }

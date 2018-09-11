@@ -3549,8 +3549,12 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
                         (unsigned long)rdata->ReparseTag);
   }
 
+  CLANG_WFORMAT_OFF()
+
   DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
   DEBUGF (2, "PrintName:        '%.*S'\n", (int)(plen/2), print_name);
+
+  CLANG_WFORMAT_POP()
 
   /* Account for 0-termination
    */

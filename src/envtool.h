@@ -188,6 +188,23 @@
   #define ASSERT(expr) (void) (expr)
 #endif
 
+#if defined(__clang__)
+  /*
+   * To turn off these annoying warnings:
+   *   misc.c(3552,36):  warning: precision used with 'S' conversion specifier, resulting in undefined behavior [-Wformat]
+   *   DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
+   *                                 ~~^~
+   */
+  #define CLANG_PRAGMA(x)      _Pragma (#x)
+  #define CLANG_WFORMAT_OFF()  CLANG_PRAGMA (clang diagnostic push) ; \
+                               CLANG_PRAGMA (clang diagnostic ignored "-Wformat")
+  #define CLANG_WFORMAT_POP()  CLANG_PRAGMA (clang diagnostic pop)
+
+#else
+  #define CLANG_WFORMAT_OFF()
+  #define CLANG_WFORMAT_POP()
+#endif
+
 /*
  * MSVC (in debug) sometimes returns the full path.
  * Strip the directory part.
