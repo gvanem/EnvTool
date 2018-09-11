@@ -14,7 +14,7 @@
  *          for consistency (reports missing directories in `%INCLUDE%`) and
  *          prints all the locations of `afxwin.h`.
  *
- * By Gisle Vanem <gvanem@yahoo.no> August 2011 - 2017.
+ * By Gisle Vanem <gvanem@yahoo.no> August 2011 - 2018.
  *
  * Functions fnmatch() and searchpath() taken from djgpp and modified:
  *   Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details
@@ -72,15 +72,20 @@ extern BOOL find_vstudio_init (void);
 #endif
 #endif
 
+char *program_name = NULL;   /**< For getopt_long.c */
+
 /**
- * For getopt_long.c.
+ * \def REG_APP_PATH
+ * The Registry key under `HKEY_CURRENT_USER` or `HKEY_LOCAL_MACHINE`.
  */
-char *program_name = NULL;
-
 #define REG_APP_PATH    "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths"
-#define MAX_ARGS        20
 
-/** These were added in Everything 1.4
+/**
+ * \def EVERYTHING_IPC_IS_DB_LOADED
+ * \def EVERYTHING_IPC_IS_DB_BUSY
+ *
+ * IPC messages to check if EveryThing has loaded it's database or is busy indexing it's database.
+ * These were added in Everything 1.4
  */
 #ifndef EVERYTHING_IPC_IS_DB_LOADED
 #define EVERYTHING_IPC_IS_DB_LOADED 401
@@ -90,26 +95,32 @@ char *program_name = NULL;
 #define EVERYTHING_IPC_IS_DB_BUSY   402
 #endif
 
+/**
+ * \struct directory_array
+ */
 struct directory_array {
-       char    *dir;         /* FQDN of this entry */
-       char    *cyg_dir;     /* The Cygwin POSIX form of the above */
-       int      exist;       /* does it exist? */
-       int      is_native;   /* and is it a native dir; like %WinDir\sysnative */
-       int      is_dir;      /* and is it a dir; _S_ISDIR() */
-       int      is_cwd;      /* and is it equal to current_dir[] */
-       int      exp_ok;      /* expand_env_var() returned with no '%'? */
-       int      num_dup;     /* is duplicated elsewhere in %VAR%? */
-       BOOL     check_empty; /* check if it contains at least 1 file? */
-       unsigned line;        /* Debug: at what line was add_to_dir_array() called */
+       char    *dir;         /**< FQDN of this entry */
+       char    *cyg_dir;     /**< The Cygwin POSIX form of the above */
+       int      exist;       /**< does it exist? */
+       int      is_native;   /**< and is it a native dir; like %WinDir\sysnative */
+       int      is_dir;      /**< and is it a dir; _S_ISDIR() */
+       int      is_cwd;      /**< and is it equal to current_dir[] */
+       int      exp_ok;      /**< expand_env_var() returned with no '%'? */
+       int      num_dup;     /**< is duplicated elsewhere in %VAR%? */
+       BOOL     check_empty; /**< check if it contains at least 1 file? */
+       unsigned line;        /**< Debug: at what line was add_to_dir_array() called */
      };
 
+/**
+ * \struct registry_array
+ */
 struct registry_array {
-       char   *fname;        /* basename of this entry. I.e. the name of the enumerated key. */
-       char   *real_fname;   /* normally the same as above unless aliased. E.g. "winzip.exe -> "winzip32.exe" */
-       char   *path;         /* path of this entry */
-       int     exist;        /* does it exist? */
-       time_t  mtime;        /* file modification time */
-       UINT64  fsize;        /* file size */
+       char   *fname;        /**< basename of this entry. I.e. the name of the enumerated key. */
+       char   *real_fname;   /**< normally the same as above unless aliased. E.g. "winzip.exe -> "winzip32.exe" */
+       char   *path;         /**< path of this entry */
+       int     exist;        /**< does it exist? */
+       time_t  mtime;        /**< file modification time */
+       UINT64  fsize;        /**< file size */
        HKEY    key;
      };
 
@@ -154,14 +165,15 @@ static int        re_alloc;       /* the above 're_hnd' was allocated */
 
 volatile int halt_flag;
 
-/*
+/**
  * The list of prefixes for gnu C/C++ compilers.
- * E.g. we try "gcc.exe" ... "avr-gcc.exe" to figure out the
- *      %C_INCLUDE_PATH, %CPLUS_INCLUDE_PATH and %LIBRARY_PATH.
- *      Unless one of the '<path>/<prefix>-gcc.exe' are in the
- *      "[Compiler]" ignore-list.
  *
- * \todo add more prefixes from envtool.cfg here?
+ * \eg{.} E.g. we try `gcc.exe` ... `avr-gcc.exe` to figure out the
+ *        `%C_INCLUDE_PATH`, `%CPLUS_INCLUDE_PATH` and `%LIBRARY_PATH`.
+ *        Unless one of the `<path>/<prefix>-gcc.exe` are in the
+ *        `[Compiler]` ignore-list.
+ *
+ * \todo add more prefixes from `envtool.cfg` here?
  */
 static const char *gnu_prefixes[] = {
                   "",
@@ -186,38 +198,40 @@ static int   get_pkg_config_info (char **exe_p, struct ver_info *ver);
 static int   get_cmake_info (char **exe_p, struct ver_info *ver);
 
 /**
- * \todo Add support for *kpathsea*-like path searches (which some TeX programs uses).
+ * \todo Add support for *kpathsea*-like path searches (which some TeX programs uses). <br>
  *       E.g. if a `PATH` (or INCLUDE etc.) component contains `/foo/bar//`, the search will
  *            do a recursive search for all files (and dirs) under `/foo/bar/`.
+ *
  *       Ref. http://tug.org/texinfohtml/kpathsea.html
  *
  * \todo In `report_file()`, test if a file (in `%PATH`, `%INCLUDE` or `%LIB`) is
  *       shadowed by an older file of the same name (ahead of the newer file).
  *       Warn if this is the case.
  *
- * \todo Add sort option: on date/time.
- *                        on filename.
- *                        on file-size.
+ * \todo Add sort option:
+ *   \li on date/time.
+ *   \li on filename.
+ *   \li on file-size.
  *
  * \todo Add `--locate` option (or in combination with `--evry` option?) to
- *       look into GNU's `locatedb` (`%LOCATE_PATH=/cygdrive/f/Cygwin32/locatedb`)
+ *       look into GNU's `locatedb` (`%LOCATE_PATH=/cygdrive/X/Cygwin32/locatedb`)
  *       information too.
  *
- * \todo Add a `--check` option for 64-bit Windows to check that all .DLLs in:\n
+ * \todo Add a `--check` option for 64-bit Windows to check that all .DLLs in:<br>
  *           \li `"%SystemRoot%\System32"` are 64-bit and
- *           \li `"%SystemRoot%\SysWOW64"` are 32-bit.
+ *           \li `"%SystemRoot%\SysWOW64"` are 32-bit. <br>
  *       \eg{.}
- *        ```
+ *        \verbose
  *           pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
  *           Machine:                      014C (i386)
  *           Machine:                      014C (i386)
  *           ....
- *        ```
+ *        \endverbose
  *
  *       Also check their Wintrust signature status and version information.
  */
 
-/*
+/**
  * Show some version details for the EveryThing program.
  * Called on 'FindWindow ("EVERYTHING_TASKBAR_NOTIFICATION")' success.
  */
@@ -275,8 +289,10 @@ static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
   return (ver->val_1 + ver->val_2 + ver->val_3 + ver->val_4) > 0;
 }
 
-/*
+/**
  * Get the bitness (32/64-bit) of the EveryThing program.
+ *
+ * \param[in] wnd  the Windows handle of the EveryThing program.
  */
 static void get_evry_bitness (HWND wnd)
 {
@@ -305,7 +321,7 @@ static void get_evry_bitness (HWND wnd)
   DEBUGF (2, "fname: %s, evry_bitness: %d.\n", fname, evry_bitness);
 }
 
-/*
+/**
  * Show version information for various programs.
  */
 static void show_ext_versions (void)
@@ -373,8 +389,8 @@ static void show_ext_versions (void)
   FREE (pkg_config_exe);
 }
 
-/*
- * Hook-function for color.c functions.
+/**
+ * Hook-functions for color.c functions.
  * Used to dump version-information to file-cache.
  */
 static BOOL  saw_newline;
@@ -412,8 +428,6 @@ static void read_hook (smartlist_t *sl, const char *buf)
 /**
  * \li Show some basic version information:    option `-V`.
  * \li Show more detailed version information: option `-VV`.
- *
- * \anchor show_version
  */
 static int show_version (void)
 {
@@ -500,6 +514,10 @@ quit:
   return (0);
 }
 
+/**
+ * Printer for illegal program usage. <br>
+ * Call `exit(-1)` when done.
+ */
 static void usage (const char *fmt, ...)
 {
   va_list args;
@@ -510,6 +528,9 @@ static void usage (const char *fmt, ...)
   exit (-1);
 }
 
+/**
+ * Print a help-page of all program options.
+ */
 static int show_help (void)
 {
   #define PFX_GCC  "~4<prefix>~0-~6gcc~0"
@@ -633,12 +654,16 @@ static int show_help (void)
   return (0);
 }
 
-/*
- * Add the 'dir' to the 'dir_array' smartlist.
- * 'is_cwd' == 1 if 'dir' == current working directory.
+/**
+ * Add the `dir` to the `dir_array` smartlist.
+ * `is_cwd` == 1 if `dir` == current working directory.
  *
- * Since this function could be called with a 'dir' from `expand_env_var()`,
- * we check here if it returned with no '%'.
+ * \param[in] dir     the directory to add to the smartlist.
+ * \param[in] is_cwd  TRUE if `dir` is the current working directory.
+ * \param[in] line    at what line was `add_to_dir_array()` called.
+
+ * Since this function could be called with a `dir` from `expand_env_var()`,
+ * we check here if it returned with no `%`.
  */
 void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
 {
@@ -736,9 +761,13 @@ static int dump_dir_array (const char *where, const char *note)
 }
 
 /**
- * 'smartlist_make_uniq()' helper.
- * No need to use 'stricmp()' or 'str_equal()' since we already checked for
- * duplicates when items where added. Use that 'num_dup' count.
+ * `smartlist_make_uniq()` helper.
+ *
+ * \param[in] _a  The first `dir_array` element to check.
+ * \param[in] _b  The second `dir_array` element to check.
+ *
+ * No need to use `stricmp()` or `str_equal()` since we already checked for
+ * duplicates when items where added. Use the `num_dup` count instead.
  */
 static int dir_array_compare (const void **_a, const void **_b)
 {
@@ -754,8 +783,9 @@ static int dir_array_compare (const void **_a, const void **_b)
 }
 
 /**
- * 'smartlist_wipe()' helper.
- * Free an item in the 'reg_array' smartlist.
+ * `smartlist_wipe()` helper.
+ *
+ * \param[in] _r  The item in the `reg_array` smartlist to free.
  */
 static void reg_array_free (void *_r)
 {
@@ -768,8 +798,9 @@ static void reg_array_free (void *_r)
 }
 
 /**
- * 'smartlist_wipe()' and 'smartlist_make_uniq()' helper.
- * Free an item in the 'reg_array' smartlist.
+ * `smartlist_wipe()` and `smartlist_make_uniq()` helper.
+ *
+ * \param[in] _d  The item in the `reg_array` smartlist to free.
  */
 static void dir_array_free (void *_d)
 {
@@ -785,9 +816,12 @@ static void dir_array_free (void *_d)
  * non-canonical names. CygWin is more messy than others. So just remove the
  * duplicates.
  *
- * Loop over the 'dir_array' smartlist and remove all non-unique items.
- *
+ * Loop over the `dir_array` smartlist and remove all non-unique items.
  * Also used for Watcom's include-path.
+ *
+ * \param[in]  where  Where this function was used;
+ *                    equals `"%NT_INCLUDE%"` for `do_check_watcom_includes()` or
+ *                    `"library paths"` for `setup_gcc_library_path()`.
  */
 static int make_unique_dir_array (const char *where)
 {
@@ -801,12 +835,12 @@ static int make_unique_dir_array (const char *where)
 
 /**
  * Add elements to the 'reg_array' smartlist:
- *  - 'key':     the key the entry came from: HKEY_CURRENT_USER or HKEY_LOCAL_MACHINE.
- *  - 'fname':   the result from 'RegEnumKeyEx()'; name of each key.
- *  - 'fqdn':    the result from 'enum_sub_values()'. This value includes the full path.
+ *  \param[in] key     the key the entry came from: HKEY_CURRENT_USER or HKEY_LOCAL_MACHINE.
+ *  \param[in] fname   the result from 'RegEnumKeyEx()'; name of each key.
+ *  \param[in] fqdn    the result from 'enum_sub_values()'. This value includes the full path.
  *
- * Note: 'basename (fqdn)' may NOT be equal to 'fname' (aliasing). That's the reason
- *       we store 'real_fname' too.
+ * Note: `basename (fqdn)` may NOT be equal to `fname` (aliasing). That's the reason
+ *       we store `real_fname` too.
  */
 static void add_to_reg_array (HKEY key, const char *fname, const char *fqdn)
 {
@@ -1806,16 +1840,16 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
   return (*ret != NULL);
 }
 
-/*
- * Enumerate all keys under 'top_key + REG_APP_PATH' and build up
- * the 'reg_array' smartlist.
+/**
+ * Enumerate all keys under `top_key + REG_APP_PATH` and build up
+ * the `reg_array` smartlist.
  *
- * Either under:
- *   "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
- * or
- *   "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
+ * Either under: <br>
+ *   `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths` <br>
+ * or <br>
+ *   `HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths` <br>
  *
- * The number of entries added is given by 'smartlist_len (reg_array)'.
+ * The number of entries added is given by `smartlist_len (reg_array)`.
  */
 static void build_reg_array_app_path (HKEY top_key)
 {
@@ -1849,18 +1883,18 @@ static void build_reg_array_app_path (HKEY top_key)
      RegCloseKey (key);
 }
 
-/*
- * Scan registry under:
- *   HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment
- * and
- *   HKCU\Environment
+/**
+ * Scan registry under: <br>
+ *   `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` <br>
+ * and <br>
+ *   `HKCU\Environment`
  *
- * and return any 'PATH', 'LIB' and 'INCLUDE' in them.
+ * and return any `PATH`, `LIB` and `INCLUDE` in them.
  *
- * There can only be one of each of these under each registry 'sub_key'.
+ * There can only be one of each of these under each registry `sub_key`.
  * (otherwise the registry is truly messed up). Return first of each found.
  *
- * If one of these still contains a "%value%" after expand_env_var(),
+ * If one of these still contains a `"%value%"` after expand_env_var(),
  * this is checked later.
  */
 static void scan_reg_environment (HKEY top_key, const char *sub_key,
@@ -3406,8 +3440,9 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
   return (found);
 }
 
-/*
- * Check include/library-paths found above.
+/**
+ * Check library-paths found in setup_gcc_library_path(). <br>
+ * Check include-paths found in setup_gcc_includes().
  */
 static int process_gcc_dirs (const char *gcc, int *num_dirs)
 {
@@ -3486,6 +3521,9 @@ static void add_msvc_compilers (void)
   smartlist_add (all_cc, cl);
 }
 
+/**
+ * Search and add supported clang compilers to the `all_cc` smartlist.
+ */
 static void add_clang_cl_compilers (void)
 {
   static const char *clang[] = {
@@ -3508,6 +3546,9 @@ static void add_clang_cl_compilers (void)
   }
 }
 
+/**
+ * Search and add supported Borland compilers to the `all_cc` smartlist.
+ */
 static void add_borland_compilers (void)
 {
   static const char *borland[] = {
@@ -3530,6 +3571,9 @@ static void add_borland_compilers (void)
   }
 }
 
+/**
+ * Search and add supported Watcom compilers to the `all_cc` smartlist.
+ */
 static void add_watcom_compilers (void)
 {
   static const char *wcc[] = {
@@ -3687,6 +3731,9 @@ static void print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
   FREE (cygwin_root);
 }
 
+/**
+ * Return TRUE if we shall ignore all gnu-type compilers.
+ */
 static BOOL ignore_all_gnus (compiler_type type)
 {
   int i, num_gnu = 0, gnu_ignore = 0;
@@ -3706,6 +3753,14 @@ static BOOL ignore_all_gnus (compiler_type type)
   return (gnu_ignore >= num_gnu);
 }
 
+/**
+ * In `--lib` or `--inc` mode, search the `PATH` for all supported compilers.
+ *
+ * \param[in] print_info      If called from `show_version()`, print additional
+ *                            information on each compiler (unless it is in the ignore-list).
+ * \param[in] print_lib_path  If called from `show_version()` and `envtool -VVV` was used,
+ *                            print the internal GCC library paths too.
+ */
 static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
 {
   struct compiler_info *cc;
@@ -4348,7 +4403,7 @@ static int do_check_borland_inc_lib (const char *inc_lib, const char *matches, b
 }
 
 /**
- * Check all 'bcc*.exe' found on PATH for an INC search.
+ * Check all `bcc*.exe` found on `PATH` for an `INC` search.
  */
 static int do_check_borland_includes (void)
 {
@@ -4357,7 +4412,7 @@ static int do_check_borland_includes (void)
 }
 
 /**
- * Check all 'bcc*.exe' found on PATH for an LIB search.
+ * Check all `bcc*.exe` found on `PATH` for a `LIB` search.
  */
 static int do_check_borland_library_paths (void)
 {
@@ -4365,7 +4420,7 @@ static int do_check_borland_library_paths (void)
                                    bcc32_cfg_parse_lib);
 }
 
-/*
+/**
  * getopt_long() processing.
  */
 static const struct option long_options[] = {
@@ -4457,11 +4512,12 @@ static int *values_tab[] = {
             (int*)&opt.sort_method
           };
 
-/*
- * 'getopt_long()' handler for "--python=<short_name>".
+/**
+ * `getopt_long()` handler for option `--python=<short_name>`.
  *
- * Accept only a Python 'short_name' which is compiled in.
- * Ref. the 'all_py_programs[]' array in envtool_py.c.
+ * Accept only a Python `short_name` which is compiled in.
+ *
+ * Ref. the `all_py_programs[]` array in envtool_py.c.
  */
 static void set_python_variant (const char *arg)
 {
@@ -4500,6 +4556,9 @@ static void set_python_variant (const char *arg)
   py_which = (enum python_variants) v;
 }
 
+/**
+ * `getopt_long()` handler for option `-H arg` or `--host arg` used by remote ETP queries.
+ */
 static void set_evry_options (const char *arg)
 {
   if (arg)
@@ -4511,8 +4570,7 @@ static void set_evry_options (const char *arg)
 }
 
 /**
- * Set `opt.signed_status` based on `"--owner"` and any optional
- * parameters given to it.
+ * `getopt_long()` handler for option `--signed`.
  */
 static void set_signed_options (const char *arg)
 {
@@ -4538,8 +4596,7 @@ static void set_signed_options (const char *arg)
 }
 
 /**
- * Set `opt.owner` based on `"--owner"` and any optional
- * parameters given to it.
+ * `getopt_long()` handler for option `--owner`.
  */
 static void set_owner_options (const char *arg)
 {
@@ -4555,6 +4612,12 @@ static void set_owner_options (const char *arg)
      smartlist_add (opt.owners, STRDUP("*"));
 }
 
+/**
+ * The handler for short options called from `getopt_long()`.
+ *
+ * \param[in] o    an alphabetical letters given in `c->short_opt` and `getopt_parse(c)`.
+ * \param[in] arg  the optional argument for the option.
+ */
 static void set_short_option (int o, const char *arg)
 {
   DEBUGF (2, "got short option '%c' (%d).\n", o, o);
@@ -4617,6 +4680,12 @@ static void set_short_option (int o, const char *arg)
   }
 }
 
+/**
+ * The handler for long options called from `getopt_long()`.
+ *
+ * \param[in] o    the index into `long_options[]`.
+ * \param[in] arg  the optional argument for the option.
+ */
 static void set_long_option (int o, const char *arg)
 {
   int new_value, *val_ptr;
@@ -4744,7 +4813,6 @@ static int eval_options (void)
 
 /**
  * The only `atexit()` function where all cleanup is done.
- * \anchor cleanup
  */
 static void MS_CDECL cleanup (void)
 {
@@ -4799,8 +4867,10 @@ static void MS_CDECL cleanup (void)
   crtdbug_exit();
 }
 
-/*
+/**
  * This signal-handler gets called in another thread.
+ *
+ * \param[in] sig the signal to handle.
  */
 static void MS_CDECL halt (int sig)
 {
@@ -4841,6 +4911,9 @@ static void MS_CDECL halt (int sig)
   }
 }
 
+/**
+ * The main initialiser.
+ */
 static void init_all (const char **argv)
 {
   char buf [_MAX_PATH];
@@ -4889,6 +4962,17 @@ static void init_all (const char **argv)
   }
 }
 
+/**
+ * Our main entry point.
+ *  \li Initialise program.
+ *  \li Parse the command line.
+ *  \li Evaluate given options for conflicts.
+ *  \li Open and parse `"%APPDATA%\\envtool.cfg"`.
+ *  \li Check if `%WINDIR%\\sysnative` and/or `%WINDIR%\\SysWOW64` exists.
+ *  \li Install signal-handlers for `SIGINT` and `SIGILL`.
+ *  \li Call the appropriate functions based on command-line options.
+ *  \li Finally call `final_report()` to report findings.
+ */
 int MS_CDECL main (int argc, const char **argv)
 {
   int found = 0;
@@ -5085,8 +5169,8 @@ int MS_CDECL main (int argc, const char **argv)
   return (found ? 0 : 1);
 }
 
-/*
- * Some test functions.
+/**
+ * Test non-Cygwin env-var splitting in split_env_var().
  */
 static void test_split_env (const char *env)
 {
@@ -5138,6 +5222,9 @@ static void test_split_env (const char *env)
 
 #pragma GCC diagnostic ignored  "-Wstack-protector"
 
+/**
+ * Test Cygwin specific env-var splitting in split_env_var().
+ */
 static void test_split_env_cygwin (const char *env)
 {
   smartlist_t *list;
@@ -5199,7 +5286,7 @@ fail:
   C_printf ("~0  %d elements\n\n", i);
 }
 
-/*
+/**
  * Test the POSIX to Windows Path functions.
  */
 void test_posix_to_win_cygwin (void)
@@ -5239,12 +5326,12 @@ void test_posix_to_win_cygwin (void)
 }
 #endif  /* __CYGWIN__ */
 
-/*
- * Tests for searchpath().
+/**\struct test_table1
+ * The structure used in test_searchpath().
  */
 struct test_table1 {
-       const char *file;
-       const char *env;
+       const char *file;   /**< the file to test in searchpath() */
+       const char *env;    /**< the environment variable to use */
      };
 
 static const struct test_table1 tab1[] = {
@@ -5285,6 +5372,9 @@ static const struct test_table1 tab1[] = {
                   { "PRN",               "PATH" }
                 };
 
+/**
+ * Tests for searchpath().
+ */
 static void test_searchpath (void)
 {
   const struct test_table1 *t;
@@ -5330,10 +5420,11 @@ static const struct test_table2 tab2[] = {
          /* 9 */  { FNM_MATCH,   "mil[!k]-bar?", "milf-barn",      0 },
                 };
 
-/*
+/**
  * Tests for fnmatch().
- * 'test_table::expect' does not work with 'opt.case_sensitive'.
- * I.e. 'envtool --test -C'.
+ *
+ * `test_table::expect` does not work with `opt.case_sensitive`.
+ * I.e. `envtool --test -C`.
  */
 static void test_fnmatch (void)
 {
@@ -5359,7 +5450,7 @@ static void test_fnmatch (void)
   C_putc ('\n');
 }
 
-/*
+/**
  * Tests for slashify().
  */
 static void test_slashify (void)
@@ -5397,9 +5488,10 @@ static void test_slashify (void)
 
 /**
  * Tests for _fix_path().
- * Canonize the horrendous pathnames reported from "gcc -v".
- * It doesn't matter if these paths or files exists or not. _fix_path()
- * (i.e. GetFullPathName()) should canonizes these regardless.
+ * Canonize the horrendous pathnames reported from `gcc -v`.
+ *
+ * It doesn't matter if these paths or files exists or not. `_fix_path()`
+ * (i.e. `GetFullPathName()`) should canonizes these regardless.
  */
 static void test_fix_path (void)
 {
@@ -5872,7 +5964,7 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
  * Expand and check a single env-var for missing directories
  * and trailing/leading white space.
  *
- * \eg{.}:
+ * \eg{.}
  * ```
  *   set LIB=c:\foo1\lib ;c:\foo2\lib;  ^
  *           c:\foo3\lib;
@@ -5971,12 +6063,12 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
   path_separator = ';';
 }
 
-/*
+/**
  * Check a single Registry-key for missing files and directories.
- * Either:
- *   "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
- * or
- *   "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
+ * \param[in] key `HKEY_CURRENT_USER` or `HKEY_LOCAL_MACHINE`.
+ *
+ * The key to check will be:
+ *   `key` + `\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths`
  *
  * Print results here since there can be so many missing files/directories.
  */
@@ -6036,14 +6128,15 @@ static void check_reg_key (HKEY key)
   free_reg_array();
 }
 
-/*
- * The handler for mode "--check".
- * Check the Registry keys even if 'opt.no_app_path' is set.
+/**
+ * The handler for mode `"--check"`.
+ * Check the Registry keys even if `opt.no_app_path` is set.
  */
 static int do_check (void)
 {
   static const char *envs[] = {
-                    "PATH", "LIB",
+                    "PATH",
+                    "LIB",
                     "LIBRARY_PATH",
                     "INCLUDE",
                     "C_INCLUDE_PATH",
@@ -6052,7 +6145,8 @@ static int do_check (void)
                     "PKG_CONFIG_PATH",
                     "PYTHONPATH",
                     "CMAKE_MODULE_PATH",
-                    "CLASSPATH", "GOPATH",  /* No support for these. But do it anyway. */
+                    "CLASSPATH",  /* No support for these. But do it anyway. */
+                    "GOPATH",
                     "FOO",        /* Check that non-existing env-vars are also checked */
                     NULL
                    };
@@ -6088,21 +6182,22 @@ static int do_check (void)
   if (opt.verbose)
      C_putc ('\n');
 
-#if 0
-  /*
+  /**\todo
+   *
    * Iterate over these environment sources:
+   * ```
    *   _environ[]
    *   HKU\.DEFAULT\Environment
    *   HKLM\System\CurrentControlSet\Control\Session Manager\Environment
    *   HKCU\Environment
    *   HKCU\Volatile Environment
+   * ```
    *
    * If there is a mismatch in a value in the above list, print a warning.
    *
    * And check for missing directories in above 'HKx' keys with values that looks
    * like directories. Like 'Path', 'TEMP'
    */
-#endif
 
   opt.no_cwd = save;
   return (0);
