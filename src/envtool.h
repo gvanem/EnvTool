@@ -344,7 +344,7 @@ typedef enum SignStatus {
         SIGN_CHECK_SIGNED
       } SignStatus;
 
-enum SortMethod; /* forward; sort.h */
+#include "sort.h"
 
 struct prog_options {
        int             debug;
