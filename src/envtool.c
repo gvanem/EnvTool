@@ -6093,8 +6093,8 @@ static void check_app_paths (HKEY key)
     if (opt.verbose)
     {
       C_printf ("   [%2d]: ~6", i);
-      raw = C_setraw (1);     /* In case 'fbuf' contains a "~". */
-      C_puts (fbuf);
+      raw = C_setraw (1);     /* In case 'fqfn' contains a "~". */
+      C_printf ("%s%c%s", fbuf, opt.show_unix_paths ? '/' : '\\', arr->fname);
       C_setraw (raw);
       C_puts ("~0\n");
     }
@@ -6107,10 +6107,10 @@ static void check_app_paths (HKEY key)
     }
 
     snprintf (fqfn, sizeof(fqfn), "%s\\%s", fbuf, arr->fname);
-    slashify2 (fbuf, fqfn, opt.show_unix_paths ? '/' : '\\');
 
     if (!arr->exist && !cfg_ignore_lookup("[Registry]",fqfn))
     {
+      slashify2 (fbuf, fqfn, opt.show_unix_paths ? '/' : '\\');
       C_printf ("%*c~5Missing file~0: ~3%s~0\n", indent, ' ', fbuf);
       errors++;
     }
