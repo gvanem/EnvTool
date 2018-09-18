@@ -6072,7 +6072,7 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
  *
  * Print results here since there can be so many missing files/directories.
  */
-static void check_reg_key (HKEY key)
+static void check_app_paths (HKEY key)
 {
   int i, errors, max, raw, indent = sizeof("Checking");
 
@@ -6174,11 +6174,11 @@ static int do_check (void)
   }
 
   C_putc ('\n');
-  check_reg_key (HKEY_CURRENT_USER);
+  check_app_paths (HKEY_CURRENT_USER);
   if (opt.verbose)
      C_putc ('\n');
 
-  check_reg_key (HKEY_LOCAL_MACHINE);
+  check_app_paths (HKEY_LOCAL_MACHINE);
   if (opt.verbose)
      C_putc ('\n');
 
