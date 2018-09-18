@@ -25,6 +25,12 @@
 
 #define ADD_VALUE(v)  { (unsigned)(v), #v }
 
+/* Work around a typo in Watcom's <shlwapi.h>.
+ */
+#if defined(__WATCOMC__) && !defined(ASSOCSTR_TILEINFO)
+  #define ASSOCSTR_TILEINFO  ASSOCSTR_TITLEINFO
+#endif
+
 static const struct search_list assoc_values[] = {
                     ADD_VALUE (ASSOCSTR_COMMAND),
                     ADD_VALUE (ASSOCSTR_EXECUTABLE),
