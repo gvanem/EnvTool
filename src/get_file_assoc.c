@@ -142,9 +142,10 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
  * Internally, these functions seems to be using `SHGetFileInfo()`: \n
  *   https://docs.microsoft.com/en-us/windows/desktop/api/shellapi/nf-shellapi-shgetfileinfoa
  *
- * \param[in,out] file_p  A pointer to the file to be converted.\n
- *                        The new proper file-name is returned at the same location.\n
- *                        It assumes `*file_p` was allocated by get_file_assoc().
+ * \param[in,out] file_p     A pointer to the file to be converted.\n
+ *                           The new proper file-name is returned at the same location.\n
+ * \param[in]     allocated  If TRUE, the `*file_p` was allocated by STRDUP() and will
+ *                           be FREE() before `*file_p` is set to the new value.
  *
  * \retval  TRUE  if the `*file_p` was converted successfully.
  * \retval  FALSE if the convertion failed, `*file_p` is unchanged.
@@ -157,7 +158,7 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
  *  Written with the inspiration from: \n
  *    http://stackoverflow.com/questions/74451/getting-actual-file-name-with-proper-casing-on-windows
  */
-BOOL get_actual_filename (char **file_p)
+BOOL get_actual_filename (char **file_p, BOOL allocated)
 {
   char buf [_MAX_PATH], *_new, *file;
 
@@ -177,7 +178,10 @@ BOOL get_actual_filename (char **file_p)
     FREE (_new);
     return (FALSE);
   }
-  FREE (file);
+
+  if (allocated)
+     FREE (file);
+
   _fix_drive (_new);
   *file_p = _new;
   last_err[0] = '\0';
@@ -226,7 +230,7 @@ int MS_CDECL main (int argc, char **argv)
      * convert to a long-name which should not contain any '~' SFN character.
      */
     if (*program_exe != '\0' && FILE_EXISTS(program_exe))
-       get_actual_filename (&program_exe);
+       get_actual_filename (&program_exe, TRUE);
 
     C_printf ("  ~3%s~0 -> ~6%s~0\n", program_descr, program_exe);
 
