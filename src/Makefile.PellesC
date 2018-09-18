@@ -59,6 +59,7 @@ ifeq ($(USE_64BIT),1)
                Win64/imagehlp.lib           \
                Win64/crypt32.lib            \
                Win64/psapi.lib              \
+               Win64/shlwapi.lib            \
                Win64/ws2_32.lib             \
                Win64/wintrust.lib           \
                Win64/version.lib)
@@ -77,6 +78,7 @@ else
                Win/imagehlp.lib             \
                Win/crypt32.lib              \
                Win/psapi.lib                \
+               Win/shlwapi.lib              \
                Win/ws2_32.lib               \
                Win/wintrust.lib             \
                Win/version.lib)

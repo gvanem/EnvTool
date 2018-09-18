@@ -51,7 +51,7 @@ ifneq ($(FORTIFY_SOURCE),0)
   EX_LIBS  = -lssp
 endif
 
-EX_LIBS += -lpsapi -limagehlp -lversion -lwintrust -lcrypt32 -lws2_32
+EX_LIBS += -lpsapi -limagehlp -lversion -lwintrust -lshlwapi -lcrypt32 -lws2_32
 
 SOURCES = auth.c color.c dirlist.c envtool.c envtool_py.c Everything.c Everything_ETP.c  \
           get_file_assoc.c getopt_long.c ignore.c misc.c regex.c searchpath.c show_ver.c \

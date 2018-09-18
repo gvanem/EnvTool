@@ -56,7 +56,7 @@ ifneq ($(FORTIFY_SOURCE),0)
   EX_LIBS  = -lssp
 endif
 
-EX_LIBS += -limagehlp -lversion -lwintrust -lcrypt32 -lpsapi -lkernel32
+EX_LIBS += -limagehlp -lversion -lwintrust -lshlwapi -lcrypt32 -lpsapi -lkernel32
 
 ifeq ($(USE_WS2_32),1)
   EX_LIBS += -lws2_32

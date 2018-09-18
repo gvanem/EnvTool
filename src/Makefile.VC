@@ -62,7 +62,7 @@ all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.e
 	@echo '"envtool.exe win_glob.exe win_ver.exe dirlist.exe" successfully built.'
 
 envtool.exe: $(OBJECTS) envtool.res
-	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) ole32.lib oleaut32.lib > link.tmp
+	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) shlwapi.lib ole32.lib oleaut32.lib > link.tmp
 	type link.tmp >> envtool.map
 	-del /q link.tmp
 
@@ -93,10 +93,10 @@ win_trust.exe: win_trust.c getopt_long.c misc.c color.c searchpath.c
 	$(CC) $(CFLAGS) -c $*.c
 
 cflags_MSVC.h: Makefile.VC
-	@echo const char *cflags = "$(CC) $(CFLAGS)"; > $@
+	echo const char *cflags = "$(CC) $(CFLAGS)"; > $@
 
 ldflags_MSVC.h: Makefile.VC
-	@echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)"; > $@
+	echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) shlwapi.lib ole32.lib oleaut32.lib"; > $@
 
 clean vclean:
 	del /q $(OBJECTS) envtool.map envtool.exe envtool.pdb envtool.res \
