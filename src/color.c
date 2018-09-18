@@ -310,7 +310,7 @@ static int C_init (void)
   if (c_exited)
   {
     fputs ("C_init() called after C_exit()!?\n", stderr);
-    return (0);
+    c_exited = FALSE;
   }
 
   if (!c_head || !c_out)
