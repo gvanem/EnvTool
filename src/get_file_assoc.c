@@ -3,7 +3,7 @@
  *
  * \brief
  *   Gets the **File Associations** (`ASSOCSTR_EXECUTABLE`) for a file extension
- *   using `AssocQueryStringA()`: \n
+ *   using `AssocQueryStringA()`: <br>
  *    https://docs.microsoft.com/en-us/windows/desktop/api/shlwapi/nf-shlwapi-assocquerystringa
  */
 #if !defined(_WIN32_WINNT)
@@ -137,13 +137,17 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
 }
 
 /**
- * Get the actual casing for a file-name by getting the short-name
- * and then the long-name.\n
- * Internally, these functions seems to be using `SHGetFileInfo()`: \n
+ * Get the actual casing for a full file-name by getting the short-name
+ * and then the long-name. This function therefore first checks if the
+ * `*file_p` is already on a short-name form (`is_sfn`). If TRUE, a call
+ * to `GetShortPathNameA()` is not done.
+ *
+ * Internally, these functions seems to be using `SHGetFileInfo()`: <br>
  *   https://docs.microsoft.com/en-us/windows/desktop/api/shellapi/nf-shellapi-shgetfileinfoa
  *
- * \param[in,out] file_p     A pointer to the file to be converted.\n
- *                           The new proper file-name is returned at the same location.\n
+ * \param[in,out] file_p     A pointer to the file to be converted. <br>
+ *                           The new proper file-name is returned at the same location. <br>
+ *
  * \param[in]     allocated  If TRUE, the `*file_p` was allocated by STRDUP() and will
  *                           be FREE() before `*file_p` is set to the new value.
  *
@@ -155,15 +159,17 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
  *   `GetLongPathName()` does not touch that.
  *
  * \note
- *  Written with the inspiration from: \n
+ *   Written with the inspiration from: <br>
  *    http://stackoverflow.com/questions/74451/getting-actual-file-name-with-proper-casing-on-windows
  */
 BOOL get_actual_filename (char **file_p, BOOL allocated)
 {
   char buf [_MAX_PATH], *_new, *file;
+  BOOL is_sfn;
 
-  file = *file_p;
-  if (GetShortPathNameA(file, buf, sizeof(buf)) == 0)
+  is_sfn = (strchr(*file_p,'~') != NULL);
+
+  if (!is_sfn && GetShortPathNameA(*file_p, buf, sizeof(buf)) == 0)
   {
     _strlcpy (last_err, win_strerror(GetLastError()), sizeof(last_err));
     DEBUGF (1, "Failed: %s\n", last_err);
@@ -171,7 +177,9 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   }
 
   _new = MALLOC (_MAX_PATH);
-  if (GetLongPathNameA(buf, _new, _MAX_PATH) == 0)
+  file = is_sfn ? *file_p : buf;
+
+  if (GetLongPathNameA(file, _new, _MAX_PATH) == 0)
   {
     _strlcpy (last_err, win_strerror(GetLastError()), sizeof(last_err));
     DEBUGF (1, "Failed: %s\n", last_err);
@@ -180,7 +188,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   }
 
   if (allocated)
-     FREE (file);
+     FREE (*file_p);
 
   _fix_drive (_new);
   *file_p = _new;
