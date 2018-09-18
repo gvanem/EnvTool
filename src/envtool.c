@@ -48,6 +48,7 @@
 #include "envtool_py.h"
 #include "dirlist.h"
 #include "sort.h"
+#include "get_file_assoc.h"
 
 extern BOOL find_vstudio_init (void);
 
@@ -6092,9 +6093,23 @@ static void check_app_paths (HKEY key)
 
     if (opt.verbose)
     {
+      char  fbuf2 [_MAX_PATH];
+      char *fname;
+
       C_printf ("   [%2d]: ~6", i);
       raw = C_setraw (1);     /* In case 'fqfn' contains a "~". */
-      C_printf ("%s%c%s", fbuf, opt.show_unix_paths ? '/' : '\\', arr->fname);
+
+      snprintf (fbuf2, sizeof(fbuf2), "%s\\%s", arr->path, arr->fname);
+      fname = fbuf2;
+
+      if (get_actual_filename(&fname, FALSE))
+      {
+        C_printf ("%s", fname);
+        FREE (fname);
+      }
+      else
+        C_printf ("%s", fname);
+
       C_setraw (raw);
       C_puts ("~0\n");
     }
