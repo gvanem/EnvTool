@@ -389,6 +389,7 @@ struct prog_options {
        int             do_man;
        int             do_cmake;
        int             do_pkg;
+       int             do_vcpkg;
        int             do_check;
        int             conv_cygdrive;
        int             case_sensitive;

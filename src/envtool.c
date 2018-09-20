@@ -48,6 +48,7 @@
 #include "envtool_py.h"
 #include "dirlist.h"
 #include "sort.h"
+#include "vcpkg.h"
 #include "get_file_assoc.h"
 
 extern BOOL find_vstudio_init (void);
@@ -552,6 +553,7 @@ static int show_help (void)
           "    ~6--path~0         check and search in ~3%PATH%~0.\n"
           "    ~6--pkg~0          check and search in ~3%PKG_CONFIG_PATH%~0.\n"
           "    ~6--python~0[~3=X~0]   check and search in ~3%PYTHONPATH%~0 and ~3sys.path[]~0. ~2[3]~0\n"
+          "    ~6--vcpkg~0        check and search for VCPKG packages for a matching ~6<file-spec>~0.\n"
           "    ~6--check~0        check for missing directories in ~6all~0 supported environment variables\n"
           "                   and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n");
 
@@ -2081,11 +2083,11 @@ static BOOL dir_is_empty (const char *dir)
 {
   HANDLE          handle;
   WIN32_FIND_DATA ff_data;
-  char            fqfn  [_MAX_PATH];  /* Fully qualified file-name */
+  char            path  [_MAX_PATH];
   int             num_entries = 0;
 
-  snprintf (fqfn, sizeof(fqfn), "%s\\*", dir);
-  handle = FindFirstFile (fqfn, &ff_data);
+  snprintf (path, sizeof(path), "%s\\*", dir);
+  handle = FindFirstFile (path, &ff_data);
   if (handle == INVALID_HANDLE_VALUE)
      return (FALSE);    /* We really can't tell */
 
@@ -2898,6 +2900,16 @@ static int do_check_pkg (void)
               "      \"pkgconfig\" will only select the first.~0\n", opt.file_spec, env_name);
   }
   return (found);
+}
+
+/**
+ * Search for VCPKG packages under `%VCPKG_ROOT%\\ports\\*" for a match to the 'opt.file_spec`.
+ */
+static int do_check_vcpkg (void)
+{
+  if (vcpkg_list() > 0)
+     return vcpkg_dump_control (opt.file_spec);
+  return (0);
 }
 
 /*
@@ -4466,7 +4478,8 @@ static const struct option long_options[] = {
            { "signed",      optional_argument, NULL, 0 },
            { "no-cwd",      no_argument,       NULL, 0 },    /* 39 */
            { "sort",        required_argument, NULL, 0 },
-           { NULL,          no_argument,       NULL, 0 }     /* 41 */
+           { "vcpkg",       no_argument,       NULL, 0 },    /* 41 */
+           { NULL,          no_argument,       NULL, 0 }
          };
 
 static int *values_tab[] = {
@@ -4510,7 +4523,8 @@ static int *values_tab[] = {
             &opt.do_check,            /* 37 */
             (int*)&opt.signed_status,
             &opt.no_cwd,              /* 39 */
-            (int*)&opt.sort_method
+            (int*)&opt.sort_method,
+            &opt.do_vcpkg             /* 41 */
           };
 
 /**
@@ -4855,6 +4869,7 @@ static void MS_CDECL cleanup (void)
   netrc_exit();
   authinfo_exit();
   envtool_cfg_exit();
+  vcpkg_free();
 
   exit_misc();
 
@@ -5019,9 +5034,9 @@ int MS_CDECL main (int argc, const char **argv)
      opt.no_sys_env = opt.no_usr_env = 1;
 
   if (!opt.do_path && !opt.do_include && !opt.do_lib && !opt.do_python &&
-      !opt.do_evry && !opt.do_cmake   && !opt.do_man && !opt.do_pkg)
+      !opt.do_evry && !opt.do_cmake   && !opt.do_man && !opt.do_pkg && !opt.do_vcpkg)
      usage ("Use at least one of; \"--evry\", \"--cmake\", \"--inc\", \"--lib\", "
-            "\"--man\", \"--path\", \"--pkg\" and/or \"--python\".\n");
+            "\"--man\", \"--path\", \"--pkg\", \"--vcpkg\" and/or \"--python\".\n");
 
   if (!opt.file_spec)
      usage ("You must give a ~1filespec~0 to search for.\n");
@@ -5123,6 +5138,9 @@ int MS_CDECL main (int argc, const char **argv)
 
   if (opt.do_pkg)
      found += do_check_pkg();
+
+  if (opt.do_vcpkg)
+     found += do_check_vcpkg();
 
   if (opt.do_python)
   {
@@ -5978,11 +5996,14 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
  * \param[out]    num      the number of elements in the '*env' value.
  * \param[in,out] status   the buffer to receive the state of the check.
  * \param[in]     status_sz the size of the above buffer.
+ *
+ * Quit the below for-loop on the first error and store the error in `status`.
+ * (unless in verbose-mode; `opt.verbose`).
  */
 static void check_env_val (const char *env, int *num, char *status, size_t status_sz)
 {
   smartlist_t                  *list = NULL;
-  int                           i, max = 0;
+  int                           i, errors, max = 0;
   int                           save  = opt.conv_cygdrive;
   char                         *value = getenv_expand (env);
   const struct directory_array *arr;
@@ -6007,7 +6028,7 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
     *num = max = smartlist_len (list);
   }
 
-  for (i = 0; i < max; i++)
+  for (i = errors = 0; i < max; i++)
   {
     char fbuf [_MAX_PATH];
     const char *start, *end;
@@ -6031,23 +6052,34 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
     if (start > arr->dir)
     {
       snprintf (status, status_sz, "~5Leading white-space~0: ~3\"%s\"~0", fbuf);
-      if (!opt.verbose)
-         break;
+      errors++;
     }
     else if (end < arr->dir + strlen(arr->dir) - 1)
     {
       snprintf (status, status_sz, "~5Trailing white-space~0: ~3\"%s\"~0", fbuf);
-      if (!opt.verbose)
-         break;
+      errors++;
     }
     else if (!arr->exist)
     {
       snprintf (status, status_sz, "~5Missing dir~0: ~3\"%s\"~0", fbuf);
-      if (!opt.verbose)
+      errors++;
+    }
+    else if (dir_is_empty(fbuf))
+    {
+      snprintf (status, status_sz, "~5Empty dir~0: ~3\"%s\"~0", fbuf);
+      errors++;
+    }
+
+    if (opt.verbose)
+    {
+      C_printf ("     [%2d]: ~6%s", i, fbuf);
+      C_puts ("~0\n");
+    }
+    else
+    {
+      if (errors)
          break;
     }
-    else if (opt.verbose)
-      C_printf ("     [%2d]: ~6%s~0\n", i, fbuf);
   }
 
   if (max == 0)
