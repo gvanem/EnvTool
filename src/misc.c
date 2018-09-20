@@ -2824,11 +2824,10 @@ void format_and_print_line (const char *line, int indent)
   FREE (line_dup);
 }
 
-#if defined(NOT_USED_YET)
 /*
  * As above, but without a STRDUP().
  */
-void print_long_line (const char *line, int indent)
+void print_long_line (const char *line, size_t indent)
 {
   size_t      width = (C_screen_width() == 0) ? UINT_MAX : C_screen_width();
   size_t      left  = width - indent;
@@ -2857,6 +2856,7 @@ void print_long_line (const char *line, int indent)
   C_putc ('\n');
 }
 
+#if defined(NOT_USED_YET)
 /**
  * Create another console window for debugging.
  */
