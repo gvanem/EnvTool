@@ -87,7 +87,7 @@ endif
 SOURCES = auth.c envtool.c envtool_py.c Everything.c Everything_ETP.c \
           color.c dirlist.c ignore.c get_file_assoc.c getopt_long.c   \
           misc.c searchpath.c smartlist.c show_ver.c sort.c regex.c   \
-          win_ver.c win_trust.c
+          vcpkg.c win_ver.c win_trust.c
 
 OBJECTS = $(notdir $(SOURCES:.c=.obj))
 
@@ -159,6 +159,7 @@ misc.obj:           misc.c envtool.h color.h
 searchpath.obj:     searchpath.c envtool.h
 show_ver.obj:       show_ver.c envtool.h
 smartlist.obj:      smartlist.c envtool.h
+vcpkg.obj:          vcpkg.c envtool.h smartlist.h color.h dirlist.h vcpkg.h
 win_glob.obj:       win_glob.c envtool.h win_glob.h
 
 
