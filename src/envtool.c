@@ -197,6 +197,7 @@ static void  search_and_add_all_cc (BOOL print_info, BOOL print_lib_path);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
 static int   get_pkg_config_info (char **exe_p, struct ver_info *ver);
+static int   get_vcpkg_info (char **exe_p, struct ver_info *ver);
 static int   get_cmake_info (char **exe_p, struct ver_info *ver);
 
 /**
@@ -331,26 +332,29 @@ static void show_ext_versions (void)
   static const char *found_fmt[] = { "  Cmake %u.%u.%u detected",
                                      "  Python %u.%u.%u detected",
                                      "  pkg-config %u.%u detected",
+                                     "  vcpkg %u.%u.%u detected"
                                    };
 
   static const char *not_found_fmt[] = { "  Cmake ~5not~0 found.\n",
                                          "  Python ~5not~0 found.\n",
-                                         "  pkg-config ~5not~0 found.\n"
+                                         "  pkg-config ~5not~0 found.\n",
+                                         "  vcpkg ~5not~0 found.\n",
                                        };
   #define FOUND_SZ 100
 
-  char            found [3][FOUND_SZ];
-  int             pad_len, len [3] = { 0,0,0 };
-  int             vcpkg_num;
+  char            found [4][FOUND_SZ];
+  int             pad_len, len [4] = { 0,0,0,0 };
   char           *py_exe         = NULL;
   char           *pkg_config_exe = NULL;
+  char           *vcpkg_exe      = NULL;
   char           *cmake_exe      = NULL;
-  struct ver_info py_ver, cmake_ver, pkg_config_ver;
+  struct ver_info py_ver, cmake_ver, pkg_config_ver, vcpkg_ver;
 
   memset (&found, '\0', sizeof(found));
   memset (&cmake_ver, '\0', sizeof(cmake_ver));
   memset (&py_ver, '\0', sizeof(py_ver));
   memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
+  memset (&vcpkg_ver, '\0', sizeof(vcpkg_ver));
 
   pad_len = sizeof("  pkg-config 9.99 detected");
 
@@ -375,6 +379,13 @@ static void show_ext_versions (void)
        pad_len = len[2];
   }
 
+  if (get_vcpkg_info(&vcpkg_exe, &vcpkg_ver))
+  {
+    len[3] = snprintf (found[3], FOUND_SZ, found_fmt[3], vcpkg_ver.val_1, vcpkg_ver.val_2, vcpkg_ver.val_3);
+    if (len[3] > pad_len)
+       pad_len = len[3];
+  }
+
   if (cmake_exe)
        C_printf ("%-*s -> ~6%s~0\n", pad_len, found[0], cmake_exe);
   else C_printf (not_found_fmt[0]);
@@ -387,14 +398,19 @@ static void show_ext_versions (void)
        C_printf ("%-*s -> ~6%s~0\n", pad_len, found[2], pkg_config_exe);
   else C_printf (not_found_fmt[2]);
 
+  if (vcpkg_exe)
+  {
+    int num = vcpkg_list();
+
+    C_printf ("%-*s -> ~6%s~0. Found %d CONTROL nodes\n", pad_len, found[3], vcpkg_exe, num);
+  }
+  else
+    C_printf (not_found_fmt[3]);
+
   FREE (cmake_exe);
   FREE (py_exe);
   FREE (pkg_config_exe);
-
-  vcpkg_num = vcpkg_list();
-  if (vcpkg_num > 0)
-       C_printf ("  VCPKG detected; found %d CONTROL nodes.\n", vcpkg_num);
-  else C_printf ("  VCPKG ~5not~0 detected.\n");
+  FREE (vcpkg_exe);
 }
 
 /**
@@ -2856,6 +2872,42 @@ static int get_pkg_config_info (char **exe_p, struct ver_info *ver)
   return (0);
 }
 
+/*
+ * Find the version and location vcpkg.exe (on PATH).
+ */
+static int vcpkg_major, vcpkg_minor, vcpkg_micro;
+
+static int find_vcpkg_version_cb (char *buf, int index)
+{
+  ARGSUSED (index);
+  if (sscanf(buf, "Vcpkg package management program version %d.%d.%d", &vcpkg_major, &vcpkg_minor, &vcpkg_micro) >= 2)
+     return (1);
+  return (0);
+}
+
+static int get_vcpkg_info (char **exe_p, struct ver_info *ver)
+{
+  char  exe_copy [_MAX_PATH];
+  char *exe;
+
+  *exe_p = NULL;
+  vcpkg_major = vcpkg_minor = vcpkg_micro = -1;
+  exe = searchpath ("vcpkg.exe", "PATH");
+  if (exe == NULL)
+     return (0);
+
+  slashify2 (exe_copy, exe, '\\');
+
+  if (popen_runf(find_vcpkg_version_cb, "\"%s\" version", exe_copy) > 0)
+  {
+    ver->val_1 = vcpkg_major;
+    ver->val_2 = vcpkg_minor;
+    ver->val_3 = vcpkg_micro;
+    *exe_p = STRDUP (exe);
+    return (1);
+  }
+  return (0);
+}
 /*
  * Search and check along %PKG_CONFIG_PATH% for a
  * matching '<filespec>.pc' file.
