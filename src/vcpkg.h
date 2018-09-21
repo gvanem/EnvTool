@@ -3,8 +3,8 @@
 #ifndef _VCPKG_H
 #define _VCPKG_H
 
-#define VCPKG_MAX_NAME    30
-#define VCPKG_MAX_VERSION 10
+#define VCPKG_MAX_NAME    20
+#define VCPKG_MAX_VERSION 30
 #define VCPKG_MAX_DESCR   200
 
 struct vcpkg_node {
@@ -18,11 +18,12 @@ struct vcpkg_node {
        BOOL  have_portfile_cmake;
      };
 
-extern int  vcpkg_list (void);
-extern void vcpkg_free (void);
-extern int  vcpkg_dump (void);
-extern int  vcpkg_dump_control (const char *packages);
-extern int  vcpkg_get_control (const struct vcpkg_node **node_p, const char *packages);
+extern int         vcpkg_list (void);
+extern void        vcpkg_free (void);
+extern int         vcpkg_dump (void);
+extern int         vcpkg_dump_control (const char *packages);
+extern int         vcpkg_get_control (const struct vcpkg_node **node_p, const char *packages);
+extern const char *vcpkg_last_error (void);
 
 #endif
 

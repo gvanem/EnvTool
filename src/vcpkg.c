@@ -21,6 +21,10 @@ static smartlist_t *vcpkg_nodes;
  */
 static char vcpkg_base_dir [_MAX_PATH];
 
+/* Save last error-text here.
+ */
+static char vcpkg_err_str [200];
+
 /*
  * Local functions
  */
@@ -80,6 +84,8 @@ static void CONTROL_parse (struct vcpkg_node *node, const char *file)
  */
 static void portfile_cmake_parse (struct vcpkg_node *node, const char *file)
 {
+  ARGSUSED (node);
+  ARGSUSED (file);
 }
 
 static void vcpkg_build_list (const char *dir, const struct od2x_options *opts)
@@ -136,27 +142,51 @@ static void vcpkg_build_list (const char *dir, const struct od2x_options *opts)
 }
 
 /**
+ * Return a pointer to `vcpkg_err_str`.
+ */
+const char *vcpkg_last_error (void)
+{
+  return (vcpkg_err_str);
+}
+
+/**
  * Build the smartlist `vcpkg_nodes`.
  */
 int vcpkg_list (void)
 {
   struct od2x_options opts;
   const char *env = getenv ("VCPKG_ROOT");
+  int   len;
 
   if (!env)
   {
-    WARN ("Env-var 'VCPKG_ROOT' not defined.\n");
+    _strlcpy (vcpkg_err_str, "Env-var ~5VCPKG_ROOT~0 not defined", sizeof(vcpkg_err_str));
     return (0);
   }
 
   vcpkg_nodes = smartlist_new();
 
   snprintf (vcpkg_base_dir, sizeof(vcpkg_base_dir), "%s\\ports", env);
+  if (!is_directory(vcpkg_base_dir))
+  {
+    snprintf (vcpkg_err_str, sizeof(vcpkg_err_str),
+              "~6%%VCPKG_ROOT%%\\ports~0 points to a non-existing directory; ~6%s~0",
+              vcpkg_base_dir);
+    return (0);
+  }
+
   memset (&opts, '\0', sizeof(opts));
   opts.pattern = "*";
 
   vcpkg_build_list (vcpkg_base_dir, &opts);
-  return smartlist_len (vcpkg_nodes);
+  len = smartlist_len (vcpkg_nodes);
+
+  if (len == 0)
+  {
+    _strlcpy (vcpkg_err_str, "No ~5VCPKG~0 packages found", sizeof(vcpkg_err_str));
+    vcpkg_free();
+  }
+  return (len);
 }
 
 /**
@@ -164,8 +194,12 @@ int vcpkg_list (void)
  */
 void vcpkg_free (void)
 {
-  int i, max = vcpkg_nodes ? smartlist_len (vcpkg_nodes) : 0;
+  int i, max;
 
+  if (!vcpkg_nodes)
+     return;
+
+  max = smartlist_len (vcpkg_nodes);
   for (i = 0; i < max; i++)
   {
     struct vcpkg_node *node = smartlist_get (vcpkg_nodes, i);
@@ -182,7 +216,8 @@ void vcpkg_debug (int level, int i)
 {
   const struct vcpkg_node *node = smartlist_get (vcpkg_nodes, i);
 
-  DEBUGF (level, "%4d: %d, %d, %s\\%s\n", i, node->have_CONTROL, node->have_portfile_cmake, vcpkg_base_dir, node->package);
+  DEBUGF (level, "%4d: %d, %d, %s\\%s\n",
+          i, node->have_CONTROL, node->have_portfile_cmake, vcpkg_base_dir, node->package);
 }
 
 int vcpkg_get_control (const struct vcpkg_node **node_p, const char *packages)
@@ -221,31 +256,38 @@ int vcpkg_dump (void)
   return (max);
 }
 
+#define INDENT_SZ (sizeof("dependants:")-2)
+
 int vcpkg_dump_control (const char *packages)
 {
   const struct vcpkg_node *node;
-  int   old, matches = 0;
+  int   old, indent, padding, matches = 0;
 
   C_printf ("Dumping CONTROL for packages matching ~6%s~0.\n", packages);
 
   for (node = NULL; vcpkg_get_control(&node, packages); matches++)
   {
-    C_printf ("~6%s~0: ", node ? node->package : "<none?!>");
+    const char *package = node ? node->package : "<none?!>";
+
+    padding = VCPKG_MAX_NAME - strlen(package);
+    padding = max (0, padding);
+    indent = C_printf ("  ~6%s~0: %*s", package, padding, "");
+    indent -= 4;
 
     /* In case some other fields contains a `~'
      */
     old = C_setraw (1);
 
     if (node && node->descr)
-         C_puts_long_line (node->descr, sizeof("  descr  : ")-1);
+         C_puts_long_line (node->descr, indent+2);
     else C_puts ("None\n");
 
-    C_puts ("  dependants: ");
+    C_printf ("  %-*s", indent, "dependants:");
     if (node && node->build_depends)
-         C_puts_long_line (node->build_depends, sizeof("  descr  : ")-1);
+         C_puts_long_line (node->build_depends, indent+2);
     else C_puts ("Nothing\n");
 
-    C_printf ("  version:    %s\n", node ? node->version : "<none>");
+    C_printf ("  %-*s%s\n", indent, "version:", node ? node->version : "<none>");
     C_setraw (old);
   }
   return (matches);
