@@ -2844,7 +2844,7 @@ void print_long_line (const char *line, size_t indent)
 
       if (c[1] && room < (int)left)
       {
-        C_printf ("'\n%*c'", indent, ' ');
+        C_printf ("\n%*c", indent, ' ');
         left = width - indent;
         line = c++;
         continue;
