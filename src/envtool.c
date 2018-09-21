@@ -341,6 +341,7 @@ static void show_ext_versions (void)
 
   char            found [3][FOUND_SZ];
   int             pad_len, len [3] = { 0,0,0 };
+  int             vcpkg_num;
   char           *py_exe         = NULL;
   char           *pkg_config_exe = NULL;
   char           *cmake_exe      = NULL;
@@ -389,6 +390,11 @@ static void show_ext_versions (void)
   FREE (cmake_exe);
   FREE (py_exe);
   FREE (pkg_config_exe);
+
+  vcpkg_num = vcpkg_list();
+  if (vcpkg_num > 0)
+       C_printf ("  VCPKG detected; found %d CONTROL nodes.\n", vcpkg_num);
+  else C_printf ("  VCPKG ~5not~0 detected.\n");
 }
 
 /**
@@ -2909,6 +2915,8 @@ static int do_check_vcpkg (void)
 {
   if (vcpkg_list() > 0)
      return vcpkg_dump_control (opt.file_spec);
+  if (!opt.quiet)
+     C_printf ("%s.\n", vcpkg_last_error());
   return (0);
 }
 
