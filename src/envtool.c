@@ -5116,11 +5116,17 @@ int MS_CDECL main (int argc, const char **argv)
 
       end = strrchr (opt.file_spec, '\0');
       dot = strrchr (opt.file_spec, '.');
-      if (opt.do_pkg && !dot && end > opt.file_spec && end[-1] != '*')
-         opt.file_spec = _stracat (opt.file_spec, ".pc*");
+      if (!dot)
+      {
+        if (opt.do_pkg && end > opt.file_spec && end[-1] != '*')
+           opt.file_spec = _stracat (opt.file_spec, ".pc*");
 
-      else if (!dot && end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
-          opt.file_spec = _stracat (opt.file_spec, ".*");
+        else if (opt.do_vcpkg && end > opt.file_spec && end[-1] != '*')
+           opt.file_spec = _stracat (opt.file_spec, "*");
+
+        else if (end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
+           opt.file_spec = _stracat (opt.file_spec, ".*");
+      }
     }
     else
     {
