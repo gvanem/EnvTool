@@ -48,6 +48,11 @@
 #define KEY_WOW64_64KEY          0x0100
 #endif
 
+/** From Windows-Kit's <ctype.h> comment:
+ *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
+ */
+#define VALID_CH(c)   ((c) >= -1 && (c) <= 255)
+
 #define TOUPPER(c)    toupper ((int)(c))
 #define TOLOWER(c)    tolower ((int)(c))
 
@@ -643,7 +648,7 @@ time_t FILETIME_to_time_t (const FILETIME *ft)
 }
 
 /**
- * Dynamic use of "K32GetModuleFileNameExA".
+ * Dynamic use of `K32GetModuleFileNameExA`.
  * Win-XP does not have this function. Hence load it dynamicallay similar
  * to above.
  *
@@ -1074,7 +1079,7 @@ char *str_ltrim (char *s)
 {
   ASSERT (s != NULL);
 
-  while (s[0] && s[1] && isspace((int)s[0]))
+  while (s[0] && s[1] && VALID_CH((int)s[0]) && isspace((int)s[0]))
        s++;
   return (s);
 }
@@ -1085,14 +1090,16 @@ char *str_ltrim (char *s)
 char *str_rtrim (char *s)
 {
   size_t n;
+  int    ch;
 
   ASSERT (s != NULL);
-  n = strlen (s);
+  n = strlen (s) - 1;
   while (n)
   {
-    if (!isspace((int)s[--n]))
+    ch = (int)s [n];
+    if (VALID_CH(ch) && !isspace(ch))
        break;
-    s[n] = '\0';
+    s[n--] = '\0';
   }
   return (s);
 }
