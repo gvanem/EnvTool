@@ -2847,13 +2847,16 @@ void print_long_line (const char *line, size_t indent)
      */
     if (*c == ' ')
     {
-      int room = (int) (strchr(c+1,' ') - line);
+      const char *p = strchr (c+1, ' ');
 
-      if (c[1] && room < (int)left)
+      if (!p)
+         p = strchr (c+1, '\0');
+
+      if (left < 2 || (left <= (size_t)(p - c)))
       {
         C_printf ("\n%*c", indent, ' ');
         left = width - indent;
-        line = c++;
+        line = ++c;
         continue;
       }
     }
