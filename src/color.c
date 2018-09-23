@@ -49,6 +49,11 @@
   #define snprintf           _snprintf
 #endif
 
+/** From Windows-Kit's <ctype.h> comment:
+ *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
+ */
+#define VALID_CH(c)   ((c) >= -1 && (c) <= 255)
+
 #define loBYTE(w)     (BYTE)(w)
 #define hiBYTE(w)     (BYTE)((WORD)(w) >> 8)
 #define DIM(x)        (int) (sizeof(x) / sizeof((x)[0]))
@@ -729,6 +734,7 @@ void C_puts_long_line (const char *start, size_t indent)
       /* Break a long line at a space.
        */
       const char *p = strchr (c+1, ' ');
+      int   ch;
 
       if (!p)
           p = strchr (c+1, '\0');
@@ -739,7 +745,8 @@ void C_puts_long_line (const char *start, size_t indent)
         start = ++c;
         continue;
       }
-      if (isspace((int)c[1]))  /* Drop excessive blanks */
+      ch = (int)c[1];
+      if (VALID_CH(ch) && isspace(ch))  /* Drop excessive blanks */
       {
         c++;
         continue;
