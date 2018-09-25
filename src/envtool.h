@@ -117,19 +117,20 @@
   #include <sys/types.h>
   #include <sys/cygwin.h>
 
-  #define _MAX_PATH              _POSIX_PATH_MAX   /* 256 */
-  #define _S_ISDIR(mode)         S_ISDIR (mode)
-  #define _S_ISREG(mode)         S_ISREG (mode)
-  #define _popen(cmd, mode)      popen (cmd, mode)
-  #define _pclose(fil)           pclose (fil)
-  #define _fileno(f)             fileno (f)
-  #define _isatty(fd)            isatty (fd)
-  #define _tempnam(dir,prefix)   tempnam (dir,prefix)
-  #define _wcsdup(s)             wcsdup (s)
+  #define _MAX_PATH               _POSIX_PATH_MAX   /* 256 */
+  #define _S_ISDIR(mode)          S_ISDIR (mode)
+  #define _S_ISREG(mode)          S_ISREG (mode)
+  #define _popen(cmd, mode)       popen (cmd, mode)
+  #define _pclose(fil)            pclose (fil)
+  #define _fileno(f)              fileno (f)
+  #define _isatty(fd)             isatty (fd)
+  #define _tempnam(dir,prefix)    tempnam (dir,prefix)
+  #define _wcsdup(s)              wcsdup (s)
 
-  #define stricmp(s1, s2)        strcasecmp (s1, s2)
-  #define strnicmp(s1, s2, len)  strncasecmp (s1, s2, len)
-  #define DEV_NULL               "/dev/null"
+  #define stricmp(s1, s2)         strcasecmp (s1, s2)
+  #define strnicmp(s1, s2, len)   strncasecmp (s1, s2, len)
+  #define strtok_s(s, delim, end) strtok_r (s, delim, end)
+  #define DEV_NULL                "/dev/null"
 
   extern char  *_itoa (int value, char *buf, int radix);
   extern UINT64 filelength (int fd);
