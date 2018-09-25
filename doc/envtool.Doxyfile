@@ -782,6 +782,7 @@ INPUT = main_page.dox           \
         ../src/show_ver.c       \
         ../src/smartlist.c      \
         ../src/sort.c           \
+        ../src/vcpkg.c          \
         ../src/win_trust.c      \
         ../src/win_glob.c       \
         ../src/win_ver.c        \
@@ -799,6 +800,7 @@ INPUT = main_page.dox           \
         ../src/regex.h          \
         ../src/smartlist.h      \
         ../src/sort.h           \
+        ../src/vcpkg.h          \
         ../src/win_glob.h
 
 #
