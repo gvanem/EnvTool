@@ -400,7 +400,7 @@ static void show_ext_versions (void)
 
   if (vcpkg_exe)
   {
-    int num = vcpkg_list();
+    int num = vcpkg_get_list();
 
     C_printf ("%-*s -> ~6%s~0. Found %d CONTROL nodes\n", pad_len, found[3], vcpkg_exe, num);
   }
@@ -2965,7 +2965,7 @@ static int do_check_pkg (void)
  */
 static int do_check_vcpkg (void)
 {
-  if (vcpkg_list() > 0)
+  if (vcpkg_get_list() > 0)
      return vcpkg_dump_control (opt.file_spec);
   if (!opt.quiet)
      C_printf ("%s.\n", vcpkg_last_error());
@@ -6401,7 +6401,7 @@ static int do_tests (void)
   return (0);
 }
 
-
+#if !defined(__DOXYGEN__)
 #if defined(__MINGW32__)
   #define CFLAGS   "cflags_MinGW.h"
   #define LDFLAGS  "ldflags_MinGW.h"
@@ -6426,6 +6426,7 @@ static int do_tests (void)
   #define CFLAGS   "cflags_Watcom.h"
   #define LDFLAGS  "ldflags_Watcom.h"
 #endif
+#endif  /* !__DOXYGEN__ */
 
 static void print_build_cflags (void)
 {
