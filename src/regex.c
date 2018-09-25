@@ -4382,16 +4382,8 @@ size_t regerror (int errcode, const regex_t *preg, char *errbuf, size_t errbuf_s
   msg = re_error_msgid [errcode];
   msg_size = strlen (msg) + 1;  /* Includes the null. */
 
-  if (errbuf_size != 0)
-  {
-    if (msg_size > errbuf_size)
-    {
-      strncpy (errbuf, msg, errbuf_size - 1);
-      errbuf[errbuf_size-1] = '\0';
-    }
-    else
-      strcpy (errbuf, msg);
-  }
+  if (errbuf_size)
+     _strlcpy (errbuf, msg, errbuf_size);
   (void) preg;
   return (msg_size);
 }
