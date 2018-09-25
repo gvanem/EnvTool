@@ -54,7 +54,7 @@ goto :EOF
   envtool --test --python=py3
 
   echo Testing VCPKG output
-  envtool --vcpkg azure-storage-cpp
+  envtool --vcpkg azure-u*
 
   echo Testing ETP-searches (should fail)
   envtool -d --test --evry:ftp.github.com:21
