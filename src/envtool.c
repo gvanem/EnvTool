@@ -5972,6 +5972,7 @@ static void test_libssp (void)
 static void test_AppVeyor (void)
 {
   const char *cmake = searchpath ("cmake.exe", "PATH");
+  const char *vcpkg = searchpath ("vcpkg.exe", "PATH");
   int   rc;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
@@ -5982,6 +5983,29 @@ static void test_AppVeyor (void)
   {
     rc = popen_runf (NULL, "\"%s\" -version > " DEV_NULL, cmake);
     C_printf ("popen_run() reported %d: %s\n", rc, rc == 0 ? cmake : "cmake not found");
+  }
+
+  if (!vcpkg)
+     C_printf ("vcpkg.exe not on %%PATH.\n");
+  else
+  {
+    char  cmd [_MAX_PATH+100];
+    char *dir = dirname (vcpkg);
+
+    C_printf ("Dir-list of %s:\n", dir);
+
+    snprintf (cmd, sizeof(cmd), "dir %s /b /s", dir);
+    system (cmd);
+    FREE (dir);
+
+    dir = getenv ("VCPKG_ROOT");
+    C_printf ("Dir-list of %%VCPKG_ROOT%%:\n");
+    snprintf (cmd, sizeof(cmd), "dir %s /b /s", dir);
+    system (cmd);
+
+    C_printf ("\vcpkg search\" output:\n");
+    snprintf (cmd, sizeof(cmd), "vcpkg search");
+    system (cmd);
   }
 }
 
