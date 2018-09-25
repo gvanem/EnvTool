@@ -503,6 +503,58 @@ const char *vcpkg_last_error (void)
   return (vcpkg_err_str);
 }
 
+static BOOL vcpkg_get_base_env (void)
+{
+  const char *env = getenv ("VCPKG_ROOT");
+  char       *end;
+
+  if (!env)
+  {
+    _strlcpy (vcpkg_err_str, "Env-var ~5VCPKG_ROOT~0 not defined", sizeof(vcpkg_err_str));
+    return (FALSE);
+  }
+  end = strchr (env, '\0') - 1;
+  if (IS_SLASH(*end))
+       snprintf (vcpkg_base_dir, sizeof(vcpkg_base_dir), "%sports", env);
+  else snprintf (vcpkg_base_dir, sizeof(vcpkg_base_dir), "%s\\ports", env);
+  return (TRUE);
+}
+
+static BOOL vcpkg_get_base_exe (void)
+{
+  const char *exe = searchpath ("vcpkg.exe", "PATH");
+  char       *dir;
+
+  if (!exe)
+  {
+    _strlcpy (vcpkg_err_str, "vcpkg.exe not on %%PATH.\n", sizeof(vcpkg_err_str));
+    return (FALSE);
+  }
+  dir = dirname (exe);
+  snprintf (vcpkg_base_dir, sizeof(vcpkg_base_dir), "%s\\ports", dir);
+  FREE (dir);
+  return (TRUE);
+}
+
+/**
+ * Get the VCPKG root-directory. Either based on:
+ *  \li an existing directory `%VCPKG_ROOT\ports` or
+ *  \li `dirname (searchpath("vcpkg.exe")) + \\ports`.
+ */
+static BOOL vcpkg_get_basedir (void)
+{
+  if (!vcpkg_get_base_env() && !vcpkg_get_base_exe())
+     return (FALSE);
+
+  if (!is_directory(vcpkg_base_dir))
+  {
+    snprintf (vcpkg_err_str, sizeof(vcpkg_err_str),
+              "~6%s~0 points to a non-existing directory", vcpkg_base_dir);
+    return (FALSE);
+  }
+  return (TRUE);
+}
+
 /**
  * Build the smartlist `vcpkg_nodes`.
  */
@@ -512,19 +564,8 @@ int vcpkg_get_list (void)
   const char *env = getenv ("VCPKG_ROOT");
   int   len;
 
-  if (!env)
-  {
-    _strlcpy (vcpkg_err_str, "Env-var ~5VCPKG_ROOT~0 not defined", sizeof(vcpkg_err_str));
-    return (0);
-  }
-
-  snprintf (vcpkg_base_dir, sizeof(vcpkg_base_dir), "%s\\ports", env);
-  if (!is_directory(vcpkg_base_dir))
-  {
-    snprintf (vcpkg_err_str, sizeof(vcpkg_err_str),
-              "~6%%VCPKG_ROOT%%\\ports~0 points to a non-existing directory");
-    return (0);
-  }
+  if (!vcpkg_get_basedir())
+     return (0);
 
   memset (&opts, '\0', sizeof(opts));
   opts.pattern = "*";
