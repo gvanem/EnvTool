@@ -402,7 +402,10 @@ static void show_ext_versions (void)
   {
     int num = vcpkg_get_list();
 
-    C_printf ("%-*s -> ~6%s~0. Found %d CONTROL nodes\n", pad_len, found[3], vcpkg_exe, num);
+    C_printf ("%-*s -> ~6%s~0. ", pad_len, found[3], vcpkg_exe);
+    if (num > 0)
+         C_printf ("Found %d CONTROL nodes.\n", num);
+    else C_printf ("%s.\n", vcpkg_last_error());
   }
   else
     C_printf (not_found_fmt[3]);
@@ -5992,18 +5995,18 @@ static void test_AppVeyor (void)
     char  cmd [_MAX_PATH+100];
     char *dir = dirname (vcpkg);
 
-    C_printf ("Dir-list of %s:\n", dir);
+    C_printf ("Dir-list of %s\\ports:\n", dir);
 
-    snprintf (cmd, sizeof(cmd), "dir %s /b /s", dir);
+    snprintf (cmd, sizeof(cmd), "dir %s\\ports /b /s", dir);
     system (cmd);
     FREE (dir);
 
     dir = getenv ("VCPKG_ROOT");
-    C_printf ("Dir-list of %%VCPKG_ROOT%%:\n");
-    snprintf (cmd, sizeof(cmd), "dir %s /b /s", dir);
+    C_printf ("Dir-list of %%VCPKG_ROOT%% = %s:\n", dir);
+    snprintf (cmd, sizeof(cmd), "dir %s\\*.* /b /s", dir);
     system (cmd);
 
-    C_printf ("\vcpkg search\" output:\n");
+    C_printf ("\"vcpkg search\" output:\n");
     snprintf (cmd, sizeof(cmd), "vcpkg search");
     system (cmd);
   }
