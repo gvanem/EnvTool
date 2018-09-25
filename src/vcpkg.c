@@ -522,8 +522,7 @@ int vcpkg_get_list (void)
   if (!is_directory(vcpkg_base_dir))
   {
     snprintf (vcpkg_err_str, sizeof(vcpkg_err_str),
-              "~6%%VCPKG_ROOT%%\\ports~0 points to a non-existing directory; ~6%s~0",
-              vcpkg_base_dir);
+              "~6%%VCPKG_ROOT%%\\ports~0 points to a non-existing directory");
     return (0);
   }
 
@@ -535,7 +534,6 @@ int vcpkg_get_list (void)
 
   vcpkg_nodes = smartlist_new();
   vcpkg_packages = smartlist_new();
-
 
   _vcpkg_get_list (vcpkg_base_dir, &opts);
   len = smartlist_len (vcpkg_nodes);
