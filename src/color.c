@@ -49,6 +49,18 @@
   #define snprintf           _snprintf
 #endif
 
+#if defined(_MSC_VER) && !defined(__POCC__) && defined(_DEBUG)
+  #include <crtdbg.h>
+
+  /* Use this in `FATAL()` to` avoid huge report of leaks from CrtDbg.
+   */
+  #define CRTDBG_CHECK_OFF() \
+          _CrtSetDbgFlag (~_CRTDBG_LEAK_CHECK_DF & _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG))
+#else
+  #define CRTDBG_CHECK_OFF()
+#endif
+
+
 /** From Windows-Kit's <ctype.h> comment:
  *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
  */
@@ -62,6 +74,7 @@
                            fprintf (stderr, "\nFATAL: %s(%u): " fmt, \
                                     __FILE__, __LINE__,              \
                                     ## __VA_ARGS__);                 \
+                           CRTDBG_CHECK_OFF();                       \
                            if (IsDebuggerPresent())                  \
                                 abort();                             \
                            else ExitProcess (GetCurrentProcessId()); \
