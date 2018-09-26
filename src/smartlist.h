@@ -23,7 +23,7 @@ smartlist_t *smartlist_init (smartlist_t *sl);
 void  smartlist_free (smartlist_t *sl);
 void  smartlist_free_all (smartlist_t *sl);
 void  smartlist_ensure_capacity (smartlist_t *sl, size_t num);
-void  smartlist_add (smartlist_t *sl, void *element);
+void *smartlist_add (smartlist_t *sl, void *element);
 void  smartlist_del (smartlist_t *sl, int idx);
 void  smartlist_del_keeporder (smartlist_t *sl, int idx);
 void  smartlist_append (smartlist_t *sl1, const smartlist_t *sl2);

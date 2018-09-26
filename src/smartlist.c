@@ -181,11 +181,12 @@ void smartlist_ensure_capacity (smartlist_t *sl, size_t num)
 /**
  * Append `element` to the end of the `sl` list.
  */
-void smartlist_add (smartlist_t *sl, void *element)
+void *smartlist_add (smartlist_t *sl, void *element)
 {
   ASSERT (sl);
   smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
   sl->list [sl->num_used++] = element;
+  return (element);
 }
 
 /**
