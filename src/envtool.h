@@ -172,13 +172,22 @@
   #undef  _malloca                /* Avoid MSVC-9 <malloc.h>/<crtdbg.h> name-clash */
   #define _CRTDBG_MAP_ALLOC
   #include <crtdbg.h>
+
+  /* Use this in `FATAL()` to` avoid huge report of leaks from CrtDbg.
+   */
+  #define CRTDBG_CHECK_OFF() \
+          _CrtSetDbgFlag (~_CRTDBG_LEAK_CHECK_DF & _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG))
 #endif
 
-#include "getopt_long.h"
+#ifndef CRTDBG_CHECK_OFF
+#define CRTDBG_CHECK_OFF()
+#endif
 
 #if defined(__DOXYGEN__)
   #undef _CRTDBG_MAP_ALLOC
 #endif
+
+#include "getopt_long.h"
 
 #if defined(_DEBUG)
   #define ASSERT(expr) do {                                            \
@@ -741,7 +750,7 @@ extern char *fnmatch_res  (int rc);
  *   \param ...   a var-arg list of format an arguments (just like `printf()`).
  *
  * \def FATAL(...)
- *   Print a fatal message on `stderr` And exit the program.
+ *   Print a fatal message on `stderr` and exit the program.
  *   \param ...   a var-arg list of format an arguments (just like `printf()`).
  */
 #define DIM(arr)       (int) (sizeof(arr) / sizeof(arr[0]))
@@ -769,6 +778,7 @@ extern char *fnmatch_res  (int rc);
                             } while (0)
 
 #define FATAL(...)          do {                                        \
+                              CRTDBG_CHECK_OFF();                       \
                               fprintf (stderr, "\nFatal: %s(%u): ",     \
                                        __FILE(), __LINE__);             \
                               fprintf (stderr, ##__VA_ARGS__);          \
