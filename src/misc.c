@@ -2641,6 +2641,10 @@ void crtdbug_init (void)
  * check if there is a significant difference in the mem-state.
  *
  * This function should be called as late as possible.
+ *
+ * \note This function is *not* called if the `FATAL()` macro was used.
+ *       The the default `SIGABRT` handler (via `abort()`) is used to
+ *       report any leaks.
  */
 void crtdbug_exit (void)
 {
