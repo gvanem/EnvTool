@@ -184,7 +184,8 @@
 #endif
 
 #if defined(__DOXYGEN__)
-  #undef _CRTDBG_MAP_ALLOC
+  #undef  _CRTDBG_MAP_ALLOC
+  #define _POSIX_PATH_MAX  256
 #endif
 
 #include "getopt_long.h"
@@ -454,7 +455,6 @@ int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1
 extern void   init_misc     (void);
 extern void   exit_misc     (void);
 extern char *_strlcpy       (char *dst, const char *src, size_t sz);
-extern char *_strrepeat     (int ch, size_t num);
 extern char *_strsep        (char **s, const char *delim);
 extern char *_stracat       (char *s1, const char *s2);
 extern char *_strjoin       (char *const *arr, const char *sep);
@@ -462,6 +462,7 @@ extern char *strip_nl       (char *s);
 extern char *str_ltrim      (char *s);
 extern char *str_rtrim      (char *s);
 extern char *str_trim       (char *s);
+extern char *str_repeat     (int ch, size_t num);
 extern int   str_equal      (const char *s1, const char *s2);
 extern int   str_equal_n    (const char *s1, const char *s2, size_t len);
 extern char *_strtok_r      (char *ptr, const char *sep, char **end);
