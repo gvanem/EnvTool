@@ -2160,7 +2160,7 @@ char *_strlcpy (char *dst, const char *src, size_t len)
  * Return a string with 'ch' repeated 'num' times.
  * Limited to 200 characters.
  */
-char *_strrepeat (int ch, size_t num)
+char *str_repeat (int ch, size_t num)
 {
   static char buf [200];
   char  *p = buf;
