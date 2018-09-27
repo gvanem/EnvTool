@@ -6,7 +6,7 @@ LANGUAGE 0x09,0x01
 
 #define RC_VERSION  MAJOR_VER, MINOR_VER, 0, 0
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(_DEBUG)
   #define RC_FILEFLAGS 1
 #else
   #define RC_FILEFLAGS 0
