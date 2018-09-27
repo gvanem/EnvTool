@@ -150,21 +150,6 @@ static void regex_test (const char *str, const char *pattern)
 }
 
 /**
- * Return the parent base directory of file `fname`.
- * This should be the same as `Source: x` in a `CONTROL` file.
- */
-static char *get_parent_dir (const char *full_path, char *fname)
-{
-  while (*fname && fname > full_path)
-  {
-    if (IS_SLASH(*fname))
-       break;
-    fname--;
-  }
-  return (fname+1);
-}
-
-/**
  * Print the package sub-dependencies for a `CONTROL` node.
  */
 static void print_sub_dependencies (const struct vcpkg_node *node, int indent)
@@ -450,7 +435,7 @@ static void make_features (struct vcpkg_node *node, char *str)
  */
 static void CONTROL_parse (struct vcpkg_node *node, const char *file)
 {
-  FILE *f = fopen (file, "rb");
+  FILE *f = fopen (file, "r");
   char *p, buf [5000];
 
   if (!f)
@@ -504,58 +489,54 @@ static void portfile_cmake_parse (struct vcpkg_node *node, const char *file)
 }
 
 /**
- * Recursively traverse the `vcpkg_base_dir[]` directory looking for `CONTROL` and
- * `portfile.cmake` files. Parse these files and add needed information in those to
- * the `vcpkg_nodes` smartlist.
+ * Traverse the `vcpkg_base_dir[]` directory looking for directories.
+ * Returns a smartlist of directories to check for in `build_vcpkg_nodes()`.
  */
-static void get_list_internal (const char *dir, const struct od2x_options *opts)
+static smartlist_t *get_dir_list (const char *dir)
 {
   struct dirent2 *de;
-  DIR2  *dp = opendir2x (dir, opts);
+  smartlist_t    *dir_list;
+  DIR2           *dp = opendir2x (dir, NULL);
 
   if (!dp)
-     return;
+     return (NULL); /* Should never happen */
+
+  dir_list = smartlist_new();
 
   while ((de = readdir2(dp)) != NULL)
   {
-    struct vcpkg_node *node;
-    char  *this_file, *this_dir, *p;
-    char   file [_MAX_PATH];
-
     if (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY)
     {
-      /* The recursion level should be limited to 2 since VCPKG seems to
-       * support "CONTROL" and "portfile.cmake" files at one level below
-       * `vcpkg_base_dir[]` only.
-       */
-      get_list_internal (de->d_name, opts);
-    }
-    else
-    {
-      this_file = basename (de->d_name);
-      p = this_file-1;
-      *p = '\0';
-      this_dir = get_parent_dir (de->d_name, p-1);
-
-      if (!stricmp(this_file,"CONTROL"))
-      {
-        node = CALLOC (sizeof(*node), 1);
-        node->have_CONTROL = TRUE;
-        snprintf (file, sizeof(file), "%s\\%s\\%s", vcpkg_base_dir, this_dir, this_file);
-        CONTROL_parse (node, file);
-        smartlist_add (vcpkg_nodes, node);
-      }
-      else if (!stricmp(this_file,"portfile.cmake"))
-      {
-        node = CALLOC (sizeof(*node), 1);
-        snprintf (file, sizeof(file), "%s\\%s\\%s", vcpkg_base_dir, this_dir, this_file);
-        _strlcpy (node->package, this_file, sizeof(node->package));
-        portfile_cmake_parse (node, file);
-        smartlist_add (vcpkg_nodes, node);
-      }
+      DEBUGF (2, "Adding to dir_list: '%s'\n", de->d_name);
+      smartlist_add (dir_list, STRDUP(de->d_name));
     }
   }
   closedir2 (dp);
+  return (dir_list);
+}
+
+static void build_vcpkg_nodes (const char *dir)
+{
+  struct vcpkg_node *node;
+  char   file [_MAX_PATH];
+
+  snprintf (file, sizeof(file), "%s\\CONTROL", dir);
+  if (FILE_EXISTS(file))
+  {
+    node = CALLOC (sizeof(*node), 1);
+    node->have_CONTROL = TRUE;
+    CONTROL_parse (node, file);
+    smartlist_add (vcpkg_nodes, node);
+  }
+
+  snprintf (file, sizeof(file), "%s\\portfile.cmake", dir);
+  if (FILE_EXISTS(file))
+  {
+    node = CALLOC (sizeof(*node), 1);
+    _strlcpy (node->package, basename(dir), sizeof(node->package));
+    portfile_cmake_parse (node, file);
+    smartlist_add (vcpkg_nodes, node);
+  }
 }
 
 /**
@@ -632,7 +613,12 @@ static void debug_dump (void)
 {
   int i, i_max = smartlist_len (vcpkg_nodes);
   int j, j_max, num, indent;
-  int k, k_max;
+  int width = (int) C_screen_width();
+
+  /* stdout is redicted
+   */
+  if (width <= 0)
+     width = INT_MAX;
 
   /* Print a header.
    */
@@ -646,7 +632,7 @@ static void debug_dump (void)
   {
     const struct vcpkg_node   *node = smartlist_get (vcpkg_nodes, i);
     const struct vcpkg_depend *dep;
-    const char *feature;
+    const char                *feature;
 
     if (!node->have_CONTROL)
        continue;
@@ -675,15 +661,16 @@ static void debug_dump (void)
 
     if (node->features)
     {
-      int len = C_puts("     Features: ");
+      int k, k_max = smartlist_len (node->features);
+      int len = C_puts ("     Features: ");
 
-      k_max = smartlist_len (node->features);
+      indent = len;
       for (k = 0; k < k_max; k++)
       {
         feature = smartlist_get (node->features, k);
-        len += C_printf ("%s%s", feature, k < k_max-1 ? ", " : "\n");
-        if (len >= (int)C_screen_width())
-           len = C_puts ("\n       ") - 1;
+        if (len + (int)strlen(feature) + 2 >= width)
+           len = C_printf ("\n%-*s", indent, "") - 1;
+        len += C_printf ("%s%s", feature, (k < k_max-1) ? ", " : "\n");
       }
     }
   }
@@ -729,18 +716,16 @@ unsigned vcpkg_get_num_portfile (void)
 /**
  * Build the smartlist `vcpkg_nodes`.
  *
- * \retval The number of all nodes.
+ * \retval The number of all node-types.
  */
 unsigned vcpkg_get_list (void)
 {
-  struct od2x_options opts;
-  unsigned len;
+  smartlist_t *dirs;
+  unsigned     len;
+  int          i, max;
 
   if (!get_basedir())
      return (0);
-
-  memset (&opts, '\0', sizeof(opts));
-  opts.pattern = "*";
 
   ASSERT (vcpkg_nodes == NULL);
   ASSERT (vcpkg_packages == NULL);
@@ -748,7 +733,15 @@ unsigned vcpkg_get_list (void)
   vcpkg_nodes    = smartlist_new();
   vcpkg_packages = smartlist_new();
 
-  get_list_internal (vcpkg_base_dir, &opts);
+  dirs = get_dir_list (vcpkg_base_dir);
+  if (dirs)
+  {
+    max = smartlist_len (dirs);
+    DEBUGF (2, "Found %d VCPKG port directories.\n", max);
+    for (i = 0; i < max; i++)
+        build_vcpkg_nodes (smartlist_get(dirs,i));
+    smartlist_free_all (dirs);
+  }
 
   len = smartlist_len (vcpkg_nodes);
   if (len == 0)
