@@ -682,7 +682,7 @@ static void debug_dump (void)
       {
         feature = smartlist_get (node->features, k);
         len += C_printf ("%s%s", feature, k < k_max-1 ? ", " : "\n");
-        if (len >= C_screen_width())
+        if (len >= (int)C_screen_width())
            len = C_puts ("\n       ") - 1;
       }
     }
