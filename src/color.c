@@ -7,9 +7,9 @@
  *   \code{.c}
  *     C_printf ("~4Hello ~2world~0.\n");
  *   \endcode
- *   will print to stdout with \c Hello mapped to colour 4
- *   and \c world mapped to colour 2.
- *   See the \ref colour_map[] array below.
+ *   will print to stdout with `Hello` mapped to colour 4
+ *   and `world` mapped to colour 2.
+ *   See the colour_map[] array below.
  *
  * By default, the colour indices maps to these foreground colour:
  * \li 0: the startup forground *and* background colour.
@@ -102,8 +102,8 @@ extern int         is_cygwin_tty (int fd);
 
 /**
  * The app using color.c must set to \b 1 prior to
- * calling the below \ref C_printf() or \ref C_puts() functions.
- * For CygWin, if this is \b !0, it will set \ref C_use_ansi_colours.
+ * calling the below C_printf() or C_puts() functions.
+ * For CygWin, if this is \b !0, it will set C_use_ansi_colours.
  */
 int C_use_colours = 0;
 
@@ -111,7 +111,7 @@ int C_use_colours = 0;
  * For CygWin or if we detect we're running under \b mintty.exe (or some other program
  * lacking WinCon support), this variable means we must use ANSI-sequences to set colours.
  *
- * If running under ConEmu (detecting a valid \c %ConEmuHWND% window and \c %ConEmuANSI=ON),
+ * If running under ConEmu (detecting a valid `%ConEmuHWND%` window and `%ConEmuANSI=ON`),
  * this variable is set to \b 1 to use a more rich set of ANSI-colours.
  */
 int C_use_ansi_colours = 0;
@@ -122,14 +122,14 @@ int C_use_ansi_colours = 0;
 int C_no_ansi = 1;
 
 /**
- * The program using color.c must set this to \b 1 if \c fwrite() shall
- * be used in \ref C_flush(). This can be needed to synchronize the output
- * with other calls (libraries?) that writes to stdout using \c fwrite().
+ * The program using color.c must set this to \b 1 if `fwrite()` shall
+ * be used in C_flush(). This can be needed to synchronize the output
+ * with other calls (libraries?) that writes to stdout using `fwrite()`.
  */
 int C_use_fwrite = 0;
 
 /**
- * A count of number of times \ref C_flush() was called with nothing
+ * A count of number of times C_flush() was called with nothing
  * in the trace-buffer.
  */
 unsigned C_redundant_flush = 0;
@@ -143,22 +143,22 @@ static int    c_binmode = 0;
 static BOOL   c_always_set_bg = FALSE;
 static BOOL   c_exited = FALSE;
 
-/** The \c FILE to print to. This is set to \c stdout in \ref C_init().
+/** The `FILE` to print to. This is set to `stdout` in C_init().
  */
 static FILE *c_out = NULL;
 
-/** The width of the screen obtained from \c GetConsoleScreenBufferInfo()
- *  or \c %COLUMNS in \ref C_init().
+/** The width of the screen obtained from `GetConsoleScreenBufferInfo()`
+ *  or `%COLUMNS` in C_init().
  */
 static size_t c_screen_width = UINT_MAX;
 
 /** The console-buffer information initialised by
- *  \c GetConsoleScreenBufferInfo() in \ref C_init().
+ *  `GetConsoleScreenBufferInfo()` in C_init().
  */
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
 
 /** The critical section structure initialised by
- *  \c InitializeCriticalSection() in \ref C_init().
+ *  `InitializeCriticalSection()` in C_init().
  */
 static CRITICAL_SECTION crit;
 
@@ -175,7 +175,7 @@ static WORD colour_map [8];
 /**
  * Array of colour indices to ANSI-sequences (foreground and background combined).
  *
- * This map is set when the \ref colour_map[] is set.
+ * This map is set when the colour_map[] is set.
  */
 static char colour_map_ansi [DIM(colour_map)] [20];
 
@@ -203,7 +203,7 @@ int C_conemu_detected (void)
 }
 
 /**
- * Check \c %COLOUR_TRACE and return it's value.
+ * Check `%COLOUR_TRACE` and return it's value.
  */
 int C_trace_level (void)
 {
@@ -215,10 +215,10 @@ int C_trace_level (void)
 }
 
 /**
- * Customize the \ref colour_map[1..N].
+ * Customize the colour_map[1..N].
  * Must be a list terminated by 0.
  *
- * \ref colour_map[0] can \b not be modified. It is reserved for the default
+ * colour_map[0] can \b not be modified. It is reserved for the default
  * colour. I.e. the active colour in effect when program started.
  */
 int C_init_colour_map (unsigned short col, ...)
@@ -254,8 +254,8 @@ int C_init_colour_map (unsigned short col, ...)
   }
 
   /**
-   * Fill the ANSI-sequence array by looping over \ref colour_map_ansi[].
-   * \note the size of both \ref colour_map_ansi[] and \ref colour_map[] \b are equal.
+   * Fill the ANSI-sequence array by looping over colour_map_ansi[].
+   * \note the size of both colour_map_ansi[] and colour_map[] \b are equal.
    */
   for (i = 0; i < DIM(colour_map_ansi); i++)
   {
@@ -269,8 +269,8 @@ int C_init_colour_map (unsigned short col, ...)
 
 /**
  * Sets raw or normal output mode.
- * \param[in] raw  raw = 1: do not interpret \c '~n' to set colour.
- *                 raw = 0: do interpret \c '~n' as colour indices (\b default).
+ * \param[in] raw  raw = 1: do not interpret `~n` to set colour.
+ *                 raw = 0: do interpret `~n` as colour indices (\b default).
  * \return the previous mode.
  */
 int C_setraw (int raw)
@@ -283,8 +283,8 @@ int C_setraw (int raw)
 
 /**
  * Sets binary or cooked output mode.
- * \param[in] bin bin = 1: do not convert \c '\\n' into \c '\\r\\n'.<br>
- *                bin = 0: do convert \c '\\n' into \c '\\r\\n' (\b default).
+ * \param[in] bin bin = 1: do not convert `\\n` into `\\r\\n`.<br>
+ *                bin = 0: do convert `\\n` into `\\r\\n` (\b default).
  * \return the previous mode.
  */
 int C_setbin (int bin)
@@ -314,14 +314,14 @@ void C_exit (void)
 /**
  * Our local initialiser function. Called once to:
  *
- *  \li Set the trace-level from \c %COLOUR_TRACE%.
+ *  \li Set the trace-level from `%COLOUR_TRACE%`.
  *  \li Get the console-buffer information from Windows Console.
  *  \li If the console is not redirected:
  *     1. get the screen height and width.
- *     2. setup the \ref colour_map[] array and the
- *        \ref colour_map_ansi[] array. Even if ANSI output is \b not wanted.
- *  \li Set \ref c_out to default \c stdout and setup buffer head and tail.
- *  \li Initialise the critical-section structure \ref crit.
+ *     2. setup the colour_map[] array and the
+ *        colour_map_ansi[] array. Even if ANSI output is \b not wanted.
+ *  \li Set c_out to default `stdout` and setup buffer head and tail.
+ *  \li Initialise the critical-section structure crit.
  */
 static int C_init (void)
 {
@@ -450,7 +450,7 @@ void C_reset (void)
 }
 
 /**
- * Figure out if the parent process is \c mintty.exe which does not
+ * Figure out if the parent process is `mintty.exe` which does not
  * support WinCon colors. Finding the name of parent can be used as
  * described here:
  *  http://www.codeproject.com/Articles/9893/Get-Parent-Process-PID \n
@@ -508,7 +508,7 @@ static const char *wincon_to_ansi (WORD col)
 
 /**
  * Set console colour using an ANSI sequence.
- * The corresponding WinCon colour set in \ref colour_map[] is used as a lookup-value.
+ * The corresponding WinCon colour set in colour_map[] is used as a lookup-value.
  */
 void C_set_ansi (unsigned short col)
 {
@@ -618,7 +618,7 @@ int C_vprintf (const char *fmt, va_list args)
 }
 
 /**
- * Put a single character to output buffer (at \c c_head).
+ * Put a single character to output buffer (at `c_head`).
  * Interpret a "~n" sequence as output buffer gets filled.
  */
 int C_putc (int ch)
@@ -691,7 +691,7 @@ put_it:
 }
 
 /**
- * Put a single character to output buffer (at \c c_head).
+ * Put a single character to output buffer (at `c_head`).
  * No interpretation of "~n" sequences.
  */
 int C_putc_raw (int ch)
@@ -717,7 +717,7 @@ int C_puts (const char *str)
 }
 
 /**
- * Put a string (or buffer) of maximum \c len bytes to output buffer.
+ * Put a string (or buffer) of maximum `len` bytes to output buffer.
  */
 int C_putsn (const char *str, size_t len)
 {
@@ -772,7 +772,7 @@ void C_puts_long_line (const char *start, size_t indent)
 }
 
 /**
- * Return the \ref c_screen_width.
+ * Return the c_screen_width.
  */
 size_t C_screen_width (void)
 {
