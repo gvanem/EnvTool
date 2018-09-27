@@ -400,11 +400,13 @@ static void show_ext_versions (void)
 
   if (vcpkg_exe)
   {
-    int num = vcpkg_get_list();
+    unsigned num;
 
+    vcpkg_get_list();
+    num = vcpkg_get_num_CONTROLS();
     C_printf ("%-*s -> ~6%s~0. ", pad_len, found[3], vcpkg_exe);
-    if (num > 0)
-         C_printf ("Found %d CONTROL nodes.\n", num);
+    if (num >= 1)
+         C_printf ("Found %u CONTROL nodes.\n", num);
     else C_printf ("%s.\n", vcpkg_last_error());
   }
   else
@@ -578,7 +580,7 @@ static int show_help (void)
           "    ~6--path~0         check and search in ~3%PATH%~0.\n"
           "    ~6--pkg~0          check and search in ~3%PKG_CONFIG_PATH%~0.\n"
           "    ~6--python~0[~3=X~0]   check and search in ~3%PYTHONPATH%~0 and ~3sys.path[]~0. ~2[3]~0\n"
-          "    ~6--vcpkg~0        check and search for VCPKG packages for a matching ~6<file-spec>~0.\n"
+          "    ~6--vcpkg~0        check and search for ~3VCPKG~0 packages              ~2[4]~0.\n"
           "    ~6--check~0        check for missing directories in ~6all~0 supported environment variables\n"
           "                   and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n");
 
@@ -669,9 +671,12 @@ static int show_help (void)
          C_printf ("      ~6%-6s~0 use all of the above Python programs.\n", *py);
     else C_printf ("      ~6%-6s~0 use a %s program only.\n", *py, py_variant_name(v));
   }
+  C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n");
 
-  C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n"
-          "\n"
+  C_printf ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 & ~6CONTROL~0 files.\n"
+            "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n");
+
+  C_puts ("\n"
           "Notes:\n"
           "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
           "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0/~6--dir~0 is used, only\n"
@@ -2964,12 +2969,18 @@ static int do_check_pkg (void)
 }
 
 /**
- * Search for VCPKG packages under `%VCPKG_ROOT%\\ports\\*" for a match to the 'opt.file_spec`.
+ * Search for VCPKG packages matching the 'opt.file_spec`.
  */
 static int do_check_vcpkg (void)
 {
-  if (vcpkg_get_list() > 0)
-     return vcpkg_dump_control (opt.file_spec);
+  unsigned num;
+
+  vcpkg_get_list();
+  num = vcpkg_get_num_CONTROLS();
+
+  if (num >= 1)
+     return (int) vcpkg_dump_control (opt.file_spec);
+
   if (!opt.quiet)
      C_printf ("%s.\n", vcpkg_last_error());
   return (0);
@@ -4956,6 +4967,7 @@ static void MS_CDECL halt (int sig)
   BOOL quick_exit = FALSE;
 
   halt_flag++;
+  CRTDBG_CHECK_OFF();
 
   if (opt.do_evry)
   {
@@ -5119,7 +5131,7 @@ int MS_CDECL main (int argc, const char **argv)
 
       end = strrchr (opt.file_spec, '\0');
       dot = strrchr (opt.file_spec, '.');
-      if (!dot)
+      if (!dot && !opt.do_vcpkg)
       {
         if (opt.do_pkg && end > opt.file_spec && end[-1] != '*')
            opt.file_spec = _stracat (opt.file_spec, ".pc*");
@@ -5470,7 +5482,7 @@ static void test_searchpath (void)
   int    is_env, pad;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
-  C_printf ("  ~6What %s Where                      Result~0\n", _strrepeat(' ',28));
+  C_printf ("  ~6What %s Where                      Result~0\n", str_repeat(' ',28));
 
   for (t = tab1; i < DIM(tab1); t++, i++)
   {
