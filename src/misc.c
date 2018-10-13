@@ -2906,6 +2906,13 @@ void print_long_line (const char *line, size_t indent)
         line = ++c;
         continue;
       }
+      /* Drop multiple spaces.
+       */
+      if (c > line && c[-1] == ' ')
+      {
+        line = ++c;
+        continue;
+      }
     }
     C_putc (*c++);
     left--;
