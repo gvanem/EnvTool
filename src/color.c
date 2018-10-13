@@ -750,7 +750,7 @@ void C_puts_long_line (const char *start, size_t indent)
       int   ch;
 
       if (!p)
-          p = strchr (c+1, '\0');
+         p = strchr (c+1, '\0');
       if (left < 2 || (left <= (size_t)(p - c)))
       {
         C_printf ("\n%*c", (int)indent, ' ');
