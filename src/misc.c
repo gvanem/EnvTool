@@ -2908,7 +2908,7 @@ void print_long_line (const char *line, size_t indent)
       }
       /* Drop multiple spaces.
        */
-      if (c > line && c[-1] == ' ')
+      if (c > line && isspace((int)c[-1]))
       {
         line = ++c;
         continue;
