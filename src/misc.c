@@ -2899,7 +2899,7 @@ void print_long_line (const char *line, size_t indent)
       if (!p)
          p = strchr (c+1, '\0');
 
-      if (left < 2 || p > left + c)
+      if (left < 2 || p >= left + c)
       {
         C_printf ("\n%*c", indent, ' ');
         left = width - indent;
