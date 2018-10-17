@@ -1122,17 +1122,17 @@ BOOL str_endswith (const char *s1, const char *s2)
   if (strlen(s2) > strlen(s1))
      return (FALSE);
 
-  s1_end = strrchr (s1, '\0') - 1;
-  s2_end = strrchr (s2, '\0') - 1;
+  s1_end = strchr (s1, '\0') - 1;
+  s2_end = strchr (s2, '\0') - 1;
 
-  while (s1_end >= s1)
+  while (s2_end >= s2)
   {
     if (*s1_end != *s2_end)
        break;
     s1_end--;
     s2_end--;
   }
-  return (s2_end == s2);
+  return (s2_end == s2 - 1);
 }
 
 /**
