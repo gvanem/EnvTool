@@ -462,6 +462,7 @@ extern char *strip_nl       (char *s);
 extern char *str_ltrim      (char *s);
 extern char *str_rtrim      (char *s);
 extern char *str_trim       (char *s);
+extern BOOL  str_endswith   (const char *s, const char *with);
 extern char *str_repeat     (int ch, size_t num);
 extern int   str_equal      (const char *s1, const char *s2);
 extern int   str_equal_n    (const char *s1, const char *s2, size_t len);

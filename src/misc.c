@@ -1113,6 +1113,29 @@ char *str_trim (char *s)
 }
 
 /**
+ * Return TRUE if string `s1` ends with `s2`.
+ */
+BOOL str_endswith (const char *s1, const char *s2)
+{
+  const char *s1_end, *s2_end;
+
+  if (strlen(s2) > strlen(s1))
+     return (FALSE);
+
+  s1_end = strrchr (s1, '\0') - 1;
+  s2_end = strrchr (s2, '\0') - 1;
+
+  while (s1_end >= s1)
+  {
+    if (*s1_end != *s2_end)
+       break;
+    s1_end--;
+    s2_end--;
+  }
+  return (s2_end == s2);
+}
+
+/**
  * Comparisions of file-names:
  * Use `strnicmp()` or `strncmp()` depending on `opt.case_sensitive`.
  */
