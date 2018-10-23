@@ -1634,7 +1634,7 @@ static int get_dll_name (struct python_info *pi, const char **libs)
   const char *newest   = NULL;
   struct stat st1, st2, *use_st = NULL;
   BOOL       _st1, _st2, equal;
-  size_t      i, num = DIM (pi->libraries);
+  size_t      i, len, num = DIM (pi->libraries);
 
   _st1 = _st2 = FALSE;
 
@@ -1647,8 +1647,9 @@ static int get_dll_name (struct python_info *pi, const char **libs)
     }
     else if (!strncmp(lib_fmt,"~\\",2))
     {
+      len = strlen (dll1);
       strcpy (dll1, pi->dir);
-      snprintf (dll1+strlen(dll1), sizeof(dll1)-strlen(dll1), lib_fmt+1, pi->ver_major, pi->ver_minor);
+      snprintf (dll1+len, sizeof(dll1)-len, lib_fmt+1, pi->ver_major, pi->ver_minor);
       dll2[0] = '\0';
     }
     else
@@ -2202,7 +2203,8 @@ void enum_python_in_registry (const char *key_name)
  */
 void py_init (void)
 {
-  int i, max;
+  size_t f_len = strlen (__FILE());
+  int    i, max;
 
 #if !defined(_DEBUG)
   if (exc_hnd == NULL)
@@ -2227,7 +2229,7 @@ void py_init (void)
   for (i = 0; i < max; i++)
   {
     const struct python_info *pi = smartlist_get (py_programs, i);
-    int   len, indent = 1 + strlen (__FILE());
+    int   len, indent = 1 + f_len;
     char  version [20];
 
     len = (int) strlen (pi->program);
