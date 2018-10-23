@@ -28,8 +28,8 @@ static const struct search_list sections[] = {
 /**\struct ignore_node
  */
 struct ignore_node {
-       const char *section;  /** The section; one of the ones in \c sections[] */
-       char       *value;    /** The value to ignore */
+       const char *section;  /** The section; one of the ones in `sections[]` */
+       char       *value;    /** The value to ignore (allocated by STRDUP()) */
      };
 
 /** A dynamic array of ignore_node.
@@ -255,7 +255,7 @@ void cfg_ignore_dump (void)
 }
 
 /**
- * Free the memory allocated in the \c ignore_list smartlist.
+ * Free the memory allocated in the ignore_list smartlist.
  * Called from cleanup() in envtool.c.
  */
 void cfg_ignore_exit (void)
