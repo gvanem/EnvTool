@@ -3,20 +3,19 @@
  * \brief
  *   A public domain implementation of BSD directory routines
  *   getdirent(), opendir() etc.
- */
-
-/* Written by Michael Rendell ({uunet,utai}michael@garfield),
+ *
+ * Written by Michael Rendell ({uunet,utai}michael@garfield),
  * August 1987
  *
  * Enhanced and ported to OS/2 by Kai Uwe Rommel; added scandir() prototype
- * December 1989, February 1990
- * Change of MAXPATHLEN for HPFS, October 1990
+ * December 1989, February 1990 <br>
+ * Change of MAXPATHLEN for HPFS, October 1990 <br>
  *
  * Cleanup, other hackery, Summer '92, Brian Moran , brianmo@microsoft.com
  *
  * Changes for EnvTool:
- *   Added code for a main() test; 'DDIRLIST_TEST'.
- *   Added 'make_dir_spec()' function.
+ *  \li Added code for a main() test; `-DDIRLIST_TEST`.
+ *  \li Added `make_dir_spec()` function.
  */
 
 #include <windows.h>
@@ -86,9 +85,9 @@ static int reverse_sort (int rc)
   return (rc);
 }
 
-/*
+/**
  * Prevent an ugly "disk not ready" dialogue from Windows before
- * we call 'stat()' or 'FindFirstFile()'.
+ * we call `stat()` or `FindFirstFile()`.
  */
 static BOOL safe_to_access (const char *file)
 {
@@ -100,18 +99,19 @@ static BOOL safe_to_access (const char *file)
   return (TRUE);
 }
 
-/*
- * Split an 'arg' into a 'dir' part and a wildcard 'spec' for use by
- * opendir2() and scandir2().
- * Both 'dir' and 'spec' are assumed to point to a buffer of at least
- * _MAX_PATH characters.
+/**
+ * Split an `arg` into a `dir` part and a wildcard `spec` for use by
+ * `opendir2()` and `scandir2()`.
  *
- * If 'arg' start with a "\\UNC_name", do not use 'stat()' as that could
- * hang the program for a long time if 'UNC_name' resolves to an IP of
+ * Both `dir` and `spec` are assumed to point to a buffer of at least
+ * `_MAX_PATH` characters.
+ *
+ * If `arg` start with a `"\\UNC_name"`, do not use `stat()` as that could
+ * hang the program for a long time if `UNC_name` resolves to an IP of
  * a host that is down.
  *
- * If 'arg' is simply a valid directory-name, use that as 'dir' and
- * set 'arg == "*"'.
+ * If `arg` is simply a valid directory-name, use that as `dir` and
+ * set `arg == "*"`.
  */
 static int ATTR_UNUSED() make_dir_spec (const char *arg, char *dir, char *spec)
 {
@@ -120,7 +120,7 @@ static int ATTR_UNUSED() make_dir_spec (const char *arg, char *dir, char *spec)
   char *end, *p2, *a_copy;
   BOOL  unc, safe;
 
-  /* First, remove any enclosing '"' given in 'arg'.
+  /* First, remove any enclosing `"` given in `arg`.
    */
   a_copy = p2 = STRDUP (arg);
   if (*a_copy == '"')
@@ -133,7 +133,7 @@ static int ATTR_UNUSED() make_dir_spec (const char *arg, char *dir, char *spec)
   unc  = (strncmp(a_copy,"\\\\",2) == 0);
   safe = safe_to_access (a_copy);
 
-  /* Check if 'arg' is simply a directory.
+  /* Check if `arg` is simply a directory.
    */
   if (!unc && safe && stat(a_copy, &st) >= 0 && (st.st_mode & S_IFMT) == S_IFDIR)
   {
@@ -200,8 +200,8 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   DEBUGF (3, "CALLOC (%u) -> %p\n", (unsigned)max_size, dirp->dd_contents);
 
  /*
-  * If we're called from 'scandir2()', we have no pattern; we match all files.
-  * If we're called from 'opendir2x()', maybe use "*" as pattern if 'opts->recursive == 1'?
+  * If we're called from `scandir2()`, we have no pattern; we match all files.
+  * If we're called from `opendir2x()`, maybe use "*" as pattern if `opts->recursive == 1`?
   * And filter later on.
   */
   snprintf (path, sizeof(path), "%s\\%s", dir_name, opts ? opts->pattern : "*");
@@ -379,21 +379,20 @@ static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
   return (rc);
 }
 
-/*
+/**
  * Implementation of scandir2() which uses the above opendir2()
  * and readdir2() implementations.
  *
- * Arguments:
- *   dirname:    a plain directory name; no wild-card part.
- *   namelist_p: unallocated array of pointers to dirent2 strctures.
- *   sd_select:  pointer to function to specify which files to include in namelist[].
- *   dcomp:      pointer to sorting function to qsort(), e.g. compare_alphasort().
+ * \param[in]      dirname     a plain directory name; no wild-card part.
+ * \param[in,out]  namelist_p  unallocated array of pointers to `dirent2` structures.
+ * \param[in]      sd_select   pointer to function to specify which files to include in `namelist[]`.
+ * \param[in]      dcomp       pointer to sorting function to `qsort()`, e.g. `compare_alphasort()`.
  *
- * Returns 'number-1' of files added to '*namelist_p[]'.
- *   (highest index allocated in this array).
- *   I.e. if it returns 0, there are no files in 'dir_name'.
+ * \retval `number-1` of files added to `*namelist_p[]`.
+ *         (highest index allocated in this array).
+ *         I.e. if it returns 0, there are no files in `dir_name`.
  *
- * Returns -1 on error. Inspect 'errno' for cause.
+ * \retval -1 on error. Inspect `errno` for cause.
  */
 int scandir2 (const char       *dirname,
               struct dirent2 ***namelist_p,
@@ -432,9 +431,8 @@ int scandir2 (const char       *dirname,
 
     DEBUGF (2, "readdir2(): %s.\n", de->d_name);
 
-    /*
-     * The "." and ".." entries are already filtered out in 'getdirent2()'.
-     * The caller can filter out more if needed in a 'sd_select' function.
+    /* The "." and ".." entries are already filtered out in `getdirent2()`.
+     * The caller can filter out more if needed in a `sd_select` function.
      * E.g. use fnmatch() to search for a narrow range of files.
      */
     if (sd_select)
@@ -485,7 +483,7 @@ enomem:
   return (-1);
 }
 
-/*
+/**
  * Alphabetic order comparison routine.
  * Does not differensiate between files and directories.
  */
@@ -557,8 +555,8 @@ int MS_CDECL sd_compare_dirs_first (const void **a, const void **b)
   return compare_dirs_first (*a, *b);
 }
 
-/*
- * Return the sorting function based on 'sort'.
+/**
+ * Return the sorting function based on `sort`.
  */
 static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, ScandirCmpFunc *sd_cmp_func)
 {
@@ -645,9 +643,9 @@ void usage (void)
   exit (-1);
 }
 
-/*
- * Cygwin:    Convert 'path' from Windows to Posix form.
- * Otherwise: Replace all '\\' with a '/'.
+/**
+ * Cygwin:    Convert `path` from Windows to Posix form.
+ * Otherwise: Replace all `\\` with a `/`.
  */
 static const char *make_unixy_path (const char *path)
 {
@@ -775,8 +773,8 @@ static void final_report (void)
   C_printf (" (allocated: %s)\n", qword_str(total_size_alloc));
 }
 
-/*
- * Recursive handler for 'scandir2()'.
+/**
+ * Recursive handler for `scandir2()`.
  */
 void do_scandir2 (const char *dir, const struct od2x_options *opts)
 {
@@ -829,9 +827,9 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
   }
 }
 
-/*
- * 'opts->recursive' may not work if 'spec != "*"'.
- * \todo: use 'opendir2()' and do the filtering here (use 'fnmatch()'?).
+/**
+ * `opts->recursive` may not work if `spec != "*"`.
+ * \todo use `opendir2()` and do the filtering here (use `fnmatch()`?).
  */
 static void do_dirent2 (const char *dir, const struct od2x_options *opts)
 {

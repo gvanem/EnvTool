@@ -956,7 +956,7 @@ static void print_verbose_pkg_details (const char *file, int indent)
 /**
  * Print a list of installed packages.
  *
- * \todo:
+ * \todo
  *   Use the `get_info_file()` file to list the `PATH`, `LIB` and `INCLUDE` env-variables
  *   needed to use the `bin`, `lib` and `include` files.
  */
@@ -1138,7 +1138,7 @@ BOOL vcpkg_get_control (int *index_p, const struct vcpkg_node **node_p, const ch
  * Print a "installed: YES" or "installed: NO" depending on whether package is found in
  * `vcpkg_installed_packages`.
  *
- * \todo:
+ * \todo
  *   Also print all supported platforms (x86, x64 etc.) and locations for bin, lib and headers.
  *   Print that similar to how `pkg-config` does it:
  *   `pkg-config --libs --cflags --msvc-syntax gr-wxgui`:

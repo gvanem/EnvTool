@@ -278,8 +278,8 @@ void cfg_ignore_exit (void)
 }
 
 #if 0
-/*
- * \todo:
+/**
+ * \todo
  *   Thinking out loud:
  *     A future generic section lookup of a handler given
  *     a "[Section]" with a key and value.

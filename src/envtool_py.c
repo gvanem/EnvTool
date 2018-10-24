@@ -1417,8 +1417,8 @@ static int report_zip_file (struct python_info *py, const char *zip_file, char *
   q = strchr (report, '\0');
   snprintf (q, sizeof(report) - (q-report), "  (%s)", py_relative(py,zip_file));
 
-  /** \todo: incase `--pe-check` is specified and `report` file is a .pyd-file,
-   *         we should save the .pyd to a `%TEMP`-file and examine it in `report_file()`.
+  /** \todo incase `--pe-check` is specified and `report` file is a .pyd-file,
+   *        we should save the .pyd to a `%TEMP`-file and examine it in `report_file()`.
    */
   report_file (report, mtime, fsize, FALSE, FALSE, HKEY_PYTHON_EGG);
   return (1);
@@ -1606,7 +1606,7 @@ static int build_sys_path (char *str, int index)
                                   "[print(p) for (i,p) in enumerate(sys.path)]"
 
 /**
- * \todo:
+ * \todo
  *   CygWin's Python doesn't like the `;` and `\\` in `%PYTHONPATH`.
  *   Try to detect Cygwin and please it before calling popen_runf().
  *   Do something like `cygwin_create_path(CCP_WIN_A_TO_POSIX, dir)`
@@ -1621,7 +1621,7 @@ static int get_sys_path (struct python_info *pi)
 }
 
 /**
- * \todo:
+ * \todo
  *   If multiple DLLs with same name but different time-stamps are found
  *   (in `pi->dir` and `sys_dir`), report a warning.
  *   Check PE-version and/or MD5 finger-print?

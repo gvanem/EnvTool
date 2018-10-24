@@ -1294,7 +1294,9 @@ static unsigned char Python36_DLLs__ctypes_pyd[] = {
 
 BOOL wintrust_dump_pkcs7_cert (const char *file)
 {
-#if 0 /* \todo: call from 'do_tests()' */
+ /** \todo call from `do_tests()`
+  */
+#if 0
   BIO  *indata = BIO_new();
   PKC7  p7;
 
