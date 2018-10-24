@@ -1350,6 +1350,22 @@ static int get_trailing_indent (const char *file)
 }
 
 /**
+ * In case a file or directory contains a `"~"`, switch to raw mode.
+ */
+static void print_raw (const char *file, const char *before, const char *after)
+{
+  int raw;
+
+  if (before)
+     C_puts (before);
+  raw = C_setraw (1);
+  C_puts (file);
+  C_setraw (raw);
+  if (after)
+     C_puts (after);
+}
+
+/**
  * This is the main printer for a file/dir.
  * Prints any notes, time-stamp, size, file/dir name.
  * Also any she-bang statements, links for a gzipped man-page,
@@ -1368,7 +1384,6 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   const char *note   = NULL;
   const char *filler = "      ";
   char        size [40] = "?";
-  int         save;
   BOOL        have_it = TRUE;
   BOOL        show_dir_size = TRUE;
   BOOL        show_pc_files_only = FALSE;
@@ -1610,11 +1625,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   C_puts (fmt_buf_time_size.buffer_start);
   C_puts (fmt_buf_owner_info.buffer_start);
 
-  /* In case 'report_file_info' contains a "~" (SFN), we switch to raw mode.
-   */
-  save = C_setraw (1);
-  C_puts (fmt_buf_file_info.buffer_start);
-  C_setraw (save);
+  print_raw (fmt_buf_file_info.buffer_start, NULL, NULL);
 
   /* All this must be printed on the next line
    */
@@ -6200,17 +6211,6 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
   path_separator = ';';
 }
 
-/*
- * In case a file or directory contains a `"~"`, switch to raw mode.
- */
-static void print_raw (const char *file)
-{
-  int raw = C_setraw (1);
-
-  C_puts (file);
-  C_setraw (raw);
-}
-
 /**
  * Do a simple check of an environment varable from <br>
  * `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`.
@@ -6239,7 +6239,7 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
     if (opt.verbose)
     {
       C_printf ("   [%2d]: ~6", i);
-      print_raw (fbuf);
+      print_raw (fbuf, "~6", NULL);
 
       attr = GetFileAttributes (arr->dir);
       if ((attr != INVALID_FILE_ATTRIBUTES) &&
@@ -6247,31 +6247,28 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
           get_disk_type(arr->dir[0]) != DRIVE_REMOTE &&
           get_reparse_point (arr->dir, link, TRUE))
       {
-        C_puts ("\n      -> ~4");
-        print_raw (_fix_drive(link));
+        C_puts ("\n      -> ");
+        print_raw (_fix_drive(link), "~4", NULL);
       }
       C_puts ("~0\n");
     }
 
     if (!arr->exist)
     {
-      C_printf ("%*c~5Missing dir~0: ~3\"", indent, ' ');
-      print_raw (fbuf);
-      C_puts ("~0\n");
+      C_printf ("%*c~5Missing dir~0:", indent, ' ');
+      print_raw (fbuf, " ~3\"", "\"~0\n");
       errors++;
     }
     else if (arr->num_dup)
     {
-      C_printf ("%*c~5Duplicated~0: ~3\"", indent, ' ');
-      print_raw (fbuf);
-      C_puts ("~0\n");
+      C_printf ("%*c~5Duplicated~0:", indent, ' ');
+      print_raw (fbuf, " ~3\"", "\"~0\n");
       errors++;
     }
     else if (!arr->is_cwd && dir_is_empty(fbuf))
     {
-      C_printf ("%*c~5Empty dir~0: ~3\"", indent, ' ');
-      print_raw (fbuf);
-      C_puts ("~0\n");
+      C_printf ("%*c~5Empty dir~0:", indent, ' ');
+      print_raw (fbuf, " ~3\"", "\"~0\n");
       errors++;
     }
   }
