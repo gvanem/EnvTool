@@ -455,7 +455,7 @@ static BOOL state_PATH (struct state_CTX *ctx)
   }
 #endif
 
-  if (strncmp(rx,"200 End",7))
+  if (strncmp(rx,"200 End",7) != 0)
   {
     ETP_tracef (ctx, "results_got: %lu", ctx->results_got);
     WARN ("Unexpected response: \"%s\", err: %s\n", rx, ws2_strerror(ctx->ws_err));

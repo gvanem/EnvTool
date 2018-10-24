@@ -698,7 +698,7 @@ extern void     mem_report (void);
   #define REALLOC       realloc
   #define STRDUP        strdup
   #define WCSDUP        wcsdup
-  #define FREE(p)       (p ? (void) (free(p), p = NULL) : (void)0)
+  #define FREE(p)       (p ? (void) (free(p), p = NULL) : (void)0)  // -V595
 #else
   #define MALLOC(s)     malloc_at (s, __FILE(), __LINE__)
   #define CALLOC(n,s)   calloc_at (n, s, __FILE(), __LINE__)

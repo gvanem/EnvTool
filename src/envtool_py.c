@@ -25,16 +25,17 @@
  */
 
 /** \typedef PyObject
- *  most things in Python are objects of something we don't care about
+ *  Most things in Python are objects of something we don't care about
  */
 typedef void PyObject;
 
 /** \typedef Py_ssize_t
- *  storage-size type
+ *  Storage-size type
  */
 typedef long Py_ssize_t;
 
 /** \struct python_path
+ * The layout of each `sys.path[]` entry.
  */
 struct python_path {
        char dir [_MAX_PATH];  /**< Fully qualified directory of this entry */
@@ -71,7 +72,7 @@ struct python_info {
 
   /** The list of expected .DLLs for this specific Python.
    *  Tested for existance in either `%SystemDir%` and/or directory
-   *  of `*exe_name`.
+   *  of `exe_name`.
    */
   const char *libraries [3];
 
@@ -105,7 +106,7 @@ struct python_info {
    */
   int ver_major, ver_minor, ver_micro;
 
-  /** Bitness of `dll_name`. bit_32 or bit_64.
+  /** Bitness of `dll_name`. `enum Bitness::bit_32` or `enum Bitness::bit_64`.
    * \anchor bitness
    */
   enum Bitness bitness;
@@ -124,25 +125,25 @@ struct python_info {
 
   /** It's `sys.prefix` used in `Py_SetPythonHome()`.
    */
-  char    *home_a;  /** ASCII-version for Python 2.x */
-  wchar_t *home_w;  /** Widechar-version for Python 3.x */
+  char    *home_a;  /**< ASCII-version for Python 2.x */
+  wchar_t *home_w;  /**< Widechar-version for Python 3.x */
 
   /* The program-names used in `Py_SetProgramName()`.
    */
-  char    *prog_a;  /** ASCII-version for Python 2.x */
-  wchar_t *prog_w;  /** Widechar-version for Python 3.x */
+  char    *prog_a;  /**< ASCII-version for Python 2.x */
+  wchar_t *prog_w;  /**< Widechar-version for Python 3.x */
 
   /** Warn once if `home_a` is not set.
    */
   BOOL     do_warn_home;
 
   /** Only set if `is_embeddable == TRUE`:
-   *  - contain the stdout catcher object.
+   *  - contains the stdout catcher object.
    */
   PyObject *catcher;
 
   /** Only set if `is_embeddable == TRUE`:
-   *  - contain the handle from `LoadLibrary()`.
+   *  - contains the handle from `LoadLibrary()`.
    */
   HANDLE dll_hnd;
 };
@@ -200,8 +201,8 @@ static int global_indent = 0;
 static int get_python_version (const char *exe_name);
 
 /**
- * The list of Pythons from the \c "%PATH" and from the
- * \c "HKLM\Software\Python\PythonCore\xx\InstallPath" locations.
+ * The list of Pythons from the `"%PATH"` and from the
+ * `"HKLM\Software\Python\PythonCore\xx\InstallPath"` locations.
  * This is an array of `struct python_info`.
  */
 static smartlist_t *py_programs;
@@ -303,7 +304,7 @@ int py_variant_value (const char *short_name, const char *full_name)
 /**
  * Return a full-name from a variant value.
  *
- * E.g. \c py_variant_name (\ref ALL_PYTHONS) -> `"All"`.
+ * E.g. `py_variant_name` (\ref ALL_PYTHONS) -> `"All"`.
  */
 const char *py_variant_name (enum python_variants v)
 {
@@ -744,8 +745,8 @@ void py_exit (void)
  *   Use `StringIO()` class instead?
  *
  * \note
- *   The line-endings in the `self.value` are normally Unix-type \c "\n".
- *   These will become \c "\r\n" when this string gets printed to `stdout`
+ *   The line-endings in the `self.value` are normally Unix-type `"\n"`.
+ *   These will become `"\r\n"` when this string gets printed to `stdout`
  *   in the C-world (since it's in text-mode by default).
  *
  * Ref:
@@ -881,7 +882,7 @@ failed:
  *       - the program is dumped one line at a time prior to running it.
  *       - the program output is parsed and the lines are counted. Then the size is
  *         compared against what a DOS-ified string-size would become (`dos_size`).<br>
- *         I.e. compare against a string with all \c "\r\n" line-endings.
+ *         I.e. compare against a string with all `"\r\n"` line-endings.
  */
 static char *call_python_func (struct python_info *py, const char *py_prog)
 {
@@ -1848,7 +1849,7 @@ static int match_python_exe (const char *dir)
     base = basename (de->d_name);
     for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
     {
-      if (stricmp(base,py->program))
+      if (stricmp(base,py->program) != 0)
          continue;
 
       if (cfg_ignore_lookup("[Python]",de->d_name))
@@ -1974,7 +1975,7 @@ static int report_py_version_cb (char *output, int line)
   const char *prefix = "sys.version_info";
   int   num;
 
-  if (output && line == 1)
+  if (line == 1)
   {
     DEBUGF (1, "line: %d, output: '%s'\n", line, output);
     _strlcpy (tmp_user_site, output, sizeof(tmp_user_site));
@@ -2003,8 +2004,8 @@ static int get_python_version (const char *exe_name)
 
 /**
  * Called from show_version():
- *   \li Print information for all found Pythons if \c "envtool -VV" was specified.
- *   \li Print the \c sys_path[] if \c "envtool -VVV" was specified.
+ *   \li Print information for all found Pythons if `"envtool -VV"` was specified.
+ *   \li Print the `sys_path[]` if `"envtool -VVV"` was specified.
  */
 void py_searchpaths (void)
 {
@@ -2082,7 +2083,7 @@ void py_searchpaths (void)
 }
 
 /**
- * Add the `REG_SZ` data in a \c "HKLM\Software\Python\PythonCore\xx\InstallPath" key
+ * Add the `REG_SZ` data in a `"HKLM\Software\Python\PythonCore\xx\InstallPath"` key
  * to the \ref py_programs smartlist.
  */
 static void get_install_path (const char *key_name, const struct python_info *pi)
@@ -2111,17 +2112,21 @@ static void get_install_path (const char *key_name, const struct python_info *pi
 
     if (value[0] && data[0] && !stricmp(value,"ExecutablePath"))
     {
-      struct python_info *pi2 = CALLOC (sizeof(*pi2), 1);
+      struct python_info *pi2;
       char  *slash = strrchr (data, '\\');
-      char  *end = strchr (data,'\0') - 1;
+      char  *end   = strchr (data,'\0') - 1;
 
-      pi2->ver_major = pi->ver_major;
-      pi2->ver_minor = pi->ver_minor;
-      _strlcpy (pi2->dir, data, end-data);
-      _strlcpy (pi2->program, slash+1, slash-data);
-      pi2->exe_name = STRDUP (data);
-      pi2->sys_path = smartlist_new();
-      smartlist_add (py_programs, pi2);
+      if (slash)
+      {
+        pi2 = CALLOC (sizeof(*pi2), 1);
+        pi2->ver_major = pi->ver_major;
+        pi2->ver_minor = pi->ver_minor;
+        _strlcpy (pi2->dir, data, end-data);
+        _strlcpy (pi2->program, slash+1, slash-data);
+        pi2->exe_name = STRDUP (data);
+        pi2->sys_path = smartlist_new();
+        smartlist_add (py_programs, pi2);
+      }
     }
     else if (data[0] && !value[0])
     {
@@ -2146,8 +2151,8 @@ static void get_install_path (const char *key_name, const struct python_info *pi
 }
 
 /**
- * Recursively walks the Registry branch under \c "HKLM\\Software\\Python\\PythonCore". <br>
- * Look for \c "InstallPath" keys and gather the \c REG_SZ \c "InstallPath" values.
+ * Recursively walks the Registry branch under `"HKLM\\Software\\Python\\PythonCore"`. <br>
+ * Look for `"InstallPath"` keys and gather the `REG_SZ / "InstallPath"` values.
  */
 void enum_python_in_registry (const char *key_name)
 {
@@ -2198,7 +2203,7 @@ void enum_python_in_registry (const char *key_name)
 /**
  * Main initialiser function for this module:
  *  \li Find the details of all supported Pythons in \ref all_py_programs.
- *  \li Walk the \c %PATH and Registry (not yet) to find this information.
+ *  \li Walk the `%PATH` and Registry (not yet) to find this information.
  *  \li Add each Python found to the \ref py_programs smartlist as they are found.
  */
 void py_init (void)
@@ -2264,12 +2269,12 @@ typedef struct {
       } arg_vector;
 
 /**
- * Make an \c arg_vector suitable for \c PySys_SetArgvEx().
+ * Make an `arg_vector` suitable for `PySys_SetArgvEx()`.
  *
- * \param[in] av   the \c arg_vector to initialise.
- * \param[in] argv the C-arguments to fill info \c av.
- * \param[in] wide TRUE if the \c av->wide[] array should be created.
- *                 FALSE if the \c av->ascii[] array should be created.
+ * \param[in] av   the `arg_vector` to initialise.
+ * \param[in] argv the C-arguments to fill info `av`.
+ * \param[in] wide TRUE if the `av->wide[]` array should be created.
+ *                 FALSE if the `av->ascii[]` array should be created.
  */
 static int make_arg_vector (arg_vector *av, const char **argv, BOOL wide)
 {
@@ -2305,9 +2310,9 @@ static int make_arg_vector (arg_vector *av, const char **argv, BOOL wide)
 }
 
 /**
- * Free the memory allocated for the \c av created by make_arg_vector().
+ * Free the memory allocated for the `av` created by `make_arg_vector()`.
  *
- * \param[in] av  the \c arg_vector to free.
+ * \param[in] av  the `arg_vector` to free.
  */
 static void free_arg_vector (arg_vector *av)
 {

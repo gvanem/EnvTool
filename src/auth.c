@@ -46,9 +46,9 @@ static smartlist_t *login_list = NULL;
  */
 static const char *login_src_name (enum login_source src)
 {
-  return (src == LOGIN_NETRC       ? "NETRC"       :
-          src == LOGIN_AUTHINFO    ? "AUTHINFO"    :
-          src == LOGIN_ENVTOOL_CFG ? "ENVTOOL_CFG" : "?");
+  return ((src == LOGIN_NETRC)       ? "NETRC"       :
+          (src == LOGIN_AUTHINFO)    ? "AUTHINFO"    :
+          (src == LOGIN_ENVTOOL_CFG) ? "ENVTOOL_CFG" : "?");
 }
 
 /**
@@ -101,7 +101,7 @@ static void common_exit (enum login_source src)
     DEBUGF (2, "i: %d, %-12s, do %sdelete this.\n",
             i,  login_src_name(li->src), (li->src == src) ? "" : "not ");
 
-    if (li->src != src)
+    if (!li || li->src != src)
        continue;
 
     FREE (li->host);
