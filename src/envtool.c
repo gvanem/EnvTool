@@ -6247,6 +6247,11 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
       C_printf ("%*c~5Missing dir~0: ~3%s~0\n", indent, ' ', fbuf);
       errors++;
     }
+    else if (arr->num_dup)
+    {
+      C_printf ("%*c~5Duplicated~0: ~3\"%s\"~0\n", indent, ' ', fbuf);
+      errors++;
+    }
     else if (!arr->is_cwd && dir_is_empty(fbuf))
     {
       C_printf ("%*c~5Empty dir~0: ~3\"%s\"~0", indent, ' ', fbuf);
@@ -6418,7 +6423,6 @@ static int do_check (void)
    * ```
    *   _environ[]
    *   HKU\.DEFAULT\Environment
-   *   HKLM\System\CurrentControlSet\Control\Session Manager\Environment
    *   HKCU\Environment
    *   HKCU\Volatile Environment
    * ```
