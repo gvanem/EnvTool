@@ -1,7 +1,7 @@
 /** \file    searchpath.c
  *  \ingroup Misc
  *  \brief
- *    Find a file along an envirnment variable. (Usually the \c \%PATH\%).
+ *    Find a file along an envirnment variable. (Usually the `%PATH%`).
  */
 
 /* Copyright (C) 2001 DJ Delorie, see COPYING.DJ for details */

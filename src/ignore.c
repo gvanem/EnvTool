@@ -40,8 +40,8 @@ static smartlist_t *ignore_list = NULL;
 /**
  * Callback for smartlist_read_file():
  *
- * Accepts only strings like "ignore = xx" from the config-file.
- * Add to \ref ignore_list in the correct \c sections[] slot.
+ * Accepts only strings like `"ignore = xx"` from the config-file.
+ * Add to \ref ignore_list in the correct `sections[]` slot.
  *
  * \param[in] sl    the smartlist to add the string-value to.
  * \param[in] line  the prepped string-value from the file opened in
@@ -118,13 +118,13 @@ int cfg_ignore_init (const char *fname)
 }
 
 /**
- * Lookup a \c value to test for ignore. Compare the \c section too.
+ * Lookup a `value` to test for ignore. Compare the `section` too.
  *
- * \param[in] section  Look for the \c value in this \c section.
+ * \param[in] section  Look for the `value` in this `section`.
  * \param[in] value    The string-value to check.
  *
- * \retval 0 the \c section and \c value was not something to ignore.
- * \retval 1 the \c section and \c value was found in the \ref ignore_list.
+ * \retval 0 the `section` and `value` was not something to ignore.
+ * \retval 1 the `section` and `value` was found in the \ref ignore_list.
  */
 int cfg_ignore_lookup (const char *section, const char *value)
 {
@@ -169,9 +169,9 @@ static int  next_idx = -1;
 static UINT curr_sec = UINT_MAX;
 
 /**
- * Lookup the first ignored \c value in a \c section.
+ * Lookup the first ignored `value` in a `section`.
  *
- * \param[in] section  the \c section to start in.
+ * \param[in] section  the `section` to start in.
  */
 const char *cfg_ignore_first (const char *section)
 {
@@ -204,9 +204,9 @@ not_found:
 }
 
 /**
- * Lookup the next ignored \c value in the same \c section.
+ * Lookup the next ignored `value` in the same `section`.
  *
- * \param[in] section  the \c section to search in.
+ * \param[in] section  the `section` to search in.
  */
 const char *cfg_ignore_next (const char *section)
 {

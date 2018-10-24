@@ -928,9 +928,9 @@ static BOOL state_envtool_cfg_lookup (struct state_CTX *ctx)
 /**
  * Check if `ctx->raw_url` matches one of these formats:
  *
- *  \li \c "user:passwd@host_or_IP-address<:port>"    Both user-name and password (+ port).
- *  \li \c "user@host_or_IP-address<:port>"           Only user-name (+ port).
- *  \li \c "host_or_IP-address<:port>"                Only host/IP-address (+ port).
+ *  \li `user:passwd@host_or_IP-address<:port>`    Both user-name and password (+ port).
+ *  \li `user@host_or_IP-address<:port>`           Only user-name (+ port).
+ *  \li `host_or_IP-address<:port>`                Only host/IP-address (+ port).
  *
  * \param[in] ctx  the context we work with.
  *

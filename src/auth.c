@@ -3,8 +3,8 @@
  *
  * Used to login to a remote EveryThing FTP-server before doing queries.
  *
- * The syntax \c "~/xx" (meaning file \c "xx" in the user's home directory) really
- * means \c "%APPDATA%\\xx".
+ * The syntax `"~/xx"` (meaning file `"xx"` in the user's home directory) really
+ * means `"%APPDATA%\\xx"`.
  *
  * This file is part of envtool.
  *
@@ -53,7 +53,7 @@ static const char *login_src_name (enum login_source src)
 
 /**
  * Common to both netrc_init() and authinfo_init().
- * The \ref login_list is grown in the below \c parser functions.
+ * The \ref login_list is grown in the below `parser` functions.
  */
 static int common_init (const char *fname, smartlist_parse_func parser)
 {
@@ -79,7 +79,7 @@ static int common_init (const char *fname, smartlist_parse_func parser)
 
 /**
  * Free the memory allocated in the \ref login_list smartlist.<br>
- * But only if \c 'li->src' matches \c 'src'.
+ * But only if `li->src` matches `src`.
  */
 static void common_exit (enum login_source src)
 {
@@ -123,8 +123,8 @@ static void common_exit (enum login_source src)
 }
 
 /**
- * Search the \ref login_list smartlist for \c host. <br>
- * The \c 'li->src' must also match \c 'src'.
+ * Search the \ref login_list smartlist for `host`. <br>
+ * The `li->src` must also match `src`.
  */
 static const struct login_info *common_lookup (const char *host, enum login_source src)
 {
@@ -164,7 +164,7 @@ static const struct login_info *common_lookup (const char *host, enum login_sour
 }
 
 /**
- * Parse a line from \c ~/.netrc. Match lines like:
+ * Parse a line from `"~/.netrc"`. Match lines like:
  *   \code machine <host> login <user> password <password> \endcode
  * Or
  *   \code default login <user> password <password> \endcode
@@ -201,12 +201,12 @@ static void netrc_parse (smartlist_t *sl, const char *line)
 }
 
 /**
- * Parse a line from \c ~/.authinfo. Match lines like:
- *   \code machine <host> port <num> login <user> password <password> \endcode
- * Or
- *   \code default port <num> login <user> password <password> \endcode
+ * Parse a line from `"~/.authinfo"`. Match lines like: <br>
+ *   `machine <host> port <num> login <user> password <password>`
+ * Or <br>
+ *   `default port <num> login <user> password <password>`
  *
- * And add to the \c login_list smartlist.
+ * And add to the `login_list` smartlist.
  */
 static void authinfo_parse (smartlist_t *sl, const char *line)
 {
@@ -241,12 +241,12 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
 }
 
 /**
- * Parse a line from \c ~/envtool.cfg. Match lines like:
+ * Parse a line from `"~/envtool.cfg"`. Match lines like:
  *   ```
  *    [Login]
  *    <host> = <user> / <password> / port <port>
  *   ```
- * And add to the \c login_list smartlist.
+ * And add to the `login_list` smartlist.
  */
 static void envtool_cfg_parse (smartlist_t *sl, const char *line)
 {
@@ -299,7 +299,7 @@ static void envtool_cfg_parse (smartlist_t *sl, const char *line)
 }
 
 /**
- * Open and parse the \c "%APPDATA%\\.netrc" file only once.
+ * Open and parse the `"%APPDATA%\\.netrc"` file only once.
  */
 static int netrc_init (void)
 {
@@ -311,7 +311,7 @@ static int netrc_init (void)
 }
 
 /**
- * Open and parse the \c "%APPDATA%\\.authinfo" file only once.
+ * Open and parse the `"%APPDATA%\\.authinfo"` file only once.
  */
 static int authinfo_init (void)
 {
@@ -323,7 +323,7 @@ static int authinfo_init (void)
 }
 
 /**
- * Open and parse the \c "%APPDATA%\\envtool.cfg" file only once.
+ * Open and parse the `"%APPDATA%\\envtool.cfg"` file only once.
  */
 static int envtool_cfg_init (void)
 {
@@ -335,7 +335,7 @@ static int envtool_cfg_init (void)
 }
 
 /**
- * Free the login_list entries assosiated with the \c "%APPDATA%\\.netrc" file.
+ * Free the login_list entries assosiated with the `"%APPDATA%\\.netrc"` file.
  */
 void netrc_exit (void)
 {
@@ -343,7 +343,7 @@ void netrc_exit (void)
 }
 
 /**
- * Free the login_list entries assosiated with the \c "%APPDATA%\\.authinfo" file.
+ * Free the login_list entries assosiated with the `"%APPDATA%\\.authinfo"` file.
  */
 void authinfo_exit (void)
 {
@@ -351,7 +351,7 @@ void authinfo_exit (void)
 }
 
 /**
- * Free the login_list entries assosiated with the \c "%APPDATA%\\envtool.cfg" file.
+ * Free the login_list entries assosiated with the `"%APPDATA%\\envtool.cfg"` file.
  */
 void envtool_cfg_exit (void)
 {
@@ -374,7 +374,7 @@ static int return_login (const struct login_info *li, const char **user, const c
 
 /**
  * Use this externally like:
- * \c 'netrc_lookup (NULL, NULL, NULL)' can be used for test/debug.
+ * `netrc_lookup (NULL, NULL, NULL)` can be used for test/debug.
  */
 int netrc_lookup (const char *host, const char **user, const char **passw)
 {
@@ -389,7 +389,7 @@ int netrc_lookup (const char *host, const char **user, const char **passw)
 
 /**
  * Use this externally like:
- * \c 'authinfo_lookup (NULL, NULL, NULL, NULL)' can be used for test/debug.
+ * `authinfo_lookup (NULL, NULL, NULL, NULL)` can be used for test/debug.
  */
 int authinfo_lookup (const char *host, const char **user, const char **passw, int *port)
 {
@@ -404,7 +404,7 @@ int authinfo_lookup (const char *host, const char **user, const char **passw, in
 
 /**
  * Use this externally like:
- * \c 'envtool_cfg_lookup (NULL, NULL, NULL, NULL)' can be used for test/debug.
+ * `envtool_cfg_lookup (NULL, NULL, NULL, NULL)` can be used for test/debug.
  */
 int envtool_cfg_lookup (const char *host, const char **user, const char **passw, int *port)
 {

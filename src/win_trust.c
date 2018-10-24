@@ -193,7 +193,7 @@ int MS_CDECL main (int argc, char **argv)
 #endif  /* WIN_TRUST_TEST */
 
 /**
- * Free the memory allcated by \c PrintCertificateInfo().
+ * Free the memory allcated by `PrintCertificateInfo()`.
  */
 void wintrust_cleanup (void)
 {
@@ -207,7 +207,7 @@ void wintrust_cleanup (void)
  * Check a single PE-file for WinTrust details.
  * \param[in] pe_file        the PE-file to check.
  * \param[in] check_details  Print more details like publisher-info.
- * \param[in] revoke_check   Use flag \c WTD_REVOKE_WHOLECHAIN to try to
+ * \param[in] revoke_check   Use flag `WTD_REVOKE_WHOLECHAIN` to try to
  *                           check the whole chain of "Certificate Authorities"
  *                           for a revoke status.
  */
@@ -266,9 +266,9 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
 
 /**
  * Return a string describing the result of the last call
- * to \c wintrust_check().
+ * to `wintrust_check()`.
  *
- * \param[in] rc the last result from \c wintrust_check()
+ * \param[in] rc the last result from `wintrust_check()`
  */
 const char *wintrust_check_result (DWORD rc)
 {
