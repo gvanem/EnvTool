@@ -6247,7 +6247,7 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
           get_disk_type(arr->dir[0]) != DRIVE_REMOTE &&
           get_reparse_point (arr->dir, link, TRUE))
       {
-        C_puts ("\n      -> ");
+        C_puts ("\n      -> ~4");
         print_raw (_fix_drive(link));
       }
       C_puts ("~0\n");
