@@ -3050,7 +3050,7 @@ static int get_cmake_info (char **exe_p, struct ver_info *ver)
     ver->val_2 = cmake_minor;
     ver->val_3 = cmake_micro;
     ver->val_4 = 0;
-    *exe_p = STRDUP (exe_copy);
+    *exe_p = STRDUP (exe);
     return (1);
   }
   return (0);
