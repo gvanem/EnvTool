@@ -6200,13 +6200,24 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
   path_separator = ';';
 }
 
+/*
+ * In case a file or directory contains a `"~"`, switch to raw mode.
+ */
+static void print_raw (const char *file)
+{
+  int raw = C_setraw (1);
+
+  C_puts (file);
+  C_setraw (raw);
+}
+
 /**
  * Do a simple check of an environment varable from <br>
  * `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`.
  */
 static void check_env_val_reg (const smartlist_t *list, const char *env_name)
 {
-  int   i, raw, errors = 0, max = 0;
+  int   i, errors = 0, max = 0;
   int   indent = sizeof("Checking");
   const struct directory_array *arr;
 
@@ -6228,33 +6239,39 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
     if (opt.verbose)
     {
       C_printf ("   [%2d]: ~6", i);
-      raw = C_setraw (1);     /* In case 'fbuf' contains a "~". */
-      C_puts (fbuf);
+      print_raw (fbuf);
 
       attr = GetFileAttributes (arr->dir);
       if ((attr != INVALID_FILE_ATTRIBUTES) &&
           (attr & FILE_ATTRIBUTE_REPARSE_POINT) &&
           get_disk_type(arr->dir[0]) != DRIVE_REMOTE &&
           get_reparse_point (arr->dir, link, TRUE))
-        C_printf ("\n      -> %s", _fix_drive(link));
-
-      C_setraw (raw);
+      {
+        C_puts ("\n      -> ");
+        print_raw (_fix_drive(link));
+      }
       C_puts ("~0\n");
     }
 
     if (!arr->exist)
     {
-      C_printf ("%*c~5Missing dir~0: ~3%s~0\n", indent, ' ', fbuf);
+      C_printf ("%*c~5Missing dir~0: ~3\"", indent, ' ');
+      print_raw (fbuf);
+      C_puts ("~0\n");
       errors++;
     }
     else if (arr->num_dup)
     {
-      C_printf ("%*c~5Duplicated~0: ~3\"%s\"~0\n", indent, ' ', fbuf);
+      C_printf ("%*c~5Duplicated~0: ~3\"", indent, ' ');
+      print_raw (fbuf);
+      C_puts ("~0\n");
       errors++;
     }
     else if (!arr->is_cwd && dir_is_empty(fbuf))
     {
-      C_printf ("%*c~5Empty dir~0: ~3\"%s\"~0", indent, ' ', fbuf);
+      C_printf ("%*c~5Empty dir~0: ~3\"", indent, ' ');
+      print_raw (fbuf);
+      C_puts ("~0\n");
       errors++;
     }
   }
