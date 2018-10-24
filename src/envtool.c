@@ -2845,11 +2845,13 @@ static int do_check_manpath (void)
       done_cwd = TRUE;
     }
 
-    for (j = 0; j < DIM(sub_dirs); j++)
+    for (j = 0; j < 1+DIM(sub_dirs); j++)
     {
       char dir [_MAX_PATH];
 
-      snprintf (dir, sizeof(dir), "%s%c%s", arr->dir, DIR_SEP, sub_dirs[j]);
+      if (j == 0)
+           _strlcpy (dir, arr->dir, sizeof(dir));
+      else snprintf (dir, sizeof(dir), "%s%c%s", arr->dir, DIR_SEP, sub_dirs[j-1]);
       if (FILE_EXISTS(dir))
          found += check_man_dir (dir, env_name);
     }
