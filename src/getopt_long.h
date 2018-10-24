@@ -51,7 +51,7 @@ struct option {
         */
        int  has_arg;
        int *flag;    /**< if not NULL, set *flag to val when option found */
-       int  val;     /**< if flag not NULL, value to set \c *flag to; else return value */
+       int  val;     /**< if flag not NULL, value to set `*flag` to; else return value */
     };
 
 int getopt_long (int, char * const *, const char *,

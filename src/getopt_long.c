@@ -687,12 +687,12 @@ static void dump_argv (const struct command_line *c, unsigned line)
 
 /**
  * Parse the short and long options from these sources in order:
- *  \li the \c c->env_opt variable.
- *  \li the command-line given by \c GetCommandLineW().
- *  \li any elements found in a \c "@response_file".
+ *  \li the `c->env_opt` variable.
+ *  \li the command-line given by `GetCommandLineW()`.
+ *  \li any elements found in a `"@response_file"`.
  *
- * Match elements in all sources against the \c c->short_opt and \c c->long_opt
- * and call corresponding \c c->set_short_opt and \c c->set_long_opt functions.
+ * Match elements in all sources against the `c->short_opt` and `c->long_opt`
+ * and call corresponding `c->set_short_opt` and `c->set_long_opt` functions.
  *
  * A command-line like this should be legal:
  *  \code
@@ -701,17 +701,17 @@ static void dump_argv (const struct command_line *c, unsigned line)
  *
  * \param[in] c  The structure defining how the command-line is to be set and parsed.
  *
- * \note the reason for converting the command-line into a \c wchar_t array, is that
- *       there is no \c CommandLineToArgvA. Only \c CommandLineToArgvW.
+ * \note the reason for converting the command-line into a `wchar_t` array, is that
+ *       there is no `CommandLineToArgvA()` function. Only `CommandLineToArgvW()`.
  */
 void getopt_parse (struct command_line *c)
 {
   int         i, j, k, l;
   int         wargC  = 0;       /* wide count of cmd-line elements */
-  int         wenvC  = 0;       /* wide count of \c c->env_opt elements */
+  int         wenvC  = 0;       /* wide count of `c->env_opt elements` */
   int         wfileC = 0;       /* wide count of response-file elements */
   wchar_t   **wargV  = NULL;    /* wide array of cmd-line elements */
-  wchar_t   **wenvV  = NULL;    /* wide array of \c c->env_opt elements */
+  wchar_t   **wenvV  = NULL;    /* wide array of `c->env_opt` elements */
   wchar_t   **wfileV = NULL;    /* wide array of response-file elements */
   const char *env, *file;
   wchar_t    *cmd = GetCommandLineW();
@@ -758,7 +758,7 @@ void getopt_parse (struct command_line *c)
 
     if (i > 0)
     {
-      if (wenvV && k < wenvC)         /* pick one arg from the \c c->env_opt */
+      if (wenvV && k < wenvC)         /* pick one arg from the `c->env_opt` */
          warg = wenvV [k++];
 
       else if (wfileV && l < wfileC)  /* pick one arg from the response-file */
@@ -833,7 +833,7 @@ void getopt_parse (struct command_line *c)
   dump_argv (c, __LINE__);
 
   /**
-   * Use a \c "+" first in \c getopt_long() options. This will disable the
+   * Use a `"+"` first in `getopt_long()` options. This will disable the
    * GNU extensions that allow non-options to come before options.
    * E.g. a command-line like:
    *      \code
@@ -845,9 +845,9 @@ void getopt_parse (struct command_line *c)
    *        envtool --path -d foo*
    *      \endcode
    *
-   * We do not want that since whatever comes after \c "foo*" should be
-   * pointed to by \c 'c->argv[c->argc0]'.
-   * See \c py_execfile() below for an example.
+   * We do not want that since whatever comes after `"foo*"` should be
+   * pointed to by `c->argv[c->argc0]`.
+   * See `py_execfile()` below for an example.
    */
 
   opt.debug = 0;  /* let getopt_long() set this again */
@@ -872,7 +872,7 @@ void getopt_parse (struct command_line *c)
 }
 
 /**
- * Free the data allocated in \c getopt_parse().
+ * Free the data allocated in `getopt_parse()`.
  */
 void getopt_free (struct command_line *c)
 {
