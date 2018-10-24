@@ -400,14 +400,15 @@ static void show_ext_versions (void)
 
   if (vcpkg_exe)
   {
-    unsigned num;
+    unsigned num1, num2;
 
     vcpkg_get_list();
-    num = vcpkg_get_num_CONTROLS();
-    C_printf ("%-*s -> ~6%s~0. ", pad_len, found[3], vcpkg_exe);
-    if (num >= 1)
-         C_printf ("Found %u CONTROL nodes.\n", num);
-    else C_printf ("%s.\n", vcpkg_last_error());
+    num1 = vcpkg_get_num_CONTROLS();
+    num2 = vcpkg_get_num_installed();
+    C_printf ("%-*s -> ~6%s~0", pad_len, found[3], vcpkg_exe);
+    if (num1 >= 1)
+         C_printf (" (%u CONTROL nodes. %u packages installed).\n", num1, num2);
+    else C_printf (" (%s).\n", vcpkg_last_error());
   }
   else
     C_printf (not_found_fmt[3]);
@@ -531,6 +532,8 @@ static int show_version (void)
 
     C_printf ("\n  Pythons on ~3PATH~0:");
     py_searchpaths();
+
+    vcpkg_list_installed();
   }
 
 quit:
@@ -558,6 +561,17 @@ static void usage (const char *fmt, ...)
 }
 
 /**
+ * Print some help for the `--32` and `--64` options.
+ */
+static void print_help_bits (int bits)
+{
+  C_printf ("    ~6--%d~0           report only %d-bit PE-files in ~6--path~0 or ~6--evry~0 modes.\n"
+            "                   ~4not yet~0: report only %d-bit libraries in ~6--lib~0 mode.\n"
+            "                            report only %d-bit packages in ~6--vcpkg~0 mode.\n",
+            bits, bits, bits, bits);
+}
+
+/**
  * Print a help-page of all program options.
  */
 static int show_help (void)
@@ -580,7 +594,7 @@ static int show_help (void)
           "    ~6--path~0         check and search in ~3%PATH%~0.\n"
           "    ~6--pkg~0          check and search in ~3%PKG_CONFIG_PATH%~0.\n"
           "    ~6--python~0[~3=X~0]   check and search in ~3%PYTHONPATH%~0 and ~3sys.path[]~0. ~2[3]~0\n"
-          "    ~6--vcpkg~0        check and search for ~3VCPKG~0 packages              ~2[4]~0.\n"
+          "    ~6--vcpkg~0        check and search for ~3VCPKG~0 packages.             ~2[4]~0\n"
           "    ~6--check~0        check for missing directories in ~6all~0 supported environment variables\n"
           "                   and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n");
 
@@ -600,12 +614,12 @@ static int show_help (void)
           "    ~6--owner~0        shown owner of the file (shows all owners).\n"
           "    ~6--owner~0=~3spec~0   shown only files/directories matching owner ~3spec~0.\n"
           "    ~6--owner~0=~3!spec~0  shown only files/directories ~4not~0 matching owner ~3spec~0.\n"
-          "    ~6--pe~0           print checksum, version-info and signing status for PE-files.\n"
-          "    ~6--32~0           for ~6--lib~0 mode,  report only 32-bit libs (~4not yet~0).\n"
-          "                   for ~6--pe~0 option, report only 32-bit PE-files.\n"
-          "    ~6--64~0           for ~6--lib~0 mode,  report only 64-bit libs (~4not yet~0).\n"
-          "                   for ~6--pe~0 option, report only 64-bit PE-files.\n"
-          "    ~6--signed~0       check for ~4all~0 digital signature with the ~6--pe~0 option.\n"
+          "    ~6--pe~0           print checksum, version-info and signing status for PE-files.\n");
+
+  print_help_bits (32);
+  print_help_bits (64);
+
+  C_puts ("    ~6--signed~0       check for ~4all~0 digital signature with the ~6--pe~0 option.\n"
           "    ~6--signed=0~0     report only PE-files files that are ~4unsigned~0.\n"
           "    ~6--signed=1~0     report only PE-files files that are ~4signed~0.\n"
           "    ~6--no-cwd~0       don't add current directory to search-lists.\n"
@@ -1356,6 +1370,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   BOOL        show_dir_size = TRUE;
   BOOL        show_pc_files_only = FALSE;
   BOOL        show_this_file = TRUE;
+  BOOL        possible_PE_file = TRUE;
 
   FMT_buf     fmt_buf_time_size;
   FMT_buf     fmt_buf_file_info;
@@ -1392,6 +1407,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   else if (key == HKEY_PYTHON_EGG)
   {
     found_in_python_egg = 1;
+    possible_PE_file = FALSE;
     note = " (5)  ";
   }
   else if (key == HKEY_EVERYTHING)
@@ -1415,10 +1431,12 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   else if (key == HKEY_EVERYTHING_ETP)
   {
     show_dir_size = FALSE;
+    possible_PE_file = FALSE;
   }
   else if (key == HKEY_PKGCONFIG_FILE)
   {
     show_pc_files_only = TRUE;
+    possible_PE_file = FALSE;
   }
   else
   {
@@ -1475,7 +1493,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
 
   report_header = NULL;
 
-  if (opt.PE_check)
+  if (possible_PE_file && opt.PE_check)
   {
     static DWORD num_version_ok_last = 0;
 
@@ -2970,6 +2988,7 @@ static int do_check_pkg (void)
 
 /**
  * Search for VCPKG packages matching the 'opt.file_spec`.
+ * Also show if a package matching 'opt.file_spec` is installed.
  */
 static int do_check_vcpkg (void)
 {
@@ -2977,7 +2996,6 @@ static int do_check_vcpkg (void)
 
   vcpkg_get_list();
   num = vcpkg_get_num_CONTROLS();
-
   if (num >= 1)
      return (int) vcpkg_dump_control (opt.file_spec);
 
@@ -6353,6 +6371,16 @@ int test_str_shorten (void)
 static int do_tests (void)
 {
   int save;
+
+#if 0
+  {
+    opt.debug = 1;
+    str_endswith ("foo-bar-fuz", "-fuz");
+    str_endswith ("c:\\Program Filer (x86)\\Python\\include", "\\include");
+    str_endswith ("c:\\Program Filer (x86)\\Python\\lib", "\\include");
+    return (0);
+  }
+#endif
 
   if (opt.do_evry && opt.evry_host)
   {
