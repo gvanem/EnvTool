@@ -19,10 +19,11 @@ typedef enum VCPKG_platform {
         VCPKG_plat_WINDOWS = 0x0001,   /**< Package is for Windows only (desktop, not UWP). */
         VCPKG_plat_UWP     = 0x0002,   /**< Package is for Universal Windows Platform only. */
         VCPKG_plat_LINUX   = 0x0004,   /**< Package is for Linux only. */
-        VCPKG_plat_x64     = 0x0008,   /**< Package is for x64 processors only. */
-        VCPKG_plat_ARM     = 0x0010,   /**< Package is for ARM processors only. */
-        VCPKG_plat_ANDROID = 0x0020,   /**< Package is for Android only. */
-        VCPKG_plat_OSX     = 0x0040    /**< Package is for Apple's OSX only. */
+        VCPKG_plat_x86     = 0x0008,   /**< Package is for x86 processors only. */
+        VCPKG_plat_x64     = 0x0010,   /**< Package is for x64 processors only. */
+        VCPKG_plat_ARM     = 0x0020,   /**< Package is for ARM processors only. */
+        VCPKG_plat_ANDROID = 0x0040,   /**< Package is for Android only. */
+        VCPKG_plat_OSX     = 0x0080    /**< Package is for Apple's OSX only. */
       } VCPKG_platform;
 
 /**\def VCPKG_platform_INVERSE
@@ -53,14 +54,26 @@ struct vcpkg_node {
         */
        smartlist_t *deps;
 
-       /** The features; a smartlist of `char*`.
+       /** The features; a smartlist of `char *`.
         */
        smartlist_t *features;
+     };
+
+/**
+ * \struct vcpkg_package
+ * The structure of a single installed VCPKG package.
+ */
+struct vcpkg_package {
+       char               package [VCPKG_MAX_NAME]; /**< The package name */
+       VCPKG_platform     platform;                 /**< The supported OS platform */
+       struct vcpkg_node *link;                     /**< A link to the corresponding CONTROL node */
      };
 
 extern unsigned    vcpkg_get_list (void);
 extern unsigned    vcpkg_get_num_CONTROLS (void);
 extern unsigned    vcpkg_get_num_portfile (void);
+extern unsigned    vcpkg_get_num_installed (void);
+extern unsigned    vcpkg_list_installed (void);
 
 extern void        vcpkg_free (void);
 extern unsigned    vcpkg_dump_control (const char *package_spec);
