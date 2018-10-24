@@ -907,7 +907,7 @@ static void info_file_parse (smartlist_t *sl, const char *line)
     char *d, dir [_MAX_PATH];
 
     snprintf (dir, sizeof(dir), "%s\\installed\\%.*s", vcpkg_root, p-line, line);
-    d = STRDUP (slashify(dir,'/'));
+    d = STRDUP (dir);
     smartlist_add (sl, d);
     DEBUGF (1, "dir: '%s'\n", d);
   }
@@ -925,6 +925,7 @@ static void print_verbose_pkg_details (const char *file, int indent)
 {
   smartlist_t *parts = smartlist_read_file (file, info_file_parse);
   int          i, j, max = parts ? smartlist_len (parts) : 0;
+  int          slash = (opt.show_unix_paths) ? '/' : '\\';
 
   for (i = j = 0; i < max; i++)
   {
@@ -935,12 +936,12 @@ static void print_verbose_pkg_details (const char *file, int indent)
 
     else if (str_endswith(part, "/lib"))
     {
-      C_printf ("%*s-libpath:%s\n", indent, "", part);
+      C_printf ("%*s-libpath:%s\n", indent, "", slashify(part,slash));
       j++;
     }
     else if (str_endswith(part, "/include"))
     {
-      C_printf ("%*s-I %s\n", indent, "", part);
+      C_printf ("%*s-I %s\n", indent, "", slashify(part,slash));
       j++;
     }
   }
