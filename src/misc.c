@@ -3561,11 +3561,11 @@ BOOL wchar_to_mbchar (char *result, size_t len, const wchar_t *buf)
 }
 
 /**
- * The 'DeviceIoControl()' returns sensible information for a
- * remote 'dir'. But the returned drive-letter is wrong!
+ * The `DeviceIoControl()` returns sensible information for a
+ * remote `dir`. But the returned drive-letter is wrong!
  *
- * So it is a good idea to call 'get_disk_type(dir[0])' and verify
- * that it returns 'DRIVE_FIXED' first.
+ * So it is a good idea to call `get_disk_type(dir[0])` and verify
+ * that it returns `DRIVE_FIXED` first.
  */
 BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 {
@@ -3636,17 +3636,16 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
                         (unsigned long)rdata->ReparseTag);
   }
 
-  CLANG_WFORMAT_OFF()
-
-  DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
-  DEBUGF (2, "PrintName:        '%.*S'\n", (int)(plen/2), print_name);
-
-  CLANG_WFORMAT_POP()
-
   /* Account for 0-termination
    */
   slen++;
   plen++;
+
+  sub_name [slen/2] = L'\0';
+  print_name [plen/2] = L'\0';
+
+  DEBUGF (2, "SubstitutionName: '%S'\n", sub_name);
+  DEBUGF (2, "PrintName:        '%S'\n", print_name);
 
   if (opt.debug >= 3)
   {
