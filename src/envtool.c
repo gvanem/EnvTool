@@ -509,7 +509,10 @@ static int show_version (void)
   C_puts ("  Checking Python programs...");
   C_flush();
   py_init();
-  C_printf ("\r                             \r");
+
+  if (_isatty(STDOUT_FILENO))
+       C_printf ("\r                             \r");
+  else C_putc ('\n');
 
   show_ext_versions();
 
