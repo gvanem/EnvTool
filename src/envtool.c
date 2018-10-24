@@ -1973,13 +1973,13 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
     if (type == REG_EXPAND_SZ && strchr(value,'%'))
        expand_env_var (value, value, sizeof(value), TRUE);
 
-    if (!strcmp(name,"PATH"))
+    if (!stricmp(name,"PATH"))
        *path = STRDUP (value);
 
-    else if (!strcmp(name,"INCLUDE"))
+    else if (!stricmp(name,"INCLUDE"))
        *inc = STRDUP (value);
 
-    else if (!strcmp(name,"LIB"))
+    else if (!stricmp(name,"LIB"))
        *lib = STRDUP (value);
 
 #if 0
@@ -6165,7 +6165,7 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
       snprintf (status, status_sz, "~5Missing dir~0: ~3\"%s\"~0", fbuf);
       errors++;
     }
-    else if (dir_is_empty(fbuf))
+    else if (!arr->is_cwd && dir_is_empty(fbuf))
     {
       snprintf (status, status_sz, "~5Empty dir~0: ~3\"%s\"~0", fbuf);
       errors++;
@@ -6195,6 +6195,71 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
   free_dir_array();
   opt.conv_cygdrive = save;
   path_separator = ';';
+}
+
+/**
+ * Do a simple check of an environment varable from <br>
+ * `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`.
+ */
+static void check_env_val_reg (const smartlist_t *list, const char *env_name)
+{
+  int   i, raw, errors = 0, max = 0;
+  int   indent = sizeof("Checking");
+  const struct directory_array *arr;
+
+  C_printf ("Checking ~3%s\\%s / ~6%s~0:\n", reg_top_key_name(HKEY_LOCAL_MACHINE),
+            "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", env_name);
+
+  if (list)
+     max = smartlist_len (list);
+
+  for (i = 0; i < max; i++)
+  {
+    char  fbuf [_MAX_PATH];
+    char  link [_MAX_PATH];
+    DWORD attr;
+
+    arr = smartlist_get (list, i);
+    slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
+
+    if (opt.verbose)
+    {
+      C_printf ("   [%2d]: ~6", i);
+      raw = C_setraw (1);     /* In case 'fbuf' contains a "~". */
+      C_puts (fbuf);
+
+      attr = GetFileAttributes (arr->dir);
+      if ((attr != INVALID_FILE_ATTRIBUTES) &&
+          (attr & FILE_ATTRIBUTE_REPARSE_POINT) &&
+          get_disk_type(arr->dir[0]) != DRIVE_REMOTE &&
+          get_reparse_point (arr->dir, link, TRUE))
+        C_printf ("\n      -> %s", _fix_drive(link));
+
+      C_setraw (raw);
+      C_puts ("~0\n");
+    }
+
+    if (!arr->exist)
+    {
+      C_printf ("%*c~5Missing dir~0: ~3%s~0\n", indent, ' ', fbuf);
+      errors++;
+    }
+    else if (!arr->is_cwd && dir_is_empty(fbuf))
+    {
+      C_printf ("%*c~5Empty dir~0: ~3\"%s\"~0", indent, ' ', fbuf);
+      errors++;
+    }
+  }
+
+  C_printf ("%*c", indent, ' ');
+
+  if (max == 0)
+     C_puts ("~5Empty~0, ");
+  else if (errors == 0)
+     C_puts ("~2OK~0, ");
+
+  C_printf ("~6%2d~0 elements\n", max);
+  free_dir_array();
 }
 
 /**
@@ -6299,7 +6364,12 @@ static int do_check (void)
                     NULL
                    };
   const char *env;
-  int   i, save;
+  char       *sys_env_path = NULL;
+  char       *sys_env_inc  = NULL;
+  char       *sys_env_lib  = NULL;
+  char        status [100+_MAX_PATH];
+  int         i, save;
+  int         num, indent;
 
   /* Do not implicit add current directory in these searches.
    */
@@ -6308,8 +6378,7 @@ static int do_check (void)
 
   for (i = 0, env = envs[0]; i < DIM(envs) && env; env = envs[++i])
   {
-    int  num, indent = (int) (sizeof("CPLUS_INCLUDE_PATH") - strlen(env));
-    char status [100+_MAX_PATH];
+    indent = (int) (sizeof("CPLUS_INCLUDE_PATH") - strlen(env));
 
     C_printf ("Checking ~3%%%s%%~0:%*c", env, indent, ' ');
     if (opt.verbose)
@@ -6330,6 +6399,16 @@ static int do_check (void)
   if (opt.verbose)
      C_putc ('\n');
 
+  opt.no_cwd = save;
+
+  scan_reg_environment (HKEY_LOCAL_MACHINE,
+                        "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+                        &sys_env_path, &sys_env_inc, &sys_env_lib);
+
+  check_env_val_reg (split_env_var(NULL, sys_env_path), "PATH");
+  check_env_val_reg (split_env_var(NULL, sys_env_inc), "INCLUDE");
+  check_env_val_reg (split_env_var(NULL, sys_env_lib), "LIB");
+
   /**\todo
    *
    * Iterate over these environment sources:
@@ -6347,7 +6426,9 @@ static int do_check (void)
    * like directories. Like 'Path', 'TEMP'
    */
 
-  opt.no_cwd = save;
+  FREE (sys_env_path);
+  FREE (sys_env_inc);
+  FREE (sys_env_lib);
   return (0);
 }
 
