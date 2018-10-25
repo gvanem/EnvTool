@@ -34,6 +34,10 @@ goto :EOF
 :: Run some "envtool" tests.
 ::
 :test
+  ::
+  :: For 'test_searchpath()' and 'NeedCurrentDirectoryForExePathA()'
+  ::
+  set NoDefaultCurrentDirectoryInExePath=1
   set COLUMNS=120
   set APPDATA=%APPVEYOR_BUILD_FOLDER%
 
