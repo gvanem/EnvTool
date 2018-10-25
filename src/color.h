@@ -13,13 +13,14 @@ extern "C" {
 #endif
 
 /**
- * These are the default colour that \ref C_init_colour_map() is initialised with.
+ * \brief
+ * These are the default colour that `C_init_colour_map()` is initialised with.
  * Can be used like:
  * \code
  *   C_printf ("  " C_BR_RED "<not found>" C_DEFAULT);
  * \endcode
  *
- * But not after \ref C_init_colour_map() has been called to alter these
+ * But not after `C_init_colour_map()` has been called to alter these
  * colours with something else.
  */
 #define C_BR_GREEN    "~2"   /**< bright green */

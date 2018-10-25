@@ -366,9 +366,11 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
 /**
  * Print a warning for a failed login.
  * Optionally print what action it will take next.
-  *
- * \param[in] ctx  the context we work with.
-*/
+ *
+ * \param[in] ctx         the context we work with.
+ * \param[in] is_authinfo TRUE if the warning applies to reading of
+ *                        the `~/.authinfo` file.
+ */
 static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
 {
   const char *next_action = "\n";

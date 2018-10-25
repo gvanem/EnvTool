@@ -1,25 +1,25 @@
 /**\file    color.c
  * \ingroup Color
  *
+ * \brief
  * Print to console using embedded colour-codes inside the string-format.
- *
- * \eg{.}
+ * \eg
  *   \code{.c}
  *     C_printf ("~4Hello ~2world~0.\n");
  *   \endcode
  *   will print to stdout with `Hello` mapped to colour 4
  *   and `world` mapped to colour 2.
- *   See the colour_map[] array below.
+ *   See the `colour_map[]` array below.
  *
  * By default, the colour indices maps to these foreground colour:
- * \li 0: the startup forground *and* background colour.
- * \li 1: bright cyan foreground.
- * \li 2: bright green foreground.
- * \li 3: bright yellow foreground.
- * \li 4: bright magenta foreground.
- * \li 5: bright red foreground.
- * \li 6: bright white foreground.
- * \li 7: dark cyan foreground.
+ * + 0: the startup forground *and* background colour.
+ * + 1: bright cyan foreground.
+ * + 2: bright green foreground.
+ * + 3: bright yellow foreground.
+ * + 4: bright magenta foreground.
+ * + 5: bright red foreground.
+ * + 6: bright white foreground.
+ * + 7: dark cyan foreground.
  *
  * by G. Vanem <gvanem@yahoo.no> 2011.
  */
@@ -314,14 +314,14 @@ void C_exit (void)
 /**
  * Our local initialiser function. Called once to:
  *
- *  \li Set the trace-level from `%COLOUR_TRACE%`.
- *  \li Get the console-buffer information from Windows Console.
- *  \li If the console is not redirected:
- *     1. get the screen height and width.
- *     2. setup the colour_map[] array and the
- *        colour_map_ansi[] array. Even if ANSI output is \b not wanted.
- *  \li Set c_out to default `stdout` and setup buffer head and tail.
- *  \li Initialise the critical-section structure crit.
+ *  + Set the trace-level from `%COLOUR_TRACE%`.
+ *  + Get the console-buffer information from Windows Console.
+ *  + If the console is not redirected:
+ *      1. get the screen height and width.
+ *      2. setup the colour_map[] array and the
+ *         colour_map_ansi[] array. Even if ANSI output is \b not wanted.
+ *  + Set c_out to default `stdout` and setup buffer head and tail.
+ *  + Initialise the critical-section structure crit.
  */
 static int C_init (void)
 {

@@ -168,6 +168,7 @@ static struct mem_head *mem_list_get_head (void *ptr)
  * \typedef func_GetModuleFileNameEx
  * \typedef func_SetThreadErrorMode
  * \typedef func_IsWow64Process
+ * \def WINAPI __stdcall
  */
 typedef BOOL (WINAPI *func_GetModuleFileNameEx) (HANDLE proc, DWORD flags, char *fname, DWORD size);
 typedef BOOL (WINAPI *func_SetThreadErrorMode) (DWORD new_mode, DWORD *old_mode);
@@ -179,7 +180,7 @@ typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
  *
  * \todo Could be used in searchpath_internal()?
  *
- * Ref:
+ * \see
  *   https://msdn.microsoft.com/en-us/library/ms684269
  */
 typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_name);
@@ -192,7 +193,7 @@ typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_nam
  * \note The MSDN documentation for `ExpandEnvironmentStringsForUser`()` is
  *       wrong. The return-value is *not* a `BOOL`, but it returns the length
  *       of the expanded buffer (similar to `ExpandEnvironmentStrings()`).
- *       Ref: https://msdn.microsoft.com/en-us/library/windows/desktop/bb762275(v=vs.85).aspx
+ *       \see https://msdn.microsoft.com/en-us/library/windows/desktop/bb762275(v=vs.85).aspx
  */
 typedef DWORD (WINAPI *func_ExpandEnvironmentStringsForUserA) (
                        HANDLE      token,
@@ -280,7 +281,7 @@ const char *check_if_shebang (const char *fname)
   char  *p;
   FILE  *f;
 
-  /* Return NULL if 'fname' have an extension.
+  /* Return NULL if `fname` have an extension.
    */
   if (*ext)
      return (NULL);
@@ -301,9 +302,9 @@ const char *check_if_shebang (const char *fname)
   if (strncmp(shebang, "#!/", 3))
      return (FALSE);
 
-  /* If it's a Unix file with 2 "\r\r" in the 'shebang[]' buffer,
-   * we cannot use 'strip_nl()'. That will only remove the last
-   * '\r'. Look for the 1st '\n' or '\r' and remove them.
+  /** If it's a Unix file with 2 "\r\r" in the `shebang[]` buffer,
+   *  we cannot use `strip_nl()`. That will only remove the last
+   *  `\r`. Look for the 1st `\n` or `\r` and remove them.
    */
   p = strchr (shebang, '\n');
   if (p)
@@ -312,8 +313,8 @@ const char *check_if_shebang (const char *fname)
   if (p)
      *p = '\0';
 
-  /* Drop any space; this is usually arguments for this
-   * specific interpreter.
+  /** Drop any space; this is usually arguments for this
+   *  specific interpreter.
    */
   p = strchr (shebang, ' ');
   if (strncmp(shebang, "#!/usr/bin/env ",15) && p)
@@ -324,7 +325,7 @@ const char *check_if_shebang (const char *fname)
 }
 
 /**
- * Open a `fname` and check if there's a `"PK"` signature in header.
+ * Open a `fname` and check if there's a `"PK\3\4"` signature in the first 4 bytes.
  */
 int check_if_zip (const char *fname)
 {
@@ -334,7 +335,7 @@ int check_if_zip (const char *fname)
   FILE  *f;
   int    rc = 0;
 
-  /* Return 0 if extension is neither ".egg" nor ".zip"
+  /** Return 0 if extension is neither `.egg` nor `.zip`.
    */
   ext = get_file_ext (fname);
   if (stricmp(ext,"egg") && stricmp(ext,"zip"))
@@ -354,8 +355,9 @@ int check_if_zip (const char *fname)
 
 /**
  * Open a `fname` and check if there's a `"GZIP"` or `"TAR.GZ"` signature in header.
- * gzipped format:
- *   http://www.onicos.com/staff/iz/formats/gzip.html
+ *
+ * Gzip format:
+ *   https://www.onicos.com/staff/iz/formats/gzip.html
  */
 int check_if_gzip (const char *fname)
 {
@@ -394,11 +396,7 @@ int check_if_gzip (const char *fname)
 }
 
 /**
- * Open a GZIP-file and extract first line to check if it contains a
- * ".so real-file-name". This is typical for CygWin man-pages.
- *
- * Return result as "real-file-name". I.e. without any dir-name since
- * the "real-file-name" can be anywhere on %MANPATH%.
+ * Helper variable and callback function for `get_gzip_link()`.
  */
 static char gzip_link_name [_MAX_PATH];
 
@@ -410,6 +408,13 @@ static int gzip_cb (char *buf, int index)
   return (-1);  /* causes popen_run() to quit */
 }
 
+/**
+ * Open a GZIP-file and extract first line to check if it contains a
+ * `.so gzip_link_name`. This is typical for CygWin man-pages.
+ *
+ * Return result as `gzip_link_name`. I.e. without any dir-name since
+ * the `gzip_link_name` can be anywhere on `%MANPATH%`.
+ */
 const char *get_gzip_link (const char *file)
 {
   static char gzip_exe [_MAX_PATH];
@@ -441,19 +446,18 @@ const char *get_gzip_link (const char *file)
 
   if (popen_runf(gzip_cb, "\"%s\" -cd %s 2> %s", gzip_exe, f, DEV_NULL) > 0)
   {
-    static char fname [_MAX_PATH];
-
     DEBUGF (2, "gzip_link_name: \"%s\".\n", gzip_link_name);
-    return slashify2 (fname, gzip_link_name, opt.show_unix_paths ? '/' : '\\');
+    return slashify2 (gzip_link_name, gzip_link_name, opt.show_unix_paths ? '/' : '\\');
   }
   return (NULL);
 }
 
 /**
  * Open a raw MAN-file and check if first line contains a
- * ".so real-file-name". This is typical for CygWin man-pages.
- * Return result as "<dir_name>/real-file-name". Which is just an
- * assumption; the "real-file-name" can be anywhere on %MANPATH%.
+ * `.so real-file-name`. This is typical for CygWin man-pages.
+ *
+ * Return result as `<dir_name>/real-file-name`. Which is just an
+ * assumption; the `real-file-name` can be anywhere on `%MANPATH%`.
  */
 const char *get_man_link (const char *file)
 {
@@ -484,10 +488,16 @@ const char *get_man_link (const char *file)
   return (NULL);
 }
 
+BOOL check_if_cwd_in_search_path (const char *program)
+{
+  if (!p_NeedCurrentDirectoryForExePathA)
+     return (TRUE);
+  return (*p_NeedCurrentDirectoryForExePathA) (program);
+}
+
+
 /**
- * Open a fname, read the optional header in PE-header.
- *  - For verifying it's signature.
- *  - Showing the version information (if any) in it's resources.
+ * Helper variables for `check_if_PE()`.
  */
 static const IMAGE_DOS_HEADER *dos;
 static const IMAGE_NT_HEADERS *nt;
@@ -495,6 +505,11 @@ static char  file_buf [sizeof(*dos) + 4*sizeof(*nt)];
 
 static enum Bitness last_bitness = -1;
 
+/**
+ * Open a fname, read the optional header in PE-header.
+ *  + For verifying it's signature.
+ *  + Showing the version information (if any) in it's resources.
+ */
 int check_if_PE (const char *fname, enum Bitness *bits)
 {
   BOOL   is_exe, is_pe;
@@ -527,7 +542,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   DEBUG_NL (3);
 
   /* Probably not a PE-file at all.
-   * Check 'nt < file_buf' too in case 'e_lfanew' folds 'nt' to a negative value.
+   * Check `nt < file_buf` too in case `e_lfanew` folds `nt` to a negative value.
    */
   if ( (char*)nt > file_buf + sizeof(file_buf) ||
        (char*)nt < file_buf )
@@ -569,8 +584,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
 
 /**
  * Verify the checksum of last opened file above.
- * if 'CheckSum == 0' is set to 0, it meants "don't care"
- * (similar to in UDP).
+ * if `CheckSum == 0` is set to 0, it meants `"don't care"`
  */
 int verify_PE_checksum (const char *fname)
 {
@@ -600,11 +614,11 @@ int verify_PE_checksum (const char *fname)
 }
 
 /**
- * Check if running under WOW64; "Windows 32-bit on Windows 64-bit".
+ * Check if running under WOW64; `Windows 32-bit on Windows 64-bit`.
  *
- * Ref:
- *   http://en.wikipedia.org/wiki/WoW64    \n
- *   http://everything.explained.today/WoW64/
+ * \see
+ *  + https://en.wikipedia.org/wiki/WoW64
+ *  + https://everything.explained.today/WoW64/
  */
 BOOL is_wow64_active (void)
 {
@@ -624,8 +638,8 @@ BOOL is_wow64_active (void)
 }
 
 /**
- * Return a 'time_t' for a file in the 'DATE_MODIFIED' response.
- * The 'ft' is in UTC zone.
+ * Return a `time_t` for a file in the `DATE_MODIFIED` response.
+ * The `ft` is in UTC zone.
  */
 time_t FILETIME_to_time_t (const FILETIME *ft)
 {
@@ -668,11 +682,11 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
 }
 
 #if (_WIN32_WINNT >= 0x0500)
-/*
- * 'LookupAccountSid()' often returns 'ERROR_NONE_MAPPED' for SIDs like:
- * S-1-5-21-3396768664-3120275132-3847281217-1001.
+/**
+ * `LookupAccountSid()` often returns `ERROR_NONE_MAPPED` for SIDs like: <br>
+ * `S-1-5-21-3396768664-3120275132-3847281217-1001`.
  *
- * Cache this SID-string here since 'ConvertSidToStringSid()' is
+ * Cache this SID-string here since `ConvertSidToStringSid()` is
  * pretty expensive.
  */
 static const char *sid_owner_cache (PSID sid)
@@ -706,23 +720,29 @@ static const char *sid_owner_cache (PSID sid)
 /**
  * Get the Domain and Account name for a file or directory.
  *
- * Except for Cygwin where I try to emulate what 'ls -la' does.
+ * Except for Cygwin where it tries to emulate what `ls -la` does.
  * But it doesn't quite show the same owner information.
  *
  * \param[in]     file            the file or directory to get the domain and account-name for.
  *
- * \param[in,out] domain_name_p   on input a caller-supplied 'char **' pointer.
+ * \param[in,out] domain_name_p   on input a caller-supplied `char **` pointer.
  *                                on output (if success), set to the domain-name of the owner.
  *                                Must be free()'d by the caller if set to non-NULL here.
  *
- * \param[in,out] account_name_p  on input a caller-supplied 'char **' pointer.
+ * \param[in,out] account_name_p  on input a caller-supplied `char **` pointer.
  *                                on output (if success), set to the account-name of the owner.
  *                                Must be free()'d by the caller if set to non-NULL here.
  * \param[out] sid_p              The `sid` for the `file` as obtained from `GetSecurityInfo()`.
  *                                The caller must use `LocalFree()` on `*sid_p` if non-NULL.
  *
- * Adapted from:
+ * Adapted from: <br>
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa446629(v=vs.85).aspx
+ *
+ * \see
+ *  + GetSecurityInfo()
+ *    https://docs.microsoft.com/en-us/windows/desktop/api/aclapi/nf-aclapi-getsecurityinfo
+ *  + LookupAccountSid()
+ *    https://docs.microsoft.com/en-us/windows/desktop/api/winbase/nf-winbase-lookupaccountsida
  */
 static BOOL get_file_owner_internal (const char *file, char **domain_name_p, char **account_name_p, void **sid_p)
 {
@@ -809,13 +829,13 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
       DEBUGF (1, "(1): Error in LookupAccountSid(): %s.\n", win_strerror(err));
 
 #if (_WIN32_WINNT >= 0x0500)
-      /*
+      /**
        * If no mapping between SID and account-name, just return the
        * account-name as a SID-string. And no domain-name.
        *
        * How the SID is built up is documented here:
-       *  https://msdn.microsoft.com/en-us/library/windows/desktop/aa379597(v=vs.85).aspx
-       *  https://msdn.microsoft.com/en-us/library/windows/desktop/aa379649(v=vs.85).aspx
+       *  + https://msdn.microsoft.com/en-us/library/windows/desktop/aa379597(v=vs.85).aspx
+       *  + https://msdn.microsoft.com/en-us/library/windows/desktop/aa379649(v=vs.85).aspx
        */
       if (err == ERROR_NONE_MAPPED && sid_use == SidTypeUnknown)
       {
@@ -890,10 +910,11 @@ BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name
 }
 
 #if defined(NOT_USED_YET)
-/*
+/**
  * Get a list of hidden Windows accounts:
- * Ref: https://superuser.com/questions/248315/list-of-hidden-virtual-windows-user-accounts/638376
+ * \see https://superuser.com/questions/248315/list-of-hidden-virtual-windows-user-accounts/638376
  *
+ * \code
  * c:\>powershell "get-wmiobject -class win32_account -namespace 'root\cimv2' | sort caption | format-table caption, __CLASS, FullName"
  *
  *  caption                                     __CLASS             FullName
@@ -901,9 +922,11 @@ BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name
  *  INTEL-I7\Administrator                      Win32_UserAccount
  *  INTEL-I7\Administratorer                    Win32_Group
  *  INTEL-I7\Alle                               Win32_SystemAccount
+ * \endcode
  *
- * Or:
+ * Or: \code
  *  c:\> powershell "get-wmiobject -class win32_account -namespace 'root\cimv2' | sort caption"
+ * \endcode
  * for more details.
  */
 #endif
@@ -929,7 +952,14 @@ BOOL is_directory_writable (const char *path)
 }
 
 /**
- * Based on http://blog.aaronballman.com/2011/08/how-to-check-access-rights/
+ * Based on
+ *   http://blog.aaronballman.com/2011/08/how-to-check-access-rights/
+ *
+ * \see
+ *  + GetFileSecurity()
+ *    https://docs.microsoft.com/en-us/windows/desktop/api/winbase/nf-winbase-getfilesecuritya
+ *  + OpenProcessToken()
+ *    https://docs.microsoft.com/en-us/windows/desktop/api/processthreadsapi/nf-processthreadsapi-openprocesstoken
  */
 BOOL is_directory_accessible (const char *path, DWORD access)
 {
@@ -940,7 +970,7 @@ BOOL is_directory_accessible (const char *path, DWORD access)
   SECURITY_INFORMATION sec_info;
   SECURITY_DESCRIPTOR *security = NULL;
 
-  /* Figure out buffer size. GetFileSecurity() should not succeed.
+  /* Figure out buffer size. `GetFileSecurity()` should not succeed.
    */
   sec_info = OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION;
   if (GetFileSecurity(path, sec_info, NULL, 0, &length))
@@ -1775,7 +1805,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 }
 
 /**
- * Create a `\%TEMP-file`.
+ * Create a `%TEMP%-file`.
  * \return The allocated name which caller must call `FREE()` on.
  */
 char *create_temp_file (void)
@@ -1802,8 +1832,8 @@ char *create_temp_file (void)
  * Turn off default error-mode. E.g. if a CD-ROM isn't ready, we'll get a GUI
  * popping up to notify us. Turn that off and handle such errors ourself.
  *
- * `SetErrorMode()`       is per process. <br>
- * `SetThreadErrorMode()` is per thread on Win-7+.
+ * + `SetErrorMode()`       is per process.
+ * + `SetThreadErrorMode()` is per thread on Win-7+.
  */
 void set_error_mode (int restore)
 {
@@ -1892,10 +1922,12 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
 
 /**
  * Get the allocation size of a file or directory.
- * This uses cached information from the above 'get_disk_cluster_size()'.
- * Currently only works on local disks; 'disk-type == DRIVE_FIXED'.
- * Otherwise it simply returns the 'size'.
- * 'size == (UINT64)-1' means it's a directory.
+ *
+ * This uses cached information from the above `get_disk_cluster_size()`.<br>
+ * Currently only works on local disks; `disk-type == DRIVE_FIXED`.
+ * Otherwise it simply returns the `size`.
+ *
+ * `size == (UINT64)-1` means it's a directory.
  */
 UINT64 get_file_alloc_size (const char *file, UINT64 size)
 {
@@ -1922,7 +1954,7 @@ UINT64 get_file_alloc_size (const char *file, UINT64 size)
 }
 
 /**
- * Return the type of 'disk'.
+ * Return the type of `disk`.
  */
 UINT get_disk_type (int disk)
 {
@@ -1969,7 +2001,8 @@ BOOL get_volume_path (int disk, char **mount)
 }
 
 /**
- * Check if a disk is ready. disk is `"['A'..'Z']"`.
+ * Check if a disk is ready.
+ * \param[in] disk  the disk to check: `['A'..'Z']`.
  */
 int disk_ready (int disk)
 {
@@ -2037,7 +2070,8 @@ quit:
 }
 
 /**
- * Return a cached status for disk ready `"['A'..'Z']"`.
+ * Return a cached status for a `disk` ready status.
+ * \param[in] disk  the disk to check: `['A'..'Z']`.
  */
 BOOL chk_disk_ready (int disk)
 {
@@ -2056,8 +2090,8 @@ BOOL chk_disk_ready (int disk)
   {
     status[i] = disk_ready (disk);
 
-    /* A success from 'CreateFile()' in the above is not enough indication
-     * if the 'disk-type != DRIVE_FIXED'.
+    /* A success from `CreateFile()` above is not enough indication
+     * if the `disk-type != DRIVE_FIXED`.
      */
     if (status[i] == 1)
     {
@@ -2079,8 +2113,8 @@ BOOL chk_disk_ready (int disk)
  */
 #if defined(__CYGWIN__)
   /**
-   * Cannot use 'GetFileAttributes()' in case file is on Posix form.
-   * E.g. "/cygdrive/c/foo"
+   * Cannot use `GetFileAttributes()` in case file is on Posix form.
+   * \eg. `/cygdrive/c/foo`
    */
   int _file_exists (const char *file)
   {
@@ -2097,8 +2131,9 @@ BOOL chk_disk_ready (int disk)
 #endif
 
 /**
- * Return TRUE if this program is executed as an 'elevated' process.
- * Taken from Python 3.5's "src/PC/bdist_wininst/install.c".
+ * Return TRUE if this program is executed as an `elevated` process.
+ *
+ * Taken from Python 3.5's `src/PC/bdist_wininst/install.c`.
  */
 BOOL is_user_admin (void)
 {
@@ -2124,15 +2159,17 @@ BOOL is_user_admin (void)
 
 /**
  * Return name of logged-in user.
- * First try GetUserNameEx() available in Win-2000 Pro.
- * Then fall-back to a GetUserName() if not present in Secur32.dll.
- * Ref:
+ *
+ * First try `GetUserNameEx()` available in Win-2000 Pro.<br>
+ * Then fall-back to a `GetUserName()` if not present in `Secur32.dll`.
+ * \see
+ *   GetUserNameExA()
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/ms724435(v=vs.85).aspx
  */
-#define NameSamCompatible 2
-
 const char *get_user_name (void)
 {
+  #define NameSamCompatible 2
+
   typedef BOOL (WINAPI *func_GetUserNameEx) (int format, char *user, ULONG *user_len);
   func_GetUserNameEx  p_GetUserNameEx;
   static char         user[100];
@@ -2180,7 +2217,8 @@ char *_strlcpy (char *dst, const char *src, size_t len)
 }
 
 /**
- * Return a string with 'ch' repeated 'num' times.
+ * Return a string with `ch` repeated `num` times.
+ *
  * Limited to 200 characters.
  */
 char *str_repeat (int ch, size_t num)
@@ -2197,15 +2235,17 @@ char *str_repeat (int ch, size_t num)
 }
 
 /**
- * Get next token from string *stringp, where tokens are possibly-empty
- * strings separated by characters from delim.
+ * Get next token from string `*stringp`, where tokens are possibly-empty
+ * strings separated by characters from `delim`.
  *
- * Writes NULs into the string at *stringp to end tokens.
- * delim need not remain constant from call to call.
- * On return, *stringp points past the last NUL written (if there might
- * be further tokens), or is NULL (if there are definitely no more tokens).
+ * Writes NULs into the string at `*stringp` to end tokens.
  *
- * If *stringp is NULL, strsep returns NULL.
+ * `delim` need not remain constant from call to call.
+ *
+ * On return, `*stringp` points past the last `NUL` written (if there might
+ * be further tokens), or is `NULL` (if there are definitely no more tokens).
+ *
+ * If `*stringp` is NULL, `strsep()` returns `NULL`.
  */
 char *_strsep (char **stringp, const char *delim)
 {
@@ -2238,8 +2278,8 @@ char *_strsep (char **stringp, const char *delim)
 }
 
 /**
- * "string allocate and concatinate".
- * Assumes 's1' is allocated. Thus 'FREE(s1)' after '_stracat()' is done.
+ * `"string allocate and concatinate"`.
+ * Assumes `s1` is allocated. Thus `FREE(s1)` after `_stracat()` is done.
  */
 char *_stracat (char *s1, const char *s2)
 {
@@ -2274,7 +2314,7 @@ char *_strjoin (char * const *arr, const char *sep)
   if (!arr)
      return (NULL);
 
-  /* Get the needed size for 'ret'
+  /* Get the needed size for `ret`
    */
   for (i = num = 0; arr[i]; i++, num++)
       sz += strlen (arr[i]) + strlen(sep) + 1;
@@ -2293,10 +2333,11 @@ char *_strjoin (char * const *arr, const char *sep)
 }
 
 /**
- * For consistency and nice looks, replace (single or multiple) '\\'
- * with single '/' if use == '/'. And vice-versa.
+ * For consistency and nice looks, replace (single or multiple) `\\`
+ * with single `/` if use == `/`. And vice-versa.
+ *
  * All (?) Windows core functions functions should handle
- * '/' just fine.
+ * `/` just fine.
  */
 char *slashify (const char *path, char use)
 {
@@ -2347,7 +2388,7 @@ char *slashify2 (char *buf, const char *path, char use)
 }
 
 /**
- * Heuristic alert!
+ * \b {Heuristic alert!}
  *
  * Return 1 if file `A` is newer than file `B`.
  * Based on modification times `mtime_a`, `mtime_b` and file-versions
@@ -2384,7 +2425,7 @@ static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
 
 /**
  * Return err-number+string for `err`. Use only with `GetLastError()`.
- * Does not handle libc `errno` values. Remove trailing `[\\r\\n]`.
+ * Does not handle libc `errno` values. Remove trailing `[\r\n]`.
  */
 char *win_strerror (unsigned long err)
 {
@@ -2421,8 +2462,11 @@ char *win_strerror (unsigned long err)
 
 #if defined(__CYGWIN__) && !defined(__USE_W32_SOCKETS)
 /**
- * If we use POSIX sockets in Cygwin, the 'err' is really 'errno'.
- * And the error-string for 'err' is simply from 'strerror()'.
+ * Returns a string for a network related error-code.
+ * \param[in] err  the error-code.
+ *
+ * If we use POSIX sockets in Cygwin, the `err` is really `errno`.
+ * And the error-string for `err` is simply from `strerror()`.
  */
 char *ws2_strerror (int err)
 {
@@ -2431,7 +2475,10 @@ char *ws2_strerror (int err)
 #else
 
 /**
- * Return error-string for 'err' for Winsock error-codes.
+ * Returns a string for a network related error-code.
+ * \param[in] err  the error-code.
+ *
+ * Return error-string for `err` for Winsock error-codes.
  * These strings are stored by `kernel32.dll` and not in
  * `ws2_32.dll`.
  */
@@ -2702,9 +2749,9 @@ void crtdbug_exit (void)
 }
 #endif
 
-/*
- * A 'snprintf()' replacement to print and append to a local 'fmt_buf'
- * initialised using 'BUF_INIT()'.
+/**
+ * A `snprintf()` replacement to print and append to a local `fmt_buf`
+ * initialised using `BUF_INIT()`.
  */
 int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
 {
@@ -2726,20 +2773,20 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
   if (*marker != FMT_BUF_MARKER)
      FATAL ("Last marked destroyed.\n");
 
-  /* Terminate first. Because with '_MSC_VER < 1900' and 'fmt_buf->buffer_left'
-   * exactly large enough for the result, 'vsnprintf()' will not add a trailing NUL.
+  /* Terminate first. Because with `_MSC_VER < 1900` and `fmt_buf->buffer_left`
+   * exactly large enough for the result, `vsnprintf()` will not add a trailing NUL.
    */
   *(fmt_buf->buffer_start + fmt_buf->buffer_size - 1) = '\0';
 
   vsnprintf (fmt_buf->buffer_pos, fmt_buf->buffer_left, format, args);
 
-  /* Do not assume POSIX compliance of above 'vnsprintf()' function.
-   * Force next call to 'buf_printf()' to append at the 'end' position.
+  /* Do not assume POSIX compliance of above `vnsprintf()` function.
+   * Force next call to `buf_printf()` to append at the 'end' position.
    */
   end = strchr (fmt_buf->buffer_pos, '\0');
   len = (int) (end - fmt_buf->buffer_pos);
 
-  /* Assume 'len' is always positive.
+  /* Assume `len` is always positive.
    */
   fmt_buf->buffer_left -= len;
   fmt_buf->buffer_pos  += len;
@@ -2748,6 +2795,10 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
   return (len);
 }
 
+/**
+ * A `puts()` replacement to print and append to a local `fmt_buf`
+ * initialised using `BUF_INIT()`.
+ */
 int buf_puts (FMT_buf *fmt_buf, const char *string)
 {
   size_t       str_len = strlen (string);
@@ -2785,12 +2836,12 @@ void buf_reset (FMT_buf *fmt_buf)
 
 /**
  * Return a nicely formatted string for a file-size
- * given as an 'UINT64'.
+ * given as an `UINT64`.
  *
  * \note
- *   Uses the SI-unit post-fixes. \n
- *   A Yottabyte (2^80) is too large for an 'UINT64'. \n
- *   A 'size == -1' is used as indication of an unknown size.
+ *  + Uses the SI-unit post-fixes.
+ *  + A Yottabyte (`2^80`) is too large for an `UINT64`.
+ *  + A `size == -1` is used as indication of an unknown size.
  */
 const char *get_file_size_str (UINT64 size)
 {
@@ -2818,7 +2869,7 @@ const char *get_file_size_str (UINT64 size)
 }
 
 /**
- * Return a time-string for 'time_t==0' (non-time).
+ * Return a time-string for `time_t == 0` (non-time).
  */
 const char *empty_time (void)
 {
@@ -2826,12 +2877,13 @@ const char *empty_time (void)
 }
 
 /**
- * Return a nicely formatted string for a 'time_t'.
+ * Return a nicely formatted string for a `time_t`.
  *
- * strftime() under MSVC sometimes crashes mysteriously. So use this
+ * `strftime()` under MSVC sometimes crashes mysteriously. So use this
  * home-grown version.
- * Tests for 'time_t == 0' which is returned from 'safe_stat()'
- * of e.g. a protected .sys-file.
+ *
+ * Tests for `time_t == 0` which is returned from `safe_stat()`
+ * of e.g. a protected `.sys`-file.
  */
 const char *get_time_str (time_t t)
 {
@@ -2866,11 +2918,13 @@ const char *get_time_str (time_t t)
 
 /**
  * Function that prints the line argument while limiting it
- * to at most 'C_screen_width()'. If the console is redirected
- * (`C_screen_width() == 0`), the "screen width" is infinite (or `UINT_MAX`).
+ * to at most `C_screen_width()`.
+ *
+ * If the console is redirected (`C_screen_width() == 0`), the "screen width"
+ * is infinite (or `UINT_MAX`).
  *
  * An appropriate number of spaces are added on subsequent lines.
- * Multiple spaces ("  ") are collapsed into one space.
+ * Multiple spaces (`"  "`) are collapsed into one space.
  *
  * Stolen from Wget (main.c) and simplified.
  */
@@ -2901,8 +2955,9 @@ void format_and_print_line (const char *line, int indent)
   FREE (line_dup);
 }
 
-/*
- * As above, but without a STRDUP().
+/**
+ * A function similar to `format_and_print_line()`,
+ * but without a `STRDUP()`.
  */
 void print_long_line (const char *line, size_t indent)
 {
@@ -2960,7 +3015,7 @@ void create_console (void)
 #endif  /* NOT_USED_YET */
 
 /**
- * Search 'list' for 'value' and return it's name.
+ * Search `list` for `value` and return it's name.
  */
 const char *list_lookup_name (unsigned value, const struct search_list *list, int num)
 {
@@ -2977,7 +3032,7 @@ const char *list_lookup_name (unsigned value, const struct search_list *list, in
 }
 
 /**
- * Search 'list' for 'name' and return it's 'value'.
+ * Search `list` for `name` and return it's `value`.
  */
 unsigned list_lookup_value (const char *name, const struct search_list *list, int num)
 {
@@ -2991,6 +3046,18 @@ unsigned list_lookup_value (const char *name, const struct search_list *list, in
   return (UINT_MAX);
 }
 
+/**
+ * Decode a `DWORD` value in `flags` and return a string composed of
+ * names in `list`.
+ *
+ * See `reg_access_name()` for an example:
+ * \code
+ *  reg_access_name (KEY_CREATE_LINK | KEY_CREATE_SUB_KEY | 0x4000) (== reg_access_name (0x0020 | 0x0004 | 0x4000)
+ * \endcode
+ *
+ * would return the string `0x4000 + KEY_CREATE_LINK+KEY_CREATE_SUB_KEY`
+ * since `0x4000` is *not* a known flag in `reg_access_name()`.
+ */
 const char *flags_decode (DWORD flags, const struct search_list *list, int num)
 {
   static char buf[300];
@@ -3014,6 +3081,9 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
   return (buf);
 }
 
+/**
+ * The var-arg print function used in e.g. the `DEBUGF()` macro.
+ */
 int debug_printf (const char *format, ...)
 {
   int     raw, rc;
@@ -3028,7 +3098,8 @@ int debug_printf (const char *format, ...)
 }
 
 /**
- * Duplicate memory and fix the 'cmd' before calling 'popen()'.
+ * Duplicate and fix the `cmd` before calling `popen()`.
+ * The caller (i.e. `popen_run()`) must free the return value.
  */
 static char *popen_setup (const char *cmd)
 {
@@ -3044,7 +3115,7 @@ static char *popen_setup (const char *cmd)
   }
   cmd2 = STRDUP (cmd);
 
-  /* Replace '\\' with '/' up to the first space.
+  /* Replace `\\` with `/` up to the first space.
    */
   space = strchr (cmd2, ' ');
   for (p = cmd2; p < space; p++)
@@ -3057,9 +3128,11 @@ static char *popen_setup (const char *cmd)
   const char *setdos  = "";
   size_t      len;
 
-  /* OpenWatcom's popen() always uses cmd.exe regardless of %COMSPEC.
+  /**
+   * OpenWatcom's `popen()` always uses `cmd.exe` regardless of `%COMSPEC`.
+   *
    * If we're using 4NT/TCC shell, set all variable expansion to off
-   * by prepending "setdos /x-3 & " to 'cmd' buffer.
+   * by prepending `setdos /x-3 & ` to `cmd` buffer.
    */
   if (env)
   {
@@ -3086,23 +3159,25 @@ static char *popen_setup (const char *cmd)
 }
 
 /**
- * Return the last line in the `fgets()` loop below.
+ * Helper buffer for the `while` loop in `popen_run()`.
  */
 static char popen_last[1000];
 
+/**
+ * Return the last line in the `fgets()` loop below.
+ */
 char *popen_last_line (void)
 {
   return (popen_last);
 }
 
 /**
- * A wrapper for popen().
+ * A wrapper for `popen()`.
  *
- * \param[in] cmd       the program + args to run.
- * \param[in] callback  function to call for each line from `popen()`.
- *
- * This function should return number of matches.
- *  The `callback` is allowed to modify the `buf` given to it.
+ * \param[in] cmd       The program and arguments to run.
+ * \param[in] callback  Function to call for each line from `popen()`.
+ *                      This function should return number of matches.
+ *                      The `callback` is allowed to modify the `buf` given to it.
  *
  * \retval -1   if `"/bin/sh"` is not found for Cygwin.
  * \retval -1   if `cmd` was not found or `_popen()` fails for some reason. `errno` should be set.
@@ -3157,7 +3232,6 @@ quit:
 
 /**
  * A var-arg version of `popen_run()`.
- * \anchor popen_runf
  */
 int popen_runf (popen_callback callback, const char *fmt, ...)
 {
@@ -3174,12 +3248,12 @@ int popen_runf (popen_callback callback, const char *fmt, ...)
  * Returns the expanded version of an environment variable.
  * Stolen from curl. But I wrote the Win32 part of it...
  *
- * \eg{.} If "INCLUDE=c:\VC\include;%C_INCLUDE_PATH%" and
- *        "C_INCLUDE_PATH=c:\MinGW\include", the expansion returns
- *        "c:\VC\include;c:\MinGW\include".
+ * \eg If `INCLUDE=c:\VC\include;%C_INCLUDE_PATH%` and
+ *   + `C_INCLUDE_PATH=c:\MinGW\include`, the expansion returns
+ *   + `c:\VC\include;c:\MinGW\include`.
  *
- * \note Windows (cmd only?) requires a trailing '%' in
- *       "%C_INCLUDE_PATH".
+ * \note Windows (cmd only?) requires a trailing `%` in
+ *       `%C_INCLUDE_PATH`.
  */
 char *getenv_expand (const char *variable)
 {
@@ -3217,11 +3291,11 @@ char *getenv_expand (const char *variable)
  * This will do similar to what 4NT/TCC's `set /m foo` command does.
  *
  * \param  variable   The environment variable to expand.
- * \retval an allocated string of the expanded result.
- * \retval NULL if the expansion failed.
+ * \retval !NULL      An allocated string of the expanded result.
+ * \retval NULL       If the expansion failed.
  *
  * \note If the SYSTEM is 64-bit and the program is 32-bit, the
- *       'ExpandEnvironmentStringsForUserA()' system-call always seems to
+ *       `ExpandEnvironmentStringsForUserA()` system-call always seems to
  *       use WOW64 to return a (possibly wrong) value.
  */
 char *getenv_expand_sys (const char *variable)
@@ -3253,7 +3327,7 @@ char *getenv_expand_sys (const char *variable)
 
 /**
  * Translate a shell-pattern to a regular expression.
- * From:
+ * \see
  *   https://mail.python.org/pipermail/python-list/2003-August/244415.html
  */
 char *translate_shell_pattern (const char *pattern)
@@ -3315,7 +3389,7 @@ char *translate_shell_pattern (const char *pattern)
  * Dump a block of data as hex chars.
  * Starts with printing the data-length and offset.
  *
- * \eg{.}
+ * \eg
  * \code
  *   19: 0000: 00 00 00 00 03 AC B5 02-00 00 00 00 18 00 00 00 .....zz.........
  *       0010: A1 D3 BC                                        í++
@@ -3359,6 +3433,9 @@ void hex_dump (const void *data_p, size_t datalen)
   }
 }
 
+/**
+ * Format and return a hex-dump string for maximum 10 bytes.
+ */
 const char *dump10 (const void *data, unsigned size)
 {
   static char ret [15];
@@ -3378,6 +3455,9 @@ const char *dump10 (const void *data, unsigned size)
   return (ret);
 }
 
+/**
+ * Format and return a hex-dump string for maximum 20 bytes.
+ */
 const char *dump20 (const void *data, unsigned size)
 {
   static char ret [25];
@@ -3397,8 +3477,8 @@ const char *dump20 (const void *data, unsigned size)
   return (ret);
 }
 
-/*
- * Reverse string 'str' in place.
+/**
+ * Return a reverse of string `str` in place.
  */
 char *strreverse (char *str)
 {
@@ -3416,7 +3496,7 @@ char *strreverse (char *str)
 #if defined(__CYGWIN__)
 /*
  * Taken from:
- *   http://stackoverflow.com/questions/190229/where-is-the-itoa-function-in-linux
+ *   https://stackoverflow.com/questions/190229/where-is-the-itoa-function-in-linux
  */
 char *_itoa (int value, char *buf, int radix)
 {
@@ -3440,8 +3520,8 @@ char *_itoa (int value, char *buf, int radix)
   return strreverse (buf);
 }
 
-/*
- * 'filelength()' is not POSIX, so CygWin doesn't have it. Sigh!
+/**
+ * `filelength()` is not POSIX, so CygWin doesn't have it. Sigh! <br>
  * Simply use core Windows for this.
  */
 UINT64 filelength (int fd)
@@ -3460,10 +3540,10 @@ UINT64 filelength (int fd)
 }
 #endif
 
-/*
+/**
  * Functions for getting at Reparse Points (Junctions and Symlinks).
- * Code from:
- *  http://blog.kalmbach-software.de/2008/02/
+ * \see
+ *   http://blog.kalmbach-software.de/2008/02/
  */
 struct REPARSE_DATA_BUFFER {
        ULONG  ReparseTag;
@@ -3692,12 +3772,16 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   }
 
 #elif defined(_MSC_VER)
-  /*
-   * Ref. http://msdn.microsoft.com/en-us/library/b0084kay(v=vs.120).aspx
+  /**
+   * Get the MSVC micro version.
    *
-   * E.g. "cl /?" prints:
+   * \see "Predefined Macros" https://msdn.microsoft.com/en-us/library/b0084kay(v=vs.120).aspx
+   *
+   * \eg `c:\> cl /?` prints:
+   *   ```
    *    Microsoft (R) C/C++ Optimizing Compiler Version 18.00.31101.x for x86
    *                       = _MSC_FULL_VER - 180000000  ^----       ^_MSC_BUILD
+   *   ```
    */
   static const char *msvc_get_micro_ver (void)
   {
@@ -3751,9 +3835,9 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
 
 #elif defined(__MINGW32__)
   /*
-   * '__MINGW32__' is defined by BOTH mingw.org and by the MinGW-w64
-   * project [1], because both can target Win32. '__MINGW64__' is defined
-   * only when targeting Win64 (__x86_64__).
+   * `__MINGW32__` is defined by BOTH mingw.org and by the MinGW-w64
+   * project [1], because both can target Win32. `__MINGW64__` is defined
+   * only when targeting Win64 (`__x86_64__`).
    *
    * [1] http://mingw-w64.sourceforge.net/
    */
@@ -3790,12 +3874,12 @@ BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
   }
 #endif   /* _MSC_VER */
 
-/*
+/**
  * Check if a file-descriptor is coming from CygWin.
- * Applications now could call 'is_cygwin_tty(STDIN_FILENO)' in order to detect
+ * Applications now could call `is_cygwin_tty(STDIN_FILENO)` in order to detect
  * whether they are running from Cygwin/MSys terminal.
  *
- * By Mihail Konev <k.mvc@ya.ru> for the MinGW-w64 project.
+ * By Mihail Konev `<k.mvc@ya.ru>` for the MinGW-w64 project.
  */
 #undef FILE_EXISTS
 
@@ -3863,8 +3947,8 @@ int is_cygwin_tty (int fd)
   {
     DEBUGF (2, "NtQueryObject() failed.\n");
 
-    /* If it is not NUL (i.e. \Device\Null, which would succeed),
-     * then normal isatty() could be consulted.
+    /* If it is not NUL (i.e. `\Device\Null`, which would succeed),
+     * then normal `isatty()` could be consulted.
      * */
     if (_isatty(fd))
        return (1);
@@ -3874,7 +3958,7 @@ int is_cygwin_tty (int fd)
   s = ntfn->Name.Buffer;
   s [ntfn->Name.Length/sizeof(WCHAR)] = 0;
 
-  /* Look for \Device\NamedPipe\(cygwin|msys)-[a-fA-F0-9]{16}-pty[0-9]{1,4}-(from-master|to-master|to-master-cyg)
+  /* Look for `\Device\NamedPipe\(cygwin|msys)-[a-fA-F0-9]{16}-pty[0-9]{1,4}-(from-master|to-master|to-master-cyg)`
    */
   if (wcsncmp(s, L"\\Device\\NamedPipe\\", 18))
   {

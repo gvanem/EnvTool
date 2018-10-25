@@ -577,6 +577,7 @@ extern char       *create_temp_file (void);
 extern const char *check_if_shebang (const char *fname);
 extern int         check_if_zip (const char *fname);
 extern int         check_if_gzip (const char *fname);
+extern BOOL        check_if_cwd_in_search_path (const char *program);
 extern const char *get_gzip_link (const char *file);
 extern const char *get_man_link (const char *file);
 extern int         check_if_PE (const char *fname, enum Bitness *bits);

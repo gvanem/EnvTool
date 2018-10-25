@@ -22,8 +22,8 @@
 static int last_pos = -1;
 
 /**
- * Return the last position in 'env_var' for last successfull
- * 'searchpath()' call.
+ * Return the last position in `env_var` for last successfull
+ * `searchpath()` call.
  */
 int searchpath_pos (void)
 {
@@ -31,18 +31,21 @@ int searchpath_pos (void)
 }
 
 /**
- * Search `%env_var` for the first 'file' (not a `file_spec`).
+ * Search `%env_var` for the first `file` (not a `file_spec`).
+ *
  * If successful, store the full pathname in static buffer and return a
  * pointer to it. If not successful, return `NULL`.
+ *
  * This is what the Borland `searchpath()` library function does.
  *
- * \note: if `env_var` is just a directory name, the `file` is just tested for
- *        presence in that directory name.
- *        \eg{.}
- *        ```c
- *          searchpath ("SWAPFILE.SYS", "c:\\")
- *        ```
- *        would simply return `C:\\SWAPFILE.SYS\`.
+ * \note
+ * if `env_var` is just a directory name, the `file` is just tested for
+ * presence in that directory name.
+ *   \eg
+ *   \code
+ *     searchpath ("SWAPFILE.SYS", "c:\\")
+ *   \endcode
+ * would simply return `C:\\SWAPFILE.SYS\`.
  */
 static char *searchpath_internal (const char *file, const char *env_var, char *found)
 {
@@ -81,8 +84,8 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
   opt.debug = save_debug;
 
   if (!p)
-       alloc = 2;              /* Room for '.' */
-  else alloc = strlen(p) + 3;  /* Room for '.;%env_var' */
+       alloc = 2;              /* Room for `.` */
+  else alloc = strlen(p) + 3;  /* Room for `.;%env_var` */
 
   path = CALLOC (alloc, 1);
   if (!path)
@@ -93,7 +96,7 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
     return (NULL);
   }
 
-  /* Prepend `.' to the $(env_var), so current directory
+  /* Prepend `.` to the $(env_var), so current directory
    * is always searched first.
    */
   path[0] = '.';
@@ -108,7 +111,7 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
     path[1] = ';';
     strcpy (path + 2, p);
 
-    /* switch FOO\BAR to foo/bar, downcase where appropriate.
+    /* switch `FOO\BAR` into `foo/bar`, downcase where appropriate.
      */
     for (s = path + 2, name_start = s; *name_start; s++)
     {
@@ -150,13 +153,13 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
         ((file[0] == '.' && IS_SLASH(file[1])) ||
          (file[1] == '.' && IS_SLASH(file[2]))) )
     {
-      /* Either absolute file name or it begins with a "./".
+      /* Either absolute file name or it begins with a `./`.
        */
       strcpy (found, file);
     }
     else
     {
-      /* Relative file name: add ".\\".
+      /* Relative file name: add `.\\`.
        */
       strcpy (found, ".\\");
       strcat (found, file);
@@ -187,7 +190,7 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
     if (FILE_EXISTS(found))
        goto was_found;
 
-    if (*dp == 0)   /* We have reached the end of "%env_val" */
+    if (*dp == 0)   /* We have reached the end of `%env_val` */
        break;
 
     test_dir = dp + 1;
@@ -215,7 +218,11 @@ was_found:
 }
 
 /**
- * \note If 'file' is found, this function returns a static buffer.
+ * The public interface to this module.
+ * \param[in] file    the file to search for in an environment variable.
+ * \param[in] env_var yhe name of the environment variable (e.g. `PATH`).
+ *
+ * \note If `file` is found, this function returns a static buffer.
  */
 char *searchpath (const char *file, const char *env_var)
 {

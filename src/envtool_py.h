@@ -6,17 +6,18 @@
 
 /**
  * \typedef enum python_variants
+ * The types of Python we support.
  */
 typedef enum python_variants {
-        UNKNOWN_PYTHON,    /**< we have not found any suitable Python yet. */
-        DEFAULT_PYTHON,    /**< a suitable Python found first on `PATH`. */
-        PY2_PYTHON,        /**< a version 2.x Python was found and selected. */
-        PY3_PYTHON,        /**< a version 3.x Python was found and selected. */
-        IRON2_PYTHON,      /**< a version 2.x IronPython was found and selected. */
-        IRON3_PYTHON,      /**< a version 3.x IronPython was found and selected. */
-        PYPY_PYTHON,       /**< a PyPy was found and selected (any version). */
-        JYTHON_PYTHON,     /**< a JavaPython was found and selected (any version). */
-        ALL_PYTHONS        /**< any Python found. */
+        UNKNOWN_PYTHON,      /**< we have not found any suitable Python yet. */
+        DEFAULT_PYTHON,      /**< a suitable Python found first on `PATH`. */
+        PY2_PYTHON,          /**< a version 2.x Python was found and selected. */
+        PY3_PYTHON,          /**< a version 3.x Python was found and selected. */
+        IRON2_PYTHON,        /**< a version 2.x IronPython was found and selected. */
+        IRON3_PYTHON,        /**< a version 3.x IronPython was found and selected. */
+        PYPY_PYTHON,         /**< a PyPy was found and selected (any version). */
+        JYTHON_PYTHON,       /**< a JavaPython was found and selected (any version). */
+        ALL_PYTHONS          /**< any Python found. */
       } python_variants;
 
 extern enum python_variants py_which;

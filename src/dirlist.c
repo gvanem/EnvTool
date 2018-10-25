@@ -4,7 +4,7 @@
  *   A public domain implementation of BSD directory routines
  *   getdirent(), opendir() etc.
  *
- * Written by Michael Rendell ({uunet,utai}michael@garfield),
+ * Written by Michael Rendell `({uunet,utai}michael@garfield)`,
  * August 1987
  *
  * Enhanced and ported to OS/2 by Kai Uwe Rommel; added scandir() prototype

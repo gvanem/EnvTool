@@ -6,11 +6,11 @@
  *   for correctness and check where a specific file is in corresponding
  *   environment variable.
  *
- *  \eg{1} `envtool --path notepad.exe` first checks the `%PATH%` env-var
+ *  \Eg{1} `envtool --path notepad.exe` first checks the `%PATH%` env-var
  *          for consistency (reports missing directories in `%PATH%`) and
  *          prints all the locations of `notepad.exe`.
  *
- *  \eg{2} `envtool --inc afxwin.h` first checks the `%INCLUDE%` env-var
+ *  \Eg{2} `envtool --inc afxwin.h` first checks the `%INCLUDE%` env-var
  *          for consistency (reports missing directories in `%INCLUDE%`) and
  *          prints all the locations of `afxwin.h`.
  *
@@ -104,13 +104,13 @@ struct directory_array {
        char    *dir;         /**< FQDN of this entry */
        char    *cyg_dir;     /**< The Cygwin POSIX form of the above */
        int      exist;       /**< does it exist? */
-       int      is_native;   /**< and is it a native dir; like %WinDir\sysnative */
-       int      is_dir;      /**< and is it a dir; _S_ISDIR() */
-       int      is_cwd;      /**< and is it equal to current_dir[] */
-       int      exp_ok;      /**< expand_env_var() returned with no '%'? */
-       int      num_dup;     /**< is duplicated elsewhere in %VAR%? */
+       int      is_native;   /**< and is it a native dir; like `%WinDir\sysnative` */
+       int      is_dir;      /**< and is it a dir; `_S_ISDIR()` */
+       int      is_cwd;      /**< and is it equal to `current_dir[]` */
+       int      exp_ok;      /**< `expand_env_var()` returned with no `%`? */
+       int      num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
        BOOL     check_empty; /**< check if it contains at least 1 file? */
-       unsigned line;        /**< Debug: at what line was add_to_dir_array() called */
+       unsigned line;        /**< Debug: at what line was `add_to_dir_array()` called */
      };
 
 /**
@@ -128,11 +128,17 @@ struct registry_array {
 
 static smartlist_t *dir_array, *reg_array;
 
+/**
+ * All program options are kept here.
+ */
 struct prog_options opt;
 
-char   sys_dir        [_MAX_PATH];  /* E.g. "c:\Windows\System32" */
-char   sys_native_dir [_MAX_PATH];  /* E.g. "c:\Windows\sysnative". Not for WIN64 */
-char   sys_wow64_dir  [_MAX_PATH];  /* E.g. "c:\Windows\SysWOW64". Not for WIN64 */
+/**
+ * Values of system directories.
+ */
+char   sys_dir        [_MAX_PATH];  /**< E.g. `"c:\Windows\System32"` */
+char   sys_native_dir [_MAX_PATH];  /**< E.g. `"c:\Windows\sysnative"`. Not for WIN64 */
+char   sys_wow64_dir  [_MAX_PATH];  /**< E.g. `"c:\Windows\SysWOW64"`. Not for WIN64 */
 
 static UINT64   total_size = 0;
 static DWORD    num_version_ok = 0;
@@ -163,17 +169,17 @@ static regex_t    re_hnd;         /* regex handle/state */
 static regmatch_t re_matches[3];  /* regex sub-expressions */
 static int        re_err;         /* last regex error-code */
 static char       re_errbuf[300]; /* regex error-buffer */
-static int        re_alloc;       /* the above 're_hnd' was allocated */
+static int        re_alloc;       /* the above `re_hnd` was allocated */
 
 volatile int halt_flag;
 
 /**
  * The list of prefixes for gnu C/C++ compilers.
  *
- * \eg{.} E.g. we try `gcc.exe` ... `avr-gcc.exe` to figure out the
- *        `%C_INCLUDE_PATH`, `%CPLUS_INCLUDE_PATH` and `%LIBRARY_PATH`.
- *        Unless one of the `<path>/<prefix>-gcc.exe` are in the
- *        `[Compiler]` ignore-list.
+ * \eg we try `gcc.exe` ... `avr-gcc.exe` to figure out the
+ *     `%C_INCLUDE_PATH`, `%CPLUS_INCLUDE_PATH` and `%LIBRARY_PATH`.
+ *     Unless one of the `<path>/<prefix>-gcc.exe` are in the
+ *     `[Compiler]` ignore-list.
  *
  * \todo add more prefixes from `envtool.cfg` here?
  */
@@ -212,31 +218,30 @@ static int   get_cmake_info (char **exe_p, struct ver_info *ver);
  *       Warn if this is the case.
  *
  * \todo Add sort option:
- *   \li on date/time.
- *   \li on filename.
- *   \li on file-size.
+ *   + on date/time.
+ *   + on filename.
+ *   + on file-size.
  *
  * \todo Add `--locate` option (or in combination with `--evry` option?) to
  *       look into GNU's `locatedb` (`%LOCATE_PATH=/cygdrive/X/Cygwin32/locatedb`)
  *       information too.
  *
  * \todo Add a `--check` option for 64-bit Windows to check that all .DLLs in:<br>
- *           \li `"%SystemRoot%\System32"` are 64-bit and
- *           \li `"%SystemRoot%\SysWOW64"` are 32-bit. <br>
- *       \eg{.}
- *        \verbose
- *           pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
- *           Machine:                      014C (i386)
- *           Machine:                      014C (i386)
- *           ....
- *        \endverbose
+ *           + `"%SystemRoot%\System32"` are 64-bit and
+ *           + `"%SystemRoot%\SysWOW64"` are 32-bit. <br>
+ *       \eg \code
+ *         pedump %SystemRoot%\SysWOW64\*.dll | grep 'Machine: '
+ *         Machine:                      014C (i386)
+ *         Machine:                      014C (i386)
+ *         ....
+ *        \endcode
  *
  *       Also check their Wintrust signature status and version information.
  */
 
 /**
  * Show some version details for the EveryThing program.
- * Called on 'FindWindow ("EVERYTHING_TASKBAR_NOTIFICATION")' success.
+ * Called on `FindWindow ("EVERYTHING_TASKBAR_NOTIFICATION")` success.
  */
 static void show_evry_version (HWND wnd, const struct ver_info *ver)
 {
@@ -325,7 +330,11 @@ static void get_evry_bitness (HWND wnd)
 }
 
 /**
- * Show version information for various programs.
+ * Show version information for various external programs:
+ *  + `Cmake.exe`
+ *  + `Python*.exe`
+ *  + `pkg-config.exe`
+ *  + `vcpkg.exe`
  */
 static void show_ext_versions (void)
 {
@@ -432,7 +441,7 @@ static void write_hook (const char *buf)
 
   if (len >= 1)
   {
-    /* Put 'opt.cache_ver_level' only on lines after [\r\n] was seen
+    /** Put `opt.cache_ver_level` only on lines after `[\r\n]` was seen.
      */
     if (saw_newline)
          fprintf (fcache, "%d:%s", opt.cache_ver_level, buf);
@@ -456,8 +465,9 @@ static void read_hook (smartlist_t *sl, const char *buf)
 }
 
 /**
- * \li Show some basic version information:    option `-V`.
- * \li Show more detailed version information: option `-VV`.
+ * Handler for `envtool -V..`:
+ * + Show some basic version information:    option `-V`.
+ * + Show more detailed version information: option `-VV`.
  */
 static int show_version (void)
 {
@@ -477,12 +487,12 @@ static int show_version (void)
 
     /* Otherwise, create the cache's content
      */
-    // opt.do_version = 3;
+ // opt.do_version = 3;
     fcache = fopen (vcache_fname, "w+t");
     if (fcache)
     {
       /* Initialised to TRUE so that the first line written gets
-       * a 'opt.cache_ver_level' prefix.
+       * a `opt.cache_ver_level` prefix.
        */
       saw_newline = TRUE;
       C_write_hook = write_hook;
@@ -736,15 +746,15 @@ void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
 
   /* Can we have >1 native dirs?
    *
-   * Use 'stricmp()' since on MinGW-w64, a native directory becomes partially
+   * Use `stricmp()` since on MinGW-w64, a native directory becomes partially
    * uppercase for some strange reason.
    * E.g. "C:\WINDOWS\sysnative".
    */
   d->is_native = (stricmp(dir,sys_native_dir) == 0);
 
-  /* Some issue with MinGW and OpenWatcom's 'stat()' on a sys_native directory.
-   * Even though 'GetFileAttributes()' in 'safe_stat()' says it's a
-   * directory, 'stat()' doesn't report it as such. So just fake it.
+  /* Some issue with MinGW and OpenWatcom's `stat()` on a sys_native directory.
+   * Even though `GetFileAttributes()` in `safe_stat()` says it's a
+   * directory, `stat()` doesn't report it as such. So just fake it.
    */
 #if defined(__MINGW32__) || defined(__WATCOMC__)
   if (d->is_native && !d->exist)
@@ -884,10 +894,10 @@ static int make_unique_dir_array (const char *where)
 }
 
 /**
- * Add elements to the 'reg_array' smartlist:
- *  \param[in] key     the key the entry came from: HKEY_CURRENT_USER or HKEY_LOCAL_MACHINE.
- *  \param[in] fname   the result from 'RegEnumKeyEx()'; name of each key.
- *  \param[in] fqdn    the result from 'enum_sub_values()'. This value includes the full path.
+ * Add elements to the `reg_array` smartlist:
+ *  \param[in] key     the key the entry came from: `HKEY_CURRENT_USER` or `HKEY_LOCAL_MACHINE`.
+ *  \param[in] fname   the result from `RegEnumKeyEx()`; name of each key.
+ *  \param[in] fqdn    the result from `enum_sub_values()`. This value includes the full path.
  *
  * Note: `basename (fqdn)` may NOT be equal to `fname` (aliasing). That's the reason
  *       we store `real_fname` too.
@@ -920,7 +930,7 @@ static void add_to_reg_array (HKEY key, const char *fname, const char *fqdn)
 }
 
 /**
- * Sort the 'reg_array' on 'path' + 'real_fname'.
+ * Sort the `reg_array` on `path` + `real_fname`.
  */
 static int reg_array_compare (const void **_a, const void **_b)
 {
@@ -972,13 +982,13 @@ static void free_dir_array (void)
 
 /**
  * Parses an environment string and returns all components as an array of
- * 'struct directory_array' pointing into the global 'dir_array[]'.
- * This works since we handle only one env-var at a time. The 'dir_array[]'
- * gets cleared in 'free_dir_array()' first (in case it was used already).
+ * `struct directory_array` pointing into the global `dir_array` smartlist.
+ * This works since we handle only one env-var at a time. The `dir_array`
+ * gets cleared in `free_dir_array()` first (in case it was used already).
  *
- * Add current working directory first if 'opt.no_cwd' is FALSE.
+ * Add current working directory first if `opt.no_cwd` is FALSE.
  *
- * Convert CygWin style paths to Windows paths: "/cygdrive/x/.." -> "x:/.."
+ * Convert CygWin style paths to Windows paths: `"/cygdrive/x/.."` -> `"x:/.."`.
  */
 static smartlist_t *split_env_var (const char *env_name, const char *value)
 {
@@ -1004,10 +1014,10 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
   DEBUGF (1, "'val': \"%s\". 'tok': \"%s\", is_cwd: %d\n", val, tok, is_cwd);
 
  /*
-  * If 'val' doesn't start with ".\" or "./", we should possibly add that
+  * If `val` doesn't start with ".\" or "./", we should possibly add that
   * first since the search along e.g. %LIB% will include the current
   * directory (cwd) in the search implicitly. This is not always the case for
-  * all 'env' variables. E.g. Gnu-C's preprocessor doesn't include "." in
+  * all `env` variables. E.g. Gnu-C's preprocessor doesn't include "." in
   * the %C_INCLUDE_PATH% by default.
   */
   i = 0;
@@ -1018,8 +1028,8 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
 
   for ( ; i < max && tok; i++)
   {
-    /* Remove trailing '\\', '/' or '\\"' from environment component
-     * unless it's a simple "c:\".
+    /* Remove trailing `\\`, `/` or `\\"` from environment component
+     * unless it's a simple `"c:\"`.
      */
     char *p, *end = strchr (tok, '\0');
 
@@ -1033,8 +1043,8 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
 
     if (!opt.quiet)
     {
-      /* Check and warn when a component on form 'c:\dir with space' is found.
-       * I.e. a path without quotes "c:\dir with space".
+      /* Check and warn when a component on form `c:\dir with space` is found.
+       * I.e. a path without quotes `"c:\dir with space"`.
        */
       p = strchr (tok, ' ');
       if (opt.quotes_warn && p && (*tok != '"' || end[-1] != '"'))
@@ -1042,13 +1052,13 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
 
 #if !defined(__CYGWIN__)
       /*
-       * Check for missing drive-letter ('x:') in component.
+       * Check for missing drive-letter (`x:`) in component.
        */
       if (!is_cwd && IS_SLASH(tok[0]) && str_equal_n(tok,"/cygdrive/",10))
          WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
 #endif
 
-      /* Warn on 'x:' (a missing trailing slash)
+      /* Warn on `x:` (a missing trailing slash)
        */
       if (strlen(tok) <= 3 && isalpha((int)tok[0]) && tok[1] == ':' && !IS_SLASH(tok[2]))
          WARN ("%s: Component \"%s\" should be \"%s%c\".\n", env_name, tok, tok, DIR_SEP);
@@ -1064,7 +1074,7 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
       end[-1] = '\0';
     }
 
-    /* _stati64(".") doesn't work. Hence turn "." into 'current_dir'.
+    /* _stati64(".") doesn't work. Hence turn "." into `current_dir`.
      */
     is_cwd = !strcmp(tok,".") || !strcmp(tok,".\\") || !strcmp(tok,"./");
     if (is_cwd)
@@ -1091,10 +1101,11 @@ static smartlist_t *split_env_var (const char *env_name, const char *value)
   return (dir_array);
 }
 
-/*
- * Report time and name of 'file'. Also: if the match came from a
+/**
+ * Report time and name of `file`.
+ *
+ * Also: if the match came from a
  * registry search, report which key had the match.
- * If the Python 'sys.path[]'
  */
 static int found_in_hkey_current_user = 0;
 static int found_in_hkey_current_user_env = 0;
@@ -1103,10 +1114,11 @@ static int found_in_hkey_local_machine_sess_man = 0;
 static int found_in_python_egg = 0;
 static int found_in_default_env = 0;
 
-/* Use this as an indication that the EveryThing database is not up-to-date with
+/**
+  Use this as an indication that the EveryThing database is not up-to-date with
  * the reality; files have been deleted after the database was last updated.
  * Unless we're running a 64-bit version of envtool and a file was found in
- * the 'sys_native_dir[]' and we 'have_sys_native_dir == 0'.
+ * the `sys_native_dir[]` and we `have_sys_native_dir == 0`.
  */
 static int found_everything_db_dirty = 0;
 
@@ -1140,10 +1152,10 @@ show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionW
 
  */
 
-/*
- * Print the Resource-version details after any 'wintrust_check()' results has
- * been printed. The details come from 'get_PE_file_brief()' and 'get_PE_version_info()'.
- * Which can be retrieved using 'get_PE_version_info_buf()'.
+/**
+ * Print the Resource-version details after any `wintrust_check()` results has
+ * been printed. The details come from `get_PE_file_brief()` and `get_PE_version_info()`.
+ * Which can be retrieved using `get_PE_version_info_buf()`.
  */
 static void print_PE_file_details (const char *filler)
 {
@@ -1182,10 +1194,10 @@ static void print_PE_file_details (const char *filler)
   get_PE_version_info_free();
 }
 
-/*
- * With the "--pe" (and "--32" or "--64") option, check if a 'file' is a PE-file.
+/**
+ * With the "--pe" (and "--32" or "--64") option, check if a `file` is a PE-file.
  * If so, save the checksum, version-info, signing-status for later when
- * 'report_file()' is ready to print this info.
+ * `report_file()` is ready to print this info.
  */
 static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, char *dest, size_t dest_size)
 {
@@ -1219,7 +1231,7 @@ static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, c
   bitness = (bits == bit_32) ? "~232" :
             (bits == bit_64) ? "~364" : "~5?";
 
-  /* Do not add a '\n' since 'wintrust_check()' is called right after this function.
+  /** Do not add a `\n` since `wintrust_check()` is called right after this function.
    */
   snprintf (dest, dest_size, "\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s~0",
             filler, ver.val_1, ver.val_2, ver.val_3, ver.val_4,
@@ -1228,18 +1240,21 @@ static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, c
 }
 
 /**
- * With the "--pe" (and "--32" or "--64") option, and if 'file' is a PE-file
+ * With the "--pe" (and "--32" or "--64") option, and if `file` is a PE-file
  * (verified in above function), do a check for any signatures.
  *
- * \todo If the PE has a SECURITY data-directory, try to extract it's raw data;
+ * \todo
+ *   If the PE has a SECURITY data-directory, try to extract it's raw data;
+ *     \code
  *       const WIN_CERTIFICATE *cert = ..
  *       if (cert->wCertificateType == WIN_CERT_TYPE_PKCS_SIGNED_DATA ||
  *           cert->wCertificateType == WIN_CERT_TYPE_X509)
  *          use 'libssl_1.1.dll' and call 'PKCS7_verify()' on 'cert+1'
+ *     \endcode
  *
- *       Refs:
- *         https://github.com/zed-0xff/pedump/blob/master/lib/pedump/security.rb
- *         http://pedump.me/1d82d1e52ca97759a6f90438e59e7dc7/#signature
+ *    Refs:
+ *      https://github.com/zed-0xff/pedump/blob/master/lib/pedump/security.rb
+ *      http://pedump.me/1d82d1e52ca97759a6f90438e59e7dc7/#signature
  */
 static BOOL get_wintrust_info (const char *file, char *dest, size_t dest_size)
 {
@@ -1328,7 +1343,7 @@ UINT64 get_directory_size (const char *dir)
 }
 
 /**
- * Return the indentation needed for the next 'she-bang' or 'man-file link'
+ * Return the indentation needed for the next `she-bang` or `man-file link`
  * to align up more nicely.
  * Not ideal since we don't know the length of all files we need to report.
  */
@@ -1433,7 +1448,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
 #if (IS_WIN64)
     /*
      * If e.g. a 32-bit EveryThing program is finding matches is "%WinDir\\System32",
-     * don't set 'found_everything_db_dirty=1' when we don't 'have_sys_native_dir'.
+     * don't set `found_everything_db_dirty=1` when we don't `have_sys_native_dir`.
      */
     if (mtime == 0 &&
         (!have_sys_native_dir || !strnicmp(file,sys_native_dir,strlen(sys_native_dir))))
@@ -1482,7 +1497,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   }
 
  /*
-  * Recursively get the size of files under directory matching 'file'.
+  * Recursively get the size of files under directory matching `file`.
   * The ETP-server (key == HKEY_EVERYTHING_ETP) can not reliably report size
   * of directories.
   */
@@ -1528,7 +1543,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   buf_printf (&fmt_buf_time_size, "~3%s~0%s%s: ",
               note ? note : filler, get_time_str(mtime), size);
 
-  /* The remote 'file' from EveryThing is not something Windows knows
+  /* The remote `file` from EveryThing is not something Windows knows
    * about. Hence no point in trying to get the DomainName + AccountName
    * for it.
    */
@@ -1543,9 +1558,9 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
       int i, max = smartlist_len (opt.owners);
 
       /* Show only the file/directory if it matches (or not matches) one of the
-       * owners in 'opt.owners'.
-       * With 'opt.owners == "*"', match all.
-       * With 'opt.owners == "!*"', match none.
+       * owners in `opt.owners`.
+       * With `opt.owners == "*"`, match all.
+       * With `opt.owners == "!*"`, match none.
        *
        * E.g. with:
        *   envtool --man --owner=Admin*  pkcs7*
@@ -1591,7 +1606,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
     FREE (account_name);
   }
 
-  /* slashify2() will remove excessive '/' or '\\' anywhere in the name.
+  /* `slashify2()` will remove excessive `/` or `\\` anywhere in the name.
    * Add a trailing slash to directories.
    */
   buf_printf (&fmt_buf_file_info, "%s%c", file, is_dir ? DIR_SEP: '\0');
@@ -1753,7 +1768,7 @@ static char *fix_filespec (char **sub_dir)
   }
 
  /**
-  * Since FindFirstFile() doesn't work with POSIX ranges, replace
+  * Since `FindFirstFile()` doesn't work with POSIX ranges, replace
   * the range part in `fspec` with a `*`. This could leave a
   * `**` in `fspec`, but that doesn't hurt.
   *
@@ -2165,8 +2180,8 @@ static BOOL dir_is_empty (const char *dir)
   return (num_entries == 0);
 }
 
-/*
- * Try to match 'str' against the global regular expression in 'opt.file_spec'.
+/**
+ * Try to match `str` against the global regular expression in `opt.file_spec`.
  */
 static BOOL regex_match (const char *str)
 {
@@ -2185,9 +2200,9 @@ static BOOL regex_match (const char *str)
   return (FALSE);
 }
 
-/*
- * Process directory specified by 'path' and report any matches
- * to the global 'opt.file_spec'.
+/**
+ * Process directory specified by `path` and report any matches
+ * to the global `opt.file_spec`.
  */
 int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
                  BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key,
@@ -2198,10 +2213,10 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   char            fqfn  [_MAX_PATH];  /* Fully qualified file-name */
   int             found = 0;
 
-  /* We need to set these only once; 'opt.file_spec' is constant throughout the program.
+  /* We need to set these only once; `opt.file_spec` is constant throughout the program.
    */
   static char *fspec  = NULL;
-  static char *subdir = NULL;  /* Looking for a 'opt.file_spec' with a sub-dir part in it. */
+  static char *subdir = NULL;  /* Looking for a `opt.file_spec` with a sub-dir part in it. */
 
   if (num_dup > 0)
   {
@@ -2293,7 +2308,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
 
     if (match == FNM_NOMATCH && strchr(opt.file_spec,'~'))
     {
-      /* The case where 'opt.file_spec' is a SFN, fnmatch() doesn't work.
+      /* The case where `opt.file_spec` is a SFN, `fnmatch()` doesn't work.
        * What to do?
        */
     }
@@ -2302,8 +2317,8 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
 
     if (match == FNM_NOMATCH)
     {
-      /* The case where 'base' is a dotless file, fnmatch() doesn't work.
-       * I.e. if 'opt.file_spec' == "ratio.*" and base == "ratio", we qualify
+      /* The case where `base` is a dotless file, `fnmatch()` doesn't work.
+       * I.e. if `opt.file_spec` == "ratio.*" and `base` == "ratio", we qualify
        *      this as a match.
        */
       if (!is_dir && !opt.dir_mode && !opt.man_mode &&
@@ -2383,8 +2398,8 @@ static void check_sys_dirs (void)
 #endif
 }
 
-/*
- * Figure out if 'file' can have a shadow in '%WinDir%\sysnative'.
+/**
+ * Figure out if `file` can have a shadow in `%WinDir%\sysnative`.
  * Makes no sense on Win64.
  */
 static const char *get_sysnative_file (const char *file, struct stat *st)
@@ -2405,17 +2420,20 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
 }
 
 /**
- * \todo If the result returns a file on a remote disk (X:) and the
- *       remote computer is down, EveryThing will return the
- *       the entry in it's database. But then the stat() below
- *       will fail after a long SMB timeout (SessTimeOut, default 60 sec).
+ * \todo
+ * \parblock
+ *   If the result returns a file on a remote disk (X:) and the
+ *   remote computer is down, EveryThing will return the
+ *   the entry in it's database. But then the stat() below <br>
+ *   will fail after a long SMB timeout (SessTimeOut, default 60 sec).
  *
- *       Try to detect this if 'file[0:1]' is 'X:' prior to calling
- *       'stat()'. Use:
- *         GetFileAttributes(file) and test if GetLastError()
- *         returns ERROR_BAD_NETPATH.  ??
+ *   Try to detect this if `file[0:1]` is `X:` prior to calling
+ *   `stat()`. Use:
+ *     `GetFileAttributes(file)` and test if `GetLastError()`
+ *     returns `ERROR_BAD_NETPATH` ??
  *
- *  Or simply exclude the remote disk `X:` in the query. E.g.:
+ *  Or simply exclude the remote disk `X:` in the query.
+ *  \eg
  *   ```
  *    C:\> envtool --evry foxitre*.exe
  *   ```
@@ -2433,6 +2451,8 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  *   ^^
  *   \endcode
  *  where to get this state?
+ *
+ * \endparblock
  */
 static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL *is_shadow)
 {
@@ -2444,7 +2464,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
   memset (&st, '\0', sizeof(st));
   *is_shadow = FALSE;
 
-  /* Do not use the slower 'safe_stat()' unless needed.
+  /* Do not use the slower `safe_stat()` unless needed.
    * See below.
    */
   attr = GetFileAttributes (file);
@@ -2482,7 +2502,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
                       is_dir, FALSE, HKEY_EVERYTHING);
 }
 
-/*
+/**
  * Check if EveryThing database is loaded and not busy indexing itself.
  */
 static BOOL evry_IsDBLoaded (HWND wnd)
@@ -2499,6 +2519,9 @@ static BOOL evry_IsDBLoaded (HWND wnd)
   return (loaded && !busy);
 }
 
+/**
+ * The handler for option `--evry`. Search the EveryThing database.
+ */
 static int do_check_evry (void)
 {
   DWORD  i, err, num, request_flags, version = 0;
@@ -2535,8 +2558,8 @@ static int do_check_evry (void)
      query = opt.file_spec;
   else
   {
-    /* EveryThing seems not to support '\\'. Must split the 'opt.file_spec'
-     * into a 'dir' and 'base' part.
+    /* EveryThing seems not to support `\\`. Must split the `opt.file_spec`
+     * into a `dir` and `base` part.
      */
     if (strpbrk(opt.file_spec, "/\\"))
     {
@@ -2544,7 +2567,7 @@ static int do_check_evry (void)
       base = basename (opt.file_spec);
     }
 
-    /* With option '-D' / '--dir', match only folders.
+    /* With option `-D/--dir`, match only folders.
      */
     if (opt.dir_mode && !opt.use_regex)
     {
@@ -2561,8 +2584,8 @@ static int do_check_evry (void)
       }
       else if (dir)
       {
-        /* If user didn't use the '-r/--regex' option, we must convert
-         * 'opt.file_spec into' a RegExp compatible format.
+        /* If user didn't use the `-r/--regex` option, we must convert
+         * `opt.file_spec` into a RegExp compatible format.
          * E.g. "ez_*.py" -> "^ez_.*\.py$"
          */
         len = snprintf (query_buf, sizeof(query_buf), "regex:%s\\\\%s", dir, base);
@@ -2636,8 +2659,8 @@ static int do_check_evry (void)
   }
 
   /* Sort results by path (ignore case).
-   * This will fail if 'request_flags' has either 'EVERYTHING_REQUEST_SIZE'
-   * or 'EVERYTHING_REQUEST_DATE_MODIFIED' since version 2 of the query protocol
+   * This will fail if `request_flags` has either `EVERYTHING_REQUEST_SIZE`
+   * or `EVERYTHING_REQUEST_DATE_MODIFIED` since version 2 of the query protocol
    * is used.
    * Ref: The comment in Everything.c; "//TODO: sort list2"
    */
@@ -2729,7 +2752,7 @@ static int do_check_evry (void)
   return (found);
 }
 
-/*
+/**
  * The main work-horse of this program.
  */
 static int do_check_env (const char *env_name, BOOL recursive)
@@ -2770,7 +2793,7 @@ static int do_check_env (const char *env_name, BOOL recursive)
   return (found);
 }
 
-/*
+/**
  * Check a single MANPAGE directory for man-page match(es).
  */
 static int check_man_dir (const char *dir, const char *env_name)
@@ -2785,11 +2808,11 @@ static int check_man_dir (const char *dir, const char *env_name)
   return process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
 }
 
-/*
- * The MANPATH checking needs to be recursive (1 level); check all
- * 'man*' and 'cat*' directories under each directory in %MANPATH.
+/**
+ * The `MANPATH` checking needs to be recursive (1 level); check all
+ * `man*` and `cat*` directories under each directory in `%MANPATH`.
  *
- * If ".\\" (or "./") is in '%MANPATH', test for existence in 'current_dir'
+ * If `".\\"` (or `"./"`) is in `%MANPATH`, test for existence in `current_dir`
  * first.
  */
 static int do_check_manpath (void)
@@ -2813,7 +2836,7 @@ static int do_check_manpath (void)
                                   };
 
   /* Do not implicit add current directory in searches.
-   * Unless '%MANPATH' contain a "./;" or a ".\;".
+   * Unless `%MANPATH` contain a "./;" or a ".\;".
    */
   save1 = opt.no_cwd;
   opt.no_cwd = 1;
@@ -2846,9 +2869,9 @@ static int do_check_manpath (void)
       continue;
     }
 
-    /* If '%MANPATH' contains a "./", check in current-dir.
-     * If the path contains multiple "./", do this only once (with a warning).
-     * Also if current-dir contains "man*" sub-directories, check them too in the
+    /* If `%MANPATH` contains a `./`, check in current-dir.
+     * If the path contains multiple `./`, do this only once (with a warning).
+     * Also if current-dir contains `man*` sub-directories, check them too in the
      * below for-loop.
      */
     if (arr->is_cwd)
@@ -2878,8 +2901,8 @@ static int do_check_manpath (void)
   return (found);
 }
 
-/*
- * Find the version and location pkg-config.exe (on PATH).
+/**
+ * Find the version and location `pkg-config.exe` (on `PATH`).
  */
 static int pkg_config_major, pkg_config_minor;
 
@@ -2914,8 +2937,8 @@ static int get_pkg_config_info (char **exe_p, struct ver_info *ver)
   return (0);
 }
 
-/*
- * Find the version and location vcpkg.exe (on PATH).
+/**
+ * Find the version and location `vcpkg.exe` (on `PATH`).
  */
 static int vcpkg_major, vcpkg_minor, vcpkg_micro;
 
@@ -2950,9 +2973,10 @@ static int get_vcpkg_info (char **exe_p, struct ver_info *ver)
   }
   return (0);
 }
-/*
- * Search and check along %PKG_CONFIG_PATH% for a
- * matching '<filespec>.pc' file.
+
+/**
+ * Search and check along `%PKG_CONFIG_PATH%` for a
+ * matching `<filespec>.pc` file.
  */
 static int do_check_pkg (void)
 {
@@ -3003,8 +3027,8 @@ static int do_check_pkg (void)
 }
 
 /**
- * Search for VCPKG packages matching the 'opt.file_spec`.
- * Also show if a package matching 'opt.file_spec` is installed.
+ * Search for VCPKG packages matching the `opt.file_spec`.
+ * Also show if a package matching `opt.file_spec` is installed.
  */
 static int do_check_vcpkg (void)
 {
@@ -3020,12 +3044,14 @@ static int do_check_vcpkg (void)
   return (0);
 }
 
-/*
- * Before checking the CMAKE_MODULE_PATH, we need to find the version and location
- * of cmake.exe (on PATH). Then assume it's built-in Module-path is relative to this.
+/**
+ * Before checking the `CMAKE_MODULE_PATH`, we need to find the version and location
+ * of `cmake.exe` (on `PATH`). Then assume it's built-in Module-path is relative to this.
  * E.g:
+ * \code
  *   cmake.exe     -> f:\MinGW32\bin\CMake\bin\cmake.exe.
  *   built-in path -> f:\MinGW32\bin\CMake\share\cmake-X.Y\Modules
+ * \endcode
  */
 static int cmake_major, cmake_minor, cmake_micro;
 
@@ -3192,12 +3218,12 @@ static void free_all_compilers (void)
 /**
  * Check if we shall ignore this compiler.
  *
- * \li if `cc->full_name` is non-NULL (i.e. found), check the ignore-list for that.
- * \li if `cc->full_name` is NULL, check the ignore-list for the `cc->short_name`.
+ * + if `cc->full_name` is non-NULL (i.e. found), check the ignore-list for that.
+ * + if `cc->full_name` is NULL, check the ignore-list for the `cc->short_name`.
  *
- * \eg{.} if the config-file contains a `"ignore = i386-mingw32-gcc.exe"`, and
- *        `"i386-mingw32-gcc.exe"` is not found, don't try to spawn it (since it
- *        will fail).
+ * \eg if the config-file contains a `"ignore = i386-mingw32-gcc.exe"`, and
+ *     `"i386-mingw32-gcc.exe"` is not found, don't try to spawn it (since it
+ *     will fail).
  *
  * \param[in] cc the the `compiler_info` to check.
  */
@@ -3420,8 +3446,8 @@ static int find_library_path_cb (char *buf, int index)
   return (i);
 }
 
-/*
- * Print a warning on last error from a gnu 'popen_runf()' callback.
+/**
+ * Print a warning on last error from a gnu `popen_runf()` callback.
  */
 static void gnu_popen_warn (const char *gcc, int rc)
 {
@@ -3437,8 +3463,9 @@ static void gnu_popen_warn (const char *gcc, int rc)
 
 /**
  * The include-directory for C++ headers is not reported in the
- * 'find_include_path_cb()' callback.
- * Insert a 'x/c++' to the list where a 'c++' subdirectory is found.
+ * `find_include_path_cb()` callback.
+ *
+ * Insert a `x/c++` to the list where a `c++` subdirectory is found.
  */
 static void gnu_add_gpp_path (void)
 {
@@ -3452,12 +3479,12 @@ static void gnu_add_gpp_path (void)
     snprintf (fqdn, sizeof(fqdn), "%s%c%s", d->dir, DIR_SEP, "c++");
     if (is_directory(fqdn))
     {
-      /* This will be added at 'dir_array[max+1]'.
+      /* This will be added at `dir_array[max+1]`.
        */
       add_to_dir_array (fqdn, 0, __LINE__);
 
 #if 0
-      /* Insert the new 'c++' directory at the 'i'-th element.
+      /* Insert the new `c++` directory at the `i`-th element.
        */
       j = smartlist_len (dir_array) - 1;
       d = smartlist_get (dir_array, j);
@@ -3487,7 +3514,7 @@ static int setup_gcc_includes (const compiler_info *cc)
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
    * Hence redirect stderr + stdout into the same pipe for us to read.
-   * Also assume that the '*gcc' is on PATH.
+   * Also assume that the `*gcc` is on PATH.
    */
   found_search_line = FALSE;
 
@@ -3512,8 +3539,8 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
 
   free_dir_array();
 
-  /* Tell '*gcc.exe' to return 32 or 64-bot or both types of libs.
-   * (assuming it supports the '-m32'/'-m64' switches.
+  /* Tell `*gcc.exe` to return 32 or 64-bot or both types of libs.
+   * (assuming it supports the `-m32/-m64` switches.
    */
   if (opt.only_32bit)
        m_cpu = "-m32";
@@ -3523,7 +3550,7 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
    * Hence redirect stderr + stdout into the same pipe for us to read.
-   * Also assume that the '*gcc' is on PATH.
+   * Also assume that the `*gcc` is on PATH.
    */
   found_search_line = FALSE;
 
@@ -3624,9 +3651,9 @@ static void add_gnu_compilers (void)
 }
 
 /**
- * Simple; only add the first "cl.exe" found on PATH.
+ * Simple; only add the first `cl.exe` found on `PATH`.
  * \todo
- *   do as with "envtool --path cl.exe" does and add all "cl.exe" found
+ *   do as with `envtool --path cl.exe` does and add all `cl.exe` found
  *   on PATH to the list.
  */
 static void add_msvc_compilers (void)
@@ -3989,7 +4016,7 @@ static int do_check_gcc_includes (void)
   int num_dirs;
   int found = check_gnu_includes (CC_GNU_GCC, &num_dirs);
 
-  if (num_dirs == 0 && !ignore_all_gcc)  /* Impossible unless we ignore all '*gcc' */
+  if (num_dirs == 0 && !ignore_all_gcc)  /* Impossible unless we ignore all `*gcc` */
      WARN ("No gcc.exe programs returned any include paths.\n");
   return (found);
 }
@@ -3999,7 +4026,7 @@ static int do_check_gpp_includes (void)
   int num_dirs;
   int found = check_gnu_includes (CC_GNU_GPP, &num_dirs);
 
-  if (num_dirs == 0 && !ignore_all_gpp)  /* Impossible unless we ignore all '*g++.exe' */
+  if (num_dirs == 0 && !ignore_all_gpp)  /* Impossible unless we ignore all `*g++.exe` */
      WARN ("No g++.exe programs returned any include paths.\n");
   return (found);
 }
@@ -4030,7 +4057,7 @@ static int do_check_gcc_library_paths (void)
     FREE (cygwin_root);
   }
 
-  if (num_dirs == 0 && !ignore_all_gcc)  /* Impossible unless we ignore all '*gcc' */
+  if (num_dirs == 0 && !ignore_all_gcc)  /* Impossible unless we ignore all `*gcc` */
      WARN ("No gcc.exe programs returned any LIBRARY_PATH paths!?.\n");
 
   return (found);
@@ -4076,7 +4103,7 @@ static int setup_clang_includes (const compiler_info *cc)
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
    * Hence redirect stderr + stdout into the same pipe for us to read.
-   * Also assume that the '*gcc' is on PATH.
+   * Also assume that the `*gcc` is on PATH.
    */
   found_search_line = FALSE;
 
@@ -4135,7 +4162,7 @@ static int setup_clang_library_path (const compiler_info *cc)
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
    * Hence redirect stderr + stdout into the same pipe for us to read.
-   * Also assume that the '*gcc' is on PATH.
+   * Also assume that the `*gcc` is on PATH.
    */
   found_search_line = FALSE;
 
@@ -4451,7 +4478,7 @@ static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
 
   DEBUGF (2, "bcc_root: %s, short_name: %s\n", bcc_root, cc->short_name);
 
-  /* Get the 'bcc*.cfg' filename:
+  /* Get the `bcc*.cfg` filename:
    * <bcc_root>\bccX.exe -> <bcc_root>\bccX.cfg
    */
   snprintf (bcc_cfg, sizeof(bcc_cfg), "%s\\bin\\%.*s.cfg",
@@ -5089,14 +5116,14 @@ static void init_all (const char **argv)
 
 /**
  * Our main entry point.
- *  \li Initialise program.
- *  \li Parse the command line.
- *  \li Evaluate given options for conflicts.
- *  \li Open and parse `"%APPDATA%\\envtool.cfg"`.
- *  \li Check if `%WINDIR%\\sysnative` and/or `%WINDIR%\\SysWOW64` exists.
- *  \li Install signal-handlers for `SIGINT` and `SIGILL`.
- *  \li Call the appropriate functions based on command-line options.
- *  \li Finally call `final_report()` to report findings.
+ *  + Initialise program.
+ *  + Parse the command line.
+ *  + Evaluate given options for conflicts.
+ *  + Open and parse `"%APPDATA%\\envtool.cfg"`.
+ *  + Check if `%WINDIR%\\sysnative` and/or `%WINDIR%\\SysWOW64` exists.
+ *  + Install signal-handlers for `SIGINT` and `SIGILL`.
+ *  + Call the appropriate functions based on command-line options.
+ *  + Finally call `final_report()` to report findings.
  */
 int MS_CDECL main (int argc, const char **argv)
 {
@@ -5357,7 +5384,7 @@ static void test_split_env (const char *env)
 #pragma GCC diagnostic ignored  "-Wstack-protector"
 
 /**
- * Test Cygwin specific env-var splitting in split_env_var().
+ * Test Cygwin specific env-var splitting in `split_env_var()`.
  */
 static void test_split_env_cygwin (const char *env)
 {
@@ -5425,7 +5452,7 @@ fail:
  */
 void test_posix_to_win_cygwin (void)
 {
-  int i, rc, raw, save;
+  int i, rc, save;
   static const char *cyg_paths[] = {
                     "/usr/bin",
                     "/usr/lib",
@@ -5448,11 +5475,9 @@ void test_posix_to_win_cygwin (void)
     rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, dir, result, sizeof(result));
     DEBUGF (2, "cygwin_conv_path(CCP_POSIX_TO_WIN_A): rc: %d, '%s'\n", rc, result);
 
-    raw = C_setraw (1);  /* In case result contains a "~". */
-
     file = slashify2 (result, result, opt.show_unix_paths ? '/' : '\\');
-    C_printf ("    %-20s -> %s\n", cyg_paths[i], file);
-    C_setraw (raw);
+    C_printf ("    %-20s -> ", cyg_paths[i])
+    print_raw (file, NULL, "\n");
   }
   C_putc ('\n');
   path_separator = ';';
@@ -5461,10 +5486,10 @@ void test_posix_to_win_cygwin (void)
 #endif  /* __CYGWIN__ */
 
 /**\struct test_table1
- * The structure used in test_searchpath().
+ * The structure used in `test_searchpath()`.
  */
 struct test_table1 {
-       const char *file;   /**< the file to test in searchpath() */
+       const char *file;   /**< the file to test in `searchpath()` */
        const char *env;    /**< the environment variable to use */
      };
 
@@ -5473,8 +5498,8 @@ static const struct test_table1 tab1[] = {
                   { "notepad.exe",       "PATH" },
 
                   /* Relative file-name test:
-                   *   'c:\Windows\system32\Resources\Themes\aero.theme' is present in Win-8.1+
-                   *   and 'c:\Windows\system32' should always be on PATH.
+                   *   `c:\Windows\system32\Resources\Themes\aero.theme` is present in Win-8.1+
+                   *   and `c:\Windows\system32` should always be on PATH.
                    */
                   { "..\\Resources\\Themes\\aero.theme", "PATH" },
 
@@ -5485,14 +5510,14 @@ static const struct test_table1 tab1[] = {
                   { "stdio.h",           "INCLUDE" },
                   { "../os.py",          "PYTHONPATH" },
 
-                  /* test if searchpath() works for Short File Names
+                  /* test if `searchpath()` works for Short File Names
                    * (%WinDir\systems32\PresentationHost.exe).
                    * SFN seems not to be available on Win-7+.
-                   * "PRESEN~~1.EXE" = "PRESEN~1.EXE" since C_printf() is used.
+                   * "PRESEN~~1.EXE" = "PRESEN~1.EXE" since `C_printf()` is used.
                    */
                   { "PRESEN~~1.EXE",      "PATH" },
 
-                  /* test if searchpath() works with "%WinDir%\sysnative" on Win-7+.
+                  /* test if `searchpath()` works with "%WinDir%\sysnative" on Win-7+.
                    */
 #if (IS_WIN64)
                   { "NDIS.SYS",          "%WinDir%\\system32\\drivers" },
@@ -5507,7 +5532,7 @@ static const struct test_table1 tab1[] = {
                 };
 
 /**
- * Tests for searchpath().
+ * Tests for `searchpath()`.
  */
 static void test_searchpath (void)
 {
@@ -5531,7 +5556,11 @@ static void test_searchpath (void)
     C_printf ("%*s -> %s, pos: %d\n", pad, "",
               found ? found : strerror(errno), searchpath_pos());
   }
-  C_putc ('\n');
+  C_printf ("\n  check_if_cwd_in_search_path(~6\"envtool.exe\"~0):   %s~0\n",
+            check_if_cwd_in_search_path("envtool.exe") ? "~2YES" : "~5NO");
+
+  C_printf ("  check_if_cwd_in_search_path(~6\".\\envtool.exe\"~0): %s~0\n\n",
+            check_if_cwd_in_search_path(".\\envtool.exe") ? "~2YES" : "~5NO");
 }
 
 struct test_table2 {
@@ -5555,7 +5584,7 @@ static const struct test_table2 tab2[] = {
                 };
 
 /**
- * Tests for fnmatch().
+ * Tests for `fnmatch()`.
  *
  * `test_table::expect` does not work with `opt.case_sensitive`.
  * I.e. `envtool --test -C`.
@@ -5585,7 +5614,7 @@ static void test_fnmatch (void)
 }
 
 /**
- * Tests for slashify().
+ * Tests for `slashify()`.
  */
 static void test_slashify (void)
 {
@@ -5621,7 +5650,7 @@ static void test_slashify (void)
 }
 
 /**
- * Tests for _fix_path().
+ * Tests for `_fix_path()`.
  * Canonize the horrendous pathnames reported from `gcc -v`.
  *
  * It doesn't matter if these paths or files exists or not. `_fix_path()`
@@ -5647,7 +5676,7 @@ static void test_fix_path (void)
     BOOL is_dir;
 
     f = files [i];
-    rc1 = _fix_path (f, buf);    /* has only '\\' slashes */
+    rc1 = _fix_path (f, buf);    /* has only `\\` slashes */
     rc2 = FILE_EXISTS (buf);
     is_dir = is_directory (rc1);
 
@@ -5722,64 +5751,63 @@ static void test_SHGetFolderPath (void)
                       ADD_VALUE (CSIDL_WINDOWS)
                     };
 
-#if 0
-#define CSIDL_INTERNET                  0x0001        // Internet Explorer (icon on desktop)
-#define CSIDL_PROGRAMS                  0x0002        // Start Menu\Programs
-#define CSIDL_CONTROLS                  0x0003        // My Computer\Control Panel
-#define CSIDL_PRINTERS                  0x0004        // My Computer\Printers
-#define CSIDL_PERSONAL                  0x0005        // My Documents
-#define CSIDL_FAVORITES                 0x0006        // <user name>\Favorites
-#define CSIDL_STARTUP                   0x0007        // Start Menu\Programs\Startup
-#define CSIDL_RECENT                    0x0008        // <user name>\Recent
-#define CSIDL_SENDTO                    0x0009        // <user name>\SendTo
-#define CSIDL_BITBUCKET                 0x000a        // <desktop>\Recycle Bin
-#define CSIDL_STARTMENU                 0x000b        // <user name>\Start Menu
-#define CSIDL_MYMUSIC                   0x000d        // "My Music" folder
-#define CSIDL_MYVIDEO                   0x000e        // "My Videos" folder
-#define CSIDL_DESKTOPDIRECTORY          0x0010        // <user name>\Desktop
-#define CSIDL_DRIVES                    0x0011        // My Computer
-#define CSIDL_NETWORK                   0x0012        // Network Neighborhood (My Network Places)
-#define CSIDL_NETHOOD                   0x0013        // <user name>\nethood
-#define CSIDL_FONTS                     0x0014        // windows\fonts
-#define CSIDL_TEMPLATES                 0x0015
-#define CSIDL_COMMON_STARTMENU          0x0016        // All Users\Start Menu
-#define CSIDL_COMMON_PROGRAMS           0X0017        // All Users\Start Menu\Programs
-#define CSIDL_COMMON_STARTUP            0x0018        // All Users\Startup
-#define CSIDL_COMMON_DESKTOPDIRECTORY   0x0019        // All Users\Desktop
-#define CSIDL_APPDATA                   0x001a        // <user name>\Application Data
-#define CSIDL_PRINTHOOD                 0x001b        // <user name>\PrintHood
-#define CSIDL_LOCAL_APPDATA             0x001c        // <user name>\Local Settings\Applicaiton Data (non roaming)
-#define CSIDL_ALTSTARTUP                0x001d        // non localized startup
-#define CSIDL_COMMON_ALTSTARTUP         0x001e        // non localized common startup
-#define CSIDL_COMMON_FAVORITES          0x001f
-#define CSIDL_INTERNET_CACHE            0x0020
-#define CSIDL_COOKIES                   0x0021
-#define CSIDL_HISTORY                   0x0022
-#define CSIDL_COMMON_APPDATA            0x0023        // All Users\Application Data
-#define CSIDL_WINDOWS                   0x0024        // GetWindowsDirectory()
-#define CSIDL_SYSTEM                    0x0025        // GetSystemDirectory()
-#define CSIDL_PROGRAM_FILES             0x0026        // C:\Program Files
-#define CSIDL_MYPICTURES                0x0027        // C:\Program Files\My Pictures
-#define CSIDL_PROFILE                   0x0028        // USERPROFILE
-#define CSIDL_SYSTEMX86                 0x0029        // x86 system directory on RISC
-#define CSIDL_PROGRAM_FILESX86          0x002a        // x86 C:\Program Files on RISC
-#define CSIDL_PROGRAM_FILES_COMMON      0x002b        // C:\Program Files\Common
-#define CSIDL_PROGRAM_FILES_COMMONX86   0x002c        // x86 Program Files\Common on RISC
-#define CSIDL_COMMON_TEMPLATES          0x002d        // All Users\Templates
-#define CSIDL_COMMON_DOCUMENTS          0x002e        // All Users\Documents
-#define CSIDL_COMMON_ADMINTOOLS         0x002f        // All Users\Start Menu\Programs\Administrative Tools
-#define CSIDL_ADMINTOOLS                0x0030        // <user name>\Start Menu\Programs\Administrative Tools
-#define CSIDL_CONNECTIONS               0x0031        // Network and Dial-up Connections
-#define CSIDL_COMMON_MUSIC              0x0035        // All Users\My Music
-#define CSIDL_COMMON_PICTURES           0x0036        // All Users\My Pictures
-#define CSIDL_COMMON_VIDEO              0x0037        // All Users\My Video
-#define CSIDL_RESOURCES                 0x0038        // Resource Direcotry
-#define CSIDL_RESOURCES_LOCALIZED       0x0039        // Localized Resource Direcotry
-#define CSIDL_COMMON_OEM_LINKS          0x003a        // Links to All Users OEM specific apps
-#define CSIDL_CDBURN_AREA               0x003b        // USERPROFILE\Local Settings\Application Data\Microsoft\CD Burning
-#define CSIDL_COMPUTERSNEARME           0x003d        // Computers Near Me (computered from Workgroup membership)
-
-#endif
+  #if 0  /* The official values of the above */
+    #define CSIDL_INTERNET                  0x0001        /* Internet Explorer (icon on desktop) */
+    #define CSIDL_PROGRAMS                  0x0002        /* Start Menu\Programs */
+    #define CSIDL_CONTROLS                  0x0003        /* My Computer\Control Panel */
+    #define CSIDL_PRINTERS                  0x0004        /* My Computer\Printers */
+    #define CSIDL_PERSONAL                  0x0005        /* My Documents */
+    #define CSIDL_FAVORITES                 0x0006        /* <user name>\Favorites */
+    #define CSIDL_STARTUP                   0x0007        /* Start Menu\Programs\Startup */
+    #define CSIDL_RECENT                    0x0008        /* <user name>\Recent */
+    #define CSIDL_SENDTO                    0x0009        /* <user name>\SendTo */
+    #define CSIDL_BITBUCKET                 0x000a        /* <desktop>\Recycle Bin */
+    #define CSIDL_STARTMENU                 0x000b        /* <user name>\Start Menu */
+    #define CSIDL_MYMUSIC                   0x000d        /* "My Music" folder */
+    #define CSIDL_MYVIDEO                   0x000e        /* "My Videos" folder */
+    #define CSIDL_DESKTOPDIRECTORY          0x0010        /* <user name>\Desktop */
+    #define CSIDL_DRIVES                    0x0011        /* My Computer */
+    #define CSIDL_NETWORK                   0x0012        /* Network Neighborhood (My Network Places) */
+    #define CSIDL_NETHOOD                   0x0013        /* <user name>\nethood */
+    #define CSIDL_FONTS                     0x0014        /* windows\fonts */
+    #define CSIDL_TEMPLATES                 0x0015
+    #define CSIDL_COMMON_STARTMENU          0x0016        /* All Users\Start Menu */
+    #define CSIDL_COMMON_PROGRAMS           0X0017        /* All Users\Start Menu\Programs */
+    #define CSIDL_COMMON_STARTUP            0x0018        /* All Users\Startup */
+    #define CSIDL_COMMON_DESKTOPDIRECTORY   0x0019        /* All Users\Desktop */
+    #define CSIDL_APPDATA                   0x001a        /* <user name>\Application Data */
+    #define CSIDL_PRINTHOOD                 0x001b        /* <user name>\PrintHood */
+    #define CSIDL_LOCAL_APPDATA             0x001c        /* <user name>\Local Settings\Applicaiton Data (non roaming) */
+    #define CSIDL_ALTSTARTUP                0x001d        /* non localized startup */
+    #define CSIDL_COMMON_ALTSTARTUP         0x001e        /* non localized common startup */
+    #define CSIDL_COMMON_FAVORITES          0x001f
+    #define CSIDL_INTERNET_CACHE            0x0020
+    #define CSIDL_COOKIES                   0x0021
+    #define CSIDL_HISTORY                   0x0022
+    #define CSIDL_COMMON_APPDATA            0x0023        /* All Users\Application Data */
+    #define CSIDL_WINDOWS                   0x0024        /* GetWindowsDirectory() */
+    #define CSIDL_SYSTEM                    0x0025        /* GetSystemDirectory() */
+    #define CSIDL_PROGRAM_FILES             0x0026        /* C:\Program Files */
+    #define CSIDL_MYPICTURES                0x0027        /* C:\Program Files\My Pictures */
+    #define CSIDL_PROFILE                   0x0028        /* USERPROFILE */
+    #define CSIDL_SYSTEMX86                 0x0029        /* x86 system directory on RISC */
+    #define CSIDL_PROGRAM_FILESX86          0x002a        /* x86 C:\Program Files on RISC */
+    #define CSIDL_PROGRAM_FILES_COMMON      0x002b        /* C:\Program Files\Common */
+    #define CSIDL_PROGRAM_FILES_COMMONX86   0x002c        /* x86 Program Files\Common on RISC */
+    #define CSIDL_COMMON_TEMPLATES          0x002d        /* All Users\Templates */
+    #define CSIDL_COMMON_DOCUMENTS          0x002e        /* All Users\Documents */
+    #define CSIDL_COMMON_ADMINTOOLS         0x002f        /* All Users\Start Menu\Programs\Administrative Tools */
+    #define CSIDL_ADMINTOOLS                0x0030        /* <user name>\Start Menu\Programs\Administrative Tools */
+    #define CSIDL_CONNECTIONS               0x0031        /* Network and Dial-up Connections */
+    #define CSIDL_COMMON_MUSIC              0x0035        /* All Users\My Music */
+    #define CSIDL_COMMON_PICTURES           0x0036        /* All Users\My Pictures */
+    #define CSIDL_COMMON_VIDEO              0x0037        /* All Users\My Video */
+    #define CSIDL_RESOURCES                 0x0038        /* Resource Direcotry */
+    #define CSIDL_RESOURCES_LOCALIZED       0x0039        /* Localized Resource Direcotry */
+    #define CSIDL_COMMON_OEM_LINKS          0x003a        /* Links to All Users OEM specific apps */
+    #define CSIDL_CDBURN_AREA               0x003b        /* USERPROFILE\Local Settings\Application Data\Microsoft\CD Burning */
+    #define CSIDL_COMPUTERSNEARME           0x003d        /* Computers Near Me (computered from Workgroup membership) */
+  #endif
 
   int i;
 
@@ -5803,11 +5831,12 @@ static void test_SHGetFolderPath (void)
   C_putc ('\n');
 }
 
-/*
+/**
  * Test Windows' Reparse Points (Junctions and directory symlinks).
  *
- * Also make a test similar to the 'dir /AL' command (Attribute Reparse Points):
- *  cmd.exe /c dir \ /s /AL
+ * Also make a test similar to the `dir /AL` command (Attribute Reparse Points):
+ *
+ * `cmd.exe /c dir \ /s /AL`
  */
 static void test_ReparsePoints (void)
 {
@@ -5848,8 +5877,8 @@ static void test_ReparsePoints (void)
   C_putc ('\n');
 }
 
-/*
- * Test the parsing of '%APPDATA%/.netrc' and '%APPDATA%/.authinfo'.
+/**
+ * Test the parsing of `%APPDATA%/.netrc` and `%APPDATA%/.authinfo`.
  */
 static void test_auth (void)
 {
@@ -5878,10 +5907,11 @@ static void test_auth (void)
   else C_puts ("~3okay.~0\n");
 }
 
-/*
+/**
  * Test PE-file WinTrust crypto signature verification.
- * Optionally calling 'get_file_owner()' for each file if
- * option "--owner" was used on command-line.
+ *
+ * Optionally calling `get_file_owner()` for each file if
+ * option `--owner` was used on command-line.
  */
 static void test_PE_wintrust (void)
 {
@@ -6013,10 +6043,11 @@ static void test_libssp (void)
 #endif /* (_FORTIFY_SOURCE > 0) */
 }
 
-/*
- * This should run when user-name is "APPVYR-WIN\appveyor".
- * Check if it finds 'cmake.exe' on it's %PATH% which should contain
- * "c:\Program Files (x86)\CMake\bin".
+/**
+ * This should run when user-name is `APPVYR-WIN\appveyor`.
+ *
+ * Check if it finds `cmake.exe` on it's `%PATH%` which should contain
+ * `c:\Program Files (x86)\CMake\bin`.
  */
 static void test_AppVeyor (void)
 {
@@ -6034,7 +6065,7 @@ static void test_AppVeyor (void)
   }
 }
 
-/*
+/**
  * A simple test for ETP searches
  */
 static void test_ETP_host (void)
@@ -6054,7 +6085,7 @@ static void test_ETP_host (void)
   }
 }
 
-/*
+/**
  * A simple test for Python functions
  */
 static int test_python_funcs (void)
@@ -6098,7 +6129,7 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
  * Expand and check a single env-var for missing directories
  * and trailing/leading white space.
  *
- * \eg{.}
+ * \eg
  * ```
  *   set LIB=c:\foo1\lib ;c:\foo2\lib;  ^
  *           c:\foo3\lib;
@@ -6212,8 +6243,11 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
 }
 
 /**
- * Do a simple check of an environment varable from <br>
+ * Do a check on an environment varable from: <br>
  * `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`.
+ *
+ * \param[in] list     a `smartlist_t` of the environment value components.
+ * \param[in] env_name The name of the environment variable. E.g. `PATH`.
  */
 static void check_env_val_reg (const smartlist_t *list, const char *env_name)
 {
@@ -6256,19 +6290,19 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
     if (!arr->exist)
     {
       C_printf ("%*c~5Missing dir~0:", indent, ' ');
-      print_raw (fbuf, " ~3\"", "\"~0\n");
+      print_raw (fbuf, " ~3", "~0\n");
       errors++;
     }
     else if (arr->num_dup)
     {
       C_printf ("%*c~5Duplicated~0:", indent, ' ');
-      print_raw (fbuf, " ~3\"", "\"~0\n");
+      print_raw (fbuf, " ~3", "~0\n");
       errors++;
     }
     else if (!arr->is_cwd && dir_is_empty(fbuf))
     {
       C_printf ("%*c~5Empty dir~0:", indent, ' ');
-      print_raw (fbuf, " ~3\"", "\"~0\n");
+      print_raw (fbuf, " ~3", "~0\n");
       errors++;
     }
   }
@@ -6295,7 +6329,7 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
  */
 static void check_app_paths (HKEY key)
 {
-  int i, errors, max, raw, indent = sizeof("Checking");
+  int i, errors, max, indent = sizeof("Checking");
 
   C_printf ("Checking ~3%s\\%s~0:\n", reg_top_key_name(key), REG_APP_PATH);
 
@@ -6317,26 +6351,24 @@ static void check_app_paths (HKEY key)
       char *fname;
 
       C_printf ("   [%2d]: ~6", i);
-      raw = C_setraw (1);     /* In case 'fqfn' contains a "~". */
 
       snprintf (fbuf2, sizeof(fbuf2), "%s\\%s", arr->path, arr->fname);
       fname = fbuf2;
 
       if (get_actual_filename(&fname, FALSE))
       {
-        C_printf ("%s", fname);
+        print_raw (fname, NULL, NULL);
         FREE (fname);
       }
       else
-        C_printf ("%s", fname);
+        print_raw (fname, NULL, NULL);
 
-      C_setraw (raw);
       C_puts ("~0\n");
     }
 
     if (!is_directory(fbuf) && !cfg_ignore_lookup("[Registry]",fbuf))
     {
-      C_printf ("%*c~5Missing dir~0: ~3%s~0\n", indent, ' ', fbuf);
+      C_printf ("%*c~5Missing dir~0: ~3%s\"~0\n", indent, ' ', fbuf);
       errors++;
       continue;
     }
@@ -6431,8 +6463,8 @@ static int do_check (void)
   check_env_val_reg (split_env_var(NULL, sys_env_inc), "INCLUDE");
   check_env_val_reg (split_env_var(NULL, sys_env_lib), "LIB");
 
-  /**\todo
-   *
+  /**
+   * \todo
    * Iterate over these environment sources:
    * ```
    *   _environ[]
@@ -6469,22 +6501,12 @@ int test_str_shorten (void)
 }
 #endif
 
-/*
- * The handler for option "-t" / "--test".
+/**
+ * The handler for option `-t / --test`.
  */
 static int do_tests (void)
 {
   int save;
-
-#if 0
-  {
-    opt.debug = 1;
-    str_endswith ("foo-bar-fuz", "-fuz");
-    str_endswith ("c:\\Program Filer (x86)\\Python\\include", "\\include");
-    str_endswith ("c:\\Program Filer (x86)\\Python\\lib", "\\include");
-    return (0);
-  }
-#endif
 
   if (opt.do_evry && opt.evry_host)
   {

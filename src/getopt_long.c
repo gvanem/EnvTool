@@ -66,22 +66,23 @@
 #define PRINT_ERROR ((opterr) && (*options != ':'))
 
 /**
- * \def FLAGS_PERMUTE   permute non-options to the end of argv
- * \def FLAGS_ALLARGS   treat non-options as args to option "-1"
- * \def FLAGS_LONGONLY  operate as getopt_long_only()
+ * \def FLAGS_PERMUTE   permute non-options to the end of `argv`.
+ * \def FLAGS_ALLARGS   treat non-options as args to option "-1".
+ * \def FLAGS_LONGONLY  operate as `getopt_long_only()`.
  */
 #define FLAG_PERMUTE    0x01
 #define FLAG_ALLARGS    0x02
 #define FLAG_LONGONLY   0x04
 
-/** Return values
+/**
+ * Return values
  *
  * \def BADCH
- *  If getopt() encounters an option character that was not in optstring, then `?` is returned.
+ *   If `getopt()` encounters an option character that was not in `optstring`, then `?` is returned.
  *
  * \def BADARG
- *  If getopt() encounters an option with a missing argument, then the return value depends on
- *  the first character in `optstring`: if it is `:`, then `:` is returned; otherwise `?` is returned.
+ *   If `getopt()` encounters an option with a missing argument, then the return value depends on
+ *   the first character in `optstring`: if it is `:`, then `:` is returned; otherwise `?` is returned.
  */
 #define BADCH       (int)'?'
 #define BADARG      ((*options == ':') ? (int)':' : (int)'?')
@@ -113,13 +114,15 @@ static unsigned debugf_line;
           }                                            \
         } while (0)
 
+/** Local globals.
+ */
 static const char *place = EMSG; /**< option letter processing */
 
 static int nonopt_start = -1;    /**< first non option argument (for permute) */
 static int nonopt_end   = -1;    /**< first option after non options (for permute) */
 static int dash_prefix  = NO_PREFIX;
 
-/* Error messages
+/** Error messages.
  */
 static const char recargchar[]   = "option requires an argument -- %c";
 static const char illoptchar[]   = "illegal option -- %c"; /* From P1003.2 */
@@ -148,8 +151,8 @@ static int gcd (int a, int b)
 }
 
 /**
- * Exchange the block from nonopt_start to nonopt_end with the block
- * from nonopt_end to opt_end (keeping the same order of arguments
+ * Exchange the block from `nonopt_start` to `nonopt_end` with the block
+ * from `nonopt_end` to `opt_end` (keeping the same order of arguments
  * in each block).
  */
 static void permute_args (int panonopt_start, int panonopt_end,
@@ -183,7 +186,7 @@ static void permute_args (int panonopt_start, int panonopt_end,
 }
 
 /**
- * Print a warning to stderr.
+ * Print a warning to `stderr`.
  */
 static void warnx (const char *fmt, ...)
 {
@@ -317,7 +320,7 @@ static int parse_long_options (char *const *nargv, const char *options,
 
     if ((long_options[match].has_arg == required_argument) && !optarg)
     {
-      /* Missing argument; leading ':' indicates no error should be generated.
+      /* Missing argument; leading `:` indicates no error should be generated.
        */
       if (PRINT_ERROR)
          warnx (recargstring, current_dash, current_argv);
@@ -370,7 +373,7 @@ static int getopt_internal (int nargc, char * const *nargv,
      return (-1);
 
   /* Disable GNU extensions if POSIXLY_CORRECT is set or options
-   * string begins with a '+'.
+   * string begins with a `+`.
    */
   posixly_correct = (getenv("POSIXLY_CORRECT") != NULL);
 
@@ -383,8 +386,8 @@ static int getopt_internal (int nargc, char * const *nargv,
   if (*options == '+' || *options == '-')
      options++;
 
-  /* Some GNU programs (like cvs) set optind to 0 instead of
-   * using optreset.  Work around this braindamage.
+  /* Some GNU programs (like cvs) set `optind` to 0 instead of
+   * using `optreset`.  Work around this brain-damage.
    */
   if (optind == 0)
      optind = 1;
@@ -406,7 +409,7 @@ start:
       }
       else if (nonopt_start != -1)
       {
-        /* If we skipped non-options, set optind to the first of them.
+        /* If we skipped non-options, set `optind` to the first of them.
          */
         optind = nonopt_start;
       }
@@ -473,9 +476,9 @@ start:
   }
 
   /* Check long options if:
-   *  1) we were passed some
-   *  2) the arg is not just "-"
-   *  3) either the arg starts with -- we are getopt_long_only()
+   *  1) we were passed some.
+   *  2) the arg is not just "-".
+   *  3) either the arg starts with -- we are `getopt_long_only()`.
    */
   if (long_options && place != nargv[optind] && (*place == '-' || (flags & FLAG_LONGONLY)))
   {
@@ -500,9 +503,9 @@ start:
   if ((optchar = (int)*place++) == (int)':' || (optchar == (int)'-' && *place != '\0') ||
       (oli = strchr(options, optchar)) == NULL)
   {
-    /* If the user specified "-" and '-' isn't listed in
+    /* If the user specified `-` and `-` isn't listed in
      * options, return -1 (non-option) as per POSIX.
-     * Otherwise, it is an unknown option character (or ':').
+     * Otherwise, it is an unknown option character (or `:`).
      */
     if (optchar == (int)'-' && *place == '\0')
        return (-1);
@@ -520,9 +523,9 @@ start:
   {
     /* -W long-option
      */
-    if (*place)         /* no space */
-       ;                /* NOTHING */
-    else if (++optind >= nargc)    /* no arg */
+    if (*place)                   /* no space */
+       ;                          /* NOTHING */
+    else if (++optind >= nargc)   /* no arg */
     {
       place = EMSG;
       if (PRINT_ERROR)
@@ -539,15 +542,15 @@ start:
     return (optchar);
   }
 
-  if (*++oli != ':')     /* doesn't take argument */
+  if (*++oli != ':')           /* doesn't take argument */
   {
     if (!*place)
         ++optind;
   }
-  else                  /* takes (optional) argument */
+  else                         /* takes (optional) argument */
   {
     optarg = NULL;
-    if (*place)         /* no white space */
+    if (*place)                /* no white space */
         optarg = (char*) place;
     else if (oli[1] != ':')    /* arg not optional */
     {
@@ -576,7 +579,7 @@ start:
  */
 int getopt (int nargc, char * const *nargv, const char *options)
 {
-  /** We don't pass FLAG_PERMUTE to getopt_internal() since
+  /** We don't pass `FLAG_PERMUTE` to `getopt_internal()` since
    *  the BSD getopt(3) (unlike GNU) has never done this.
    */
   return getopt_internal (nargc, nargv, options, NULL, NULL, 0);
@@ -687,16 +690,16 @@ static void dump_argv (const struct command_line *c, unsigned line)
 
 /**
  * Parse the short and long options from these sources in order:
- *  \li the `c->env_opt` variable.
- *  \li the command-line given by `GetCommandLineW()`.
- *  \li any elements found in a `"@response_file"`.
+ *  + the `c->env_opt` variable.
+ *  + the command-line given by `GetCommandLineW()`.
+ *  + any elements found in a `"@response_file"`.
  *
  * Match elements in all sources against the `c->short_opt` and `c->long_opt`
  * and call corresponding `c->set_short_opt` and `c->set_long_opt` functions.
  *
  * A command-line like this should be legal:
  *  \code
- *    program --arg1 @response-file-1 --arg2  @response-file-2 --arg3
+ *    program --arg1 @response-file-1 --arg2 @response-file-2 --arg3
  *  \endcode
  *
  * \param[in] c  The structure defining how the command-line is to be set and parsed.
@@ -788,8 +791,8 @@ void getopt_parse (struct command_line *c)
     aarg [wlen] = '\0';
 
     /* The cmd-line contains a response file. If it doesn't exist, simply add
-     * '@file' to 'c->argv[i]'.
-     * We do not support a '@file' inside a response-file; it will be passed
+     * `@file` to `c->argv[i]`.
+     * We do not support a `@file` inside a response-file; it will be passed
      * on as-is.
      */
     if (!c->file_wbuf && aarg[0] == '@' && FILE_EXISTS(aarg+1))
@@ -800,9 +803,9 @@ void getopt_parse (struct command_line *c)
 
       DEBUGF ("file: %s, wfileV: 0x%p, wfileC: %d\n", file, wfileV, wfileC);
 
-      if (wfileV && wfileC > 0)  /* Insert wfileV[] on next loop(s)  */
+      if (wfileV && wfileC > 0)  /* Insert `wfileV[]` on next loop(s)  */
       {
-        c->argc--;    /* since '@file' argument shall be dropped from 'c->argv[]' */
+        c->argc--;    /* since `@file` argument shall be dropped from `c->argv[]` */
         c->argv = REALLOC (c->argv, sizeof(char*) * (c->argc + wfileC + 1));
         c->argv [c->argc + wfileC] = NULL;
         FREE (aarg);
@@ -847,10 +850,10 @@ void getopt_parse (struct command_line *c)
    *
    * We do not want that since whatever comes after `"foo*"` should be
    * pointed to by `c->argv[c->argc0]`.
-   * See `py_execfile()` below for an example.
+   * See `py_execfile()` for an example.
    */
 
-  opt.debug = 0;  /* let getopt_long() set this again */
+  opt.debug = 0;  /* let `getopt_long()` set this again */
 
   while (1)
   {

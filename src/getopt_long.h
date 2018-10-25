@@ -38,7 +38,7 @@
  */
 #define no_argument        0   /**< \def no_argument */
 #define required_argument  1   /**< \def required_argument */
-#define optional_argument  2   /**< \def required_argument */
+#define optional_argument  2   /**< \def optional_argument */
 
 /**\struct option
  */
