@@ -47,31 +47,31 @@ goto :EOF
   cd %APPDATA%\src
 
   echo Testing version output
-  envtool -VVV
+  .\envtool -VVV
 
   echo.
   echo Testing test output (show owner in test_PE_wintrust())
-  envtool --test --owner
+  .\envtool --test --owner
 
   echo.
   echo Testing Python2 test output
-  envtool --test --python=py2
+  .\envtool --test --python=py2
 
   echo.
   echo Testing Python3 test output
-  envtool --test --python=py3
+  .\envtool --test --python=py3
 
   echo.
   echo Testing VCPKG output
-  envtool --vcpkg azure-u*
+  .\envtool --vcpkg azure-u*
 
   echo.
   echo Testing ETP-searches (should fail)
-  envtool -d --test --evry:ftp.github.com:21
+  .\envtool -d --test --evry:ftp.github.com:21
 
   echo.
   echo Testing check output
-  envtool --check
+  .\envtool --check
 
   :: echo Testing win_glob
   :: win_glob -fr "c:\Program Files (x86)\CMake"
