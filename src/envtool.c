@@ -670,6 +670,7 @@ static int show_help (void)
           "      To perform raw searches, append a modifier like:\n"
           "        envtool ~6--evry~0 ~3*.exe~0 rc:today                     - find today's changes of all ~3*.exe~0 files.\n"
           "        envtool ~6--evry~0 ~3*.mp3~0 title:Hello                  - find all ~3*.mp3~0 files with a title starting with Hello.\n"
+          "        envtool ~6--evry~0 ~3f*~0 empty:                          - find all empty directories matching ~3f*~0.\n"
           "        envtool ~6--evry~0 ~3Makefile.am~0 content:pod2man        - find all ~3Makefile.am~0 containing ~3pod2man~0.\n"
           "        envtool ~6--evry~0 ~3M*.mp3~0 artist:Madonna \"year:<2002\" - find all Madonna ~3M*.mp3~0 titles issued prior to 2002.\n"
           "\n"
@@ -1419,27 +1420,27 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
 
   if (key == HKEY_CURRENT_USER)
   {
-    found_in_hkey_current_user = 1;
+    found_in_hkey_current_user++;
     note = " (1)  ";
   }
   else if (key == HKEY_LOCAL_MACHINE)
   {
-    found_in_hkey_local_machine = 1;
+    found_in_hkey_local_machine++;
     note = " (2)  ";
   }
   else if (key == HKEY_CURRENT_USER_ENV)
   {
-    found_in_hkey_current_user_env = 1;
+    found_in_hkey_current_user_env++;
     note = " (3)  ";
   }
   else if (key == HKEY_LOCAL_MACHINE_SESSION_MAN)
   {
-    found_in_hkey_local_machine_sess_man = 1;
+    found_in_hkey_local_machine_sess_man++;
     note = " (4)  ";
   }
   else if (key == HKEY_PYTHON_EGG)
   {
-    found_in_python_egg = 1;
+    found_in_python_egg++;
     possible_PE_file = FALSE;
     note = " (5)  ";
   }
@@ -1473,7 +1474,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   }
   else
   {
-    found_in_default_env = 1;
+    found_in_default_env++;
   }
 
   if (is_dir)
@@ -1670,6 +1671,13 @@ static void final_report (int found)
     /* We should only warn if a match finds file(s) from different sources.
      */
     do_warn = opt.quiet ? FALSE : TRUE;
+
+    /* No need to warn if the total HKEY counts == found_in_default_env.
+     * Since it would probably mean the file(s) were found in the same location.
+     */
+    if ((found_in_hkey_current_user + found_in_hkey_current_user_env +
+         found_in_hkey_local_machine + found_in_hkey_local_machine_sess_man) == found_in_default_env)
+     do_warn = FALSE;
   }
 
   if (do_warn || found_in_python_egg)
@@ -2325,6 +2333,9 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
           !str_equal_n(base,opt.file_spec,strlen(base)))
          match = FNM_MATCH;
     }
+
+    if (is_dir && opt.do_lib)  /* A directory is never a match for a library */
+       match = FNM_NOMATCH;
 
     DEBUGF (1, "Testing \"%s\". is_dir: %d, is_junction: %d, %s\n",
             file, is_dir, is_junction, fnmatch_res(match));
