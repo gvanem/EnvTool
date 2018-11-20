@@ -355,7 +355,7 @@ const char *os_update_build_rev (void)
 
 struct prog_options opt;
 
-int main (void)
+int MS_CDECL main (void)
 {
   DWORD major, minor, platform;
   BOOL  rc;
