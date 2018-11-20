@@ -1683,20 +1683,20 @@ static void final_report (int found)
   if (do_warn || found_in_python_egg)
      C_putc ('\n');
 
-  if (found_in_hkey_current_user)
+  if (found && found_in_hkey_current_user)
      C_printf ("~3 (1): found in \"HKEY_CURRENT_USER\\%s\".~0\n", REG_APP_PATH);
 
-  if (found_in_hkey_local_machine)
+  if (found && found_in_hkey_local_machine)
      C_printf ("~3 (2): found in \"HKEY_LOCAL_MACHINE\\%s\".~0\n", REG_APP_PATH);
 
-  if (found_in_hkey_current_user_env)
+  if (found && found_in_hkey_current_user_env)
      C_printf ("~3 (3): found in \"HKEY_CURRENT_USER\\%s\".~0\n", "Environment");
 
-  if (found_in_hkey_local_machine_sess_man)
+  if (found && found_in_hkey_local_machine_sess_man)
      C_printf ("~3 (4): found in \"HKEY_LOCAL_MACHINE\\%s\".~0\n",
                "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment");
 
-  if (found_in_python_egg)
+  if (found && found_in_python_egg)
      C_puts ("~3 (5): found in a .zip/.egg in 'sys.path[]'.~0\n");
 
    if (found_everything_db_dirty)
