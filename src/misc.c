@@ -261,8 +261,10 @@ void init_misc (void)
  */
 void exit_misc (void)
 {
+#if 0    /* Avoid some mysterious crash inside 'userenv.dll'. Doesn't happen every time. */
   if (userenv_hnd)
      FreeLibrary (userenv_hnd);
+#endif
   if (kernel32_hnd)
      FreeLibrary (kernel32_hnd);
   kernel32_hnd = userenv_hnd = NULL;
