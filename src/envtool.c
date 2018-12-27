@@ -2535,7 +2535,7 @@ static BOOL evry_IsDBLoaded (HWND wnd)
  */
 static int do_check_evry (void)
 {
-  DWORD  i, err, num, request_flags, version = 0;
+  DWORD  i, err, num, request_flags, response_flags, version = 0;
   char   query_buf [_MAX_PATH+8];
   char  *query = query_buf;
   char  *dir   = NULL;
@@ -2625,13 +2625,18 @@ static int do_check_evry (void)
    * needs v. 1.4.1 or later.
    * Ref:
    *   http://www.voidtools.com/support/everything/sdk/everything_setrequestflags/
+   *
+   * But do not request the file size/time since that could be "old information" when
+   *  files are frequently updated.
    */
+#if 0
   if (version >= 0x010401)
   {
     request_flags |= EVERYTHING_REQUEST_SIZE | EVERYTHING_REQUEST_DATE_MODIFIED;
     Everything_SetRequestFlags (request_flags);
     request_flags = Everything_GetRequestFlags();  /* should be the same as set above */
   }
+#endif
 
   Everything_SetSearchA (query);
   Everything_QueryA (TRUE);
@@ -2710,12 +2715,15 @@ static int do_check_evry (void)
       continue;
     }
 
+    response_flags = 0;
+
     if (request_flags & EVERYTHING_REQUEST_DATE_MODIFIED)
     {
       FILETIME ft;
 
       if (Everything_GetResultDateModified(i,&ft))
       {
+        response_flags |= EVERYTHING_REQUEST_DATE_MODIFIED;
         mtime = FILETIME_to_time_t (&ft);
         DEBUGF (2, "%3lu: Everything_GetResultDateModified(), mtime: %.24s\n",
                 i, mtime ? ctime(&mtime) : "<N/A>");
@@ -2733,6 +2741,7 @@ static int do_check_evry (void)
 
       if (Everything_GetResultSize(i,&fs))
       {
+        response_flags |= EVERYTHING_REQUEST_SIZE;
         fsize = ((UINT64)fs.u.HighPart << 32) + fs.u.LowPart;
         DEBUGF (2, "%3lu: Everything_GetResultSize(), %s\n",
                 i, get_file_size_str(fsize));
@@ -2742,6 +2751,19 @@ static int do_check_evry (void)
         err = Everything_GetLastError();
         DEBUGF (2, "%3lu: Everything_GetResultSize(), err: %s\n",
                 i, evry_strerror(err));
+      }
+    }
+
+    if ((response_flags & EVERYTHING_REQUEST_DATE_MODIFIED) == 0 ||
+        (response_flags & EVERYTHING_REQUEST_SIZE) == 0 )
+    {
+      struct stat st;
+
+      if (safe_stat(file, &st, NULL) == 0)
+      {
+        mtime = st.st_mtime;
+        if (opt.show_size)
+           fsize = st.st_size;
       }
     }
 
