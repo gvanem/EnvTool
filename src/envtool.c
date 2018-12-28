@@ -1672,12 +1672,12 @@ static void final_report (int found)
      */
     do_warn = opt.quiet ? FALSE : TRUE;
 
-    /* No need to warn if the total HKEY counts == found_in_default_env.
+    /* No need to warn if the total HKEY counts <= found_in_default_env.
      * Since it would probably mean the file(s) were found in the same location.
      */
     if ((found_in_hkey_current_user + found_in_hkey_current_user_env +
-         found_in_hkey_local_machine + found_in_hkey_local_machine_sess_man) == found_in_default_env)
-     do_warn = FALSE;
+         found_in_hkey_local_machine + found_in_hkey_local_machine_sess_man) <= found_in_default_env)
+      do_warn = FALSE;
   }
 
   if (do_warn || found_in_python_egg)
