@@ -538,7 +538,8 @@ static void print_home_path (const struct python_info *pi, int indent)
      C_printf (" %s\n", dir_name(pi->home_a, TRUE));
   else if (pi->home_w)
      C_printf (" %" WIDESTR_FMT "\n", pi->home_w);
-
+  else
+     C_puts (" ~5<none>~0\n");
 }
 
 static void print_user_site_path (const struct python_info *pi, int indent)
