@@ -3545,7 +3545,8 @@ UINT64 filelength (int fd)
 /**
  * Functions for getting at Reparse Points (Junctions and Symlinks).
  * \see
- *   http://blog.kalmbach-software.de/2008/02/
+ *   + http://blog.kalmbach-software.de/2008/02/
+ *   + https://github.com/0xbadfca11/junk/blob/master/read_reparse_tag.cpp
  */
 struct REPARSE_DATA_BUFFER {
        ULONG  ReparseTag;
