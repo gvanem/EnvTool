@@ -605,6 +605,12 @@ int getopt_long_only (int nargc, char * const *nargv, const char *options,
                           FLAG_PERMUTE|FLAG_LONGONLY);
 }
 
+/*
+ * If needs 'getopt()' or 'getopt_long()' only,
+ * do not compile the below code.
+ */
+#if !defined(NO_GETOPT_PARSE)
+
 /**
  * Dummy function used when caller did not set his own `set_option` functions
  * to set either a short or long option.
@@ -893,3 +899,5 @@ void getopt_free (struct command_line *c)
   FREE (c->argv);
   FREE (c->file_wbuf);
 }
+#endif /* NO_GETOPT_PARSE */
+
