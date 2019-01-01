@@ -895,6 +895,17 @@ static enum od2x_sorting get_sorting (const char *s_type)
   return (sort);
 }
 
+static BOOL WINAPI halt (DWORD event)
+{
+  if (event != CTRL_C_EVENT)
+     return (FALSE);
+
+  C_puts ("Got ^C.\n");
+  C_exit();
+  _exit (1);
+  return (TRUE);
+}
+
 /*
  */
 int MS_CDECL main (int argc, char **argv)
@@ -950,6 +961,8 @@ int MS_CDECL main (int argc, char **argv)
 
   if (opts.sort == OD2X_SORT_EXACT)
      WARN ("Option '-c' with no sort option '-s xx' is meaningless.\n");
+
+  SetConsoleCtrlHandler (halt, TRUE);
 
   make_dir_spec (*argv, dir_buf, spec_buf);
   opts.pattern = spec_buf;
