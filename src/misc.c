@@ -1747,9 +1747,10 @@ BOOL is_directory (const char *file)
  */
 int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 {
-  DWORD err = 0;
-  DWORD attr;
-  BOOL  is_dir;
+  DWORD  err = 0;
+  DWORD  attr;
+  BOOL   is_dir;
+  HANDLE hnd = INVALID_HANDLE_VALUE;
 
   if (win_err)
      *win_err = 0;
@@ -1762,9 +1763,9 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
   if (!strncmp(file,"/cygdrive/",10) || !strncmp(file,"/usr",4) ||
       !strncmp(file,"/etc",4) || !strncmp(file,"~/",2))
      attr = 0;   /* Pass on to Cygwin's stat() */
-#else
-  attr = GetFileAttributes (file);
+  else
 #endif
+  attr = GetFileAttributes (file);
 
   memset (st, '\0', sizeof(*st));
   st->st_size = (off_t)-1;     /* signal if stat() fails */
@@ -1776,34 +1777,35 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
   if (attr != INVALID_FILE_ATTRIBUTES && !(attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
      return stat (file, st);
 
-  err = GetLastError();
+  /**
+   * Need to check for Hidden/System files here.
+   */
+  if (attr != INVALID_FILE_ATTRIBUTES && (attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
+  {
+    FILETIME      ftime;  /* Get 'lpLastWriteTime' */
+    LARGE_INTEGER fsize;
+
+    hnd = CreateFile (file, GENERIC_READ, FILE_SHARE_READ,
+                      NULL, OPEN_EXISTING, attr, NULL);
+
+    if (hnd != INVALID_HANDLE_VALUE)
+    {
+      if (GetFileTime(hnd,NULL,NULL,&ftime))
+         st->st_mtime = FILETIME_to_time_t (&ftime);
+      if (GetFileSizeEx(hnd,&fsize))
+         st->st_size = ((UINT64)fsize.HighPart << 32) + fsize.LowPart;
+      CloseHandle (hnd);
+    }
+    else
+      err = GetLastError();
+  }
+
+  DEBUGF (1, "file: %s, attr: 0x%08lX, hnd: %p, err: %lu, mtime: %" U64_FMT " fsize: %" U64_FMT "\n",
+          file, (unsigned long)attr, hnd, err, (UINT64)st->st_mtime, (UINT64)st->st_size);
+
   if (win_err)
      *win_err = err;
-  DEBUGF (1, "file: %s, attr: 0x%08lX, err: %s\n",
-          file, (unsigned long)attr, win_strerror(err));
-
-#if 0
-  /** \todo
-   * Need to check for Hidden/System files here
-   */
-  if (attr == FILE_ATTRIBUTE_HIDDEN || attr == FILE_ATTRIBUTE_SYSTEM)
-  {
-    time_t   mtime = 0;
-    FILETIME ft;
-    HANDLE   hnd = CreateFile (file, GENERIC_READ, FILE_SHARE_READ,
-                               NULL, OPEN_EXISTING, attr, NULL);
-
-    if (hnd != INVALID_HANDLE_VALUE && GetFileTime(hnd,&ft,NULL,NULL))
-         mtime = FILETIME_to_time_t (&ft);
-    else err = GetLastError();
-    DEBUGF (1, "hnd: %p, mtime: %" U64_FMT "\n", hnd, (UINT64)mtime);
-    if (win_err)
-       *win_err = err;
-  }
-#endif
-
-  errno = ENOENT;
-  return (-1);
+  return (err ? -1 : 0);
 }
 
 /**
