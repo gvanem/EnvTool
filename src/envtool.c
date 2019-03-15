@@ -608,7 +608,7 @@ static int show_help (void)
           "    ~6--pkg~0          check and search in ~3%PKG_CONFIG_PATH%~0.\n"
           "    ~6--python~0[~3=X~0]   check and search in ~3%PYTHONPATH%~0 and ~3sys.path[]~0. ~2[3]~0\n"
           "    ~6--vcpkg~0        check and search for ~3VCPKG~0 packages.             ~2[4]~0\n"
-          "    ~6--check~0        check for missing directories in ~6all~0 supported environment variables\n"
+          "    ~6--check~0        check for missing directories in ~4all~0 supported environment variables\n"
           "                   and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n");
 
   C_puts ("  ~6[options]~0\n"
@@ -633,11 +633,11 @@ static int show_help (void)
   print_help_bits (64);
 
   C_puts ("    ~6--signed~0       check for ~4all~0 digital signature with the ~6--pe~0 option.\n"
-          "    ~6--signed=0~0     report only PE-files files that are ~4unsigned~0.\n"
-          "    ~6--signed=1~0     report only PE-files files that are ~4signed~0.\n"
+          "    ~6--signed=0~0     report only ~4PE~0-files files that are ~6unsigned~0.\n"
+          "    ~6--signed=1~0     report only ~4PE~0-files files that are ~6signed~0.\n"
           "    ~6--no-cwd~0       don't add current directory to search-lists.\n"
           "    ~6-c~0             be case-sensitive.\n"
-          "    ~6-d~0, ~6--debug~0    set debug level (~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
+          "    ~6-d~0, ~6--debug~0    set debug level (level 2, ~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
           "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n");
 
   C_printf ("    ~6-r~0, ~6--regex~0    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
@@ -649,7 +649,7 @@ static int show_help (void)
   C_puts ("    ~6-q~0, ~6--quiet~0    disable warnings.\n"
           "    ~6-t~0             do some internal tests. Use ~6--owner~0, ~6--py~0 or ~6--evry~0 for extra tests.\n"
           "    ~6-T~0             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
-          "    ~6-u~0             show all paths on Unix format: \"~2c:/ProgramFiles/~0\".\n"
+          "    ~6-u~0             show all paths on Unix format: \"~3c:/ProgramFiles/~0\".\n"
           "    ~6-v~0             increase verbose level (currently only used in ~6--pe~0).\n"
           "    ~6-V~0             show program version information. ~6-VV~0 and ~6-VVV~0  prints more info.\n"
           "    ~6-h~0, ~6-?~0         show this help.\n\n");
@@ -679,7 +679,7 @@ static int show_help (void)
 
           "\n"
           "  ~2[2]~0 Unless ~6--no-prefix~0 is used, the ~3%C_INCLUDE_PATH%~0, ~3%CPLUS_INCLUDE_PATH%~0 and\n"
-          "      ~3%LIBRARY_PATH%~0 are also found by spawning " PFX_GCC " and " PFX_GPP ".\n"
+          "      ~3%LIBRARY_PATH%~0 are also used by spawning " PFX_GCC " and " PFX_GPP ".\n"
           "      These ~4<prefix>~0-es are built-in: ");
 
   for (i = 1; i < DIM(gnu_prefixes); i++)
@@ -696,7 +696,7 @@ static int show_help (void)
     unsigned v = py_variant_value (*py, NULL);
 
     if (v == ALL_PYTHONS)
-         C_printf ("      ~6%-6s~0 use all of the above Python programs.\n", *py);
+         C_printf ("      ~6%-6s~0 use all of the below Python programs (when found).\n", *py);
     else C_printf ("      ~6%-6s~0 use a %s program only.\n", *py, py_variant_name(v));
   }
   C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n");
@@ -706,7 +706,7 @@ static int show_help (void)
 
   C_puts ("\n"
           "Notes:\n"
-          "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"[a-f]*.txt\".\n"
+          "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"~6[a-f]*.txt~0\".\n"
           "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0/~6--dir~0 is used, only\n"
           "              matching directories are reported.\n"
           "  Quote argument if it contains a shell-character [~6^&%~0]."
@@ -2419,14 +2419,20 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
   if (!str_equal_n(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
   {
     static char shadow [_MAX_PATH];
+    struct stat st2;
 
     snprintf (shadow, sizeof(shadow), "%s\\%s", sys_native_dir, file+strlen(sys_dir)+1);
-    safe_stat (shadow, st, NULL);
+#if 0
+    if (safe_stat(file, &st2, NULL) == 0)
+       *st = st2;
+#else
+    ARGSUSED (st2);
+#endif
     return (shadow);
   }
-#else
-  ARGSUSED (st);
 #endif
+
+  ARGSUSED (st);
   return (file);
 }
 
