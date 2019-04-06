@@ -2696,7 +2696,7 @@ static int do_check_evry (void)
 
   for (i = 0; i < num; i++)
   {
-    static char prev [_MAX_PATH];
+    char   prev [_MAX_PATH];
     char   file [_MAX_PATH];
     UINT64 fsize = (__int64)-1;  /* since a 0-byte file is valid */
     time_t mtime = 0;
