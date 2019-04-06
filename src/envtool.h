@@ -503,6 +503,7 @@ extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);
 extern const char *compiler_version (void);
 extern const char *get_user_name (void);
 extern BOOL        is_user_admin (void);
+extern BOOL        is_user_admin2 (void);
 extern int         is_cygwin_tty (int fd);
 
 extern const char *qword_str (UINT64 val);

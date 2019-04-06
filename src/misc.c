@@ -2161,6 +2161,41 @@ BOOL is_user_admin (void)
   return (rc);
 }
 
+/*
+ * The same taken from NPcap and modified.
+ */
+BOOL is_user_admin2 (void)
+{
+  BOOL  is_admin = FALSE;
+  DWORD rc = ERROR_SUCCESS;
+  SID  *admin_group = NULL;
+
+  /* Allocate and initialize a SID of the administrators group.
+   */
+  SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+
+  if (!AllocateAndInitializeSid(&NtAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID,
+                                DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0,
+                                &admin_group))
+  {
+    rc = GetLastError();
+    goto Cleanup;
+  }
+
+  /* Determine whether the SID of administrators group is enabled in
+   * the primary access token of the process.
+   */
+  if (!CheckTokenMembership(NULL, admin_group, &is_admin))
+     rc = GetLastError();
+
+Cleanup:
+  if (admin_group)
+     FreeSid (admin_group);
+
+  DEBUGF (1, "is_user_admin2(): rc: %d, %s\n", rc, is_admin? "yes" : "no");
+  return (is_admin);
+}
+
 /**
  * Return name of logged-in user.
  *
