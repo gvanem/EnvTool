@@ -1144,6 +1144,11 @@ DWORD EVERYTHINGAPI Everything_GetLastError(void)
     return ret;
 }
 
+/*
+ * Set '_Everything_LastError' to a specific value.
+ * Must useful with 'err == EVERYTHING_OK' to avoid a next Everything_XX() function
+ * to not trigger an unrelated error.
+ */
 void EVERYTHINGAPI Everything_SetLastError(DWORD err)
 {
     _Everything_Lock();
