@@ -357,6 +357,13 @@ typedef enum SignStatus {
 
 #include "sort.h"
 
+typedef struct beep_info {
+        BOOL      enable;
+        unsigned  limit;
+        unsigned  freq;
+        unsigned  msec;
+      } beep_info;
+
 struct prog_options {
        int             debug;
        int             verbose;
@@ -412,6 +419,7 @@ struct prog_options {
        void           *evry_host;     /* A smartlist_t */
        char           *file_spec;
        int             remaining_arg_pos;
+       beep_info       beep;
        command_line    cmd_line;
      };
 

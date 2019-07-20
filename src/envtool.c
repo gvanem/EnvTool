@@ -2542,6 +2542,7 @@ static BOOL evry_IsDBLoaded (HWND wnd)
 static int do_check_evry (void)
 {
   DWORD  i, err, num, request_flags, response_flags, version = 0;
+  DWORD  start_time, end_time;
   char   query_buf [_MAX_PATH+8];
   char  *query = query_buf;
   char  *dir   = NULL;
@@ -2644,8 +2645,12 @@ static int do_check_evry (void)
   }
 #endif
 
+  start_time = GetTickCount();
+
   Everything_SetSearchA (query);
   Everything_QueryA (TRUE);
+
+  end_time = GetTickCount();
 
   err = Everything_GetLastError();
   DEBUGF (1, "Everything_Query: %s\n", evry_strerror(err));
@@ -2667,6 +2672,9 @@ static int do_check_evry (void)
   num = Everything_GetNumResults();
   DEBUGF (1, "Everything_GetNumResults() num: %lu, err: %s\n",
           (u_long)num, evry_strerror(Everything_GetLastError()));
+
+  if ((unsigned)abs(end_time - start_time) >= opt.beep.limit && opt.beep.enable)
+     Beep (opt.beep.freq, opt.beep.msec);
 
   if (num == 0)
   {
@@ -5115,6 +5123,15 @@ static void init_all (const char **argv)
   tzset();
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu = C_conemu_detected();
+
+  /*
+   * Just use fixed values for now.
+   * \todo Add a parser to handle these from `"%APPDATA%\\envtool.cfg"` later.
+   */
+  opt.beep.enable = 1;
+  opt.beep.limit  = 1000;
+  opt.beep.freq   = 2000;
+  opt.beep.msec   = 20;
 
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
