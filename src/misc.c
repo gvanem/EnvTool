@@ -3230,12 +3230,19 @@ int popen_run (popen_callback callback, const char *cmd)
   int   i = 0;
   int   j = -1;
   FILE *f;
-  char *cmd2 = popen_setup (cmd);
+  char *cmd2;
 
-  *popen_last_line() = '\0';
+  if (!cmd)
+  {
+    DEBUGF (1, "Called with 'cmd == NULL'!\n");
+    goto quit;
+  }
 
+  cmd2 = popen_setup (cmd);
   if (!cmd2)
      goto quit;
+
+  *popen_last_line() = '\0';
 
   DEBUGF (3, "Trying to run '%s'\n", cmd2);
 
