@@ -3503,7 +3503,7 @@ static void gnu_popen_warn (const char *gcc, int rc)
   if (*err != '\0')
      err = strstr (err, "error: ");
 
-  WARN ("Calling %s returned %d", cygwin_fqfn[0] ? cygwin_fqfn : gcc, rc);
+  WARN ("Calling %s returned %d.\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, rc);
   if (err && !opt.quiet)
      C_printf (":\n  %s.\n", err);
 }
@@ -3557,6 +3557,12 @@ static int setup_gcc_includes (const compiler_info *cc)
   const char *gcc = cc->full_name;
   int   found;
 
+  if (!gcc)
+  {
+    DEBUGF (1, "'gcc == NULL'!\n");
+    return (0);
+  }
+
   free_dir_array();
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
@@ -3583,6 +3589,12 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
 {
   const char *m_cpu, *gcc = cc->full_name;
   int   found, duplicates;
+
+  if (!gcc)
+  {
+    DEBUGF (1, "'gcc == NULL'!\n");
+    return (0);
+  }
 
   free_dir_array();
 
@@ -4137,7 +4149,7 @@ static void clang_popen_warn (const compiler_info *cc, int rc)
   if (*err != '\0')
      err = strstr (err, "error: ");
 
-  WARN ("Calling %s returned %d", cc->full_name, rc);
+  WARN ("Calling %s returned %d.\n", cc->full_name, rc);
   if (err && !opt.quiet)
      C_printf (":\n  %s.\n", err);
 }
