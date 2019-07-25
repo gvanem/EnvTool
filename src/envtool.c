@@ -2589,14 +2589,14 @@ static int do_check_evry (void)
      */
     if (opt.dir_mode && !opt.use_regex)
     {
-      snprintf (query_buf, sizeof(query_buf), "regex:^%s$ folder:", translate_shell_pattern(opt.file_spec));
+      snprintf (query_buf, sizeof(query_buf), "regex:\"^%s$\" folder:", translate_shell_pattern(opt.file_spec));
       DEBUGF (2, "Simple directory mode: '%s'\n", query_buf);
     }
     else
     {
       if (opt.use_regex)
       {
-        len = snprintf (query_buf, sizeof(query_buf), "regex:%s", opt.file_spec);
+        len = snprintf (query_buf, sizeof(query_buf), "regex:\"%s\"", opt.file_spec);
         if (opt.dir_mode)
            snprintf (query_buf+len, sizeof(query_buf)-len, " folder:");
       }
