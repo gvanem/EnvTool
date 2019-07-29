@@ -6141,7 +6141,7 @@ static void test_AppVeyor (void)
      C_printf ("cmake.exe not on %%PATH.\n");
   else
   {
-    rc = popen_runf (NULL, "\"%s\" -version > %s" cmake, DEV_NULL);
+    rc = popen_runf (NULL, "\"%s\" -version > %s", cmake, DEV_NULL);
     C_printf ("popen_run() reported %d: %s\n", rc, rc == 0 ? cmake : "cmake not found");
   }
 }
