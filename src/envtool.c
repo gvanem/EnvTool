@@ -5654,7 +5654,7 @@ static const struct test_table2 tab2[] = {
          /* 2 */  { FNM_MATCH,   "foo/Bar*",     "foo/barney.txt", 0 },
          /* 3 */  { FNM_MATCH,   "foo/bar*",     "foo/barney.txt", FNM_FLAG_PATHNAME },
          /* 4 */  { FNM_MATCH,   "foo\\bar*",    "foo/barney.txt", FNM_FLAG_PATHNAME },
-         /* 5 */  { FNM_MATCH,   "foo\\*",       "foo\\barney",    FNM_FLAG_NOESCAPE| FNM_FLAG_PATHNAME },
+         /* 5 */  { FNM_MATCH,   "foo\\*",       "foo\\barney",    FNM_FLAG_NOESCAPE|FNM_FLAG_PATHNAME },
          /* 6 */  { FNM_MATCH,   "foo\\*",       "foo\\barney",    0 },
          /* 7 */  { FNM_NOMATCH, "mil[!k]-bar*", "milk-bar",       0 },
          /* 8 */  { FNM_MATCH,   "mil[!k]-bar*", "milf-bar",       0 },
@@ -5665,7 +5665,7 @@ static const struct test_table2 tab2[] = {
  * Tests for `fnmatch()`.
  *
  * `test_table::expect` does not work with `opt.case_sensitive`.
- * I.e. `envtool --test -C`.
+ * I.e. `envtool --test -c`.
  */
 static void test_fnmatch (void)
 {
@@ -5956,12 +5956,26 @@ static void test_ReparsePoints (void)
 }
 
 /**
- * Test the parsing of `%APPDATA%/.netrc` and `%APPDATA%/.authinfo`.
+ * Helper function for 'test_auth()'.
+ */
+static void print_parsing (const char *file, int rc)
+{
+  char path [_MAX_PATH];
+  const char *appdata = getenv ("APPDATA");
+
+  snprintf (path, sizeof(path), "%s\\%s", appdata, file);
+  C_printf ("  Parsing ~6%-50s~0", slashify(path, opt.show_unix_paths ? '/' : '\\'));
+  if (rc == 0)
+       C_puts ("~5failed.~0\n");
+  else C_puts ("~3okay.~0\n");
+}
+
+/**
+ * Test the parsing of `%APPDATA%/.netrc`, `%APPDATA%/.authinfo` and `%APPDATA%/envtool.cfg`.
  */
 static void test_auth (void)
 {
-  const char *appdata = getenv ("APPDATA");
-  int   rc1, rc2, rc3;
+  int rc1, rc2, rc3;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
@@ -5969,20 +5983,9 @@ static void test_auth (void)
   rc2 = authinfo_lookup (NULL, NULL, NULL, NULL);
   rc3 = envtool_cfg_lookup (NULL, NULL, NULL, NULL);
 
-  C_printf ("  Parsing ~6%s\\.netrc~0      ", appdata);
-  if (rc1 == 0)
-       C_puts ("~5failed.~0\n");
-  else C_puts ("~3okay.~0\n");
-
-  C_printf ("  Parsing ~6%s\\.authinfo~0   ", appdata);
-  if (rc2 == 0)
-       C_puts ("~5failed.~0\n");
-  else C_puts ("~3okay.~0\n");
-
-  C_printf ("  Parsing ~6%s\\envtool.cfg~0 ", appdata);
-  if (rc3 == 0)
-       C_puts ("~5failed.~0\n");
-  else C_puts ("~3okay.~0\n");
+  print_parsing (".netrc", rc1);
+  print_parsing (".authinfo", rc2);
+  print_parsing ("envtool.cfg", rc3);
 }
 
 /**
