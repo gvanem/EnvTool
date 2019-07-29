@@ -1969,6 +1969,8 @@ static void build_reg_array_app_path (HKEY top_key)
   }
   if (key)
      RegCloseKey (key);
+
+  sort_reg_array();
 }
 
 /**
@@ -2143,14 +2145,12 @@ static int do_check_registry (void)
   report_header = reg;
   DEBUGF (1, "%s\n", reg);
   build_reg_array_app_path (HKEY_CURRENT_USER);
-  sort_reg_array();
   found += report_registry (REG_APP_PATH);
 
   snprintf (reg, sizeof(reg), "Matches in HKLM\\%s:\n", REG_APP_PATH);
   report_header = reg;
   DEBUGF (1, "%s\n", reg);
   build_reg_array_app_path (HKEY_LOCAL_MACHINE);
-  sort_reg_array();
   found += report_registry (REG_APP_PATH);
 
   report_header = NULL;
@@ -2332,8 +2332,6 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
       if (!is_dir && !opt.dir_mode && !opt.man_mode)
       {
         if (!str_equal_n(base,opt.file_spec,strlen(base)))
-           match = FNM_MATCH;
-        else if (safe_stat(file, &st, NULL) == 0)
            match = FNM_MATCH;
       }
     }
@@ -5010,6 +5008,14 @@ static int eval_options (void)
   if (!opt.PE_check && (opt.only_32bit || opt.only_64bit))
      opt.PE_check = TRUE;
 
+  if (opt.do_check &&
+      (opt.do_path  || opt.do_lib || opt.do_include || opt.do_evry || opt.do_man ||
+       opt.do_cmake || opt.do_pkg || opt.do_vcpkg   || opt.do_python))
+  {
+    WARN ("Option '--check' should be used alone.\n");
+    return (0);
+  }
+
   C_no_ansi = opt.no_ansi;
 
   /* Use ANSI-sequences under ConEmu or if "%COLOUR_TRACE >= 2".
@@ -6406,8 +6412,6 @@ static void check_app_paths (HKEY key)
   C_printf ("Checking ~3%s\\%s~0:\n", reg_top_key_name(key), REG_APP_PATH);
 
   build_reg_array_app_path (key);
-  sort_reg_array();
-
   max  = smartlist_len (reg_array);
   for (i = errors = 0; i < max; i++)
   {
