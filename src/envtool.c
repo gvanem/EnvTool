@@ -2329,9 +2329,13 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
        * I.e. if `opt.file_spec` == "ratio.*" and `base` == "ratio", we qualify
        *      this as a match.
        */
-      if (!is_dir && !opt.dir_mode && !opt.man_mode &&
-          !str_equal_n(base,opt.file_spec,strlen(base)))
-         match = FNM_MATCH;
+      if (!is_dir && !opt.dir_mode && !opt.man_mode)
+      {
+        if (!str_equal_n(base,opt.file_spec,strlen(base)))
+           match = FNM_MATCH;
+        else if (safe_stat(file, &st, NULL) == 0)
+           match = FNM_MATCH;
+      }
     }
 
     if (is_dir && opt.do_lib)  /* A directory is never a match for a library */
