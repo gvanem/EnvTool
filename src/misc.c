@@ -4024,7 +4024,8 @@ int is_cygwin_tty (int fd)
   for (i = 0; i < 16; i++)
   {
     c = *s++;
-    if (!((c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || (c >= '0' && c <= '9')))
+
+    if (!wcschr(L"abcdefABCDEF0123456789", c))
        goto no_tty;
   }
 
