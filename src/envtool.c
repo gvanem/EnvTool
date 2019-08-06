@@ -1619,8 +1619,10 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
     const char *link = get_man_link (file);
     const char *ext  = get_file_ext (file);
 
+#if 0
     if (!link && !isdigit((int)*ext))
        link = get_gzip_link (file);
+#endif
     if (link)
        buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(file), " ", link);
   }
