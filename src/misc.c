@@ -2176,7 +2176,7 @@ BOOL is_user_admin2 (void)
 
   if (!AllocateAndInitializeSid(&NtAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID,
                                 DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0,
-                                &admin_group))
+                                (PSID*)&admin_group))
   {
     rc = GetLastError();
     goto Cleanup;
@@ -2192,7 +2192,7 @@ Cleanup:
   if (admin_group)
      FreeSid (admin_group);
 
-  DEBUGF (1, "is_user_admin2(): rc: %d, %s\n", rc, is_admin? "yes" : "no");
+  DEBUGF (1, "is_user_admin2(): rc: %lu, %s\n", rc, is_admin? "yes" : "no");
   return (is_admin);
 }
 
@@ -3230,7 +3230,7 @@ int popen_run (popen_callback callback, const char *cmd)
   int   i = 0;
   int   j = -1;
   FILE *f;
-  char *cmd2;
+  char *cmd2 = NULL;
 
   if (!cmd)
   {
