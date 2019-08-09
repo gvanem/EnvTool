@@ -517,8 +517,8 @@ static void print_sys_path (const struct python_info *pi, int indent)
 
   for (i = 0; i < max; i++)
   {
-    struct python_path *pp  = smartlist_get (pi->sys_path, i);
-    const char         *dir = dir_name (pp->dir, pp->is_dir);
+    const struct python_path *pp  = smartlist_get (pi->sys_path, i);
+    const char               *dir = dir_name (pp->dir, pp->is_dir);
 
     if (indent)
     {
@@ -1504,20 +1504,40 @@ static int process_zip (struct python_info *py, const char *zfile)
 }
 
 /**
+ * Check if the `dir` is already in the `sys.path[]` smartlist.
+ */
+static BOOL py_path_check_dups (smartlist_t *sl, const char *dir)
+{
+  int  i, max = smartlist_len (sl);
+
+  for (i = 0; i < max-1; i++)
+  {
+    const struct python_path *pp = smartlist_get (sl, i);
+
+    if (!stricmp(pp->dir,dir))
+       return (TRUE);
+  }
+  return (FALSE);
+}
+
+/**
  * Allocate a `python_path` node and add it to `pi->sys_path[]` smartlist.
  */
 static void add_sys_path (const char *dir)
 {
-  struct python_path *pp = CALLOC (1, sizeof(*pp));
-  struct stat st;
+  if (!py_path_check_dups(g_py->sys_path, dir))
+  {
+    struct python_path *pp = CALLOC (1, sizeof(*pp));
+    struct stat st;
 
-  _strlcpy (pp->dir, dir, sizeof(pp->dir));
-  memset (&st, '\0', sizeof(st));
-  pp->exist  = (stat(dir, &st) == 0);
-  pp->is_dir = pp->exist && _S_ISDIR(st.st_mode);
-  pp->is_zip = pp->exist && _S_ISREG(st.st_mode) && check_if_zip (dir);
+    _strlcpy (pp->dir, dir, sizeof(pp->dir));
+    memset (&st, '\0', sizeof(st));
+    pp->exist  = (stat(dir, &st) == 0);
+    pp->is_dir = pp->exist && _S_ISDIR(st.st_mode);
+    pp->is_zip = pp->exist && _S_ISREG(st.st_mode) && check_if_zip (dir);
 
-  smartlist_add (g_py->sys_path, pp);
+    smartlist_add (g_py->sys_path, pp);
+  }
 }
 
 /**
