@@ -1002,7 +1002,7 @@ static BOOL state_parse_url (struct state_CTX *ctx)
  * If `CYGWIN_POSIX` is defined, simply create the TCP socket. <br>
  * Otherwise initialise Winsock and create the TCP socket.
  *
- * Enter state_parse_url() state.
+ * Enter `state_parse_url()` state.
  *
  * \param[in] ctx  the context we work with.
  */
