@@ -1505,12 +1505,13 @@ static int process_zip (struct python_info *py, const char *zfile)
 
 /**
  * Check if the `dir` is already in the `sys.path[]` smartlist.
+ * Compare the `dir` with no case-sensitivity.
  */
-static BOOL py_path_check_dups (smartlist_t *sl, const char *dir)
+static BOOL py_path_found (smartlist_t *sl, const char *dir)
 {
   int  i, max = smartlist_len (sl);
 
-  for (i = 0; i < max-1; i++)
+  for (i = 0; i < max; i++)
   {
     const struct python_path *pp = smartlist_get (sl, i);
 
@@ -1525,7 +1526,7 @@ static BOOL py_path_check_dups (smartlist_t *sl, const char *dir)
  */
 static void add_sys_path (const char *dir)
 {
-  if (!py_path_check_dups(g_py->sys_path, dir))
+  if (!py_path_found(g_py->sys_path, dir))
   {
     struct python_path *pp = CALLOC (1, sizeof(*pp));
     struct stat st;
@@ -1535,7 +1536,6 @@ static void add_sys_path (const char *dir)
     pp->exist  = (stat(dir, &st) == 0);
     pp->is_dir = pp->exist && _S_ISDIR(st.st_mode);
     pp->is_zip = pp->exist && _S_ISREG(st.st_mode) && check_if_zip (dir);
-
     smartlist_add (g_py->sys_path, pp);
   }
 }
