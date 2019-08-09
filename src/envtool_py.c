@@ -1590,7 +1590,7 @@ static int build_sys_path (char *str, int index)
  */
 #define PY_PRINT_SYS_PATH_DIRECT()  "import sys\n" \
                                     "for (i,p) in enumerate(sys.path):\n" \
-                                    "  print('%s\\n' % p)\n"
+                                    "  print('%s' % p)\n"
 
 /**
  * \def PY_PRINT_SYS_PATH2_CMD
