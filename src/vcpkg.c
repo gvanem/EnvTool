@@ -925,7 +925,7 @@ static void print_verbose_pkg_details (const char *file, int indent)
 {
   smartlist_t *parts = smartlist_read_file (file, info_file_parse);
   int          i, j, max = parts ? smartlist_len (parts) : 0;
-  int          slash = (opt.show_unix_paths) ? '/' : '\\';
+  char         slash = (opt.show_unix_paths) ? '/' : '\\';
 
   for (i = j = 0; i < max; i++)
   {

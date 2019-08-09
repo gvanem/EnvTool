@@ -2677,7 +2677,7 @@ static int do_check_evry (void)
   DEBUGF (1, "Everything_GetNumResults() num: %lu, err: %s\n",
           (u_long)num, evry_strerror(Everything_GetLastError()));
 
-  if ((unsigned)abs(end_time - start_time) >= opt.beep.limit && opt.beep.enable)
+  if (abs(end_time - start_time) >= opt.beep.limit && opt.beep.enable)
      Beep (opt.beep.freq, opt.beep.msec);
 
   if (num == 0)

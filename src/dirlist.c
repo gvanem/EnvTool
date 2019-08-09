@@ -113,7 +113,7 @@ static BOOL safe_to_access (const char *file)
  * If `arg` is simply a valid directory-name, use that as `dir` and
  * set `arg == "*"`.
  */
-static int ATTR_UNUSED() make_dir_spec (const char *arg, char *dir, char *spec)
+int make_dir_spec (const char *arg, char *dir, char *spec)
 {
   struct stat st;
   const char *p, *_arg;
