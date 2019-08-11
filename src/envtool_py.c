@@ -154,7 +154,7 @@ struct python_info {
 static struct python_info all_py_programs[] = {
 
     /* PyPy */
-    { "pypy.exe",   PYPY_PYTHON,   FALSE, { "~\\libpypy-c.dll", NULL }, },
+    { "pypy.exe",   PYPY_PYTHON,   FALSE, { "%s\\libpypy-c.dll", NULL }, },
 
     /* CPython */
 #if defined(__CYGWIN__) && 0
