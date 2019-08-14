@@ -610,7 +610,7 @@ extern void   get_PE_version_info_free (void);
 
 /** \struct FMT_buf
  *  The type used in formatting a string-buffer on the stack.<br>
- *  Used by buf_printf() and buf_puts().
+ *  Used by buf_printf(), buf_puts() and buf_putc().
  */
 typedef struct FMT_buf {
         char   *buffer;        /**< the 'alloca() buffer */
@@ -651,7 +651,9 @@ typedef struct FMT_buf {
 _CRTCHK(printf,2,3)
 #endif
 int  buf_printf (FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...) ATTR_PRINTF (2,3);
+void buf_puts_long_line (FMT_buf *fmt_buf, const char *line, size_t indent);
 int  buf_puts   (FMT_buf *fmt_buf, const char *string);
+int  buf_putc   (FMT_buf *fmt_buf, int ch);
 void buf_reset  (FMT_buf *fmt_buf);
 
 /* Stuff in win_ver.c:

@@ -2801,8 +2801,11 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
   char        *end;
 
   va_start (args, format);
-  if (fmt_len > fmt_buf->buffer_size)
-     FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", (int)(2*fmt_len));
+  if (fmt_len >= fmt_buf->buffer_size)
+  {
+    int size = (int) (fmt_buf->buffer_size + 2*fmt_len);
+    FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", size);
+  }
 
   marker = (const DWORD*) fmt_buf->buffer;
   if (*marker != FMT_BUF_MARKER)
@@ -2843,8 +2846,11 @@ int buf_puts (FMT_buf *fmt_buf, const char *string)
   size_t       str_len = strlen (string);
   const DWORD *marker;
 
-  if (str_len > fmt_buf->buffer_left)
-     FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", (int)(1+str_len));
+  if (str_len >= fmt_buf->buffer_left)
+  {
+    int size = (int) (fmt_buf->buffer_size + str_len) + 1;
+    FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", size);
+  }
 
   marker = (const DWORD*) fmt_buf->buffer;
   if (*marker != FMT_BUF_MARKER)
@@ -2858,6 +2864,64 @@ int buf_puts (FMT_buf *fmt_buf, const char *string)
   fmt_buf->buffer_left -= str_len;
   fmt_buf->buffer_pos  += str_len;
   return (int)(str_len);
+}
+
+/**
+ * A `putc()` replacement to print a single character to a `fmt_buf`.
+ */
+int buf_putc (FMT_buf *fmt_buf, int ch)
+{
+  if (fmt_buf->buffer_left <= 1)
+  {
+    int size = (int) (fmt_buf->buffer_size + 2);
+    FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", size);
+  }
+  fmt_buf->buffer_left--;
+  *fmt_buf->buffer_pos++ = ch;
+  *fmt_buf->buffer_pos = '\0';
+  return (1);
+}
+
+/**
+ * Print a long line to a `fmt_buf`.
+ */
+void buf_puts_long_line (FMT_buf *fmt_buf, const char *line, size_t indent)
+{
+  size_t      width = (C_screen_width() == 0) ? UINT_MAX : C_screen_width();
+  size_t      left  = width - indent;
+  const char *c = line;
+
+  while (*c)
+  {
+    /* Break a long line only at a space.
+     * Check if room for a long string before we must break the line.
+     */
+    if (*c == ' ')
+    {
+      const char *p = strchr (c+1, ' ');
+
+      if (!p)
+         p = strchr (c+1, '\0');
+
+      if (left < 2 || (left <= (size_t)(p - c)))
+      {
+        buf_printf (fmt_buf, "\n%*c", indent, ' ');
+        left = width - indent;
+        line = ++c;
+        continue;
+      }
+      /* Drop multiple spaces.
+       */
+      if (c > line && isspace((int)c[-1]))
+      {
+        line = ++c;
+        continue;
+      }
+    }
+    buf_putc (fmt_buf, *c++);
+    left--;
+  }
+  buf_putc (fmt_buf, '\n');
 }
 
 void buf_reset (FMT_buf *fmt_buf)
