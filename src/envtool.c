@@ -701,8 +701,8 @@ static int show_help (void)
   }
   C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n");
 
-  C_printf ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 & ~6CONTROL~0 files.\n"
-            "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n");
+  C_puts ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 & ~6CONTROL~0 files.\n"
+          "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n");
 
   C_puts ("\n"
           "Notes:\n"
@@ -1499,10 +1499,13 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
 
  /*
   * Recursively get the size of files under directory matching `file`.
+  * For a Python search with 'opt.show_size' (i.e. 'envtool --py -s foo*'),
+  * report the size of the branch 'foo*' as 'opt.dir_mode' was specified.
+  *
   * The ETP-server (key == HKEY_EVERYTHING_ETP) can not reliably report size
   * of directories.
   */
-  if (opt.show_size && opt.dir_mode && show_dir_size)
+  if (opt.show_size && show_dir_size && (opt.dir_mode || key == HKEY_PYTHON_PATH))
   {
     if (is_dir)
        fsize = get_directory_size (file);
@@ -1622,7 +1625,10 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
 #if 0
     if (!link && !isdigit((int)*ext))
        link = get_gzip_link (file);
+#else
+    ARGSUSED (ext);
 #endif
+
     if (link)
        buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(file), " ", link);
   }
@@ -2647,6 +2653,8 @@ static int do_check_evry (void)
     Everything_SetRequestFlags (request_flags);
     request_flags = Everything_GetRequestFlags();  /* should be the same as set above */
   }
+#else
+  ARGSUSED (version);
 #endif
 
   start_time = GetTickCount();
