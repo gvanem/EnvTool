@@ -1188,6 +1188,22 @@ int str_equal (const char *s1, const char *s2)
   return stricmp (s1, s2);
 }
 
+/*
+ * Replace 'ch1' with 'ch2' in string 'str'.
+ */
+char *str_replace (int ch1, int ch2, char *str)
+{
+  char *s = str;
+
+  while (s && *s)
+  {
+    if (*s == ch1)
+        *s = ch2;
+    s++;
+  }
+  return (str);
+}
+
 /**
  * A `strtok_r()` function taken from libcurl:
  *
