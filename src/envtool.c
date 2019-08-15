@@ -412,11 +412,11 @@ static void show_ext_versions (void)
     unsigned num1, num2;
 
     vcpkg_get_list();
-    num1 = vcpkg_get_num_CONTROLS();
-    num2 = vcpkg_get_num_installed();
+    num1 = vcpkg_get_num_installed();
+    num2 = vcpkg_get_num_CONTROLS();
     C_printf ("%-*s -> ~6%s~0", pad_len, found[3], vcpkg_exe);
     if (num1 >= 1)
-         C_printf (" (%u CONTROL nodes. %u packages installed).\n", num1, num2);
+         C_printf (" (%u packages installed, %u packages available).\n", num1, num2);
     else C_printf (" (%s).\n", vcpkg_last_error());
   }
   else
@@ -5013,7 +5013,7 @@ static int eval_options (void)
     return (0);
   }
 
-  if (!opt.PE_check && (opt.only_32bit || opt.only_64bit))
+  if (!opt.PE_check && !opt.do_vcpkg && (opt.only_32bit || opt.only_64bit))
      opt.PE_check = TRUE;
 
   if (opt.do_check &&
