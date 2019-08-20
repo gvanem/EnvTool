@@ -2227,26 +2227,29 @@ const char *get_user_name (void)
 
   typedef BOOL (WINAPI *func_GetUserNameEx) (int format, char *user, ULONG *user_len);
   func_GetUserNameEx  p_GetUserNameEx;
-  static char         user[100];
-  ULONG               ulen;
-  HMODULE             secur32 = LoadLibrary ("secur32.dll");
+  static char         user[100] = { "?" };
+  ULONG               ulen = sizeof(user);
+  HMODULE             secur32;
 
-  strcpy (user, "?");
+  if (user[0] != '?')   /* Already done this */
+     return (user);
+
+  secur32 = LoadLibrary ("secur32.dll");
 
   /* This function isn't guaranteed to be available (and it can't hurt
    * to leave the library loaded)
    */
   if (secur32 && secur32 != INVALID_HANDLE_VALUE)
   {
-    ulen = sizeof(user);
     p_GetUserNameEx = (func_GetUserNameEx) GetProcAddress (secur32, "GetUserNameExA");
     if (p_GetUserNameEx)
-         (*p_GetUserNameEx) (NameSamCompatible, user, &ulen);
-    else GetUserName (user, &ulen);
+      (*p_GetUserNameEx) (NameSamCompatible, user, &ulen);
+    FreeLibrary (secur32);
   }
 
-  if (secur32 && secur32 != INVALID_HANDLE_VALUE)
-     FreeLibrary (secur32);
+  if (user[0] == '?')      /* No 'GetUserNameExA()' function or it failed */
+     GetUserName (user, &ulen);
+
   return (user);
 }
 
