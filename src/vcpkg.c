@@ -50,6 +50,10 @@ static smartlist_t *vcpkg_packages;
  */
 static smartlist_t *vcpkg_installed_packages;
 
+/* A list of "already found" sub-packages.
+ */
+static smartlist_t *sub_package_list;
+
 /**
  * Save nodes relative to this directory to save memory.
  */
@@ -66,6 +70,11 @@ static char last_err_str [200];
 static int sub_level = 0;
 
 /**
+ * Print details on installed packages only.
+ */
+BOOL vcpkg_only_installed = TRUE;
+
+/**
  * The platforms we support when parsing in `make_dep_platform()`.
  */
 static const struct search_list platforms[] = {
@@ -79,7 +88,7 @@ static const struct search_list platforms[] = {
                               { VCPKG_plat_x64,     "x64"     },
                             };
 
-static unsigned vcpkg_dump_control_internal (const char *spec);
+unsigned vcpkg_dump_control_internal (FMT_buf *fmt_buf, const char *spec);
 
 /**
  * regex stuff
@@ -162,8 +171,6 @@ static void regex_test (const char *str, const char *pattern)
  * Manage a list of already found packages visited in `print_sub_dependencies()`.
  * So they are not recursed twice.
  */
-static smartlist_t *sub_package_list;
-
 static BOOL sub_package_found (const char *package)
 {
   int i, max = smartlist_len (sub_package_list);
@@ -177,7 +184,7 @@ static BOOL sub_package_found (const char *package)
 /**
  * Print the package sub-dependencies for a `CONTROL` node.
  */
-static void print_sub_dependencies (const struct vcpkg_node *node, int indent)
+static void print_sub_dependencies (FMT_buf *fmt_buf, const struct vcpkg_node *node, int indent)
 {
   const struct vcpkg_depend *dep1, *dep2;
   int   i, i_max, j, j_max, found;
@@ -185,7 +192,7 @@ static void print_sub_dependencies (const struct vcpkg_node *node, int indent)
   if (!node->deps || smartlist_len(node->deps) == 0)
   {
     if (sub_level == 0)
-       C_printf ("%-*sNothing\n", indent, "");
+       buf_printf (fmt_buf, "%-*sNothing\n", indent, "");
     return;
   }
 
@@ -210,23 +217,23 @@ static void print_sub_dependencies (const struct vcpkg_node *node, int indent)
         /* Will call vcpkg_get_control() only once
          */
         ++sub_level;
-        vcpkg_dump_control_internal (dep1->package);
+        vcpkg_dump_control_internal (fmt_buf, dep1->package);
         --sub_level;
       }
     }
   }
   if (found == 0 && sub_level == 0)
-     C_puts ("None found\n");
+     buf_puts (fmt_buf, "None found\n");
 }
 
 /**
  * Print the package top-dependencies for a `CONTROL` node.
  * Return the number of depencencies at top.
  */
-static int print_top_dependencies (const struct vcpkg_node *node, int indent)
+static int print_top_dependencies (FMT_buf *fmt_buf, const struct vcpkg_node *node, int indent)
 {
   const struct vcpkg_depend *d;
-  size_t len, longest_package = 0;
+  size_t longest_package = 0;
   int    dep, max_dep;
 
   if (sub_level > 0)
@@ -236,10 +243,10 @@ static int print_top_dependencies (const struct vcpkg_node *node, int indent)
   }
   else
   {
-    C_printf ("  %-*s", indent, "dependants:");
+    buf_printf (fmt_buf, "  %-*s", indent, "dependants:");
     if (!node->deps)
     {
-      C_puts ("Nothing\n");
+      buf_puts (fmt_buf, "Nothing\n");
       return (0);
     }
   }
@@ -250,30 +257,29 @@ static int print_top_dependencies (const struct vcpkg_node *node, int indent)
    */
   for (dep = 0; dep < max_dep; dep++)
   {
-    d   = smartlist_get (node->deps, dep);
-    len = strlen (d->package);
-    if (len > longest_package)
-       longest_package = len;
+    d = smartlist_get (node->deps, dep);
+    longest_package = max (strlen(d->package), longest_package);
   }
 
   for (dep = 0; dep < max_dep; dep++)
   {
     BOOL Not;
-    int  p_val;
 
-    d     = smartlist_get (node->deps, dep);
-    p_val = vcpkg_get_dep_platform (d, &Not);
+    d = smartlist_get (node->deps, dep);
+    vcpkg_get_dep_platform (d, &Not);
 
     if (sub_level > 0)
-       C_printf ("%-*s%s;\n", indent + 2*sub_level, "", d->package);
+       buf_printf (fmt_buf, "%-*s%s;\n", indent + 2*sub_level, "", d->package);
     else
     {
       if (dep > 0)
-         C_printf ("  %-*s", indent, "");
-      C_printf ("%-*s  platform: %s%s (0x%04X)\n",
-                (int)longest_package, d->package,
-                Not ? "not " : "",
-                vcpkg_get_dep_name(d), d->platform);
+         buf_printf (fmt_buf, "%-*s", indent+2, "");
+
+      buf_printf (fmt_buf, "%-*s  platform: ", (int)longest_package, d->package);
+      if (Not)
+           buf_printf (fmt_buf, "!(%s)", vcpkg_get_dep_name(d));
+      else buf_printf (fmt_buf, "%s", vcpkg_get_dep_name(d));
+      buf_printf (fmt_buf, " (0x%04X)\n", d->platform);
     }
   }
   return (max_dep);
@@ -295,7 +301,7 @@ const char *vcpkg_get_dep_name (const struct vcpkg_depend *dep)
 }
 
 /**
- * Get the `deps->platform` and any inversion of it.
+ * Get the `deps->platform` and any inverse of it.
  */
 int vcpkg_get_dep_platform (const struct vcpkg_depend *dep, BOOL *Not)
 {
@@ -334,11 +340,12 @@ static void make_dep_platform (struct vcpkg_depend *dep, char *platform, BOOL re
   val = list_lookup_value (platform, platforms, DIM(platforms));
   if (val != UINT_MAX)
   {
-    /* Set the `deps->platform` or the inverse of it.
+    dep->platform |= (VCPKG_platform) val;
+
+    /* Not for this `deps->platform`?
      */
     if (Not)
-         dep->platform |= (VCPKG_platform_INVERSE | (VCPKG_platform)val);
-    else dep->platform |= (VCPKG_platform)val;
+       dep->platform |= VCPKG_platform_INVERSE;
   }
   else if (recurse)
   {
@@ -496,6 +503,7 @@ static void CONTROL_parse (struct vcpkg_node *node, const char *file)
     {
       p = str_ltrim (p + sizeof(CONTROL_VERSION) - 1);
       _strlcpy (node->version, p, sizeof(node->version));
+      str_replace ('~', '-', node->version);
     }
     else if (!strnicmp(p,CONTROL_FEATURE,sizeof(CONTROL_FEATURE)-1))
     {
@@ -695,12 +703,11 @@ static void nodes_debug_dump (void)
     for (j = 0; j < j_max; j++)
     {
       BOOL Not;
-      int  p_val;
 
       dep = smartlist_get (node->deps, j);
       C_printf ("%-*s  ", VCPKG_MAX_NAME, dep->package);
 
-      p_val = vcpkg_get_dep_platform (dep, &Not);
+      vcpkg_get_dep_platform (dep, &Not);
       if (Not)
            C_printf ("!(%s)\n", vcpkg_get_dep_name(dep));
       else C_printf ("%s\n", vcpkg_get_dep_name(dep));
@@ -842,13 +849,13 @@ static void build_vcpkg_installed_packages (void)
 unsigned vcpkg_get_num_installed (void)
 {
   static BOOL done = FALSE;
-  unsigned len;
+  unsigned len = 0;
 
   if (!done)
      build_vcpkg_installed_packages();
 
-  len = vcpkg_installed_packages ? smartlist_len (vcpkg_installed_packages) : 0;
-  DEBUGF (2, "Found %u VCPKG installed directories.\n", len);
+  len = smartlist_len (vcpkg_installed_packages);
+  DEBUGF (2, "Found %u `ports` directories.\n", len);
   done = TRUE;
   return (len);
 }
@@ -889,28 +896,28 @@ static const char *get_info_file (const struct vcpkg_package *pkg)
 
   snprintf (ret, sizeof(ret), "%s\\installed\\vcpkg\\info\\%s_%s_%s.list",
             vcpkg_root, pkg->package, pkg->link->version, get_platform_name(pkg));
+  if (opt.show_unix_paths)
+     slashify2 (ret, ret, '/');
   return (ret);
 }
 
 /**
  * Parser for a file returned from `get_info_file()`.
  *
- * Extract all lines that looks like `x86-windows/include/` and add to
- * the given smartlist.
+ * Ignore the lines ending in '/'.
+ * But add all lines that looks like files and add to the given smartlist.
  */
-static void info_file_parse (smartlist_t *sl, const char *line)
+static void parse_info_file (smartlist_t *sl, char *line)
 {
-  const char *p = strrchr (line, '/');
+  char  file [_MAX_PATH];
+  char *slash = strrchr (strip_nl(line), '/');
 
-  if (p && (p[1] == '\r' || p[1] == '\n'))
-  {
-    char *d, dir [_MAX_PATH];
+  if (slash && slash[1] == '\0')
+     return;
 
-    snprintf (dir, sizeof(dir), "%s\\installed\\%.*s", vcpkg_root, p-line, line);
-    d = STRDUP (dir);
-    smartlist_add (sl, d);
-    DEBUGF (1, "dir: '%s'\n", d);
-  }
+  snprintf (file, sizeof(file), "%s\\installed\\%s", vcpkg_root, line);
+  smartlist_add (sl, STRDUP(file));
+  DEBUGF (1, "file: '%s'\n", file);
 }
 
 /**
@@ -921,33 +928,90 @@ static void info_file_parse (smartlist_t *sl, const char *line)
  *
  * This is similar to what the command `vcpkg owns <package>.lib` does.
  */
-static void print_verbose_pkg_details (const char *file, int indent)
+static void
+print_verbose_pkg_details (FMT_buf *fmt_buf, const struct vcpkg_package *pkg, const char *file, int indent)
 {
-  smartlist_t *parts = smartlist_read_file (file, info_file_parse);
-  int          i, j, max = parts ? smartlist_len (parts) : 0;
+  smartlist_t *parts = smartlist_read_file (file, (smartlist_parse_func)parse_info_file);
   char         slash = (opt.show_unix_paths) ? '/' : '\\';
+  int          i, max = parts ? smartlist_len (parts) : 0;
+  unsigned     h_files = 0;
+  unsigned     hpp_files = 0;
+  unsigned     bin_files = 0;
+  unsigned     lib_files = 0;
+  unsigned     cmake_files = 0;
+  unsigned     other_files = 0;
 
-  for (i = j = 0; i < max; i++)
+  for (i = 0; i < max; i++)
   {
-    char *part = smartlist_get (parts, i);
+    struct stat st;
+    char   file [_MAX_PATH];
+    char   fsize [80];
+    char  *part = smartlist_get (parts, i);
+    char  *fname = strrchr (part, '/');
 
-    if (str_endswith(part, "/debug/lib"))
+    if (!fname)
        continue;
 
+    if (fname[1] == '\0')
+    {
+      other_files++;
+      continue;
+    }
+
+    *fname++ = '\0';
+    file[0] = '\0';
+    fsize[0] = '\0';
+    DEBUGF (1, "fname: '%s'\n", fname);
+
+    if (str_endswith(part, "/bin"))
+    {
+      snprintf (file, sizeof(file), "%s\\%s", part, fname);
+      bin_files++;
+    }
     else if (str_endswith(part, "/lib"))
     {
-      C_printf ("%*s-libpath:%s\n", indent, "", slashify(part,slash));
-      j++;
+      snprintf (file, sizeof(file), "%s\\%s", part, fname);
+      lib_files++;
     }
-    else if (str_endswith(part, "/include"))
+    else if (str_endswith(fname,".cmake"))
     {
-      C_printf ("%*s-I %s\n", indent, "", slashify(part,slash));
-      j++;
+      snprintf (file, sizeof(file), "%s\\%s", part, fname);
+      cmake_files++;
+    }
+    else if (str_endswith(fname,".h"))
+       h_files++;
+    else if (str_endswith(fname,".hpp"))
+       hpp_files++;
+    else if (!stricmp(fname,"usage"))
+       other_files++;
+
+    if (file[0])
+    {
+      if (opt.show_size && safe_stat(file,&st,NULL) == 0)
+         snprintf (fsize, sizeof(fsize), "%s %s: ",
+                   get_time_str(st.st_mtime),
+                   get_file_size_str(st.st_size));
+
+      buf_printf (fmt_buf, "%*s%s%s%s\n",
+                  indent, "", fsize, "%VCPKG_ROOT%",
+                  slashify(file, slash) + strlen(vcpkg_root)); /* Replace the leading part with `%VCPKG_ROOT%` */
     }
   }
 
-  if (j == 0)
-     C_printf ("%*sNo parts for package in %s.\n", indent, "", file);
+  if (h_files + hpp_files + cmake_files + bin_files + lib_files + other_files == 0)
+     buf_printf (fmt_buf, "%*sNo parts for package `%s` in\n%*s%s.\n",
+                 indent, "", pkg->package, indent, "", file);
+
+  else if (bin_files + lib_files == 0)
+  {
+    if (h_files > 0)
+       buf_printf (fmt_buf, "%*sOnly %d .h-files for package `%s` in\n%*s%s.\n",
+                 indent, "", h_files, pkg->package, indent, "", file);
+
+     if (hpp_files > 0)
+        buf_printf (fmt_buf, "%*sOnly %d .hpp-files for package `%s` in\n%*s%s.\n",
+                    indent, "", hpp_files, pkg->package, indent, "", file);
+  }
 
   if (parts)
      smartlist_free_all (parts);
@@ -963,28 +1027,22 @@ static void print_verbose_pkg_details (const char *file, int indent)
 unsigned vcpkg_list_installed (void)
 {
   const char *only = "";
-  int         i, max;
-  unsigned    num = vcpkg_get_num_installed();
+  unsigned    i, num = vcpkg_get_num_installed();
 
   if (opt.only_32bit)
-     only = " (x86-only)";
+     only = ", x86-only";
   if (opt.only_64bit)
-     only = " (x64-only)";
+     only = ", x64-only";
 
-  C_printf ("\n  Installed ~3VCPKG~0 packages:%s\n", only);
+  C_printf ("\n  %u installed ~3VCPKG~0 packages (~3%%VCPKG_ROOT%%~0=~6%s~0%s):\n",
+            num, vcpkg_root, only);
 
-  if (num == 0)
-  {
-    C_puts ("   ~3None~0\n");
-    return (0);
-  }
-
-  max = smartlist_len (vcpkg_installed_packages);
-  for (i = 0; i < max; i++)
+ /* Should be the same as 'vcpkg_get_num_installed()'
+  */
+  num = smartlist_len (vcpkg_installed_packages);
+  for (i = 0; i < num; i++)
   {
     const struct vcpkg_package *pkg = smartlist_get (vcpkg_installed_packages, i);
-    char *file;
-    int   len;
 
     if (opt.only_32bit && !(pkg->platform & VCPKG_plat_x86))
        continue;
@@ -992,13 +1050,10 @@ unsigned vcpkg_list_installed (void)
     if (opt.only_64bit && !(pkg->platform & VCPKG_plat_x64))
        continue;
 
-    file = (char*) get_info_file (pkg);
-
-    if (opt.show_unix_paths)
-       file = slashify (file, '/');
-    len = C_printf ("    %-*s %s\n", VCPKG_MAX_NAME, pkg->package, file);
+    C_printf ("    %-*s %s%s\n", VCPKG_MAX_NAME, pkg->package, "%VCPKG_ROOT%",
+              get_info_file(pkg) + strlen(vcpkg_root));
   }
-  return (max);
+  return (num);
 }
 
 /**
@@ -1048,7 +1103,7 @@ unsigned vcpkg_get_list (void)
   }
   else
   {
-    if (opt.debug >= 1)
+    if (opt.verbose >= 3)
        nodes_debug_dump();
   }
   return (len);
@@ -1123,10 +1178,11 @@ BOOL vcpkg_get_control (int *index_p, const struct vcpkg_node **node_p, const ch
   {
     const struct vcpkg_node *node = smartlist_get (vcpkg_nodes, i);
 
-    if (node->have_CONTROL && fnmatch(package_spec, node->package, FNM_FLAG_NOCASE) == FNM_MATCH)
+    if (node->have_CONTROL &&
+        fnmatch(package_spec, node->package, FNM_FLAG_NOCASE) == FNM_MATCH)
     {
       DEBUGF (2, "i=%2d, index=%2d, package: %s\n", i, index, node->package);
-      *node_p = node;
+      *node_p  = node;
       *index_p = i + 1;
       return (TRUE);
     }
@@ -1145,25 +1201,32 @@ BOOL vcpkg_get_control (int *index_p, const struct vcpkg_node **node_p, const ch
  *     -If:/gv/dx-radio/gnuradio-GNCdevinclude
  *     -libpath:f:/gv/dx-radio/gnuradio-GNCdevlib gnuradio-runtime.lib gnuradio-pmt.lib
  */
-static void print_install_info (const char *package, int indent1)
+static BOOL
+print_install_info (FMT_buf *fmt_buf, const char *package, int indent1)
 {
   const struct vcpkg_package *pkg = NULL;
-  const char                 *yes_no, *file, *cpu = NULL;
+  const char                 *yes_no, *cpu = NULL;
   unsigned                    num = vcpkg_get_num_installed();
-  int                         i = 0, j, indent2;
+  int                         found, i = 0;
 
   if (num == 0 || (pkg = get_install_info(&i,package)) == NULL)
        yes_no = C_BR_RED "NO\n";
   else yes_no = C_BR_GREEN "YES: ";
 
-  indent2 = C_printf ("  %-*s%s~0", indent1, "installed:", yes_no);
+  buf_printf (fmt_buf, "  %-*s%s~0", indent1, "installed:", yes_no);
+
+  if (vcpkg_only_installed && !pkg)
+  {
+    buf_putc (fmt_buf, '\n');
+    return (FALSE);
+  }
 
   if (opt.only_32bit)
      cpu = "x86";
   else if (opt.only_64bit)
      cpu = "x64";
 
-  for (j = 0; pkg; pkg = get_install_info(&i,package))
+  for (found = 0; pkg; pkg = get_install_info(&i,package))
   {
     if (opt.only_32bit && !(pkg->platform & VCPKG_plat_x86))
        continue;
@@ -1171,20 +1234,26 @@ static void print_install_info (const char *package, int indent1)
     if (opt.only_64bit && !(pkg->platform & VCPKG_plat_x64))
        continue;
 
-    file = get_info_file (pkg);
-
-    if (j > 0)
-       C_printf ("%*s", indent2-2, "");
-    C_printf ("%s%s", get_platform_name(pkg), opt.verbose >= 1 ? ":\n" : "\n");
-    j++;
+    if (found > 0)
+       buf_printf (fmt_buf, "  %*s%s~0", indent1, "", yes_no);
+    buf_printf (fmt_buf, "%s%c\n", get_platform_name(pkg), opt.verbose >= 1 ? ':' : ' ');
+    found++;
 
     if (opt.verbose >= 1)
-       print_verbose_pkg_details (file, indent2-2);
+    {
+      const char *file = get_info_file (pkg);
+
+      print_verbose_pkg_details (fmt_buf, pkg, file, indent1+2);
+    }
   }
 
-  if (j == 0 && cpu)
-     C_printf ("But not for any `%s` platform.\n", cpu);
-  C_putc ('\n');
+  if (found == 0 && cpu)
+  {
+    buf_printf (fmt_buf, "But not for `%s` platform.\n", cpu);
+    return (FALSE);
+  }
+  buf_putc (fmt_buf, '\n');
+  return (TRUE);
 }
 
 /**
@@ -1283,10 +1352,10 @@ static void print_install_info (const char *package, int indent1)
  *  1 match found for "3f*" with 33 unique sub-dependants.
  * ```
  */
-static unsigned vcpkg_dump_control_internal (const char *package_spec)
+unsigned vcpkg_dump_control_internal (FMT_buf *fmt_buf, const char *package_spec)
 {
   const struct vcpkg_node *node;
-  int      i = 0,  old, indent, padding, num_deps;
+  int      i = 0,  indent, padding, num_deps;
   unsigned matches = 0;
 
   while (vcpkg_get_control(&i, &node, package_spec))
@@ -1295,55 +1364,55 @@ static unsigned vcpkg_dump_control_internal (const char *package_spec)
 
     matches++;
     padding = VCPKG_MAX_NAME - strlen (package);
-    padding = max (0, padding - 6);
+    padding = max (0, padding-2);
 
     if (sub_level == 0)
     {
-      indent = C_printf ("  ~6%s~0: %*s", package, padding, "");
-      indent -= 4;
+      indent = buf_printf (fmt_buf, "  ~6%s~0: %*s", package, padding, "") - 4;
 
-      /* In case the `node->description` or `node->version` contains a `~'
-       */
-      old = C_setraw (1);
-
-      if (node->description)
-           print_long_line (node->description, indent+2);
-      else C_puts ("<none>\n");
-
-      C_printf ("  %-*s%s\n", indent, "version:", node->version[0] ? node->version : "<none>");
-      C_setraw (old);
+      buf_puts_long_line (fmt_buf, node->description ? node->description : "<none>", indent);
+      buf_printf (fmt_buf, "  %-*s%s\n", indent-2, "version:", node->version[0] ? node->version : "<none>");
     }
     else
     {
       indent = 2;
-      C_printf ("%-*s%s:\n", indent + 2*sub_level, "", package);
+      buf_printf (fmt_buf, "%-*s%s:\n", indent + 2*sub_level, "", package);
     }
 
-    num_deps = print_top_dependencies (node, indent);
+    num_deps = print_top_dependencies (fmt_buf, node, indent-2);
 
-    if (num_deps > 1 && opt.verbose >= 1)
-       print_sub_dependencies (node, indent);
+    if (num_deps > 1 && opt.verbose >= 2)
+       print_sub_dependencies (fmt_buf, node, indent);
 
     if (sub_level == 0)
-       print_install_info (package, indent);
+    {
+      if (print_install_info (fmt_buf, package, indent-2))
+      {
+        C_puts (fmt_buf->buffer_start);
+        buf_reset (fmt_buf);
+      }
+      else
+        matches--;
+    }
   }
   return (matches);
 }
 
 unsigned vcpkg_dump_control (const char *package_spec)
 {
+  FMT_buf  fmt_buf;
   unsigned num;
 
-  if (opt.verbose >= 1)
-     sub_package_list = smartlist_new();
+  sub_package_list = smartlist_new();
+
+  BUF_INIT (&fmt_buf, 200000);
 
   C_printf ("Dumping CONTROL for packages matching ~6%s~0.\n", package_spec);
 
   sub_level = 0;
-  num = vcpkg_dump_control_internal (package_spec);
+  num = vcpkg_dump_control_internal (&fmt_buf, package_spec);
   sub_level = 0;
 
-  if (opt.verbose >= 1)
-     smartlist_free (sub_package_list);
+  smartlist_free (sub_package_list);
   return (num);
 }

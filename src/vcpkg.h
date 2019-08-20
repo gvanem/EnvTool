@@ -69,6 +69,8 @@ struct vcpkg_package {
        struct vcpkg_node *link;                     /**< A link to the corresponding CONTROL node */
      };
 
+extern BOOL vcpkg_only_installed;
+
 extern unsigned    vcpkg_get_list (void);
 extern unsigned    vcpkg_get_num_CONTROLS (void);
 extern unsigned    vcpkg_get_num_portfile (void);
