@@ -600,14 +600,14 @@ static int show_help (void)
 
   C_puts ("  ~6<--mode>~0 can be at least one of these:\n"
           "    ~6--cmake~0        check and search in ~3%CMAKE_MODULE_PATH%~0 and it's built-in module-path.\n"
-          "    ~6--evry[=~3host~0]  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
+          "    ~6--evry~0[=~3host~0]  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
           "    ~6--inc~0          check and search in ~3%INCLUDE%~0.                   ~2[2]~0\n"
           "    ~6--lib~0          check and search in ~3%LIB%~0 and ~3%LIBRARY_PATH%~0.    ~2[2]~0\n"
           "    ~6--man~0          check and search in ~3%MANPATH%~0.\n"
           "    ~6--path~0         check and search in ~3%PATH%~0.\n"
           "    ~6--pkg~0          check and search in ~3%PKG_CONFIG_PATH%~0.\n"
-          "    ~6--python~0[~3=X~0]   check and search in ~3%PYTHONPATH%~0 and ~3sys.path[]~0. ~2[3]~0\n"
-          "    ~6--vcpkg~0        check and search for ~3VCPKG~0 packages.             ~2[4]~0\n"
+          "    ~6--python~0[=~3X~0]   check and search in ~3%PYTHONPATH%~0 and ~3sys.path[]~0. ~2[3]~0\n"
+          "    ~6--vcpkg~0[=~3all~0]~0  check and search for ~3VCPKG~0 packages.             ~2[4]~0\n"
           "    ~6--check~0        check for missing directories in ~4all~0 supported environment variables\n"
           "                   and missing files in ~3HKx\\Microsoft\\Windows\\CurrentVersion\\App Paths~0 keys.\n");
 
@@ -702,7 +702,8 @@ static int show_help (void)
   C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n");
 
   C_puts ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 & ~6CONTROL~0 files.\n"
-          "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n");
+          "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n"
+          "      Used as ~6--vcpkg=all~0, will list install status of all available packages.\n");
 
   C_puts ("\n"
           "Notes:\n"
@@ -4682,7 +4683,7 @@ static const struct option long_options[] = {
            { "signed",      optional_argument, NULL, 0 },
            { "no-cwd",      no_argument,       NULL, 0 },    /* 39 */
            { "sort",        required_argument, NULL, 0 },
-           { "vcpkg",       no_argument,       NULL, 0 },    /* 41 */
+           { "vcpkg",       optional_argument, NULL, 0 },    /* 41 */
            { NULL,          no_argument,       NULL, 0 }
          };
 
@@ -4773,6 +4774,19 @@ static void set_python_variant (const char *arg)
   /* Found a valid match
    */
   py_which = (enum python_variants) v;
+}
+
+/**
+ * `getopt_long()` handler for option `--vcpkg=<arg>`.
+ */
+static void set_vcpkg_options (const char *arg)
+{
+  DEBUGF (2, "optarg: '%s'\n", arg);
+  ASSERT (arg);
+  if (!strcmp(arg,"all"))
+       vcpkg_only_installed = FALSE;
+  else usage ("Illegal '--vcpkg' option: '%s'.\n"
+              "Use '--vcpkg' or 'vcpkg=all'.\n", arg);
 }
 
 /**
@@ -4951,6 +4965,12 @@ static void set_long_option (int o, const char *arg)
     {
       opt.do_python++;
       set_python_variant (arg);
+    }
+
+    else if (!strcmp("vcpkg",long_options[o].name))
+    {
+      opt.do_vcpkg++;
+      set_vcpkg_options (arg);
     }
 
     else if (!strcmp("debug",long_options[o].name))
