@@ -770,6 +770,7 @@ INPUT = main_page.dox           \
         ../src/auth.c           \
         ../src/envtool.c        \
         ../src/envtool_py.c     \
+        ../src/cfg_file.c       \
         ../src/color.c          \
         ../src/Everything.c     \
         ../src/Everything_ETP.c \
