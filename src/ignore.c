@@ -38,16 +38,23 @@ struct ignore_node {
 static smartlist_t *ignore_list = NULL;
 
 /**
+ * Help indices for cfg_ignore_first() and cfg_ignore_next().
+ */
+static int  next_idx = -1;
+static UINT curr_sec = UINT_MAX;
+
+/**
  * Parser for `parse_config_file()` in `cfg_file.c`:
  *
  * Accepts only strings like `"ignore = xx"` from the config-file.
  * Add to \ref ignore_list in the correct `sections[]` slot.
  *
- * \param[in] sl    the smartlist to add the string-value to.
- * \param[in] line  the prepped string-value from the file opened in
- *                  cfg_ignore_init().
+ * \param[in] section the section from the file opened in parse_config_file().
+ * \param[in] key     the key from the file opened in parse_config_file().
+ * \param[in] value   the value from the file opened in parse_config_file().
+ * \param[in] line    the line number of this `key = value` pair.
  */
-int cfg_ignore_parser (const char *section, const char *key, const char *value, unsigned line)
+void cfg_ignore_parser (const char *section, const char *key, const char *value, unsigned line)
 {
   if (!stricmp(key,"ignore"))
   {
@@ -64,16 +71,14 @@ int cfg_ignore_parser (const char *section, const char *key, const char *value, 
     if (idx == UINT_MAX)
     {
       WARN ("Ignoring unknown section: %s.\n", _section);
-      return (0);
+      return;
     }
 
     node->section = sections[idx].name;
     node->value   = value;
     smartlist_add (ignore_list, node);
     DEBUGF (2, "%u: %s: ignore = '%s'\n", line, node->section, node->value);
-    return (1);
   }
-  return (0);
 }
 
 /**
@@ -120,12 +125,6 @@ int cfg_ignore_lookup (const char *section, const char *value)
   }
   return (0);
 }
-
-/**
- * Help indices for cfg_ignore_first() and cfg_ignore_next().
- */
-static int  next_idx = -1;
-static UINT curr_sec = UINT_MAX;
 
 /**
  * Lookup the first ignored `value` in a `section`.

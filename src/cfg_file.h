@@ -28,14 +28,14 @@ enum cfg_sections {
      CFG_MAX_SECTIONS
    };
 
-typedef int (*cfg_parser) (const char *section,
-                           const char *key,
-                           const char *value,
-                           unsigned    line);
+typedef void (*cfg_parser) (const char *section,
+                            const char *key,
+                            const char *value,
+                            unsigned    line);
 
-extern int cfg_add_parser (enum cfg_sections section, cfg_parser parser);
-extern int cfg_init (const char *fname);
-extern int cfg_exit (void);
+extern void cfg_add_parser (enum cfg_sections section, cfg_parser parser);
+extern void cfg_init (const char *fname);
+extern void cfg_exit (void);
 
 #endif
 

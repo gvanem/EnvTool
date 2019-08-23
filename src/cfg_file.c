@@ -1,6 +1,6 @@
 /**\file    cfg_file.c
  * \ingroup Misc
- * \brief   Functions for parsing "%APPDATA%/envtool.cfg"
+ * \brief   Functions for parsing a config-file.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +8,11 @@
 #include "smartlist.h"
 #include "cfg_file.h"
 #include "envtool.h"
+
+/**
+ * The default "do nothing" parser.
+ */
+static void none_or_global_parser (const char *section, const char *key, const char *value, unsigned line);
 
 /** The parsers for each 'CFG_x' section.
  */
@@ -85,39 +90,34 @@ static int config_get_line (FILE      *fil,
   return (1);
 }
 
-/*
+/**
  * Given a section-number, lookup the parser for it.
  */
 static cfg_parser lookup_parser (enum cfg_sections section)
 {
-  int i;
-
-  for (i = 0; i < CFG_MAX_SECTIONS; i++)
-      if (i == (int)section)
-         return (cfg_parsers [i]);
-  return (NULL);
+  ASSERT (section < CFG_MAX_SECTIONS);
+  if (!cfg_parsers[section])
+     cfg_parsers[section] = none_or_global_parser;
+  return (cfg_parsers[section]);
 }
 
-int cfg_add_parser (enum cfg_sections section, cfg_parser parser)
+/**
+ * Add a parser function for a section.
+ */
+void cfg_add_parser (enum cfg_sections section, cfg_parser parser)
 {
-  if (section >= CFG_NONE && section < CFG_MAX_SECTIONS)
-  {
-    cfg_parsers[section] = parser;
-    return (1);
-  }
-  return (0);
+  ASSERT (section < CFG_MAX_SECTIONS);
+  cfg_parsers[section] = parser;
 }
 
 /*
  * Given a section-name, lookup the 'enum cfg_section' for the name.
  */
-static enum cfg_sections lookup_section (const char *section, char *last)
+static enum cfg_sections lookup_section (const char *section)
 {
-#define CHK_SECTION(s)   do {                               \
-                           if (!stricmp(section, #s + 4)) { \
-                              strcpy (last, #s + 4);        \
-                              return (s);                   \
-                           }                                \
+#define CHK_SECTION(s)   do {                           \
+                           if (!stricmp(section, #s+4)) \
+                              return (s);               \
                          } while (0)
 
   if (!section)
@@ -134,10 +134,7 @@ static enum cfg_sections lookup_section (const char *section, char *last)
   CHK_SECTION (CFG_LOGIN);
 
   if (!stricmp(section,"PE-resources"))
-  {
-    strcpy (last, "PE-resources");
-    return (CFG_PE_RESOURCES);
-  }
+     return (CFG_PE_RESOURCES);
   return (CFG_NONE);
 }
 
@@ -148,7 +145,6 @@ static enum cfg_sections lookup_section (const char *section, char *last)
 static int parse_config_file (FILE *file)
 {
   char    *key, *value, *section;
-  char     last_section [40];
   unsigned line  = 0;
   unsigned lines = 0;
 
@@ -156,51 +152,45 @@ static int parse_config_file (FILE *file)
 
   while (1)
   {
-    struct cfg_node *cfg;
-    cfg_parser       parser;
-
     section = key = value = NULL;   /* set in config_get_file() */
 
     if (!config_get_line(file,&line,&key,&value,&section))
        break;
 
     lines++;
-    cfg = CALLOC (sizeof(*cfg), 1);
 
-    cfg->section = section;
-    cfg->key     = key;
-    cfg->value   = value;
-    smartlist_add (cfg_list, cfg);
+    DEBUGF (3, "line %2u: [%s]: %s = %s\n",
+            line, section[0] == '\0' ? "<None>" : section, key, value);
 
-    DEBUGF (2, "line %2u: [%s]: %s = %s\n",
-            line, cfg->section[0] == '\0' ? "<None>" : cfg->section,
-            cfg->key, cfg->value);
+    /* Ignore "foo = <empty value>"
+     */
+    if (*value)
+    {
+      struct cfg_node *cfg = CALLOC (sizeof(*cfg), 1);
 
-    if (!*value)      /* foo = <empty value> */
-       continue;
-
-    parser = lookup_parser (lookup_section(section, last_section));
-    if (parser)
-      (*parser) (section, key, value, line);
+      cfg->section = section;
+      cfg->key     = key;
+      cfg->value   = value;
+      smartlist_add (cfg_list, cfg);
+      (*lookup_parser (lookup_section(section))) (section, key, value, line);
+    }
   }
   return (lines);
 }
 
-static int none_or_global_parser (const char *section, const char *key, const char *value, unsigned line)
+static void none_or_global_parser (const char *section, const char *key, const char *value, unsigned line)
 {
   if (section[0] == '\0')
-     DEBUGF (0, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
+     DEBUGF (1, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
              cfg_file, line, key, value);
   else
-     DEBUGF (0, "%s(%u): Keyword '%s' = '%s' in unknown section '%s'.\n",
+     DEBUGF (1, "%s(%u): Keyword '%s' = '%s' in unknown section '%s'.\n",
              cfg_file, line, key, value, section);
-  return (0);
 }
 
-int cfg_init (const char *fname)
+void cfg_init (const char *fname)
 {
   FILE *f;
-  int   rc = 0;
 
   cfg_file = getenv_expand (fname);
   if (cfg_file)
@@ -209,21 +199,18 @@ int cfg_init (const char *fname)
     if (f)
     {
       cfg_list = smartlist_new();
-      cfg_add_parser (CFG_NONE, none_or_global_parser);
-      cfg_add_parser (CFG_GLOBAL, none_or_global_parser);
-      rc = parse_config_file (f);
+      parse_config_file (f);
       fclose (f);
     }
   }
-  return (rc);
 }
 
-int cfg_exit (void)
+void cfg_exit (void)
 {
   int i, max;
 
   if (!cfg_list)
-     return (0);
+     return;
 
   max = smartlist_len (cfg_list);
 
@@ -239,5 +226,4 @@ int cfg_exit (void)
   FREE (cfg_file);
   smartlist_free (cfg_list);
   cfg_list = NULL;
-  return (1);
 }
