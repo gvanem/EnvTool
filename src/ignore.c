@@ -29,7 +29,7 @@ static const struct search_list sections[] = {
  */
 struct ignore_node {
        const char *section;  /** The section; one of the ones in `sections[]` */
-       char       *value;    /** The value to ignore (allocated by STRDUP()) */
+       const char *value;    /** The value to ignore (allocated by 'cfg_file.c') */
      };
 
 /** A dynamic array of ignore_node.
@@ -38,7 +38,7 @@ struct ignore_node {
 static smartlist_t *ignore_list = NULL;
 
 /**
- * Callback for smartlist_read_file():
+ * Parser for `parse_config_file()` in `cfg_file.c`:
  *
  * Accepts only strings like `"ignore = xx"` from the config-file.
  * Add to \ref ignore_list in the correct `sections[]` slot.
@@ -47,74 +47,33 @@ static smartlist_t *ignore_list = NULL;
  * \param[in] line  the prepped string-value from the file opened in
  *                  cfg_ignore_init().
  */
-static void cfg_parse (smartlist_t *sl, const char *line)
+int cfg_ignore_parser (const char *section, const char *key, const char *value, unsigned line)
 {
-  char   ignore [256];
-  char  *start, *copy;
-  struct ignore_node *node = NULL;
-  BOOL   quoted = FALSE;
-  int    num;
-  static const char *section = NULL;
-
-  /* Fast exit on simple lines
-   */
-  if (*line == '\0' || *line == '\r' || *line == '\n')
-     return;
-
-  copy  = STRDUP (line);
-  start = str_ltrim (copy);
-
-  if (*start == '[')
+  if (!stricmp(key,"ignore"))
   {
-    unsigned idx = list_lookup_value (strip_nl(start), sections, DIM(sections));
+    struct ignore_node *node = MALLOC (sizeof(*node));
+    char   _section [100];
+    unsigned idx;
+
+    if (!ignore_list)
+       ignore_list = smartlist_new();
+
+    snprintf (_section, sizeof(_section), "[%s]", section);
+    idx = list_lookup_value (_section, sections, DIM(sections));
 
     if (idx == UINT_MAX)
-         WARN ("Ignoring unknown section: %s.\n", start);
-    else section = sections[idx].name;   /* remember the section for next line */
-    goto quit;
+    {
+      WARN ("Ignoring unknown section: %s.\n", _section);
+      return (0);
+    }
+
+    node->section = sections[idx].name;
+    node->value   = value;
+    smartlist_add (ignore_list, node);
+    DEBUGF (2, "%u: %s: ignore = '%s'\n", line, node->section, node->value);
+    return (1);
   }
-
-  if (!section)
-     goto quit;
-
-  ignore[0] = '\0';
-  num = sscanf (start,"ignore = \"%255[^\"]\"", ignore);
-  if (num == 1)
-       quoted = TRUE;
-  else num = sscanf (start, "ignore = %255[^#\r\n]", ignore);
-
-  if (num == 1)
-  {
-    node = MALLOC (sizeof(*node));
-    node->section = section;
-    node->value   = STRDUP (str_rtrim(ignore));
-    smartlist_add (sl, node);
-    DEBUGF (3, "%s: %s: '%s'\n", quoted ? "quoted" : "unquoted", node->section, node->value);
-  }
-  else
-    DEBUGF (3, "num=%d, ignore: '%s'.\n", num, ignore);
-
-quit:
-  FREE (copy);
-}
-
-/**
- * Try to open and parse a config-file.
- *
- * \param[in] fname  the config-file.
- */
-int cfg_ignore_init (const char *fname)
-{
-  char *file = getenv_expand (fname);
-
-  DEBUGF (3, "file: %s\n", file);
-  if (file)
-  {
-    ignore_list = smartlist_read_file (file, cfg_parse);
-    FREE (file);
-  }
-  cfg_ignore_dump();
-  return (ignore_list != NULL);
+  return (0);
 }
 
 /**
@@ -270,7 +229,6 @@ void cfg_ignore_exit (void)
   {
     struct ignore_node *node = smartlist_get (ignore_list, i);
 
-    FREE (node->value);
     FREE (node);
   }
   smartlist_free (ignore_list);

@@ -50,6 +50,7 @@
 #include "sort.h"
 #include "vcpkg.h"
 #include "get_file_assoc.h"
+#include "cfg_file.h"
 
 extern BOOL find_vstudio_init (void);
 
@@ -181,7 +182,7 @@ volatile int halt_flag;
  *     Unless one of the `<path>/<prefix>-gcc.exe` are in the
  *     `[Compiler]` ignore-list.
  *
- * \todo add more prefixes from `envtool.cfg` here?
+ * \todo add more prefixes from `%APPDATA%/envtool.cfg` here?
  */
 static const char *gnu_prefixes[] = {
                   "",
@@ -5097,10 +5098,12 @@ static void MS_CDECL cleanup (void)
   getopt_free (&opt.cmd_line);
 
   cfg_ignore_exit();
-
   netrc_exit();
   authinfo_exit();
   envtool_cfg_exit();
+
+  cfg_exit();
+
   vcpkg_free();
 
   exit_misc();
@@ -5174,9 +5177,8 @@ static void init_all (const char **argv)
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu = C_conemu_detected();
 
-  /*
-   * Just use fixed values for now.
-   * \todo Add a parser to handle these from `"%APPDATA%\\envtool.cfg"` later.
+  /* Just use fixed values for now.
+   * \todo Add a parser to handle these from `"%APPDATA%/envtool.cfg"` later.
    */
   opt.beep.enable = 1;
   opt.beep.limit  = 1000;
@@ -5225,7 +5227,7 @@ static void init_all (const char **argv)
  *  + Initialise program.
  *  + Parse the command line.
  *  + Evaluate given options for conflicts.
- *  + Open and parse `"%APPDATA%\\envtool.cfg"`.
+ *  + Open and parse `"%APPDATA%/envtool.cfg"`.
  *  + Check if `%WINDIR%\\sysnative` and/or `%WINDIR%\\SysWOW64` exists.
  *  + Install signal-handlers for `SIGINT` and `SIGILL`.
  *  + Call the appropriate functions based on command-line options.
@@ -5241,7 +5243,15 @@ int MS_CDECL main (int argc, const char **argv)
   if (!eval_options())
      return (1);
 
-  cfg_ignore_init ("%APPDATA%\\envtool.cfg");
+  cfg_add_parser (CFG_REGISTRY, cfg_ignore_parser);
+  cfg_add_parser (CFG_COMPILER, cfg_ignore_parser);
+  cfg_add_parser (CFG_EVERYTHING, cfg_ignore_parser);
+  cfg_add_parser (CFG_PYTHON, cfg_ignore_parser);
+  cfg_add_parser (CFG_PE_RESOURCES, cfg_ignore_parser);
+  cfg_add_parser (CFG_LOGIN, auth_envtool_parser);
+  cfg_init ("%APPDATA%/envtool.cfg");
+  cfg_ignore_dump();
+
   check_sys_dirs();
 
   /* Sometimes the IPC connection to the EveryThing Database will hang.
@@ -6614,6 +6624,12 @@ int test_str_shorten (void)
 static int do_tests (void)
 {
   int save;
+
+  if (opt.do_tests >= 2)  /* test cfg_file.c */
+  {
+    test_auth();
+    return (0);
+  }
 
   if (opt.do_evry && opt.evry_host)
   {

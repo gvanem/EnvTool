@@ -104,7 +104,9 @@ static void common_exit (enum login_source src)
     if (!li || li->src != src)
        continue;
 
-    FREE (li->host);
+    if (li->src != LOGIN_ENVTOOL_CFG)
+      FREE (li->host);
+
     FREE (li->user);
     FREE (li->passw);
     FREE (li);
@@ -123,7 +125,7 @@ static void common_exit (enum login_source src)
 }
 
 /**
- * Search the \ref login_list smartlist for `host`. <br>
+ * Search the `login_list` smartlist for `host`. <br>
  * The `li->src` must also match `src`.
  */
 static const struct login_info *common_lookup (const char *host, enum login_source src)
@@ -244,58 +246,36 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
  * Parse a line from `"~/envtool.cfg"`. Match lines like:
  *   ```
  *    [Login]
+ *    <host> = <user> / <password>
  *    <host> = <user> / <password> / port <port>
  *   ```
  * And add to the `login_list` smartlist.
  */
-static void envtool_cfg_parse (smartlist_t *sl, const char *line)
+int auth_envtool_parser (const char *section, const char *key, const char *value, unsigned line)
 {
-  static BOOL        got_section = FALSE;
-  struct login_info *li = NULL;
-  char   host [256];
-  char   user [256];
-  char   passw[256];
-  char  *copy, *start;
-  int    port = 0, num = 0;
+  char user [256];
+  char passw[256];
+  int  port = 0;
+  int  num = sscanf (value, "%255[^ /] / %255[^ /] / port %d", user, passw, &port);
 
-  /* Fast exit on simple lines
-   */
-  if (*line == '\0' || *line == '\r' || *line == '\n')
-     return;
-
-  copy  = STRDUP (line);
-  start = strip_nl (str_trim(copy));
-
-  if (!got_section && !strnicmp(start,"[Login]",7))
+  if (num >= 2)
   {
-    got_section = TRUE;
+    struct login_info *li = CALLOC (1, sizeof(*li));
+
+    if (!login_list)
+       login_list = smartlist_new();
+
+    li->host     = (char*) key;
+    li->user     = STRDUP (user);
+    li->passw    = STRDUP (passw);
+    li->port     = port;
+    li->src      = LOGIN_ENVTOOL_CFG;
+    DEBUGF (2, "num: %d, host: '%s', user: '%s', passwd: '%s', port: %d.\n", num, li->host, li->user, li->passw, li->port);
+    smartlist_add (login_list, li);
   }
-  else if (got_section)
-  {
-    if (start[0] == '[')
-      got_section = FALSE;
-    else
-    {
-      num = sscanf (start, "%255[^ =] = %255[^ /] / %255[^ /] / port %d", host, user, passw, &port);
-      if (num >= 3)
-      {
-        li = CALLOC (1, sizeof(*li));
-        li->host     = STRDUP (host);
-        li->user     = STRDUP (user);
-        li->passw    = STRDUP (passw);
-        li->port     = port;
-        li->src      = LOGIN_ENVTOOL_CFG;
-      }
-    }
-  }
-
-  if (got_section)
-     DEBUGF (1, "start: '%s', num: %d.\n", start, num);
-
-  FREE (copy);
-
-  if (li)
-     smartlist_add (sl, li);
+  ARGSUSED (section);
+  ARGSUSED (line);
+  return (1);
 }
 
 /**
@@ -319,18 +299,6 @@ static int authinfo_init (void)
 
   if (last_rc == -1)
      last_rc = common_init ("%APPDATA%\\.authinfo", authinfo_parse);
-  return (last_rc);
-}
-
-/**
- * Open and parse the `"%APPDATA%\\envtool.cfg"` file only once.
- */
-static int envtool_cfg_init (void)
-{
-  static int last_rc = -1;
-
-  if (last_rc == -1)
-     last_rc = common_init ("%APPDATA%\\envtool.cfg", envtool_cfg_parse);
   return (last_rc);
 }
 
@@ -409,9 +377,6 @@ int authinfo_lookup (const char *host, const char **user, const char **passw, in
 int envtool_cfg_lookup (const char *host, const char **user, const char **passw, int *port)
 {
   const struct login_info *li;
-
-  if (!envtool_cfg_init())
-     return (0);
 
   li = common_lookup (host, LOGIN_ENVTOOL_CFG);
 
