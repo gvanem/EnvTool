@@ -22,7 +22,7 @@ static cfg_parser cfg_parsers [CFG_MAX_SECTIONS];
  */
 static smartlist_t *cfg_list;
 
-/** The current config-file.
+/** The current config-file we are parsing.
  */
 static char *cfg_file = NULL;
 
@@ -192,16 +192,19 @@ void cfg_init (const char *fname)
 {
   FILE *f;
 
-  cfg_file = getenv_expand (fname);
   if (cfg_file)
+     FATAL ("cfg_init() is not reentrant; call cfg_exit() first.\n");
+
+  cfg_file = getenv_expand (fname);
+  if (!cfg_file)
+     return;
+
+  f = fopen (cfg_file, "rt");
+  if (f)
   {
-    f = fopen (cfg_file, "rt");
-    if (f)
-    {
-      cfg_list = smartlist_new();
-      parse_config_file (f);
-      fclose (f);
-    }
+    cfg_list = smartlist_new();
+    parse_config_file (f);
+    fclose (f);
   }
 }
 
@@ -209,10 +212,7 @@ void cfg_exit (void)
 {
   int i, max;
 
-  if (!cfg_list)
-     return;
-
-  max = smartlist_len (cfg_list);
+  max = cfg_list ? smartlist_len (cfg_list) : 0;
 
   for (i = 0; i < max; i++)
   {
