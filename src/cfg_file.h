@@ -1,4 +1,5 @@
 /** \file cfg_file.h
+ *  \ingroup Misc
  */
 #ifndef _CFG_FILE_H
 #define _CFG_FILE_H
