@@ -26,9 +26,17 @@ static smartlist_t *cfg_list;
  */
 static char *cfg_file = NULL;
 
-/*
+/**
  * Return the next line from the config-file with key, value and
  * section. Increment line of config-file.
+ *
+ * \param[in]  fil        the `FILE*` of the current config-file (`cfg_file`).
+ * \param[out] line       the line-number of the current config-file (`cfg_file`).
+ * \param[in]  key_p      a pointer to a `char*` that the "key" gets assigned to.
+ * \param[in]  val_p      a pointer to a `char*` that the "value" gets assigned to.
+ * \param[in]  section_p  a pointer to a `char*` that the "section" gets assigned to.
+ * \retval    0           when we have 'reached end-of-file'.
+ * \retval    1           there is more to read.
  */
 static int config_get_line (FILE      *fil,
                             unsigned  *line,
@@ -92,6 +100,9 @@ static int config_get_line (FILE      *fil,
 
 /**
  * Given a section-number, lookup the parser for it.
+ *
+ * \param[in] section  the section enum value to look for.
+ * \retval             the section parser function.
  */
 static cfg_parser lookup_parser (enum cfg_sections section)
 {
@@ -103,6 +114,9 @@ static cfg_parser lookup_parser (enum cfg_sections section)
 
 /**
  * Add a parser function for a section.
+ *
+ * \param[in] section  the section enum value.
+ * \param[in] parser   the parser function for this section.
  */
 void cfg_add_parser (enum cfg_sections section, cfg_parser parser)
 {
@@ -112,6 +126,9 @@ void cfg_add_parser (enum cfg_sections section, cfg_parser parser)
 
 /*
  * Given a section-name, lookup the 'enum cfg_section' for the name.
+ *
+ * \param[in] section  the section name.
+ * \retval             the section enum value.
  */
 static enum cfg_sections lookup_section (const char *section)
 {
@@ -141,6 +158,8 @@ static enum cfg_sections lookup_section (const char *section)
 /**
  * Parse the config-file given in 'file'.
  * Build the 'cfg_list' smartlist as it is parsed.
+ *
+ * \param[in] file  the config-file to parse.
  */
 static int parse_config_file (FILE *file)
 {
@@ -188,6 +207,13 @@ static void none_or_global_parser (const char *section, const char *key, const c
              cfg_file, line, key, value, section);
 }
 
+/**
+ * Open a config-file with `[section]` and `key = value` pairs.
+ * Build up the 'cfg_list' as we go along and calling the parsers
+ * added with `cfg_add_parser()`.
+ *
+ * \param[in] fname  the config-file to parse.
+ */
 void cfg_init (const char *fname)
 {
   FILE *f;
@@ -208,11 +234,13 @@ void cfg_init (const char *fname)
   }
 }
 
+/**
+ * Clean-up after 'cfg_init()'.
+ * Now ready to parse another config-file.
+ */
 void cfg_exit (void)
 {
-  int i, max;
-
-  max = cfg_list ? smartlist_len (cfg_list) : 0;
+  int i, max = cfg_list ? smartlist_len (cfg_list) : 0;
 
   for (i = 0; i < max; i++)
   {
