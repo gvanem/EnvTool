@@ -1198,7 +1198,7 @@ char *str_replace (int ch1, int ch2, char *str)
   while (s && *s)
   {
     if (*s == ch1)
-        *s = ch2;
+        *s = (char)ch2;
     s++;
   }
   return (str);
@@ -2896,7 +2896,7 @@ int buf_putc (FMT_buf *fmt_buf, int ch)
     FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", size);
   }
   fmt_buf->buffer_left--;
-  *fmt_buf->buffer_pos++ = ch;
+  *fmt_buf->buffer_pos++ = (char) ch;
   *fmt_buf->buffer_pos = '\0';
   return (1);
 }
