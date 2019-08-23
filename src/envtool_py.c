@@ -138,7 +138,7 @@ struct python_info {
   BOOL     do_warn_home;
 
   /** Only set if `is_embeddable == TRUE`:
-   *  - contains the stdout catcher object.
+   *  - contains the `sys.stdout` catcher object.
    */
   PyObject *catcher;
 
@@ -740,7 +740,7 @@ void py_exit (void)
  *
  * Thus the Python printed strings are retrieved in the C-world by
  * `catcher.value` obtained with: <br>
- *  `obj = (*PyObject_GetAttrString) (py_catcher, "value");` <br>
+ *  `obj = (*PyObject_GetAttrString) (py->catcher, "value");` <br>
  *
  * \todo
  *   Use `StringIO()` class instead?
