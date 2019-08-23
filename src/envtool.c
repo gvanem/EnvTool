@@ -2646,7 +2646,7 @@ static int do_check_evry (void)
    *   http://www.voidtools.com/support/everything/sdk/everything_setrequestflags/
    *
    * But do not request the file size/time since that could be "old information" when
-   *  files are frequently updated.
+   * files are frequently updated.
    */
 #if 0
   if (version >= 0x010401)
@@ -6624,12 +6624,6 @@ int test_str_shorten (void)
 static int do_tests (void)
 {
   int save;
-
-  if (opt.do_tests >= 2)  /* test cfg_file.c */
-  {
-    test_auth();
-    return (0);
-  }
 
   if (opt.do_evry && opt.evry_host)
   {
