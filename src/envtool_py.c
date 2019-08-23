@@ -1030,10 +1030,10 @@ static const char *py_relative (struct python_info *py, const char *file)
  */
 static BOOL test_python_funcs (struct python_info *py)
 {
-  const char *prog = "import sys, os\n"
-                     "print(sys.version_info)\n"
+  const char *prog = "import sys\n"
+                     "print (sys.version_info)\n"
                      "for i in range(5):\n"
-                     "  print(\"  Hello world\")\n";
+                     "  print (\"  Hello world\")\n";
   const char *name = py_variant_name (py->variant);
   char *str;
 
