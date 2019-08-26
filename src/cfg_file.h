@@ -5,37 +5,24 @@
 #define _CFG_FILE_H
 
 /**
- * \struct cfg_node
+ * \typedef struct CFG_FILE
+ * The opaque structure returned by `cfg_init()`.
  */
-struct cfg_node {
-       char    *section;  /**<  */
-       char    *key;      /**<  */
-       char    *value;    /**<  */
-     };
+typedef struct CFG_FILE CFG_FILE;
 
 /**
- * \enum cfg_sections
+ * \typedef cfg_handler
+ * A config-file handler should match this prototype.
  */
-enum cfg_sections {
-     CFG_NONE = 0,    /**< The 'Unknown' section */
-     CFG_GLOBAL,
-     CFG_REGISTRY,
-     CFG_COMPILER,
-     CFG_EVERYTHING,
-     CFG_PYTHON,
-     CFG_PE_RESOURCES,
-     CFG_LOGIN,
-     CFG_MAX_SECTIONS
-   };
+typedef void (*cfg_handler) (const char *section,
+                             const char *key,
+                             const char *value);
 
-typedef void (*cfg_parser) (const char *section,
-                            const char *key,
-                            const char *value,
-                            unsigned    line);
+extern CFG_FILE *cfg_init (const char *fname,
+                           const char *section,
+                        /* cfg_handler parser */ ...);
 
-extern void cfg_add_parser (enum cfg_sections section, cfg_parser parser);
-extern void cfg_init (const char *fname);
-extern void cfg_exit (void);
+extern void cfg_exit (CFG_FILE *cf);
 
 #endif
 

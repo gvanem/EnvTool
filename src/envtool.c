@@ -135,6 +135,11 @@ static smartlist_t *dir_array, *reg_array;
 struct prog_options opt;
 
 /**
+ * The config-file structure.
+ */
+static CFG_FILE *cf = NULL;
+
+/**
  * Values of system directories.
  */
 char   sys_dir        [_MAX_PATH];  /**< E.g. `"c:\Windows\System32"` */
@@ -1831,8 +1836,8 @@ static void expand_env_var (const char *in, char *out, size_t out_len, BOOL for_
   char *rc;
 
   if (for_system)
-        rc = getenv_expand_sys (in);
-   else rc = getenv_expand (in);
+       rc = getenv_expand_sys (in);
+  else rc = getenv_expand (in);
 
   if (rc)
   {
@@ -5102,7 +5107,7 @@ static void MS_CDECL cleanup (void)
   authinfo_exit();
   envtool_cfg_exit();
 
-  cfg_exit();
+  cfg_exit (cf);
 
   vcpkg_free();
 
@@ -5177,14 +5182,6 @@ static void init_all (const char **argv)
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu = C_conemu_detected();
 
-  /* Just use fixed values for now.
-   * \todo Add a parser to handle these from `"%APPDATA%/envtool.cfg"` later.
-   */
-  opt.beep.enable = 1;
-  opt.beep.limit  = 1000;
-  opt.beep.freq   = 2000;
-  opt.beep.msec   = 20;
-
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
   else who_am_I = STRDUP (argv[0]);
@@ -5223,6 +5220,32 @@ static void init_all (const char **argv)
 }
 
 /**
+ * The config-file parser for key/value pairs *not* in any section
+ * (at the start of the `%APPDATA%/envtool.cfg` file).
+ */
+static void envtool_cfg_handler (const char *section, const char *key, const char *value)
+{
+  if (strnicmp(key,"beep.",5))
+     return;
+
+  key += 5;
+
+  if (!stricmp(key,"enable"))
+     opt.beep.enable = atoi (value);
+
+  else if (!stricmp(key,"limit"))
+     opt.beep.limit = (unsigned) atoi (value);
+
+  else if (!stricmp(key,"freq"))
+     opt.beep.freq = (unsigned) atoi (value);
+
+  else if (!stricmp(key,"msec"))
+     opt.beep.msec = (unsigned) atoi (value);
+
+  ARGSUSED (section);
+}
+
+/**
  * Our main entry point.
  *  + Initialise program.
  *  + Parse the command line.
@@ -5243,13 +5266,16 @@ int MS_CDECL main (int argc, const char **argv)
   if (!eval_options())
      return (1);
 
-  cfg_add_parser (CFG_REGISTRY, cfg_ignore_parser);
-  cfg_add_parser (CFG_COMPILER, cfg_ignore_parser);
-  cfg_add_parser (CFG_EVERYTHING, cfg_ignore_parser);
-  cfg_add_parser (CFG_PYTHON, cfg_ignore_parser);
-  cfg_add_parser (CFG_PE_RESOURCES, cfg_ignore_parser);
-  cfg_add_parser (CFG_LOGIN, auth_envtool_parser);
-  cfg_init ("%APPDATA%/envtool.cfg");
+  cf = cfg_init ("%APPDATA%/envtool.cfg",
+                 "",               envtool_cfg_handler,
+                 "[Compiler]",     cfg_ignore_handler,
+                 "[Registry]",     cfg_ignore_handler,
+                 "[Python]",       cfg_ignore_handler,
+                 "[PE-resources]", cfg_ignore_handler,
+                 "[EveryThing]",   cfg_ignore_handler,
+                 "[Login]",        auth_envtool_handler,
+                 NULL);
+
   cfg_ignore_dump();
 
   check_sys_dirs();
@@ -6624,6 +6650,12 @@ int test_str_shorten (void)
 static int do_tests (void)
 {
   int save;
+
+  if (opt.do_tests >= 2)
+  {
+    test_auth();
+    return (0);
+  }
 
   if (opt.do_evry && opt.evry_host)
   {

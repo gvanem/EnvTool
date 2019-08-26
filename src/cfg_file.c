@@ -4,254 +4,295 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include "smartlist.h"
 #include "cfg_file.h"
 #include "envtool.h"
 
+#define CFG_MAX_SECTIONS  10
+#define CFG_SECTION_LEN   40
+#define CFG_KEYWORD_LEN  100
+#define CFG_VALUE_LEN    512
+
+typedef struct CFG_FILE {
+        FILE        *file;
+        char        *fname;                        /**< The name of this config-file. */
+        unsigned     line;                         /**< The line number in `config_get_line()`. */
+        int          num_sections;                 /**< Number of sections / parsers set in `cfg_init()`. */
+        const char  *sections [CFG_MAX_SECTIONS];  /**< The sections this structure handles. */
+        cfg_handler  handlers [CFG_MAX_SECTIONS];  /**< The config-handlers for this config-file. */
+        void        *list;                         /**< A 'smartlist_t' of 'struct cfg_node' */
+
+        /** The work-buffers used by `config_get_line()`.
+         */
+        char         section [CFG_SECTION_LEN+1];
+        char         keyword [CFG_KEYWORD_LEN+1];
+        char         value [CFG_VALUE_LEN+1];
+      } CFG_FILE;
+
+/**
+ * \struct cfg_node
+ * The structure for each key/value pair in a config-file.
+ */
+struct cfg_node {
+       char  *section;  /**< The name of the section (allocated) */
+       char  *key;      /**< The key-name (allocated) */
+       char  *value;    /**< The key value (allocated) */
+     };
+
 /**
  * The default "do nothing" parser.
  */
-static void none_or_global_parser (const char *section, const char *key, const char *value, unsigned line);
-
-/** The parsers for each 'CFG_x' section.
- */
-static cfg_parser cfg_parsers [CFG_MAX_SECTIONS];
-
-/** A list of 'struct cfg_node'
- */
-static smartlist_t *cfg_list;
+static void none_or_global_handler (const char *section, const char *key, const char *value);
 
 /** The current config-file we are parsing.
  */
-static char *cfg_file = NULL;
+static const char *cfg_fname = NULL;
+
+/** The current line of the config-file we are parsing.
+ */
+static unsigned cfg_line;
 
 /**
  * Return the next line from the config-file with key, value and
- * section. Increment line of config-file.
+ * section.
  *
- * \param[in]  fil        the `FILE*` of the current config-file (`cfg_file`).
- * \param[out] line       the line-number of the current config-file (`cfg_file`).
- * \param[in]  key_p      a pointer to a `char*` that the "key" gets assigned to.
- * \param[in]  val_p      a pointer to a `char*` that the "value" gets assigned to.
- * \param[in]  section_p  a pointer to a `char*` that the "section" gets assigned to.
- * \retval    0           when we have 'reached end-of-file'.
- * \retval    1           there is more to read.
+ * \param[in] cf  the config-file structure of the current config-file (`cf->fname`).
+ * \retval    0   when we have 'reached end-of-file'.
+ * \retval   >0   the line-number of the current line.
  */
-static int config_get_line (FILE      *fil,
-                            unsigned  *line,
-                            char     **key_p,
-                            char     **val_p,
-                            char     **section_p)
+static unsigned config_get_line (CFG_FILE *cf)
 {
-  static char section [40] = { '\0' };
-  char   key [256];
-  char   val [512];
+  char *val, *p, *l_quote, *r_quote;
+
+  cf->keyword[0] = cf->value[0] = '\0';
 
   while (1)
   {
-    char *p, *q;
-    char  buf [1000];
+    char buf [1000];
+    char fmt [100];
 
-    if (!fgets(buf,sizeof(buf)-1,fil))   /* EOF */
+    if (!fgets(buf,sizeof(buf),cf->file))   /* EOF */
        return (0);
 
-    for (p = buf; *p && isspace((int)*p); )
-        p++;
+    /* Remove leading spaces
+     */
+    p = str_ltrim  (buf);
 
-    if (*p == '#' || *p == ';')
+    /* Ignore newlines or comment lines
+     */
+    if (strchr("\r\n#;", *p))
     {
-      (*line)++;
+      cf->line++;
       continue;
     }
 
     /* Got a '[section]' line. Find a 'key = val' on next 'fgets()'.
      */
-    if (sscanf(p,"[%[^]\r\n]", section) == 1)
+    snprintf (fmt, sizeof(fmt),"[%%%d[^]\r\n]", CFG_SECTION_LEN);
+    if (sscanf(p, fmt, cf->section) == 1)
     {
-      (*line)++;
-      continue;
-    }
-    if (sscanf(p,"%[^= ] = %[^\r\n]", key, val) != 2)
-    {
-      (*line)++;
+      cf->line++;
       continue;
     }
 
-    q = strrchr (val, '\"');
-    p = strchr (val, ';');
+    snprintf (fmt, sizeof(fmt), "%%%d[^= ] = %%%d[^\r\n]", CFG_KEYWORD_LEN, CFG_VALUE_LEN);
+    if (sscanf(p, fmt, cf->keyword, cf->value) != 2)
+    {
+      cf->line++;
+      DEBUGF (2, "line %u: cf->keyword: '%s'\n", cf->line, cf->keyword);
+      continue;
+    }
+
+    r_quote = strrchr (cf->value, '\"');
+    l_quote = strchr (cf->value, '\"');
 
     /* Remove trailing ';' or '#' comment characters.
+     * First check for a correctly quoted string value.
      */
-    if (p > q)
+    if (l_quote && r_quote && r_quote> l_quote)
+         val = r_quote;
+    else val = cf->value;
+
+    p = strchr (val, ';');
+    if (p)
        *p = '\0';
     p = strchr (val, '#');
-    if (p > q)
+    if (p)
        *p = '\0';
+
     break;
   }
-
-  (*line)++;
-  *section_p = STRDUP (section);
-  *key_p     = STRDUP (key);
-  *val_p     = STRDUP (str_rtrim(val));
-  return (1);
+  return (++cf->line);
 }
 
 /**
- * Given a section-number, lookup the parser for it.
+ * Given a section, return the `cfg_handler` for it.
  *
- * \param[in] section  the section enum value to look for.
- * \retval             the section parser function.
+ * \param[in] cf       the config-file structure for the config-file.
+ * \param[in] section  the section string.
  */
-static cfg_parser lookup_parser (enum cfg_sections section)
+static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
 {
-  ASSERT (section < CFG_MAX_SECTIONS);
-  if (!cfg_parsers[section])
-     cfg_parsers[section] = none_or_global_parser;
-  return (cfg_parsers[section]);
-}
+  int i;
 
-/**
- * Add a parser function for a section.
- *
- * \param[in] section  the section enum value.
- * \param[in] parser   the parser function for this section.
- */
-void cfg_add_parser (enum cfg_sections section, cfg_parser parser)
-{
-  ASSERT (section < CFG_MAX_SECTIONS);
-  cfg_parsers[section] = parser;
-}
+  cfg_line  = cf->line;
+  cfg_fname = cf->fname;
 
-/*
- * Given a section-name, lookup the 'enum cfg_section' for the name.
- *
- * \param[in] section  the section name.
- * \retval             the section enum value.
- */
-static enum cfg_sections lookup_section (const char *section)
-{
-#define CHK_SECTION(s)   do {                           \
-                           if (!stricmp(section, #s+4)) \
-                              return (s);               \
-                         } while (0)
-
-  if (!section)
-     return (CFG_NONE);
-
-  if (!section[0])
-     return (CFG_GLOBAL);
-
-  CHK_SECTION (CFG_REGISTRY);
-  CHK_SECTION (CFG_COMPILER);
-  CHK_SECTION (CFG_EVERYTHING);
-  CHK_SECTION (CFG_PYTHON);
-  CHK_SECTION (CFG_PE_RESOURCES);
-  CHK_SECTION (CFG_LOGIN);
-
-  if (!stricmp(section,"PE-resources"))
-     return (CFG_PE_RESOURCES);
-  return (CFG_NONE);
-}
-
-/**
- * Parse the config-file given in 'file'.
- * Build the 'cfg_list' smartlist as it is parsed.
- *
- * \param[in] file  the config-file to parse.
- */
-static int parse_config_file (FILE *file)
-{
-  char    *key, *value, *section;
-  unsigned line  = 0;
-  unsigned lines = 0;
-
-  DEBUGF (2, "file: %s.\n", cfg_file);
-
-  while (1)
+  for (i = 0; i < cf->num_sections; i++)
   {
-    section = key = value = NULL;   /* set in config_get_file() */
-
-    if (!config_get_line(file,&line,&key,&value,&section))
-       break;
-
-    lines++;
-
-    DEBUGF (3, "line %2u: [%s]: %s = %s\n",
-            line, section[0] == '\0' ? "<None>" : section, key, value);
-
-    /* Ignore "foo = <empty value>"
-     */
-    if (*value)
+    if (!stricmp(section, cf->sections[i]))
     {
-      struct cfg_node *cfg = CALLOC (sizeof(*cfg), 1);
-
-      cfg->section = section;
-      cfg->key     = key;
-      cfg->value   = value;
-      smartlist_add (cfg_list, cfg);
-      (*lookup_parser (lookup_section(section))) (section, key, value, line);
+      DEBUGF (2, "Matched section '%s' at index %d.\n", cf->sections[i], i);
+      return (cf->handlers[i]);
     }
   }
-  return (lines);
+  return (none_or_global_handler);
 }
 
-static void none_or_global_parser (const char *section, const char *key, const char *value, unsigned line)
+/**
+ * The "do nothing" parser to catch sections not hooked by others.
+ */
+static void none_or_global_handler (const char *section, const char *key, const char *value)
 {
   if (section[0] == '\0')
      DEBUGF (1, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
-             cfg_file, line, key, value);
+             cfg_fname, cfg_line, key, value);
   else
      DEBUGF (1, "%s(%u): Keyword '%s' = '%s' in unknown section '%s'.\n",
-             cfg_file, line, key, value, section);
+             cfg_fname, cfg_line, key, value, section);
 }
 
 /**
- * Open a config-file with `[section]` and `key = value` pairs.
- * Build up the 'cfg_list' as we go along and calling the parsers
- * added with `cfg_add_parser()`.
+ * Parse the config-file given in 'cf->file'.
+ * Build the 'cf->list' smartlist as it is parsed.
  *
- * \param[in] fname  the config-file to parse.
+ * \param[in] cf  the config-file structure.
  */
-void cfg_init (const char *fname)
+static void parse_config_file (CFG_FILE *cf)
 {
-  FILE *f;
+  DEBUGF (2, "file: %s.\n", cfg_fname);
 
-  if (cfg_file)
-     FATAL ("cfg_init() is not reentrant; call cfg_exit() first.\n");
-
-  cfg_file = getenv_expand (fname);
-  if (!cfg_file)
-     return;
-
-  f = fopen (cfg_file, "rt");
-  if (f)
+  while (1)
   {
-    cfg_list = smartlist_new();
-    parse_config_file (f);
-    fclose (f);
+    struct cfg_node *cfg;
+    char            *val, buf [40];
+    unsigned         line = config_get_line (cf);
+    cfg_handler      handler;
+
+    if (line == 0)
+       break;
+
+    DEBUGF (2, "line %2u: [%s]: %s = %s\n",
+            line, cf->section[0] == '\0' ? "<None>" : cf->section, cf->keyword, cf->value);
+
+    /* Ignore "foo = <empty value>"
+     */
+    if (!*cf->value)
+       continue;
+
+    cfg = CALLOC (sizeof(*cfg), 1);
+
+    if (cf->section[0] != '\0')
+    {
+      snprintf (buf, sizeof(buf), "[%s]", cf->section);
+      cfg->section = STRDUP (buf);
+    }
+    else
+      cfg->section = STRDUP (cf->section);
+
+    cfg->key = STRDUP (cf->keyword);
+
+    str_rtrim (cf->value);
+    if (strchr(cf->value,'%'))
+         val = getenv_expand (cf->value);   /* Allocates memory */
+    else val = NULL;
+    if (val)
+         cfg->value = STRDUP (val);
+    else cfg->value = STRDUP (cf->value);
+
+    smartlist_add (cf->list, cfg);
+
+    handler = lookup_section_handler (cf, cfg->section);
+    (*handler) (cfg->section, cfg->key, cfg->value);
   }
+}
+
+/**
+ * Open a config-file with a number of `[section]` and `key = value` pairs.
+ * Build up the 'cf->list' as we go along and calling the parsers
+ * in the var-arg list.
+ *
+ * \param[in] fname   the config-file to parse.
+ * \param[in] section the first section to handle.
+ */
+CFG_FILE *cfg_init (const char *fname, const char *section, ...)
+{
+  CFG_FILE *cf;
+  va_list   args;
+  char     *_fname;
+  int       i;
+
+  if (strchr(fname,'%'))
+       _fname = getenv_expand (fname);    /* Allocates memory */
+  else _fname = STRDUP (fname);
+
+  if (!_fname)
+     return (NULL);
+
+  cf = CALLOC (sizeof(*cf), 1);
+  cf->list  = smartlist_new();
+  cf->fname = _fname;
+  cfg_fname = cf->fname;
+  cf->file  = fopen (cf->fname, "rt");
+  if (!cf->file)
+  {
+    cfg_exit (cf);
+    return (NULL);
+  }
+
+  for (i = 0; i < DIM(cf->handlers); i++)
+  {
+    cf->sections[i] = "";
+    cf->handlers[i] = none_or_global_handler;
+  }
+
+  va_start (args, section);
+  for ( ; section; section = va_arg(args, const char*))
+  {
+    cf->sections [cf->num_sections] = section;
+    cf->handlers [cf->num_sections++] = va_arg (args, cfg_handler);
+    if (cf->num_sections == DIM(cf->sections))
+       break;
+  }
+  va_end (args);
+  parse_config_file (cf);
+  fclose (cf->file);
+  cf->file = NULL;
+  return (cf);
 }
 
 /**
  * Clean-up after 'cfg_init()'.
- * Now ready to parse another config-file.
  */
-void cfg_exit (void)
+void cfg_exit (CFG_FILE *cf)
 {
-  int i, max = cfg_list ? smartlist_len (cfg_list) : 0;
+  int i, max = cf->list ? smartlist_len (cf->list) : 0;
 
   for (i = 0; i < max; i++)
   {
-    struct cfg_node *cfg = smartlist_get (cfg_list, i);
+    struct cfg_node *cfg = smartlist_get (cf->list, i);
 
     FREE (cfg->section);
     FREE (cfg->key);
     FREE (cfg->value);
     FREE (cfg);
   }
-  FREE (cfg_file);
-  smartlist_free (cfg_list);
-  cfg_list = NULL;
+
+  smartlist_free (cf->list);
+  FREE (cf->fname);
+  FREE (cf);
+  cfg_fname = NULL;
+  cfg_line  = 0;
 }

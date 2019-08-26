@@ -52,32 +52,29 @@ static UINT curr_sec = UINT_MAX;
  * \param[in] section the section from the file opened in parse_config_file().
  * \param[in] key     the key from the file opened in parse_config_file().
  * \param[in] value   the value from the file opened in parse_config_file().
- * \param[in] line    the line number of this `key = value` pair.
  */
-void cfg_ignore_parser (const char *section, const char *key, const char *value, unsigned line)
+void cfg_ignore_handler (const char *section, const char *key, const char *value)
 {
   if (!stricmp(key,"ignore"))
   {
-    struct ignore_node *node = MALLOC (sizeof(*node));
-    char   _section [100];
+    struct ignore_node *node;
     unsigned idx;
 
     if (!ignore_list)
        ignore_list = smartlist_new();
 
-    snprintf (_section, sizeof(_section), "[%s]", section);
-    idx = list_lookup_value (_section, sections, DIM(sections));
-
+    idx = list_lookup_value (section, sections, DIM(sections));
     if (idx == UINT_MAX)
     {
-      WARN ("Ignoring unknown section: %s.\n", _section);
+      WARN ("Ignoring unknown section: %s.\n", section);
       return;
     }
 
+    node = MALLOC (sizeof(*node));
     node->section = sections[idx].name;
     node->value   = value;
     smartlist_add (ignore_list, node);
-    DEBUGF (2, "%u: %s: ignore = '%s'\n", line, node->section, node->value);
+    DEBUGF (2, "%s: ignore = '%s'\n", node->section, node->value);
   }
 }
 
@@ -233,67 +230,3 @@ void cfg_ignore_exit (void)
   smartlist_free (ignore_list);
   ignore_list = NULL;
 }
-
-#if 0
-/**
- * \todo
- *   Thinking out loud:
- *     A future generic section lookup of a handler given
- *     a "[Section]" with a key and value.
- */
-static const char *Compiler_handler (const char *key, const char *value)
-{
-  return (NULL);
-}
-
-static const char *Registry_handler (const char *key, const char *value)
-{
-  return (NULL);
-}
-
-static const char *Python_handler (const char *key, const char *value)
-{
-  return (NULL);
-}
-
-static const char *PE_resources_handler (const char *key, const char *value)
-{
-  return (NULL);
-}
-
-typedef const char * (*handler_t) (const char *key, const char *value);
-
-static const handler_t handler_tab [DIM(sections)] = {
-                       Compiler_handler,
-                       Registry_handler,
-                       Python_handler,
-                       PE_resources_handler
-                     };
-
-static handler_t cfg_lookup_handler (const char *section)
-{
-  unsigned idx = list_lookup_value (section, sections, DIM(sections));
-
-  if (idx < UINT_MAX && (int)sections[idx].value >= 0 && sections[idx].value < DIM(handler_tab))
-     return handler_tab [sections[idx].value];
-  return (NULL);
-}
-
-const char *cfg_Compiler_lookup (const char *key, const char *value)
-{
-  handler_t handler = cfg_lookup_handler ("[Compiler]");
-
-  if (handler)
-     return (*handler) (key, value);
-  return (NULL);
-}
-
-int cfg_ignore_lookup2 (const char *section, const char *value)
-{
-  handler_t handler = cfg_lookup_handler (section);
-
-  if (handler)
-     return (int) (*handler) ("ignore", value);
-  return (0);
-}
-#endif
