@@ -356,6 +356,7 @@ typedef enum SignStatus {
       } SignStatus;
 
 #include "sort.h"
+#include "smartlist.h"
 
 typedef struct beep_info {
         BOOL      enable;
@@ -373,7 +374,7 @@ struct prog_options {
        int             no_cwd;
        int             show_unix_paths;
        int             show_owner;
-       void           *owners;          /* A smartlist_t */
+       smartlist_t    *owners;
        int             decimal_timestamp;
        int             no_sys_env;
        int             no_usr_env;
@@ -416,7 +417,7 @@ struct prog_options {
        int             under_conemu;
        enum SortMethod sort_method;
        BOOL            evry_raw;      /* use raw non-regex searches */
-       void           *evry_host;     /* A smartlist_t */
+       smartlist_t    *evry_host;
        char           *file_spec;
        int             remaining_arg_pos;
        beep_info       beep;
@@ -496,7 +497,7 @@ extern int  _file_exists    (const char *file);
 
 extern char *getenv_expand     (const char *variable);
 extern char *getenv_expand_sys (const char *variable);
-extern BOOL  getenv_system     (void);
+extern BOOL  getenv_system     (smartlist_t **sl);
 
 extern UINT   get_disk_type         (int disk);
 extern BOOL   get_disk_cluster_size (int disk, DWORD *size);

@@ -3134,7 +3134,6 @@ void print_long_line (const char *line, size_t indent)
     C_putc (*c++);
     left--;
   }
-  C_putc ('\n');
 }
 
 #if defined(NOT_USED_YET)
@@ -3477,13 +3476,16 @@ char *getenv_expand_sys (const char *variable)
  * Should later be called from `do_check()` to check for mismatches
  * in the User environment block.
  */
-BOOL getenv_system (void)
+BOOL getenv_system (smartlist_t **sl)
 {
-  void *env_blk = NULL;
+  void          *env_blk;
+  smartlist_t   *list;
   const wchar_t *e;
-  BOOL  rc;
 
   init_misc();
+
+  *sl = NULL;
+  env_blk = NULL;
 
   if (!p_CreateEnvironmentBlock)
   {
@@ -3496,25 +3498,32 @@ BOOL getenv_system (void)
     return (FALSE);
   }
 
-  rc = (*p_CreateEnvironmentBlock) (&env_blk, NULL, FALSE);
-  if (!rc)
-     DEBUGF (1, "CreateEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
-  else
+  if (!(*p_CreateEnvironmentBlock)(&env_blk, NULL, FALSE) || !env_blk)
   {
-    int num;
-
-    e = env_blk;
-    for (num = 0; num < 50; num++)
-    {
-      C_printf ("  %d: '%S'\n", num, e);
-      e += 1 + wcslen (e);
-      if (!e[0])
-         break;
-    }
+    DEBUGF (1, "CreateEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
+    return (FALSE);
   }
-  if (env_blk)
-    (*p_DestroyEnvironmentBlock) (&env_blk);
-  return (rc);
+
+  list = smartlist_new();
+  e = env_blk;
+
+  while (1)
+  {
+    size_t len = 1 + wcslen (e);
+    char  *str = MALLOC (len);
+
+    if (!wchar_to_mbchar(str, len, e))
+       break;
+    smartlist_add (list, str);
+    e += 1 + wcslen (e);
+    if (!e[0])
+       break;
+  }
+
+  if (!(*p_DestroyEnvironmentBlock) (env_blk))
+     DEBUGF (1, "DestroyEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
+  *sl = list;
+  return (TRUE);
 }
 
 /**
