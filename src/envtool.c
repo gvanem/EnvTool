@@ -6730,22 +6730,6 @@ static int do_check (void)
   return (0);
 }
 
-#ifdef NOT_USED
-int test_str_shorten (void)
-{
-  const char *res, *str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  int   i;
-
-  C_printf ("~3%s():~0\n", __FUNCTION__);
-  for (i = 2; i < strlen(str); i++)
-  {
-    res = str_shorten (str, i);
-    C_printf ("%2d: %-26s %s~0\n", i, res, i == strlen(res) ? "~2OK" : "~5Error");
-  }
-  return (0);
-}
-#endif
-
 /**
  * The handler for option `-t / --test`.
  */
@@ -6767,11 +6751,6 @@ static int do_tests (void)
 
   if (opt.do_python)
      return test_python_funcs();
-
-#ifdef NOT_USED
-  return test_str_shorten();
-#endif
-
   test_split_env ("PATH");
   test_split_env ("MANPATH");
 
