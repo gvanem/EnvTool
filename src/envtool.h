@@ -496,6 +496,7 @@ extern int  _file_exists    (const char *file);
 
 extern char *getenv_expand     (const char *variable);
 extern char *getenv_expand_sys (const char *variable);
+extern BOOL  getenv_system     (void);
 
 extern UINT   get_disk_type         (int disk);
 extern BOOL   get_disk_cluster_size (int disk, DWORD *size);

@@ -187,7 +187,7 @@ typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_nam
 
 /** \typedef func_ExpandEnvironmentStringsForUserA
  *
- * Since this function is not available on Win-XP, dynamically load "userenv.dll"
+ * Since these functions are not available on Win-XP, dynamically load "userenv.dll"
  * and get the function-pointer to `ExpandEnvironmentStringsForUserA()`.
  *
  * \note The MSDN documentation for `ExpandEnvironmentStringsForUser`()` is
@@ -201,11 +201,21 @@ typedef DWORD (WINAPI *func_ExpandEnvironmentStringsForUserA) (
                        char       *dest,
                        DWORD       dest_size);
 
+typedef BOOL (WINAPI *func_CreateEnvironmentBlock) (
+                      void  **env_block,
+                      HANDLE  token,
+                      BOOL    inherit);
+
+typedef BOOL (WINAPI *func_DestroyEnvironmentBlock) (
+                      void *environment);
+
 static func_GetModuleFileNameEx              p_GetModuleFileNameEx;
 static func_SetThreadErrorMode               p_SetThreadErrorMode;
 static func_IsWow64Process                   p_IsWow64Process;
 static func_NeedCurrentDirectoryForExePathA  p_NeedCurrentDirectoryForExePathA; /* not used */
 static func_ExpandEnvironmentStringsForUserA p_ExpandEnvironmentStringsForUserA;
+static func_CreateEnvironmentBlock           p_CreateEnvironmentBlock;
+static func_DestroyEnvironmentBlock          p_DestroyEnvironmentBlock;
 
 /**
  * Initialise the above function pointers once.
@@ -251,6 +261,13 @@ void init_misc (void)
   {
     p_ExpandEnvironmentStringsForUserA = (func_ExpandEnvironmentStringsForUserA)
                                            GetProcAddress (userenv_hnd, "ExpandEnvironmentStringsForUserA");
+
+    p_CreateEnvironmentBlock = (func_CreateEnvironmentBlock)
+                                 GetProcAddress (userenv_hnd, "CreateEnvironmentBlock");
+
+    p_DestroyEnvironmentBlock = (func_DestroyEnvironmentBlock)
+                                  GetProcAddress (userenv_hnd, "DestroyEnvironmentBlock");
+
   }
   done = TRUE;
 }
@@ -3437,7 +3454,7 @@ char *getenv_expand_sys (const char *variable)
 
   if (!p_ExpandEnvironmentStringsForUserA)
   {
-    DEBUGF (1, "p_ExpandEnvironmentStringsForUserA not available. Using  ExpandEnvironmentStrings() instead.\n");
+    DEBUGF (1, "p_ExpandEnvironmentStringsForUserA not available. Using ExpandEnvironmentStrings() instead.\n");
     rc = getenv_expand (variable);
   }
   else
@@ -3451,6 +3468,52 @@ char *getenv_expand_sys (const char *variable)
        rc = STRDUP (buf);
     DEBUGF (3, "variable: '%s', expanded: '%s'\n", variable, rc);
   }
+  return (rc);
+}
+
+/**
+ * Get the values from the System environment block.
+ *
+ * Should later be called from `do_check()` to check for mismatches
+ * in the User environment block.
+ */
+BOOL getenv_system (void)
+{
+  void *env_blk = NULL;
+  const wchar_t *e;
+  BOOL  rc;
+
+  init_misc();
+
+  if (!p_CreateEnvironmentBlock)
+  {
+    DEBUGF (1, "p_CreateEnvironmentBlock not available.\n");
+    return (FALSE);
+  }
+  if (!p_DestroyEnvironmentBlock)
+  {
+    DEBUGF (1, "p_DestroyEnvironmentBlock not available.\n");
+    return (FALSE);
+  }
+
+  rc = (*p_CreateEnvironmentBlock) (&env_blk, NULL, FALSE);
+  if (!rc)
+     DEBUGF (1, "CreateEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
+  else
+  {
+    int num;
+
+    e = env_blk;
+    for (num = 0; num < 50; num++)
+    {
+      C_printf ("  %d: '%S'\n", num, e);
+      e += 1 + wcslen (e);
+      if (!e[0])
+         break;
+    }
+  }
+  if (env_blk)
+    (*p_DestroyEnvironmentBlock) (&env_blk);
   return (rc);
 }
 
