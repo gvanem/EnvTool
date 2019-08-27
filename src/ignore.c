@@ -55,7 +55,7 @@ static UINT curr_sec = UINT_MAX;
  */
 void cfg_ignore_handler (const char *section, const char *key, const char *value)
 {
-  if (!stricmp(key,"ignore"))
+  if (section && !stricmp(key,"ignore"))
   {
     struct ignore_node *node;
     unsigned idx;
