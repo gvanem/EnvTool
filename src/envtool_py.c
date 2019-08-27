@@ -19,7 +19,6 @@
 #include "envtool.h"
 #include "envtool_py.h"
 #include "dirlist.h"
-#include "smartlist.h"
 
 /* No need to include <Python.h> just for this:
  */

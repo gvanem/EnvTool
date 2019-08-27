@@ -12,7 +12,6 @@
  */
 #include "color.h"
 #include "envtool.h"
-#include "smartlist.h"
 #include "auth.h"
 
 /**\typedef login_source
