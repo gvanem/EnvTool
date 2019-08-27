@@ -6,29 +6,29 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#include "smartlist.h"
+#include "color.h"
 #include "cfg_file.h"
 #include "envtool.h"
 
 #define CFG_MAX_SECTIONS  10
 #define CFG_SECTION_LEN   40
-#define CFG_KEYWORD_LEN  100
+#define CFG_KEYWORD_LEN   40
 #define CFG_VALUE_LEN    512
 
 typedef struct CFG_FILE {
         FILE        *file;
         char        *fname;                        /**< The name of this config-file. */
         unsigned     line;                         /**< The line number in `config_get_line()`. */
-        int          num_sections;                 /**< Number of sections / parsers set in `cfg_init()`. */
+        int          num_sections;                 /**< Number of sections / handlers set in `cfg_init()`. */
         const char  *sections [CFG_MAX_SECTIONS];  /**< The sections this structure handles. */
         cfg_handler  handlers [CFG_MAX_SECTIONS];  /**< The config-handlers for this config-file. */
-        void        *list;                         /**< A 'smartlist_t' of 'struct cfg_node' */
+        smartlist_t *list;                         /**< A 'smartlist_t' of 'struct cfg_node *' */
 
         /** The work-buffers used by `config_get_line()`.
          */
-        char         section [CFG_SECTION_LEN+1];
-        char         keyword [CFG_KEYWORD_LEN+1];
-        char         value [CFG_VALUE_LEN+1];
+        char section [CFG_SECTION_LEN+1];
+        char keyword [CFG_KEYWORD_LEN+1];
+        char value   [CFG_VALUE_LEN+1];
       } CFG_FILE;
 
 /**
@@ -64,7 +64,7 @@ static unsigned cfg_line;
  */
 static unsigned config_get_line (CFG_FILE *cf)
 {
-  char *val, *p, *l_quote, *r_quote;
+  char *p, *q, *l_quote, *r_quote;
 
   cf->keyword[0] = cf->value[0] = '\0';
 
@@ -73,7 +73,9 @@ static unsigned config_get_line (CFG_FILE *cf)
     char buf [1000];
     char fmt [100];
 
-    if (!fgets(buf,sizeof(buf),cf->file))   /* EOF */
+    ASSERT (sizeof(buf) >= CFG_VALUE_LEN + CFG_KEYWORD_LEN + 2);
+
+    if (!fgets(buf, sizeof(buf), cf->file))   /* EOF */
        return (0);
 
     /* Remove leading spaces
@@ -90,7 +92,7 @@ static unsigned config_get_line (CFG_FILE *cf)
 
     /* Got a '[section]' line. Find a 'key = val' on next 'fgets()'.
      */
-    snprintf (fmt, sizeof(fmt),"[%%%d[^]\r\n]", CFG_SECTION_LEN);
+    snprintf (fmt, sizeof(fmt), "[%%%d[^]\r\n]", CFG_SECTION_LEN);
     if (sscanf(p, fmt, cf->section) == 1)
     {
       cf->line++;
@@ -101,7 +103,7 @@ static unsigned config_get_line (CFG_FILE *cf)
     if (sscanf(p, fmt, cf->keyword, cf->value) != 2)
     {
       cf->line++;
-      DEBUGF (2, "line %u: cf->keyword: '%s'\n", cf->line, cf->keyword);
+      DEBUGF (2, "line %u: keyword: '%s', value: '%s'\n", cf->line, cf->keyword, cf->value);
       continue;
     }
 
@@ -112,13 +114,13 @@ static unsigned config_get_line (CFG_FILE *cf)
      * First check for a correctly quoted string value.
      */
     if (l_quote && r_quote && r_quote> l_quote)
-         val = r_quote;
-    else val = cf->value;
+         q = r_quote;
+    else q = cf->value;
 
-    p = strchr (val, ';');
+    p = strchr (q, ';');
     if (p)
        *p = '\0';
-    p = strchr (val, '#');
+    p = strchr (q, '#');
     if (p)
        *p = '\0';
 
@@ -142,7 +144,7 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
 
   for (i = 0; i < cf->num_sections; i++)
   {
-    if (!stricmp(section, cf->sections[i]))
+    if (section && !stricmp(section, cf->sections[i]))
     {
       DEBUGF (2, "Matched section '%s' at index %d.\n", cf->sections[i], i);
       return (cf->handlers[i]);
@@ -156,7 +158,7 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
  */
 static void none_or_global_handler (const char *section, const char *key, const char *value)
 {
-  if (section[0] == '\0')
+  if (!section || section[0] == '\0')
      DEBUGF (1, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
              cfg_fname, cfg_line, key, value);
   else
@@ -178,29 +180,28 @@ static void parse_config_file (CFG_FILE *cf)
   {
     struct cfg_node *cfg;
     char            *val, buf [40];
-    unsigned         line = config_get_line (cf);
     cfg_handler      handler;
 
-    if (line == 0)
+    if (!config_get_line(cf))
        break;
 
     DEBUGF (2, "line %2u: [%s]: %s = %s\n",
-            line, cf->section[0] == '\0' ? "<None>" : cf->section, cf->keyword, cf->value);
+            cf->line, cf->section[0] == '\0' ? "<None>" : cf->section,
+            cf->keyword, cf->value);
 
     /* Ignore "foo = <empty value>"
      */
     if (!*cf->value)
        continue;
 
-    cfg = CALLOC (sizeof(*cfg), 1);
-
-    if (cf->section[0] != '\0')
+    cfg = MALLOC (sizeof(*cfg));
+    if (cf->section[0])
     {
       snprintf (buf, sizeof(buf), "[%s]", cf->section);
       cfg->section = STRDUP (buf);
     }
     else
-      cfg->section = STRDUP (cf->section);
+      cfg->section = NULL;
 
     cfg->key = STRDUP (cf->keyword);
 
@@ -252,20 +253,22 @@ CFG_FILE *cfg_init (const char *fname, const char *section, ...)
     return (NULL);
   }
 
-  for (i = 0; i < DIM(cf->handlers); i++)
+  for (i = 0; i < CFG_MAX_SECTIONS; i++)
   {
-    cf->sections[i] = "";
+    cf->sections[i] = NULL;
     cf->handlers[i] = none_or_global_handler;
   }
 
   va_start (args, section);
-  for ( ; section; section = va_arg(args, const char*))
+  for (i = 0; section && i < CFG_MAX_SECTIONS; section = va_arg(args, const char*), i++)
   {
-    cf->sections [cf->num_sections] = section;
-    cf->handlers [cf->num_sections++] = va_arg (args, cfg_handler);
-    if (cf->num_sections == DIM(cf->sections))
-       break;
+    cf->sections [i] = section;
+    cf->handlers [i] = va_arg (args, cfg_handler);
+    cf->num_sections++;
   }
+  if (i == CFG_MAX_SECTIONS && va_arg(args, const char*))
+     WARN ("Too many sections. Max %d.\n", CFG_MAX_SECTIONS);
+
   va_end (args);
   parse_config_file (cf);
   fclose (cf->file);
