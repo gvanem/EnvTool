@@ -70,8 +70,8 @@ goto :EOF
   .\envtool -d --test --evry:ftp.github.com:21
 
   echo.
-  echo Testing check output
-  .\envtool --check
+  echo Testing verbose check output
+  .\envtool --check -v
 
   :: echo Testing win_glob
   :: win_glob -fr "c:\Program Files (x86)\CMake"
