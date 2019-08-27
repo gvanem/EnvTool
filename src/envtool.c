@@ -6539,6 +6539,106 @@ static void check_app_paths (HKEY key)
 }
 
 /**
+ * Print a single environment value from SYSTEM and USER limited to the screen width.
+ * Thus printing a long string as "C:\Program Files (x86)\Mi...tudio 14.0\Common7\Tools"
+ */
+static void print_env_val (const char *val, size_t len, size_t indent)
+{
+  size_t width = (C_screen_width() == 0) ? 200 : C_screen_width() - indent;
+
+  C_setraw (1);
+  C_printf ("%.*s", len, str_shorten(val, width));
+  C_setraw (0);
+  C_puts ("~0\n");
+}
+
+/**
+ * Compare an environment value from SYSTEM and USER.
+ * Ignore differences in case and trailing slashes ('\\' or '/') or ';'.
+ */
+static void compare_user_sys_env (const char *env_var, const char *sys_value, int indent1)
+{
+  const char *end, *user_value = getenv (env_var);
+  char       *sys_val = getenv_expand_sys (sys_value);
+  size_t      len, indent2;
+
+  if (sys_val)
+     sys_value = sys_val;
+
+  len = strlen (sys_value);
+  end = sys_value + len - 1;
+  if (IS_SLASH(*end))
+  {
+    len--;
+    end--;
+  }
+  if (*end == ';')
+     len--;
+
+  C_printf ("  ~3%-*s~0", indent1, env_var);
+  indent2 = indent1 + sizeof("SYSTEM = ") + 2;
+
+  if (!user_value)
+  {
+    C_puts ("~6SYSTEM = ");
+    print_env_val (sys_value, len, indent2);
+    C_printf ("  %*s~2USER   = <None>~0\n", indent1, "");
+  }
+  else if (strnicmp(user_value,sys_value,len))
+  {
+    C_printf ("Mismatch:\n  %*s~6SYSTEM = ", indent1, "");
+    print_env_val (sys_value, len, indent2);
+    C_printf ("  %*s~2USER   = ", indent1, "");
+    print_env_val (user_value, INT_MAX, indent2);
+  }
+  else
+  {
+    C_puts ("Match: ~6");
+    print_env_val (sys_value, len, indent2);
+  }
+  FREE (sys_val);
+}
+
+/**
+ * Compare all environment values for SYSTEM and check if there is a difference
+ * in the corresponding USER variable.
+ */
+static void do_check_user_sys_env (void)
+{
+  smartlist_t *list;
+  int          i, max;
+  size_t       len, longest_env = 0;
+  char        *env, *val;
+
+  C_puts ("\nComparing ~6SYSTEM~0 and ~2USER~0 environments:\n");
+
+  if (!getenv_system(&list))
+  {
+    C_printf ("CreateEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
+    return;
+  }
+
+  max = smartlist_len (list);
+  for (i = 0; i < max; i++)
+  {
+    env = smartlist_get (list, i);
+    val = strchr (env, '=');
+    *val++ = '\0';
+    len = strlen (env);
+    if (len > longest_env)
+       longest_env = len;
+  }
+
+  for (i = 0; i < max; i++)
+  {
+    env = smartlist_get (list, i);
+    val = strchr (env, '\0') + 1;
+    compare_user_sys_env (env, val, 2 + longest_env);
+  }
+  smartlist_free_all (list);
+}
+
+/**
  * The handler for mode `"--check"`.
  * Check the Registry keys even if `opt.no_app_path` is set.
  */
@@ -6621,6 +6721,8 @@ static int do_check (void)
    * And check for missing directories in above 'HKx' keys with values that looks
    * like directories. Like 'Path', 'TEMP'
    */
+  if (opt.verbose)
+     do_check_user_sys_env();
 
   FREE (sys_env_path);
   FREE (sys_env_inc);
