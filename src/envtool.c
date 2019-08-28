@@ -5101,8 +5101,7 @@ static void MS_CDECL cleanup (void)
   authinfo_exit();
   envtool_cfg_exit();
 
-  if (cf)
-     cfg_exit (cf);
+  cfg_exit (cf);
 
   vcpkg_free();
 
