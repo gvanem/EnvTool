@@ -617,7 +617,7 @@ static BOOL get_base_exe (void)
 
   if (!exe)
   {
-    _strlcpy (last_err_str, "vcpkg.exe not on %%PATH.\n", sizeof(last_err_str));
+    _strlcpy (last_err_str, "vcpkg.exe not on PATH.\n", sizeof(last_err_str));
     return (FALSE);
   }
   vcpkg_root = dirname (exe);
@@ -761,7 +761,11 @@ unsigned vcpkg_get_num (BOOL have_CONTROL)
  */
 unsigned vcpkg_get_num_CONTROLS (void)
 {
-  return vcpkg_get_num (TRUE);
+  unsigned num = vcpkg_get_num (TRUE);
+
+  if (num == 0)
+     _strlcpy (last_err_str, "No CONTROL files for VCPKG found.", sizeof(last_err_str));
+  return (num);
 }
 
 /**
@@ -769,7 +773,11 @@ unsigned vcpkg_get_num_CONTROLS (void)
  */
 unsigned vcpkg_get_num_portfile (void)
 {
-  return vcpkg_get_num (FALSE);
+  unsigned num = vcpkg_get_num (FALSE);
+
+  if (num == 0)
+     _strlcpy (last_err_str, "No portfiles for VCPKG found.", sizeof(last_err_str));
+  return (num);
 }
 
 /**
