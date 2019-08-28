@@ -662,9 +662,7 @@ static int show_help (void)
 
   C_puts ("    ~6--evry~0 remote FTP options:\n"
           "      ~6-H~0, ~6--host~0    hostname/IPv4-address. Can be used multiple times.\n"
-          "                    alternative syntax is ~6--evry=<host>~0.\n"
-          "      ~6--nonblock-io~0 connects using non-blocking I/O.\n"
-          "      ~6--buffered-io~0 use buffering to receive the data.\n");
+          "                    alternative syntax is ~6--evry=<host>~0.\n");
 
   C_puts ("\n"
           "  ~2[1]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
@@ -4679,17 +4677,15 @@ static const struct option long_options[] = {
            { "no-prefix",   no_argument,       NULL, 0 },
            { "no-ansi",     no_argument,       NULL, 0 },    /* 29 */
            { "host",        required_argument, NULL, 0 },
-           { "buffered-io", no_argument,       NULL, 0 },    /* 31 */
-           { "nonblock-io", no_argument,       NULL, 0 },
-           { "no-watcom",   no_argument,       NULL, 0 },    /* 33 */
+           { "no-watcom",   no_argument,       NULL, 0 },    /* 31 */
            { "no-borland",  no_argument,       NULL, 0 },
-           { "no-clang",    no_argument,       NULL, 0 },    /* 35 */
+           { "no-clang",    no_argument,       NULL, 0 },    /* 33 */
            { "owner",       optional_argument, NULL, 0 },
-           { "check",       no_argument,       NULL, 0 },    /* 37 */
+           { "check",       no_argument,       NULL, 0 },    /* 35 */
            { "signed",      optional_argument, NULL, 0 },
-           { "no-cwd",      no_argument,       NULL, 0 },    /* 39 */
+           { "no-cwd",      no_argument,       NULL, 0 },    /* 37 */
            { "sort",        required_argument, NULL, 0 },
-           { "vcpkg",       optional_argument, NULL, 0 },    /* 41 */
+           { "vcpkg",       optional_argument, NULL, 0 },    /* 39 */
            { NULL,          no_argument,       NULL, 0 }
          };
 
@@ -4725,17 +4721,15 @@ static int *values_tab[] = {
             &opt.gcc_no_prefixed,
             &opt.no_ansi,             /* 29 */
             (int*)&opt.evry_host,
-            &opt.use_buffered_io,     /* 31 */
-            &opt.use_nonblock_io,
-            &opt.no_watcom,           /* 33 */
+            &opt.no_watcom,           /* 31 */
             &opt.no_borland,
-            &opt.no_clang,            /* 35 */
+            &opt.no_clang,            /* 33 */
             &opt.show_owner,
-            &opt.do_check,            /* 37 */
+            &opt.do_check,            /* 35 */
             (int*)&opt.signed_status,
-            &opt.no_cwd,              /* 39 */
+            &opt.no_cwd,              /* 37 */
             (int*)&opt.sort_method,
-            &opt.do_vcpkg             /* 41 */
+            &opt.do_vcpkg             /* 39 */
           };
 
 /**
@@ -5107,7 +5101,8 @@ static void MS_CDECL cleanup (void)
   authinfo_exit();
   envtool_cfg_exit();
 
-  cfg_exit (cf);
+  if (cf)
+     cfg_exit (cf);
 
   vcpkg_free();
 
@@ -5220,16 +5215,10 @@ static void init_all (const char **argv)
 }
 
 /**
- * The config-file parser for key/value pairs *not* in any section
- * (at the start of the `%APPDATA%/envtool.cfg` file).
+ * The config-file handler for "beep.*" key/value pairs.
  */
-static void envtool_cfg_handler (const char *section, const char *key, const char *value)
+static void cfg_beep_handler (const char *key, const char *value)
 {
-  if (strnicmp(key,"beep.",5))
-     return;
-
-  key += 5;
-
   if (!stricmp(key,"enable"))
      opt.beep.enable = atoi (value);
 
@@ -5241,6 +5230,31 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
 
   else if (!stricmp(key,"msec"))
      opt.beep.msec = (unsigned) atoi (value);
+}
+
+/**
+ * The config-file handler for "ETP.*" key/value pairs.
+ */
+static void cfg_ETP_handler (const char *key, const char *value)
+{
+  if (!stricmp(key,"buffered_io"))
+     opt.use_buffered_io = atoi (value);
+
+  else if (!stricmp(key,"nonblock_io"))
+     opt.use_nonblock_io = atoi (value);
+}
+
+/**
+ * The config-file parser for key/value pairs *not* in any section
+ * (at the start of the `%APPDATA%/envtool.cfg` file).
+ */
+static void envtool_cfg_handler (const char *section, const char *key, const char *value)
+{
+  if (!strnicmp(key,"beep.",5))
+     cfg_beep_handler (key+5, value);
+
+  else if (!strnicmp(key,"ETP.",4))
+     cfg_beep_handler (key+4, value);
 
   ARGSUSED (section);
 }
