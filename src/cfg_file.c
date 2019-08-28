@@ -281,8 +281,12 @@ CFG_FILE *cfg_init (const char *fname, const char *section, ...)
  */
 void cfg_exit (CFG_FILE *cf)
 {
-  int i, max = cf->list ? smartlist_len (cf->list) : 0;
+  int i, max;
 
+  if (!cf)
+     return;
+
+  max = cf->list ? smartlist_len (cf->list) : 0;
   for (i = 0; i < max; i++)
   {
     struct cfg_node *cfg = smartlist_get (cf->list, i);
