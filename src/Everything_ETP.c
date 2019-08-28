@@ -3,7 +3,7 @@
  *  \brief
  *    Functions for remote queries using EveryThing's FTP protocol.
  *
- *   ref: http://www.voidtools.com/support/everything/etp/     <br>
+ *   ref: https://www.voidtools.com/support/everything/etp/    <br>
  *   ref: https://www.voidtools.com/forum/viewtopic.php?t=1790 <br>
  *
  * To do a remote EveryThing search, connect to a remote ETP-server, login,

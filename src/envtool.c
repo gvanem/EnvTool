@@ -265,7 +265,7 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
      bits = " (64-bit)";
 
   C_printf ("  Everything search engine ver. %u.%u.%u.%u%s (c)"
-            " David Carpenter; ~6http://www.voidtools.com/~0\n",
+            " David Carpenter; ~6https://www.voidtools.com/~0\n",
             ver->val_1, ver->val_2, ver->val_3, ver->val_4, bits);
 
   *p = '\0';
@@ -666,7 +666,7 @@ static int show_help (void)
 
   C_puts ("\n"
           "  ~2[1]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
-          "      Ref. ~3http://www.voidtools.com/support/everything/~0\n"
+          "      Ref. ~3https://www.voidtools.com/support/everything/~0\n"
           "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
           "      should be specified in your ~6%APPDATA%/.netrc~0 or ~6%APPDATA%/.authinfo~0 files or\n"
           "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
@@ -2646,7 +2646,7 @@ static int do_check_evry (void)
   /* The request flags: EVERYTHING_REQUEST_SIZE and/or EVERYTHING_REQUEST_DATE_MODIFIED
    * needs v. 1.4.1 or later.
    * Ref:
-   *   http://www.voidtools.com/support/everything/sdk/everything_setrequestflags/
+   *   https://www.voidtools.com/support/everything/sdk/everything_setrequestflags/
    *
    * But do not request the file size/time since that could be "old information" when
    * files are frequently updated.
