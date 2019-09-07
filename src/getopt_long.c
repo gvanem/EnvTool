@@ -656,12 +656,19 @@ static void dummy_set_opt (int o, const char *arg)
 static void read_file_as_wchar_t (struct command_line *c, const char *file)
 {
   FILE *f = fopen (file, "rb");
-  long  i, flen = filelength (fileno(f));
+  long  i, flen;
   int   ch;
   BOOL  escpaped = FALSE;
 
+  if (f)
+       flen = filelength (fileno(f));
+  else flen = 0;  /* just in case */
+
   DEBUGF ("filelength: %lu.\n", flen);
+
   c->file_wbuf = MALLOC (2*(flen+1));
+  c->file_wbuf[0] = L'\0';
+
   for (i = 0; i < flen; i++)
   {
     ch = fgetc (f);
@@ -675,7 +682,8 @@ static void read_file_as_wchar_t (struct command_line *c, const char *file)
     c->file_wbuf[i] = (wchar_t) ch;
   }
   c->file_wbuf[i] = L'\0';
-  fclose (f);
+  if (f)
+     fclose (f);
 }
 
 static void dump_argv (const struct command_line *c, unsigned line)
@@ -799,7 +807,7 @@ void getopt_parse (struct command_line *c)
     /* The cmd-line contains a response file. If it doesn't exist, simply add
      * `@file` to `c->argv[i]`.
      * We do not support a `@file` inside a response-file; it will be passed
-     * on as-is.
+     * on as-is. We also support only 1 response-file.
      */
     if (!c->file_wbuf && aarg[0] == '@' && FILE_EXISTS(aarg+1))
     {
