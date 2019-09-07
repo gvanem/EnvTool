@@ -103,7 +103,7 @@ static unsigned config_get_line (CFG_FILE *cf)
     if (sscanf(p, fmt, cf->keyword, cf->value) != 2)
     {
       cf->line++;
-      DEBUGF (2, "line %u: keyword: '%s', value: '%s'\n", cf->line, cf->keyword, cf->value);
+      DEBUGF (3, "line %u: keyword: '%s', value: '%s'\n", cf->line, cf->keyword, cf->value);
       continue;
     }
 
@@ -146,7 +146,7 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
   {
     if (section && !stricmp(section, cf->sections[i]))
     {
-      DEBUGF (2, "Matched section '%s' at index %d.\n", cf->sections[i], i);
+      DEBUGF (3, "Matched section '%s' at index %d.\n", cf->sections[i], i);
       return (cf->handlers[i]);
     }
   }
@@ -159,10 +159,10 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
 static void none_or_global_handler (const char *section, const char *key, const char *value)
 {
   if (!section || section[0] == '\0')
-     DEBUGF (1, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
+     DEBUGF (3, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
              cfg_fname, cfg_line, key, value);
   else
-     DEBUGF (1, "%s(%u): Keyword '%s' = '%s' in unknown section '%s'.\n",
+     DEBUGF (3, "%s(%u): Keyword '%s' = '%s' in unknown section '%s'.\n",
              cfg_fname, cfg_line, key, value, section);
 }
 
@@ -174,7 +174,7 @@ static void none_or_global_handler (const char *section, const char *key, const 
  */
 static void parse_config_file (CFG_FILE *cf)
 {
-  DEBUGF (2, "file: %s.\n", cfg_fname);
+  DEBUGF (3, "file: %s.\n", cfg_fname);
 
   while (1)
   {
@@ -185,7 +185,7 @@ static void parse_config_file (CFG_FILE *cf)
     if (!config_get_line(cf))
        break;
 
-    DEBUGF (2, "line %2u: [%s]: %s = %s\n",
+    DEBUGF (3, "line %2u: [%s]: %s = %s\n",
             cf->line, cf->section[0] == '\0' ? "<None>" : cf->section,
             cf->keyword, cf->value);
 

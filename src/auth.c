@@ -86,18 +86,18 @@ static void common_exit (enum login_source src)
 
   if (!login_list)
   {
-    DEBUGF (2, "%s: length of list now: %s\n", login_src_name(src), "<N/A>");
+    DEBUGF (3, "%s: length of list now: %s\n", login_src_name(src), "<N/A>");
     return;
   }
 
   max = smartlist_len (login_list);
-  DEBUGF (2, "%s: length of list now: %d\n", login_src_name(src), max);
+  DEBUGF (3, "%s: length of list now: %d\n", login_src_name(src), max);
 
   for (i = 0; i < max; i++)
   {
     struct login_info *li = smartlist_get (login_list, i);
 
-    DEBUGF (2, "i: %d, %-12s, do %sdelete this.\n",
+    DEBUGF (3, "i: %d, %-12s, do %sdelete this.\n",
             i,  login_src_name(li->src), (li->src == src) ? "" : "not ");
 
     if (!li || li->src != src)
@@ -114,7 +114,7 @@ static void common_exit (enum login_source src)
     i--;
   }
 
-  DEBUGF (2, "length of list now: %d\n", smartlist_len(login_list));
+  DEBUGF (3, "length of list now: %d\n", smartlist_len(login_list));
 
   if (smartlist_len(login_list) == 0)
   {
@@ -269,7 +269,7 @@ void auth_envtool_handler (const char *section, const char *key, const char *val
     li->passw    = STRDUP (passw);
     li->port     = port;
     li->src      = LOGIN_ENVTOOL_CFG;
-    DEBUGF (2, "num: %d, host: '%s', user: '%s', passwd: '%s', port: %d.\n", num, li->host, li->user, li->passw, li->port);
+    DEBUGF (3, "num: %d, host: '%s', user: '%s', passwd: '%s', port: %d.\n", num, li->host, li->user, li->passw, li->port);
     smartlist_add (login_list, li);
   }
   ARGSUSED (section);

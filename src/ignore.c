@@ -74,7 +74,7 @@ void cfg_ignore_handler (const char *section, const char *key, const char *value
     node->section = sections[idx].name;
     node->value   = value;
     smartlist_add (ignore_list, node);
-    DEBUGF (2, "%s: ignore = '%s'\n", node->section, node->value);
+    DEBUGF (3, "%s: ignore = '%s'\n", node->section, node->value);
   }
 }
 
@@ -136,7 +136,7 @@ const char *cfg_ignore_first (const char *section)
 
   if (idx == UINT_MAX)
   {
-    DEBUGF (2, "No such section: %s.\n", section);
+    DEBUGF (3, "No such section: %s.\n", section);
     goto not_found;
   }
 
