@@ -2711,7 +2711,7 @@ static int do_check_evry (void)
   DEBUGF (1, "Everything_GetNumResults() num: %lu, err: %s\n",
           (u_long)num, evry_strerror(Everything_GetLastError()));
 
-  if (abs(end_time - start_time) >= opt.beep.limit && opt.beep.enable)
+  if (opt.beep.enable && end_time > start_time && (end_time - start_time) >= opt.beep.limit)
      Beep (opt.beep.freq, opt.beep.msec);
 
   if (num == 0)
@@ -5274,7 +5274,7 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
      cfg_beep_handler (key+5, value);
 
   else if (!strnicmp(key,"ETP.",4))
-     cfg_beep_handler (key+4, value);
+     cfg_ETP_handler (key+4, value);
 
   ARGSUSED (section);
 }
