@@ -952,7 +952,7 @@ print_verbose_pkg_details (FMT_buf *fmt_buf, const struct vcpkg_package *pkg, co
   for (i = 0; i < max; i++)
   {
     struct stat st;
-    char   file [_MAX_PATH];
+    char   file2 [_MAX_PATH];
     char   fsize [80];
     char  *part = smartlist_get (parts, i);
     char  *fname = strrchr (part, '/');
@@ -967,23 +967,23 @@ print_verbose_pkg_details (FMT_buf *fmt_buf, const struct vcpkg_package *pkg, co
     }
 
     *fname++ = '\0';
-    file[0] = '\0';
+    file2[0] = '\0';
     fsize[0] = '\0';
     DEBUGF (1, "fname: '%s'\n", fname);
 
     if (str_endswith(part, "/bin"))
     {
-      snprintf (file, sizeof(file), "%s\\%s", part, fname);
+      snprintf (file2, sizeof(file2), "%s\\%s", part, fname);
       bin_files++;
     }
     else if (str_endswith(part, "/lib"))
     {
-      snprintf (file, sizeof(file), "%s\\%s", part, fname);
+      snprintf (file2, sizeof(file2), "%s\\%s", part, fname);
       lib_files++;
     }
     else if (str_endswith(fname,".cmake"))
     {
-      snprintf (file, sizeof(file), "%s\\%s", part, fname);
+      snprintf (file2, sizeof(file2), "%s\\%s", part, fname);
       cmake_files++;
     }
     else if (str_endswith(fname,".h"))
@@ -993,16 +993,16 @@ print_verbose_pkg_details (FMT_buf *fmt_buf, const struct vcpkg_package *pkg, co
     else if (!stricmp(fname,"usage"))
        other_files++;
 
-    if (file[0])
+    if (file2[0])
     {
-      if (opt.show_size && safe_stat(file,&st,NULL) == 0)
+      if (opt.show_size && safe_stat(file2,&st,NULL) == 0)
          snprintf (fsize, sizeof(fsize), "%s %s: ",
                    get_time_str(st.st_mtime),
                    get_file_size_str(st.st_size));
 
       buf_printf (fmt_buf, "%*s%s%s%s\n",
                   indent, "", fsize, "%VCPKG_ROOT%",
-                  slashify(file, slash) + strlen(vcpkg_root)); /* Replace the leading part with `%VCPKG_ROOT%` */
+                  slashify(file2, slash) + strlen(vcpkg_root)); /* Replace the leading part with `%VCPKG_ROOT%` */
     }
   }
 
