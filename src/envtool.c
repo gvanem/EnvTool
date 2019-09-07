@@ -2588,7 +2588,28 @@ static int do_check_evry (void)
           evry_ver.val_4);
 
   if (opt.evry_raw)
-     query = opt.file_spec;
+  {
+    /* Since 'CommandLineToArgvW()' was used in 'getopt_parse()', a quoted 'content:"xx yy"'
+     * string has been split up into 2 'opt.cmd_line->argv[]' values.
+     *
+     * We must undo this here by creating a proper quoted 'content:\"xx yy\"' string.
+     *
+     * And since all remaining 'opt.cmd_line->argv[]' values are used in
+     * 'Everything_SetSearch()' below, a bonus of this is that a non-quoted query
+     * will also become quoted. I.e. 'foo content:xx yy' -> 'foo content:"xx yy"'.
+     */
+    const char *content  = strstr (opt.file_spec," content:");
+    size_t      cont_len = strlen (" content:");
+
+    if (content && strchr(content+cont_len,' '))
+    {
+      snprintf (query_buf, sizeof(query_buf), "%.*s content:\"%s\"",
+                content-opt.file_spec, opt.file_spec, content+cont_len);
+      DEBUGF (2, "Creating quoted 'content:' query: '%s'\n", query_buf);
+    }
+    else
+      query = opt.file_spec;
+  }
   else
   {
     /* EveryThing seems not to support `\\`. Must split the `opt.file_spec`
