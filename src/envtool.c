@@ -5030,12 +5030,10 @@ static void parse_cmdline (void)
      opt.file_spec = STRDUP (c->argv[c->argc0]);
 
   if ((c->argc0 > 0) && (c->argc - c->argc0 >= 2))
-     opt.evry_raw = TRUE;
-
-  if (opt.evry_raw)
   {
     FREE (opt.file_spec);
     opt.file_spec = _strjoin (c->argv + c->argc0, " ");
+    opt.evry_raw  = TRUE;
   }
 
   DEBUGF (2, "c->argc0:      %d\n", c->argc0);
