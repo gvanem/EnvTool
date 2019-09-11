@@ -1000,9 +1000,7 @@ print_verbose_pkg_details (FMT_buf *fmt_buf, const struct vcpkg_package *pkg, co
                    get_time_str(st.st_mtime),
                    get_file_size_str(st.st_size));
 
-      buf_printf (fmt_buf, "%*s%s%s%s\n",
-                  indent, "", fsize, "%VCPKG_ROOT%",
-                  slashify(file2, slash) + strlen(vcpkg_root)); /* Replace the leading part with `%VCPKG_ROOT%` */
+      buf_printf (fmt_buf, "%*s%s%s\n", indent, "", fsize, slashify(file2, slash));
     }
   }
 
@@ -1042,8 +1040,7 @@ unsigned vcpkg_list_installed (void)
   if (opt.only_64bit)
      only = ", x64-only";
 
-  C_printf ("\n  %u installed ~3VCPKG~0 packages (~3%%VCPKG_ROOT%%~0=~6%s~0%s):\n",
-            num, vcpkg_root, only);
+  C_printf ("\n  %u installed ~3VCPKG~0 packages:\n", num, only);
 
  /* Should be the same as 'vcpkg_get_num_installed()'
   */
@@ -1058,8 +1055,7 @@ unsigned vcpkg_list_installed (void)
     if (opt.only_64bit && !(pkg->platform & VCPKG_plat_x64))
        continue;
 
-    C_printf ("    %-*s %s%s\n", VCPKG_MAX_NAME, pkg->package, "%VCPKG_ROOT%",
-              get_info_file(pkg) + strlen(vcpkg_root));
+    C_printf ("    %-*s %s\n", VCPKG_MAX_NAME, pkg->package, get_info_file(pkg));
   }
   return (num);
 }
