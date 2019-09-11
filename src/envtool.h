@@ -466,6 +466,7 @@ extern void   exit_misc     (void);
 extern char *_strlcpy       (char *dst, const char *src, size_t sz);
 extern char *_strsep        (char **s, const char *delim);
 extern char *_stracat       (char *s1, const char *s2);
+extern char *_strndup       (const char *s, size_t sz);
 extern char *_strjoin       (char *const *arr, const char *sep);
 extern char *strip_nl       (char *s);
 extern char *str_ltrim      (char *s);
@@ -524,6 +525,7 @@ extern const char *plural_str (DWORD val, const char *singular, const char *plur
 extern void        format_and_print_line (const char *line, int indent);
 extern void        print_long_line (const char *line, size_t indent);
 extern char       *translate_shell_pattern (const char *pattern);
+extern BOOL        test_shell_pattern (void);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
 extern BOOL        get_module_filename_ex (HANDLE proc, char *filename);

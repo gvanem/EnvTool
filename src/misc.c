@@ -2310,7 +2310,7 @@ char *str_repeat (int ch, size_t num)
 }
 
 /**
- * Get next token from string `*stringp`, where tokens are possibly-empty
+ * Get next token from string `*stringp`, where tokens are possibly empty
  * strings separated by characters from `delim`.
  *
  * Writes NULs into the string at `*stringp` to end tokens.
@@ -2369,6 +2369,19 @@ char *_stracat (char *s1, const char *s2)
   sz = strlen (s2) + 1;
   memcpy (s, s2, sz);   /* copy 's2' after 's1' */
   return (start);
+}
+
+/**
+ * Allocate and return a new string containing the
+ * first `n` characters of `s`.
+ */
+char *_strndup (const char *s, size_t sz)
+{
+  char *dup = MALLOC (sz+1);
+
+  strncpy (dup, s, sz);
+  dup [sz] = '\0';
+  return (dup);
 }
 
 /**
@@ -3569,6 +3582,11 @@ char *translate_shell_pattern (const char *pattern)
             *out++ = '$';
             break;
 
+       case '\"':
+            *out++ = '\\';
+            *out++ = '\"';
+            break;
+
        case '?':
             *out++ = '.';
             break;
@@ -3584,6 +3602,46 @@ char *translate_shell_pattern (const char *pattern)
            (unsigned)len);
   *out = '\0';
   return (res);
+}
+
+/**
+ * A simple test for `translate_shell_pattern()`.
+ */
+BOOL test_shell_pattern (void)
+{
+  const char in_pattern [] = "\\ "      // 0
+                             "* "
+                             ". "       // 2
+                             "+ "
+                             "\\ "      // 4
+                             "$ "
+                             "? "       // 6
+                             "\" "
+                             "foo-bar";
+  const char ref_pattern[] = "\\\\ "    // 0
+                             ".* "
+                             "\\. "     // 2
+                             "\\+ "
+                             "\\\\ "    // 4
+                             "\\$ "
+                             ". "       // 6
+                             "\\\" "
+                             "foo-bar";
+  const char *out_pattern = translate_shell_pattern (in_pattern);
+  size_t      pos, len = sizeof(ref_pattern)-1;
+  BOOL        equal = !strcmp (out_pattern, ref_pattern);
+
+  printf ("ref: '%s'\n", ref_pattern);
+  for (pos = 0; pos < len; pos++)
+  {
+    if (ref_pattern[pos] != out_pattern[pos])
+       break;
+  }
+
+  printf ("out: '%s' -> %s\n", out_pattern, equal ? "OKAY" : "FAILED");
+  if (!equal)
+     printf ("%*c\n", pos+sizeof("ref: '"), '^');
+  return (equal);
 }
 
 /**
