@@ -87,9 +87,9 @@ endif
 SOURCES = auth.c envtool.c envtool_py.c Everything.c Everything_ETP.c \
           color.c dirlist.c ignore.c get_file_assoc.c getopt_long.c   \
           misc.c searchpath.c smartlist.c show_ver.c sort.c regex.c   \
-          vcpkg.c win_ver.c win_trust.c
+          vcpkg.c win_ver.c win_trust.c cfg_file.c
 
-OBJECTS = $(notdir $(SOURCES:.c=.obj))
+OBJECTS = $(SOURCES:.c=.obj)
 
 all: cflags_PellesC.h ldflags_PellesC.h envtool.exe
 	cp --update envtool.exe ..
@@ -98,17 +98,17 @@ all: cflags_PellesC.h ldflags_PellesC.h envtool.exe
 envtool.exe: $(OBJECTS) envtool.res
 	$(call link_EXE, $@, $^)
 
-win_trust.exe: win_trust.c getopt_long.obj misc.obj color.obj
+win_trust.exe: win_trust.c getopt_long.obj misc.obj color.obj smartlist.obj
 	$(CC) -c $(CFLAGS) -DWIN_TRUST_TEST $^
-	$(call link_EXE, $@, win_trust.obj getopt_long.obj misc.obj color.obj)
+	$(call link_EXE, $@, win_trust.obj getopt_long.obj misc.obj color.obj smartlist.obj)
 
-win_glob.exe: win_glob.c misc.obj color.obj
+win_glob.exe: win_glob.c misc.obj color.obj smartlist.obj
 	$(CC) -c $(CFLAGS) -DWIN_GLOB_TEST $^
-	$(call link_EXE, $@, win_glob.obj misc.obj color.obj)
+	$(call link_EXE, $@, win_glob.obj misc.obj color.obj smartlist.obj)
 
-win_ver.exe: win_ver.c misc.obj color.obj
+win_ver.exe: win_ver.c misc.obj color.obj smartlist.obj
 	$(CC) -c $(CFLAGS) -DWIN_VER_TEST win_ver.c
-	$(call link_EXE, $@, win_ver.obj misc.obj color.obj)
+	$(call link_EXE, $@, win_ver.obj misc.obj color.obj smartlist.obj)
 
 envtool.res: envtool.rc
 	$(RC) $(RCFLAGS) -Foenvtool.res envtool.rc

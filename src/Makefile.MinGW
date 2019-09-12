@@ -53,8 +53,9 @@ endif
 
 EX_LIBS += -lpsapi -limagehlp -lversion -lwintrust -lshlwapi -lcrypt32 -lws2_32
 
-SOURCES = auth.c color.c dirlist.c envtool.c envtool_py.c Everything.c Everything_ETP.c  \
-          get_file_assoc.c getopt_long.c ignore.c misc.c regex.c searchpath.c show_ver.c \
+SOURCES = auth.c cfg_file.c color.c dirlist.c envtool.c envtool_py.c \
+          Everything.c Everything_ETP.c get_file_assoc.c getopt_long.c \
+          ignore.c misc.c regex.c searchpath.c show_ver.c \
           smartlist.c sort.c vcpkg.c win_trust.c win_ver.c
 
 OBJECTS  = $(notdir $(SOURCES:.c=.o))
@@ -68,22 +69,22 @@ envtool.exe: $(OBJECTS) envtool.res
 	$(CC) $(LDFLAGS) -o $@ $^ $(EX_LIBS) > envtool.map
 	@echo
 
-dirlist.exe: dirlist.c misc.c color.c getopt_long.c searchpath.c
+dirlist.exe: dirlist.c misc.c color.c getopt_long.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
 	rm -f dirlist.o
 	@echo
 
-win_glob.exe: win_glob.c misc.c color.c getopt_long.c searchpath.c
+win_glob.exe: win_glob.c misc.c color.c getopt_long.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o
 	@echo
 
-win_ver.exe: win_ver.c misc.c color.c searchpath.c
+win_ver.exe: win_ver.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
 	rm -f win_ver.o
 	@echo
 
-win_trust.exe: win_trust.c getopt_long.c misc.c color.c searchpath.c
+win_trust.exe: win_trust.c getopt_long.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
 	rm -f win_trust.o
 	@echo
@@ -115,12 +116,12 @@ ldflags_MinGW.h: Makefile.MinGW
 	echo 'const char *ldflags = "$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)";' > $@
 	@echo
 
-REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
+DEP_REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 
 depend: cflags_MinGW.h ldflags_MinGW.h
-	$(CC) -MM $(CFLAGS) $(SOURCES) dirlist.c win_glob.c | $(REPLACE) > .depend.MinGW
-	echo ''                                                         >> .depend.MinGW
-	echo 'envtool.res: envtool.h'                                   >> .depend.MinGW
+	$(CC) -MM $(CFLAGS) $(SOURCES) dirlist.c win_glob.c | $(DEP_REPLACE) > .depend.MinGW
+	echo ''                                                             >> .depend.MinGW
+	echo 'envtool.res: envtool.h'                                       >> .depend.MinGW
 
 -include .depend.MinGW
 
