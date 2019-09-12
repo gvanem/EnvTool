@@ -536,7 +536,7 @@ static int show_version (void)
   {
     opt.cache_ver_level = 2;
 
-    C_printf ("  OS-version: %s (%s bits).\n", os_name(), os_bits());
+    C_printf ("  OS-version: %s (%s bits).\n", os_full_version(), os_bits());
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
     C_printf ("  ConEmu:     %sdetected.\n", opt.under_conemu ? "" : "not ");
 
