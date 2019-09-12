@@ -309,10 +309,14 @@
  */
 #undef HAVE_STRCAT_S
 
-#if defined(__POCC__) && defined(__STDC_WANT_LIB_EXT1__) && (__STDC_WANT_LIB_EXT1__ >= 1)
+#if defined(__POCC__)
+  #if defined(__STDC_WANT_LIB_EXT1__) && (__STDC_WANT_LIB_EXT1__ >= 1)
   #define HAVE_STRCAT_S
-#elif defined(_MSC_VER) && !defined(__POCC__)
+  #endif
+
+#elif defined(_MSC_VER)
   #define HAVE_STRCAT_S
+#else
 #endif
 
 #ifdef __cplusplus
@@ -496,6 +500,7 @@ extern BOOL  wchar_to_mbchar(char *result, size_t len, const wchar_t *buf);
 extern void  set_error_mode (int on_off);
 extern int  _file_exists    (const char *file);
 
+extern char *evry_raw_query    (void);
 extern char *getenv_expand     (const char *variable);
 extern char *getenv_expand_sys (const char *variable);
 extern BOOL  getenv_system     (smartlist_t **sl);
