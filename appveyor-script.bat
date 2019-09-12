@@ -16,8 +16,8 @@ setlocal
 ::
 ::
 if "%APPVEYOR_BUILD_FOLDER%" == "" set APPVEYOR_BUILD_FOLDER=%~dp0
-
 set PATH=%PATH%;c:\Python34
+set PROMPT=$P$G
 
 if %1. == build. goto build
 if %1. == test.  goto test
@@ -46,36 +46,39 @@ goto :EOF
 
   cd %APPDATA%\src
 
-  echo Testing version output
+  echo on
+
+  @echo Testing version output
   .\envtool -VVV
 
-  echo.
-  echo Testing test output (show owner in test_PE_wintrust())
+  @echo.
+  @echo Testing test output (show owner in test_PE_wintrust())
   .\envtool --test --owner
 
-  echo.
-  echo Testing Python2 test output
+  @echo.
+  @echo Testing Python2 test output
   .\envtool --test --python=py2
 
-  echo.
-  echo Testing Python3 test output
+  @echo.
+  @echo Testing Python3 test output
   .\envtool --test --python=py3
 
-  echo.
-  echo Testing VCPKG output
+  @echo.
+  @echo Testing VCPKG output
   .\envtool --vcpkg azure-u*
 
-  echo.
-  echo Testing ETP-searches (should fail)
+  @echo.
+  @echo Testing ETP-searches (should fail)
   .\envtool -d --test --evry:ftp.github.com:21
 
-  echo.
-  echo Testing verbose check output
+  @echo.
+  @echo Testing verbose check output
   .\envtool --check -v
 
   :: echo Testing win_glob
   :: win_glob -fr "c:\Program Files (x86)\CMake"
 
+  @echo off
   del /q %APPDATA%\.netrc %APPDATA%\.authinfo
   goto :EOF
 
