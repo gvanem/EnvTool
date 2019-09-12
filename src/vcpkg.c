@@ -1036,11 +1036,11 @@ unsigned vcpkg_list_installed (void)
   unsigned    i, num = vcpkg_get_num_installed();
 
   if (opt.only_32bit)
-     only = ", x86-only";
+     only = " (x86-only)";
   if (opt.only_64bit)
-     only = ", x64-only";
+     only = " (x64-only)";
 
-  C_printf ("\n  %u installed ~3VCPKG~0 packages:\n", num, only);
+  C_printf ("\n  %u installed ~3VCPKG~0 packages%s:\n", num, only);
 
  /* Should be the same as 'vcpkg_get_num_installed()'
   */
