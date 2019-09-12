@@ -551,19 +551,21 @@ static BOOL state_closing (struct state_CTX *ctx)
  */
 static BOOL state_send_query (struct state_CTX *ctx)
 {
-  /* If raw query, send `file_spec` query as-is
+  /* If a raw query, send `file_spec` query as-is.
+   * But as for 'Everything_SetSearch()', a 'content:foo bar' string MUST
+   * be quoted.
    */
   if (opt.evry_raw)
-     send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
+     send_cmd (ctx, "EVERYTHING SEARCH %s", evry_raw_query());
   else
   {
     /* Always send a "REGEX 1", but translate from a shell-pattern if
      * `opt.use_regex == 0`.
      */
     send_cmd (ctx, "EVERYTHING REGEX 1");
-    if (opt.use_regex == 0)
-         send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(opt.file_spec));
-    else send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
+    if (opt.use_regex)
+         send_cmd (ctx, "EVERYTHING SEARCH %s", opt.file_spec);
+    else send_cmd (ctx, "EVERYTHING SEARCH ^%s$", translate_shell_pattern(opt.file_spec));
   }
 
   send_cmd (ctx, "EVERYTHING CASE %d", opt.case_sensitive);
@@ -892,7 +894,7 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
        _strlcpy (ctx->username, user, sizeof(ctx->username));
     if (passw)
        _strlcpy (ctx->password, passw, sizeof(ctx->password));
-    if (port)
+    if (port && !ctx->port)
        ctx->port = port;
   }
 
@@ -1249,7 +1251,7 @@ int do_check_evry_ept (const char *host)
   ctx.sock              = INVALID_SOCKET;
   ctx.timeout           = RECV_TIMEOUT;
   ctx.raw_url           = _strlcpy (host_buf, host, sizeof(host_buf));
-  ctx.port              = 21;
+  ctx.port              = 0;
   ctx.trace.buffer[0]   = '?';
   ctx.trace.buffer[1]   = '\0';
   ctx.trace.buffer_pos  = ctx.trace.buffer;
