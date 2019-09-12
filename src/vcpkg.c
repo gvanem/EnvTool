@@ -378,7 +378,7 @@ static enum VCPKG_platform make_package_platform (char *platform, BOOL recurse)
     while (tok)
     {
       ret |= make_package_platform (tok, FALSE);
-      tok = strtok_s (NULL, "-", &tok_end);
+      tok = _strtok_r (NULL, "-", &tok_end);
     }
   }
   return (ret);
