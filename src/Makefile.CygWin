@@ -64,7 +64,8 @@ endif
 
 SOURCES = auth.c dirlist.c envtool.c envtool_py.c Everything.c Everything_ETP.c \
           color.c get_file_assoc.c getopt_long.c ignore.c misc.c regex.c \
-          searchpath.c show_ver.c smartlist.c sort.c vcpkg.c win_trust.c win_ver.c
+          searchpath.c show_ver.c smartlist.c sort.c vcpkg.c win_trust.c win_ver.c \
+          cfg_file.c
 
 OBJECTS  = $(notdir $(SOURCES:.c=.o))
 PROGRAMS = envtool.exe win_glob.exe win_ver.exe win_trust.exe dirlist.exe
@@ -81,22 +82,22 @@ envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc
 	@echo
 
-dirlist.exe: dirlist.c misc.c color.c searchpath.c
+dirlist.exe: dirlist.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DDIRLIST_TEST -o $@ $^ $(EX_LIBS) > dirlist.map
 	rm -f dirlist.o
 	@echo
 
-win_glob.exe: win_glob.c misc.c color.c searchpath.c
+win_glob.exe: win_glob.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o
 	@echo
 
-win_ver.exe: win_ver.c misc.c color.c searchpath.c
+win_ver.exe: win_ver.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
 	rm -f win_ver.o
 	@echo
 
-win_trust.exe: win_trust.c misc.c color.c searchpath.c
+win_trust.exe: win_trust.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
 	rm -f win_trust.o
 	@echo
