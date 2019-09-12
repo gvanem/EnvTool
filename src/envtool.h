@@ -672,6 +672,7 @@ extern const char *os_name (void);
 extern const char *os_bits (void);
 extern const char *os_release_id (void);
 extern const char *os_update_build_rev (void);
+extern const char *os_full_version (void);
 
 /* Stuff in win_trust.c:
  */

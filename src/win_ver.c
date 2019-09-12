@@ -351,6 +351,43 @@ const char *os_update_build_rev (void)
   return get_registry_value ("UBR", REG_DWORD);
 }
 
+/**
+ * Try to build a version string as 'winver.exe':
+ *
+ * Version x (OS-build y.z)
+ *         ^           ^ ^
+ *         |           | |__ from 'os_update_build_rev()'.
+ *         |           |____ from 'build_str[]'
+ *         |________________ from 'os_release_id()'.
+ *
+ */
+const char *os_full_version (void)
+{
+  const char *x, *z;
+  const char *ver = get_os_version();  /* get the 'build_str' */
+  static char ret [100];
+  char       *p = ret;
+
+  x = os_release_id();
+  if (x && build_str[0])
+  {
+    p += sprintf (ret, "Version %s (OS-build %s", x, build_str);
+    z = os_update_build_rev();
+    if (z)
+    {
+      *p++= '.';
+      strcat (p, z);
+      p += strlen(z);
+    }
+    *p++= ')';
+    *p= '\0';
+  }
+  else
+    _strlcpy (ret, ver, sizeof(ret));
+
+  return (ret);
+}
+
 #if defined(WIN_VER_TEST)
 
 struct prog_options opt;
@@ -359,7 +396,7 @@ int MS_CDECL main (void)
 {
   DWORD major, minor, platform;
   BOOL  rc;
-  const char *ver, *release, *build;
+  const char *ver, *release, *build, *full;
 
   opt.debug = 1;
 
@@ -382,6 +419,9 @@ int MS_CDECL main (void)
 
   build = os_update_build_rev();
   DEBUGF (1, "Result from os_update_build_rev(): %s\n", build ? build : "<none>");
+
+  full = os_full_version();
+  DEBUGF (1, "Result from os_full_version():     %s\n", full ? full : "<none>");
   return (0);
 }
 #endif
