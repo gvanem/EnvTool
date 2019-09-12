@@ -700,6 +700,30 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
   return (FALSE);
 }
 
+/**
+ * In 'getopt_parse()', a quoted 'content:"xx yy"' string have
+ * lost their quotes ("). Therefore we must add these here by
+ * creating a proper quoted 'content:\"xx yy\"' string.
+ *
+ * Called before to `Everything_SetSearch()` and in `state_send_query()`.
+ */
+char *evry_raw_query (void)
+{
+  static char query [_MAX_PATH+100];
+  const char *content  = strstr (opt.file_spec," content:");
+  size_t      cont_len = strlen (" content:");
+
+  if (content && strchr(content+cont_len,' '))
+  {
+    snprintf (query, sizeof(query), "%.*s content:\"%s\"",
+              content-opt.file_spec, opt.file_spec, content+cont_len);
+    DEBUGF (2, "Creating quoted 'content:' query: '%s'\n", query);
+    return (query);
+  }
+  return (opt.file_spec);
+}
+
+
 #if (_WIN32_WINNT >= 0x0500)
 /**
  * `LookupAccountSid()` often returns `ERROR_NONE_MAPPED` for SIDs like: <br>
@@ -2342,7 +2366,7 @@ char *_strsep (char **stringp, const char *delim)
       {
         if (c == '\0')
              s = NULL;
-        else s[-1] = 0;
+        else s[-1] = '\0';
         *stringp = s;
         return (tok);
       }
