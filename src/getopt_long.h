@@ -82,18 +82,21 @@ typedef struct command_line {
          * Set on input by the caller.
          */
         const char          *env_opt;        /**< Take options from an environment variable? */
-        const char          *short_opt;      /**< Short options for 'getopt_long()' */
-        const struct option *long_opt;       /**< Long options for 'getopt_long()' */
+        const char          *short_opt;      /**< Short options for `getopt_long()` */
+        const struct option *long_opt;       /**< Long options for `getopt_long()` */
         set_option           set_short_opt;  /**< Callback for setting a short option */
         set_option           set_long_opt;   /**< Callback for setting a long option */
 
         /*
          * Set on output by getopt_parse().
          */
-        int      argc;       /**< Number of arguments from 'GetCommandLineW()' */
-        char   **argv;       /**< All arguments from 'GetCommandLineW()' are stored here */
-        int      argc0;      /**< The index of the first non-option in 'argv[]' */
-        wchar_t *file_wbuf;  /**< Scratch-buffer for reading a response-file */
+        int      argc;       /**< Number of arguments in `argv[]` below */
+        char   **argv;       /**< All arguments from all sources are stored here */
+        int      argc0;      /**< The index of the first non-option in `argv[]` */
+        char    *file_buf;   /**< Scratch-buffer for reading a response-file */
+        char  **file_array;  /**< arg-vector of response-file values */
+        char    *env_buf;    /**< Scratch-buffer for `env_opt` */
+        char  **env_array;   /**< arg-vector of `env_opt` value */
       } command_line;
 
 void getopt_parse (struct command_line *cmd_line);

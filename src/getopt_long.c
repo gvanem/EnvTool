@@ -100,12 +100,10 @@ int   optind, opterr = 1, optopt;
 
 static unsigned debugf_line;
 
-#define DEBUGF_LEVEL 3
-
 #undef  DEBUGF
-#define DEBUGF(...)                                    \
+#define DEBUGF(level, ...)                             \
         do {                                           \
-          if (opt.debug >= DEBUGF_LEVEL) {             \
+          if (opt.debug >= level) {                    \
              debug_printf ("getopt_long.c(%u): ",      \
                            debugf_line ? debugf_line : \
                            __LINE__);                  \
@@ -622,16 +620,17 @@ static void dummy_set_opt (int o, const char *arg)
 }
 
 /**
- * Read a `file` and return it as one `wchar_t` string.
- * The `file` is known to exist.
+ * Read a `file` and return number of `c->file_array[]` filled.
  *
  *  + Open it in read-mode / binary.
  *  + Determine it's length.
  *  + Allocate space for it.
- *  + Read into `c->file_wbuf` one by one character.
+ *  + Read into `c->file_buf`.
  *
- * One unescaped file-line is one element. Escaped lines (like `\"foo\"`)
- * will be taken care of by `CommandLineToArgvW()`.
+ * One unescaped word in file is one element.
+ *
+ * \todo
+ * Escaped lines (like `\"foo\"`) will have the outer quotes stripped off.
  *
  * A file like:
  * \code
@@ -641,49 +640,59 @@ static void dummy_set_opt (int o, const char *arg)
  *   "element \"number\" 5"
  * \endcode
  *
- * shall be turned into a vector (`wfileV[]` below) with these wide-char elements:
+ * shall be turned into a vector (`c->file_array[]` below) with these elements:
  * \code
- *   element-1              at wfileV [0]
+ *   element-1              at 'c->file_array [0]'
  *   element-2
  *   element-3
  *   "element-3a"
  *   element-3b
  *   element-4
  *   element-4a element-4b
- *   element "number" 5     at wfileV [7]
+ *   element "number" 5     at 'c->file_array [7]'
  * \endcode
  */
-static void read_file_as_wchar_t (struct command_line *c, const char *file)
+static int get_file_array (struct command_line *c, const char *file)
 {
+  int   i, i_min;
+  long  flen;
   FILE *f = fopen (file, "rb");
-  long  i, flen;
-  int   ch;
-  BOOL  escpaped = FALSE;
+  char *token, *end;
 
   if (f)
        flen = filelength (fileno(f));
-  else flen = 0;  /* just in case */
+  else flen = 0;
 
-  DEBUGF ("filelength: %lu.\n", flen);
+  c->file_buf = MALLOC (flen+1);
+  c->file_buf[flen] = '\0';
+  i = 0;
+  i_min = 5;
 
-  c->file_wbuf = MALLOC (2*(flen+1));
-  c->file_wbuf[0] = L'\0';
+  if (fread(c->file_buf, 1, flen, f) != flen)
+     goto quit;
 
-  for (i = 0; i < flen; i++)
+  c->file_array = CALLOC (sizeof(char*), i_min);
+
+  token = _strtok_r (c->file_buf, " \t\r\n", &end);
+  if (!token)
+     c->file_array[0] = c->file_buf;   /* just a single word */
+
+  while (token)
   {
-    ch = fgetc (f);
-    if (ch == EOF)
-       break;
-
-    if (ch == '\\')
-       escpaped ^= 1;
-    if (!escpaped && (ch == '\r' || ch == '\n'))
-       ch = ' ';
-    c->file_wbuf[i] = (wchar_t) ch;
+    c->file_array [i++] = token;
+    if (i >= i_min)
+    {
+      i_min *= 2;
+      c->file_array = REALLOC (c->file_array, i_min * sizeof(char*));
+    }
+    token = _strtok_r (NULL, " \t\r\n", &end);
   }
-  c->file_wbuf[i] = L'\0';
+
+quit:
   if (f)
      fclose (f);
+  DEBUGF (2, "file: %s, filelength: %lu -> %d\n", file, flen, i);
+  return (i);
 }
 
 static void dump_argv (const struct command_line *c, unsigned line)
@@ -692,20 +701,48 @@ static void dump_argv (const struct command_line *c, unsigned line)
   int   i;
 
   debugf_line = line;
-  DEBUGF ("c->argc: %d\n", c->argc);
+  DEBUGF (2, "c->argc: %d\n", c->argc);
   for (i = 0; c->argv && i <= c->argc; i++)
   {
     p = c->argv[i];
     debugf_line = line;
-    DEBUGF ("c->argv[%2d]: %-40.40s (0x%p)\n",
+    DEBUGF (2, "c->argv[%2d]: %-40.40s (0x%p)\n",
             i, (p && IsBadReadPtr(p,40)) ? "<bogus>" : p, p);
   }
+}
+
+#define NUM_ENV_ARRAY 10
+
+static int get_env_array (struct command_line *c)
+{
+  const char *env = c->env_opt;
+  char       *token, *end;
+  int         i = 0;
+
+  if (!env || !getenv(env))
+     return (0);
+
+  c->env_array = CALLOC (sizeof(char*), NUM_ENV_ARRAY+1);
+  c->env_buf   = STRDUP (getenv(env));
+
+  token = _strtok_r (c->env_buf, " \t", &end);
+  if (!token)  /* 'getenv()' returned a string w/o space */
+  {
+    c->env_array[0] = c->env_buf;
+    return (1);
+  }
+  while (token && i < NUM_ENV_ARRAY)
+  {
+    c->env_array[i++] = token;
+    token = _strtok_r (NULL, " ", &end);
+  }
+  return (i);
 }
 
 /**
  * Parse the short and long options from these sources in order:
  *  + the `c->env_opt` variable.
- *  + the command-line given by `GetCommandLineW()`.
+ *  + the command-line given by `__argv[]`.
  *  + any elements found in a `"@response_file"`.
  *
  * Match elements in all sources against the `c->short_opt` and `c->long_opt`
@@ -717,29 +754,19 @@ static void dump_argv (const struct command_line *c, unsigned line)
  *  \endcode
  *
  * \param[in] c  The structure defining how the command-line is to be set and parsed.
- *
- * \note the reason for converting the command-line into a `wchar_t` array, is that
- *       there is no `CommandLineToArgvA()` function. Only `CommandLineToArgvW()`.
  */
 void getopt_parse (struct command_line *c)
 {
-  int         i, j, k, l;
-  int         wargC  = 0;       /* wide count of cmd-line elements */
-  int         wenvC  = 0;       /* wide count of `c->env_opt elements` */
-  int         wfileC = 0;       /* wide count of response-file elements */
-  wchar_t   **wargV  = NULL;    /* wide array of cmd-line elements */
-  wchar_t   **wenvV  = NULL;    /* wide array of `c->env_opt` elements */
-  wchar_t   **wfileV = NULL;    /* wide array of response-file elements */
-  const char *env, *file;
-  wchar_t    *cmd = GetCommandLineW();
-  wchar_t     wenv_buf [1000];
-  UINT        acp  = GetConsoleCP();
-  size_t      wlen;
+  struct command_line c0;
+  int    i, arg_idx, c0_idx, env_idx, file_idx;
+  int    env_cnt;     /* count of `c->env_opt elements` */
+  int    file_cnt;    /* count of response-file elements */
 
   set_option set_short_opt = c->set_short_opt;
   set_option set_long_opt  = c->set_long_opt;
 
-  c->file_wbuf = NULL;
+  c->file_buf   = c->env_buf   = NULL;
+  c->file_array = c->env_array = NULL;
 
   if (!set_short_opt)
      set_short_opt = dummy_set_opt;
@@ -747,105 +774,76 @@ void getopt_parse (struct command_line *c)
   if (!set_long_opt)
      set_long_opt = dummy_set_opt;
 
-  if (c->env_opt)
+  env_cnt  = get_env_array (c);
+  file_cnt = 0;
+
+  memset (&c0, '\0', sizeof(c0));
+  c0.argc = __argc;      /* Globals in CRT except for CygWin */
+  c0.argv = __argv;
+
+  /* Because getopt_long hasn't been called yet
+   */
+  if (c0.argc >= 2)
   {
-    env = getenv (c->env_opt);
-    if (env)
-    {
-      wenv_buf[0] = L'\0';
-      MultiByteToWideChar (CP_ACP, 0, env, -1, wenv_buf, DIM(wenv_buf));
-      wenvV = CommandLineToArgvW (wenv_buf, &wenvC);
-    }
+    if (!strncmp(c0.argv[1],"-d",2))
+       opt.debug = 1;
+    else if (!strncmp(c0.argv[1],"-dd",3))
+       opt.debug = 2;
+    else if (!strncmp(c0.argv[1],"-ddd",4))
+       opt.debug = 3;
   }
 
-  if (wcsstr(cmd,L" -ddd"))    /* because getopt_long hasn't been called yet */
-     opt.debug = DEBUGF_LEVEL;
+  dump_argv (&c0, __LINE__);
 
-  wargV = CommandLineToArgvW (cmd, &wargC);
-  c->argc  = wargC + wenvC;
+  c->argc  = c0.argc + env_cnt;
   c->argv  = CALLOC (sizeof(char*), c->argc + 1);
   c->argc0 = 0;
 
-  DEBUGF ("c->argc: %d\n", c->argc);
-
-  for (i = j = k = l = 0; i < c->argc; )
+  for (arg_idx = c0_idx = env_idx = file_idx = 0; arg_idx < c->argc; )
   {
-    wchar_t *warg = NULL;
-    char    *aarg;
+    char *arg = NULL;
 
-    if (i > 0)
+    if (arg_idx > 0)                      /* Do not mess with the program name */
     {
-      if (wenvV && k < wenvC)         /* pick one arg from the `c->env_opt` */
-         warg = wenvV [k++];
+      if (env_idx < env_cnt)              /* pick one arg from the `c->env_opt` */
+         arg = c->env_array [env_idx++];
 
-      else if (wfileV && l < wfileC)  /* pick one arg from the response-file */
-         warg = wfileV[l++];
+      else if (file_idx < file_cnt)       /* pick one arg from the response-file */
+         arg = c->file_array [file_idx++];
     }
-
-    if (!warg && wargV)
+    if (!arg)                             /* pick one arg from command-line */
     {
-      /* pick one arg from command-line */
-      warg = wargV [j++];
-    }
+      arg = c0.argv [c0_idx++];
 
-    DEBUGF ("i: %2d, j: %2d, k: %2d, l: %2d, c->argc: %2d, warg: '%" WIDESTR_FMT "'.\n",
-            i, j, k, l, c->argc, warg);
-
-    /* We reached the end of all sources
-     */
-    if (warg == NULL)
-    {
-      c->argv [i] = NULL;
-      break;
-    }
-
-    wlen = WideCharToMultiByte (acp, 0, warg, (int)wcslen(warg), 0, 0, 0, 0);
-    aarg = MALLOC (2 * (wlen+1));
-    WideCharToMultiByte (acp, 0, warg, (int)wcslen(warg), aarg, (int)wlen, 0, 0);
-    aarg [wlen] = '\0';
-
-    /* The cmd-line contains a response file. If it doesn't exist, simply add
-     * `@file` to `c->argv[i]`.
-     * We do not support a `@file` inside a response-file; it will be passed
-     * on as-is. We also support only 1 response-file.
-     */
-    if (!c->file_wbuf && aarg[0] == '@' && FILE_EXISTS(aarg+1))
-    {
-      file = aarg + 1;
-      read_file_as_wchar_t (c, file);
-      wfileV = CommandLineToArgvW (c->file_wbuf, &wfileC);
-
-      DEBUGF ("file: %s, wfileV: 0x%p, wfileC: %d\n", file, wfileV, wfileC);
-
-      if (wfileV && wfileC > 0)  /* Insert `wfileV[]` on next loop(s)  */
+      /* The cmd-line contains a response file. If it doesn't exist, simply add
+       * `@file` to `c->argv[i]`.
+       * We do not support a `@file` inside a response-file; it will be passed
+       * on as-is. We support only 1 response-file.
+       */
+      if (!c->file_buf && arg[0] == '@')
       {
-        c->argc--;    /* since `@file` argument shall be dropped from `c->argv[]` */
-        c->argv = REALLOC (c->argv, sizeof(char*) * (c->argc + wfileC + 1));
-        c->argv [c->argc + wfileC] = NULL;
-        FREE (aarg);
-        dump_argv (c, __LINE__);
-        c->argc += wfileC;
-        continue;
+        file_cnt = get_file_array (c, arg+1);
+        if (file_cnt > 0)
+        {
+          c->argc--;    /* since `@file` argument shall be dropped from `c->argv[]` */
+          c->argv = REALLOC (c->argv, sizeof(char*) * (c->argc + file_cnt + 1));
+          c->argv [c->argc + file_cnt] = NULL;
+          c->argc += file_cnt;
+
+          /* Insert `c->file_array[l]` on next loop iteration.
+           */
+          continue;
+        }
       }
     }
 
-    c->argv [i++] = aarg;
+    DEBUGF (3, "arg_idx: %d, c0_idx: %d, env_idx: %d, file_idx: %d, arg: '%s'.\n",
+            arg_idx, c0_idx, env_idx, file_idx, arg);
 
-    /* Do we need this anymore?
-     */
-    if (wfileV && l == wfileC)
-    {
-      FREE (c->file_wbuf);
-      LocalFree (wfileV);
-      wfileV = NULL;
-    }
+    c->argv [arg_idx++] = arg;
+    if (arg == NULL)
+       break;
   }
-
-  if (wenvV)
-     LocalFree (wenvV);
-
-  if (wargV)
-     LocalFree (wargV);
 
   dump_argv (c, __LINE__);
 
@@ -882,7 +880,7 @@ void getopt_parse (struct command_line *c)
        break;
   }
 
-  DEBUGF ("c->argc: %d, optind: %d\n", c->argc, optind);
+  DEBUGF (2, "c->argc: %d, optind: %d\n", c->argc, optind);
 
   if (c->argc > optind)
      c->argc0 = optind;
@@ -893,19 +891,19 @@ void getopt_parse (struct command_line *c)
  */
 void getopt_free (struct command_line *c)
 {
-  char *p;
-  int   i;
+  int i;
 
   dump_argv (c, __LINE__);
 
   for (i = 0; i < c->argc; i++)
-  {
-    p = c->argv[i];
-    FREE (p);
-    c->argv[i] = NULL;
-  }
+     c->argv[i] = NULL;
+
   FREE (c->argv);
-  FREE (c->file_wbuf);
+  FREE (c->file_buf);
+  FREE (c->env_buf);
+  FREE (c->env_array);
+  FREE (c->file_buf);
+  FREE (c->file_array);
 }
 #endif /* NO_GETOPT_PARSE */
 
