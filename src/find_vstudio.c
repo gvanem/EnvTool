@@ -8,9 +8,9 @@
  * Version history
  *  2017-05: Initial contribution (Steve Dower)
  *
- * Taken from Python 3.x sources and rewritten into pure C
+ * Taken from PyFindVS module and rewritten into pure C
  * without any Python specific code. The original is here:
- *   https://github.com/python/cpython/blob/master/PC/_findvs.cpp
+ *   https://github.com/zooba/pyfindvs/blob/master/pyfindvs/pyfindvs.cpp
  */
 #define CINTERFACE
 #define COBJMACROS
@@ -452,7 +452,12 @@ BOOL find_vstudio_init (void)
     else DEBUGF (1, "hr: %s\n", win_strerror(hr));
   }
   else
+  {
+    ISetupConfiguration *_g_this = (ISetupConfiguration*) g_this;
+
+    DEBUGF (1, "_g_this->lpVtbl: 0x%p\n", _g_this->lpVtbl);
     rc = find_all_instances();
+  }
 
   DEBUGF (1, "\n");
   CoUninitialize();
