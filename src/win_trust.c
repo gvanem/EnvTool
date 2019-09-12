@@ -15,7 +15,10 @@
 #include <windows.h>
 #include <wintrust.h>
 #include <wincrypt.h>
+
+#if !defined(__WATCOMC__)
 #include <softpub.h>
+#endif
 
 #include "getopt_long.h"
 #include "envtool.h"
@@ -41,6 +44,15 @@
   #define NEWLINE()         ((void)0)
   #undef  ERROR
   #define ERROR(s)          last_err = GetLastError()
+#endif
+
+
+#if defined(__WATCOMC__)
+  /*
+   * Ripped from MinGW's <softpub.h>:
+   */
+  #define WINTRUST_ACTION_TRUSTPROVIDER_TEST \
+          { 0x573e31f8, 0xddba, 0x11d0, { 0x8c,0xcb,0x0,0xc0,0x4f,0xc2,0x95,0xee } }
 #endif
 
 #define ASN_ENCODING  (X509_ASN_ENCODING | PKCS_7_ASN_ENCODING)
