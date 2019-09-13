@@ -620,6 +620,36 @@ static void dummy_set_opt (int o, const char *arg)
 }
 
 /**
+ * `buf` parser common to `get_file_array()` and `get_env_array()`.
+ * Allocate a `char **` array of an initial size and grow as needed
+ * while parsing.
+ */
+static char **build_array (char *buf, const char *delim, int *len)
+{
+  char *end, *token;
+  int    i = 0;
+  int    i_min = 5;
+  char **array = CALLOC (sizeof(char*), i_min);
+
+  token = _strtok_r (buf, delim, &end);
+  if (!token)
+     array[i] = buf;   /* just a single word */
+
+  while (token)
+  {
+    array [i++] = token;
+    if (i >= i_min)
+    {
+      i_min *= 2;
+      array = REALLOC (*array, i_min * sizeof(char*));
+    }
+    token = _strtok_r (NULL, delim, &end);
+  }
+  *len = i;
+  return (array);
+}
+
+/**
  * Read a `file` and return number of `c->file_array[]` filled.
  *
  *  + Open it in read-mode / binary.
@@ -654,10 +684,9 @@ static void dummy_set_opt (int o, const char *arg)
  */
 static int get_file_array (struct command_line *c, const char *file)
 {
-  int   i, i_min;
+  int   i = 0;
   long  flen;
   FILE *f = fopen (file, "rb");
-  char *token, *end;
 
   if (f)
        flen = filelength (fileno(f));
@@ -665,33 +694,26 @@ static int get_file_array (struct command_line *c, const char *file)
 
   c->file_buf = MALLOC (flen+1);
   c->file_buf[flen] = '\0';
-  i = 0;
-  i_min = 5;
 
-  if (fread(c->file_buf, 1, flen, f) != flen)
-     goto quit;
+  if (f && fread(c->file_buf, 1, flen, f) == flen)
+     c->file_array = build_array (c->file_buf, " \t\r\n", &i);
 
-  c->file_array = CALLOC (sizeof(char*), i_min);
-
-  token = _strtok_r (c->file_buf, " \t\r\n", &end);
-  if (!token)
-     c->file_array[0] = c->file_buf;   /* just a single word */
-
-  while (token)
-  {
-    c->file_array [i++] = token;
-    if (i >= i_min)
-    {
-      i_min *= 2;
-      c->file_array = REALLOC (c->file_array, i_min * sizeof(char*));
-    }
-    token = _strtok_r (NULL, " \t\r\n", &end);
-  }
-
-quit:
   if (f)
      fclose (f);
   DEBUGF (2, "file: %s, filelength: %lu -> %d\n", file, flen, i);
+  return (i);
+}
+
+static int get_env_array (struct command_line *c)
+{
+  const char *env = c->env_opt;
+  int   i;
+
+  if (!env || !getenv(env))
+     return (0);
+
+  c->env_buf   = STRDUP (getenv(env));
+  c->env_array = build_array (c->env_buf, " \t", &i);
   return (i);
 }
 
@@ -709,34 +731,6 @@ static void dump_argv (const struct command_line *c, unsigned line)
     DEBUGF (2, "c->argv[%2d]: %-40.40s (0x%p)\n",
             i, (p && IsBadReadPtr(p,40)) ? "<bogus>" : p, p);
   }
-}
-
-#define NUM_ENV_ARRAY 10
-
-static int get_env_array (struct command_line *c)
-{
-  const char *env = c->env_opt;
-  char       *token, *end;
-  int         i = 0;
-
-  if (!env || !getenv(env))
-     return (0);
-
-  c->env_array = CALLOC (sizeof(char*), NUM_ENV_ARRAY+1);
-  c->env_buf   = STRDUP (getenv(env));
-
-  token = _strtok_r (c->env_buf, " \t", &end);
-  if (!token)  /* 'getenv()' returned a string w/o space */
-  {
-    c->env_array[0] = c->env_buf;
-    return (1);
-  }
-  while (token && i < NUM_ENV_ARRAY)
-  {
-    c->env_array[i++] = token;
-    token = _strtok_r (NULL, " ", &end);
-  }
-  return (i);
 }
 
 /**
