@@ -629,23 +629,25 @@ static char **build_array (char *buf, const char *delim, int *len)
   char *end, *token;
   int    i = 0;
   int    i_min = 5;
-  char **array = CALLOC (sizeof(char*), i_min);
+  char **array = CALLOC (sizeof(char**), i_min);
+  BOOL   check_quotes = FALSE;
 
-  token = _strtok_r (buf, delim, &end);
-  if (!token)
-     array[i] = buf;   /* just a single word */
+  if (*delim == '\"')
+     check_quotes = TRUE;
 
-  while (token)
+  do
   {
-    array [i++] = token;
+    token = _strtok_r (i == 0 ? buf : NULL, delim, &end);
+    array[i++] = token ? token : buf;   /* a single word? */
+    buf = end;
     if (i >= i_min)
     {
       i_min *= 2;
-      array = REALLOC (*array, i_min * sizeof(char*));
+      array = REALLOC (array, i_min * sizeof(char**));
     }
-    token = _strtok_r (NULL, delim, &end);
   }
-  *len = i;
+  while (token);
+  *len = i - 1;
   return (array);
 }
 
