@@ -49,7 +49,7 @@ goto :EOF
   echo on
 
   @echo Testing version output
-  .\envtool -VVV > Envtool-%APPVEYOR_BUILD_NUMBER%.log
+  .\envtool -ddVVV > Envtool-%APPVEYOR_BUILD_NUMBER%.log
   @type Envtool-%APPVEYOR_BUILD_NUMBER%.log
 
   @echo Dir-list of 'c:\Tools\vcpkg' >> Envtool-%APPVEYOR_BUILD_NUMBER%.log
