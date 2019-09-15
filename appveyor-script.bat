@@ -50,6 +50,11 @@ goto :EOF
 
   @echo Testing version output
   .\envtool -VVV > Envtool-%APPVEYOR_BUILD_NUMBER%.log
+  @type Envtool-%APPVEYOR_BUILD_NUMBER%.log
+
+  @echo Dir-list of 'c:\Tools\vcpkg' >> Envtool-%APPVEYOR_BUILD_NUMBER%.log
+  @echo ---------------------------- >> Envtool-%APPVEYOR_BUILD_NUMBER%.log
+  @dir /s c:\Tools\vcpkg             >> Envtool-%APPVEYOR_BUILD_NUMBER%.log
 
   @echo.
   @echo Testing test output (show owner in test_PE_wintrust())
