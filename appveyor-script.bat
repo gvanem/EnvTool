@@ -49,7 +49,7 @@ goto :EOF
   echo on
 
   @echo Testing version output
-  .\envtool -VVV
+  .\envtool -VVV > Envtool-%APPVEYOR_BUILD_NUMBER%.log
 
   @echo.
   @echo Testing test output (show owner in test_PE_wintrust())

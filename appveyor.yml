@@ -3,3 +3,10 @@ build_script:
 
 test_script:
     - cmd: appveyor-script.bat test
+
+#
+# Push the log-file as an artifact.
+#
+artifacts:
+  - path: Envtool-%APPVEYOR_BUILD_NUMBER%.log
+    name: Envtool-log
