@@ -626,7 +626,7 @@ static void dummy_set_opt (int o, const char *arg)
  */
 static char **build_array (char *buf, const char *delim, int *len)
 {
-  char *end, *token;
+  char *token, *end = buf;
   int    i = 0;
   int    i_min = 5;
   char **array = CALLOC (sizeof(char**), i_min);
@@ -637,16 +637,34 @@ static char **build_array (char *buf, const char *delim, int *len)
 
   do
   {
-    token = _strtok_r (i == 0 ? buf : NULL, delim, &end);
-    array[i++] = token ? token : buf;   /* a single word? */
-    buf = end;
-    if (i >= i_min)
+    int size = 0;
+
+    /* First check for a correctly quoted string.
+     */
+    if (check_quotes && sscanf(buf, "\"%*[^\r\n\"]\"%n", &size) == 0 && size >= 2)
+    {
+      buf++;          /* step over left '"' */
+      token = buf;
+      end   = token + size - 2;
+      *end++ = '\0';  /* terminate this token */
+      end++;          /* step over right '"' */
+    }
+    else
+      token = _strtok_r (NULL, delim, &end);
+
+    array[i] = token;
+    buf = str_ltrim (end);
+
+    DEBUGF (2, "array[%d]: '%s', buf: '%.5s'\n", i, array[i], buf);
+
+    if (++i >= i_min)
     {
       i_min *= 2;
       array = REALLOC (array, i_min * sizeof(char**));
     }
   }
   while (token);
+
   *len = i - 1;
   return (array);
 }
@@ -698,7 +716,7 @@ static int get_file_array (struct command_line *c, const char *file)
   c->file_buf[flen] = '\0';
 
   if (f && fread(c->file_buf, 1, flen, f) == flen)
-     c->file_array = build_array (c->file_buf, " \t\r\n", &i);
+     c->file_array = build_array (c->file_buf, "\" \t\r\n", &i);
 
   if (f)
      fclose (f);
