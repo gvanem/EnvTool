@@ -530,7 +530,8 @@ static int show_version (void)
        C_printf ("\r                             \r");
   else C_putc ('\n');
 
-  show_ext_versions();
+  if (!opt.under_appveyor)
+     show_ext_versions();
 
   if (opt.do_version >= 2)
   {
@@ -554,6 +555,9 @@ static int show_version (void)
 
     vcpkg_list_installed();
   }
+
+  if (opt.under_appveyor)
+     show_ext_versions();
 
 quit:
   if (vcache)
@@ -5173,6 +5177,7 @@ static void init_all (const char **argv)
   tzset();
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu = C_conemu_detected();
+  opt.under_appveyor = (stricmp(get_user_name(),"APPVYR-WIN\\appveyor") == 0);
 
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
@@ -6797,7 +6802,7 @@ static int do_tests (void)
   test_SHGetFolderPath();
   test_ReparsePoints();
 
-  if (!stricmp(get_user_name(),"APPVYR-WIN\\appveyor"))
+  if (opt.under_appveyor)
      test_AppVeyor();
 
   test_auth();

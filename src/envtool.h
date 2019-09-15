@@ -419,6 +419,7 @@ struct prog_options {
        int             cache_ver_level;
        int             keep_temp;
        int             under_conemu;
+       int             under_appveyor;
        enum SortMethod sort_method;
        BOOL            evry_raw;      /* use raw non-regex searches */
        smartlist_t    *evry_host;
