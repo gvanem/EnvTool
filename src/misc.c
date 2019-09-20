@@ -2787,7 +2787,7 @@ void mem_report (void)
 #endif
 }
 
-#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG)
+#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG) && !defined(USE_VLD)
 /**
  * Only one global mem-state.
  */
@@ -2850,6 +2850,22 @@ void crtdbug_exit (void)
        _CrtMemDumpStatistics (&last_state);
   else _CrtMemDumpAllObjectsSince (&last_state);
   _CrtDumpMemoryLeaks();
+}
+
+#elif defined(USE_VLD)
+void crtdbug_init (void)
+{
+  VLD_UINT opts;
+
+  VLDSetReportOptions (VLD_OPT_REPORT_TO_STDOUT, NULL); /* Force all reports to "stdout" in "ASCII" */
+
+  opts = VLDGetOptions();
+//opts |= VLD_OPT_SAFE_STACK_WALK;
+  VLDSetOptions (opts, 100, 4);   /* Dump max 100 bytes data. And walk max 4 stack frames */
+//VLDResolveCallstacks();         /* Needed to get filename and line-numbers correctly reported */
+}
+void crtdbug_exit (void)
+{
 }
 
 #else
