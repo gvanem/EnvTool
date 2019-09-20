@@ -5071,6 +5071,8 @@ static void MS_CDECL cleanup (void)
   if (halt_flag == 0)
      py_exit();
 
+  Everything_CleanUp();
+
   free_dir_array();
 
   FREE (who_am_I);
