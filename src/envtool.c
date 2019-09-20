@@ -6753,12 +6753,6 @@ static int do_tests (void)
 {
   int save;
 
-  if (opt.do_tests >= 2)
-  {
-    test_auth();
-    return (0);
-  }
-
   if (opt.do_evry && opt.evry_host)
   {
     test_ETP_host();
