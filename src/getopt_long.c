@@ -679,27 +679,23 @@ static char **build_array (char *buf, const char *delim, int *len)
  *
  * One unescaped word in file is one element.
  *
- * \todo
  * Escaped lines (like `\"foo\"`) will have the outer quotes stripped off.
  *
  * A file like:
  * \code
- *   element-1 element-2 element-3 \"element-3a\" "element-3b"
+ *   element-1 element-2 element-3 "element-3a"
  *   element-4
  *   "element-4a element-4b"
- *   "element \"number\" 5"
  * \endcode
  *
  * shall be turned into a vector (`c->file_array[]` below) with these elements:
  * \code
- *   element-1              at 'c->file_array [0]'
+ *   element-1                at 'c->file_array [0]'
  *   element-2
  *   element-3
  *   "element-3a"
- *   element-3b
  *   element-4
- *   element-4a element-4b
- *   element "number" 5     at 'c->file_array [7]'
+ *   element-4a element-4b"   at 'c->file_array [5]'
  * \endcode
  */
 static int get_file_array (struct command_line *c, const char *file)
