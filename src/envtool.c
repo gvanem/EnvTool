@@ -211,6 +211,7 @@ static void  print_build_ldflags (void);
 static int   get_pkg_config_info (char **exe_p, struct ver_info *ver);
 static int   get_vcpkg_info (char **exe_p, struct ver_info *ver);
 static int   get_cmake_info (char **exe_p, struct ver_info *ver);
+static int   get_pkg_info (const char *pc_file, const char *filler);
 
 /**
  * \todo Add support for *kpathsea*-like path searches (which some TeX programs uses). <br>
@@ -1669,6 +1670,9 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
     print_PE_file_details (filler);
   }
 
+  if (key == HKEY_PKGCONFIG_FILE && opt.verbose > 0)
+     get_pkg_info (file, filler);
+
   C_putc ('\n');
 
   ARGSUSED (is_junction);
@@ -3090,6 +3094,37 @@ static int do_check_pkg (void)
               "      \"pkgconfig\" will only select the first.~0\n", opt.file_spec, env_name);
   }
   return (found);
+}
+
+/**
+ * Get and print more verbose details in a pkgconfig `.pc` file.
+ * Look for lines like:
+ * ```
+ *  Description: Python bindings for cairo
+ *  Version: 1.8.10
+ * ```
+ *
+ * and print this like `Python bindings for cairo (v1.8.10) `
+ */
+static int get_pkg_info (const char *pc_file, const char *filler)
+{
+  FILE *f = fopen (pc_file, "rt");
+  char  buf [1000];
+  char  descr [1000] = { "" };
+  char  version [50] = { "" };
+
+  if (!f)
+     return (0);
+
+  while (fgets(buf, sizeof(buf), f))
+  {
+    sscanf (buf, "Description: %999[^\r\n]", descr);
+    sscanf (buf, "Version: %49s", version);
+  }
+  if (descr[0] && version[0])
+     C_printf ("\n%s%s (v%s)", filler, str_ltrim(descr), str_ltrim(version));
+  fclose (f);
+  return (1);
 }
 
 /**
