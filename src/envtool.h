@@ -169,22 +169,28 @@
   #pragma warn (disable: 2130)
 
 #elif defined(_MSC_VER) && defined(_DEBUG)
-  #if defined(USE_VLD)
-    #include <vld.h>          /* Use "Visual Leak Detector". Not both. */
-  #else
-    #undef  _malloca          /* Avoid MSVC-9 <malloc.h>/<crtdbg.h> name-clash */
-    #define _CRTDBG_MAP_ALLOC
-    #include <crtdbg.h>
+  #undef  _malloca          /* Avoid MSVC-9 <malloc.h>/<crtdbg.h> name-clash */
+  #define _CRTDBG_MAP_ALLOC
+  #include <crtdbg.h>
 
-    /* Use this in `FATAL()` to` avoid huge report of leaks from CrtDbg.
-     */
-    #define CRTDBG_CHECK_OFF() \
-            _CrtSetDbgFlag (~_CRTDBG_LEAK_CHECK_DF & _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG))
-  #endif
+  /* Use this in `FATAL()` to` avoid huge report of leaks from CrtDbg.
+   */
+  #define CRTDBG_CHECK_OFF() \
+          _CrtSetDbgFlag (~_CRTDBG_LEAK_CHECK_DF & _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG))
 #endif
 
 #ifndef CRTDBG_CHECK_OFF
 #define CRTDBG_CHECK_OFF()
+#endif
+
+/* Using "Visual Leak Detector" in _RELEASE mode is possible via the
+ * '-DVLD_FORCE_ENABLE' flag. But not adviceable according to:
+ * https://github.com/KindDragon/vld/wiki
+ *
+ * VLD is useful for '_MSC_VER' only.
+ */
+#if defined(USE_VLD)
+#include <vld.h>
 #endif
 
 #if defined(__DOXYGEN__)
