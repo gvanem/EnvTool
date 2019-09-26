@@ -429,12 +429,12 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
           vlen = (int)pS->wValueLength;
           vlen = min (500, vlen);  /* max 500 bytes */
 
-          CLANG_WFORMAT_OFF()
+          _WFORMAT_OFF()
 
           do_printf ("  %-16S: %.*S%s\n", pS->szKey, vlen, psVal,  /* print <sKey> : <sValue> */
                      vlen < (int)pS->wValueLength ? "..." : "");
 
-          CLANG_WFORMAT_POP()
+          _WFORMAT_POP()
         }
       }
     }

@@ -208,22 +208,34 @@
   #define ASSERT(expr) (void) (expr)
 #endif
 
-#if defined(__clang__)
-  /*
-   * To turn off these annoying warnings:
-   *   misc.c(3552,36):  warning: precision used with 'S' conversion specifier, resulting in undefined behavior [-Wformat]
-   *   DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
-   *                                 ~~^~
-   */
-  #define CLANG_PRAGMA(x)      _Pragma (#x)
-  #define CLANG_WFORMAT_OFF()  CLANG_PRAGMA (clang diagnostic push) ; \
-                               CLANG_PRAGMA (clang diagnostic ignored "-Wformat")
-  #define CLANG_WFORMAT_POP()  CLANG_PRAGMA (clang diagnostic pop)
-
+/*
+ * '_Pragma()' stuff for 'gcc' and 'clang'.
+ */
+#if defined(__GNUC__)
+  #define GCC_VERSION  (10000 * __GNUC__ + 100 * __GNUC_MINOR__ + __GNUC_PATCHLEVEL__)
 #else
-  #define CLANG_WFORMAT_OFF()
-  #define CLANG_WFORMAT_POP()
+  #define GCC_VERSION  0
 #endif
+
+#if defined(__clang__) || (GCC_VERSION >= 40600)
+  #define _PRAGMA(x) _Pragma (#x)
+#else
+  #define _PRAGMA(x)
+#endif
+
+/*
+ * To turn off these annoying warnings:
+ *   misc.c(3552,36):  warning: precision used with 'S' conversion specifier, resulting in undefined behavior [-Wformat]
+ *   DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
+ *                                 ~~^~
+ */
+#define _WFORMAT_OFF()       _PRAGMA (GCC diagnostic push) \
+                             _PRAGMA (GCC diagnostic ignored "-Wformat")
+#define _WFORMAT_POP()       _PRAGMA (GCC diagnostic pop)
+
+#define _WUNUSED_FUNC_OFF()  _PRAGMA (GCC diagnostic push) \
+                             _PRAGMA (GCC diagnostic ignored "-Wunused-function")
+#define _WUNUSED_FUNC_POP()  _PRAGMA (GCC diagnostic pop)
 
 /*
  * MSVC (in debug) sometimes returns the full path.
@@ -449,6 +461,7 @@ extern volatile int halt_flag;
 extern char sys_dir        [_MAX_PATH];
 extern char sys_native_dir [_MAX_PATH];
 extern char sys_wow64_dir  [_MAX_PATH];
+extern int  path_separator;
 
 extern int  report_file (const char *file, time_t mtime, UINT64 fsize,
                          BOOL is_dir, BOOL is_junction, HKEY key);
@@ -456,6 +469,7 @@ extern int  report_file (const char *file, time_t mtime, UINT64 fsize,
 extern int  process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
                          BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key, BOOL recursive);
 
+extern void         print_raw (const char *file, const char *before, const char *after);
 extern smartlist_t *split_env_var (const char *env_name, const char *value);
 
 /**
