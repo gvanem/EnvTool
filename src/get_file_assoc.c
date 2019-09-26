@@ -196,7 +196,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   if (allocated)
      FREE (*file_p);
 
-  _fix_drive (_new);
+  slashify2 (_new, _new, opt.show_unix_paths ? '/' : '\\');
   *file_p = _new;
   last_err[0] = '\0';
 
