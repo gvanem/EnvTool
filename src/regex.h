@@ -264,6 +264,7 @@ extern reg_syntax_t re_syntax_options;
 
 /* Maximum number of duplicates an interval can allow.
  */
+#undef  RE_DUP_MAX
 #define RE_DUP_MAX (0x7fff)
 
 /* POSIX `cflags' bits (i.e., information for `regcomp'). */

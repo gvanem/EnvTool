@@ -765,7 +765,7 @@ static void dump_argv (const struct command_line *c, unsigned line)
  *
  * \param[in] c  The structure defining how the command-line is to be set and parsed.
  */
-void getopt_parse (struct command_line *c)
+void getopt_parse (struct command_line *c, int _argc, const char **_argv)
 {
   struct command_line c0;
   int    i, arg_idx, c0_idx, env_idx, file_idx;
@@ -788,8 +788,13 @@ void getopt_parse (struct command_line *c)
   file_cnt = 0;
 
   memset (&c0, '\0', sizeof(c0));
-  c0.argc = __argc;      /* Globals in CRT except for CygWin */
+#ifdef __CYGWIN__
+  c0.argc = _argc;          /* '_argc' and '_argv' must be from main() */
+  c0.argv = (char**) _argv;
+#else
+  c0.argc = __argc;         /* Globals in CRT except for CygWin */
   c0.argv = __argv;
+#endif
 
   /* Because getopt_long hasn't been called yet
    */
