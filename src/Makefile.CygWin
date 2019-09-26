@@ -14,8 +14,10 @@ USE_64BIT ?= 0
 
 CC = gcc
 
-CFLAGS  = -Wall -static-libgcc -Wno-strict-aliasing -DEVERYTHINGUSERAPI= \
-          -DEVERYTHINGAPI=__cdecl -D__GETOPT_H__ -D_WIN32_WINNT=0x0602
+CFLAGS = -Wall -static-libgcc -Wno-strict-aliasing -Wno-missing-braces \
+         -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
+         -D__GETOPT_H__ -D_WIN32_WINNT=0x0602
+
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
 RCFLAGS = -O COFF
 
@@ -25,7 +27,7 @@ ifeq ($(USE_WS2_32),1)
 endif
 
 ifeq ($(USE_64BIT),1)
-  CFLAGS  += -m64
+  CFLAGS  += -m64 -Wno-format
   LDFLAGS += -m64
   RCFLAGS += --target=pe-x86-64
 else
