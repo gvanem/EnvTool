@@ -862,7 +862,7 @@ unsigned vcpkg_get_num_installed (void)
   if (!done)
      build_vcpkg_installed_packages();
 
-  len = smartlist_len (vcpkg_installed_packages);
+  len = vcpkg_installed_packages ? smartlist_len (vcpkg_installed_packages) : 0;
   DEBUGF (2, "Found %u `ports` directories.\n", len);
   done = TRUE;
   return (len);
@@ -1044,7 +1044,7 @@ unsigned vcpkg_list_installed (void)
 
  /* Should be the same as 'vcpkg_get_num_installed()'
   */
-  num = smartlist_len (vcpkg_installed_packages);
+  num = vcpkg_installed_packages ? smartlist_len (vcpkg_installed_packages) : 0;
   for (i = 0; i < num; i++)
   {
     const struct vcpkg_package *pkg = smartlist_get (vcpkg_installed_packages, i);
