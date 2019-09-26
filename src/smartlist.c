@@ -615,6 +615,11 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
 #endif  /* NOT_USED_YET */
 
 #ifdef _DEBUG
+/*
+ * Some helpful versions of 'smartlist_len()' and 'smartlist_get()' for
+ * '_DEBUG' (and '_CRTDBG_MAP_ALLOC'). These give a clue as to where these
+ * were wrongly used.
+ */
 int smartlist_len_dbg (const smartlist_t *sl, const char *sl_name, const char *file, unsigned line)
 {
   if (!sl)
