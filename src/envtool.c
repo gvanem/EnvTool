@@ -26,7 +26,6 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <signal.h>
-#include <windows.h>
 
 #if defined(__MINGW32__) || defined(_CYGWIN__)
 #define INSIDE_ENVTOOL_C  /* Important for MinGW/CygWin with '_FORTIFY_SOURCE' only */
