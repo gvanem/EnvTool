@@ -1771,6 +1771,21 @@ static char *fix_filespec (char **sub_dir)
     DEBUGF (2, "fspec: '%s', *sub_dir: '%s'\n", fspec, *sub_dir);
   }
 
+  /**
+   * Similar for a given 'envtool --py module.subdir' syntax, we must
+   * split and store into 'fspec' and 'subdir'.
+   */
+  p = strchr (fspec, '.');
+  if (opt.do_python && p && p[1])
+  {
+    memcpy (&subdir, fspec, p-fspec);
+    subdir [p-fspec] = '/';
+    subdir [p-fspec+1] = '\0';
+    *sub_dir = subdir;
+    fspec = p+1;
+    DEBUGF (2, "fspec: '%s', *sub_dir: '%s'\n", fspec, *sub_dir);
+  }
+
  /**
   * Since `FindFirstFile()` doesn't work with POSIX ranges, replace
   * the range part in `fspec` with a `*`. This could leave a
