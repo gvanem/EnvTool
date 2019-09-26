@@ -37,7 +37,7 @@ typedef enum VCPKG_platform {
  */
 struct vcpkg_depend {
        char  package [VCPKG_MAX_NAME];  /**< The package name */
-       VCPKG_platform platform;         /**< The supported (or not supported) OS platform */
+       WORD  platform;                  /**< The supported (or not supported) OS platform */
      };
 
 /**
