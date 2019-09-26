@@ -349,12 +349,12 @@ static void make_dep_platform (struct vcpkg_depend *dep, char *platform, BOOL re
   }
   else if (recurse)
   {
-    char *tok_end, *tok = strtok_s (platform, "&", &tok_end);
+    char *tok_end, *tok = _strtok_r (platform, "&", &tok_end);
 
     while (tok)
     {
       make_dep_platform (dep, tok, FALSE);
-      tok = strtok_s (NULL, "&", &tok_end);
+      tok = _strtok_r (NULL, "&", &tok_end);
     }
   }
 }
@@ -373,7 +373,7 @@ static enum VCPKG_platform make_package_platform (char *platform, BOOL recurse)
 
   if (recurse)
   {
-    char *tok_end, *tok = strtok_s (platform, "-", &tok_end);
+    char *tok_end, *tok = _strtok_r (platform, "-", &tok_end);
 
     while (tok)
     {
@@ -434,7 +434,7 @@ static void make_dependencies (struct vcpkg_node *node, char *str)
   ASSERT (node->deps == NULL);
   node->deps = smartlist_new();
 
-  tok = strtok_s (str, ",", &tok_end);
+  tok = _strtok_r (str, ",", &tok_end);
 
   while (tok)
   {
@@ -460,7 +460,7 @@ static void make_dependencies (struct vcpkg_node *node, char *str)
     _strlcpy (dep.package, p, sizeof(dep.package));
     smartlist_add (node->deps, find_or_alloc_dependency(&dep));
 
-    tok = strtok_s (NULL, ",", &tok_end);
+    tok = _strtok_r (NULL, ",", &tok_end);
   }
 }
 
