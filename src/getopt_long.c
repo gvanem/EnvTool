@@ -794,6 +794,8 @@ void getopt_parse (struct command_line *c, int _argc, const char **_argv)
 #else
   c0.argc = __argc;         /* Globals in CRT except for CygWin */
   c0.argv = __argv;
+  ARGSUSED (_argc);
+  ARGSUSED (_argv);
 #endif
 
   /* Because getopt_long hasn't been called yet
