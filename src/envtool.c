@@ -784,7 +784,7 @@ void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
   {
     const struct directory_array *d2 = smartlist_get (dir_array, i);
 
-    if (!str_equal(dir,d2->dir))
+    if (str_equal(dir,d2->dir))
        d->num_dup++;
   }
 }
@@ -931,7 +931,7 @@ static int reg_array_compare (const void **_a, const void **_b)
 
   snprintf (fqdn_a, sizeof(fqdn_a), "%s%c%s", slashify(a->path, slash), slash, a->real_fname);
   snprintf (fqdn_b, sizeof(fqdn_b), "%s%c%s", slashify(b->path, slash), slash, b->real_fname);
-  return str_equal (fqdn_a, fqdn_b);
+  return ~str_equal (fqdn_a, fqdn_b);
 }
 
 static void print_reg_array (const char *intro)
@@ -1040,7 +1040,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
       /*
        * Check for missing drive-letter (`x:`) in component.
        */
-      if (!is_cwd && IS_SLASH(tok[0]) && str_equal_n(tok,"/cygdrive/",10))
+      if (!is_cwd && IS_SLASH(tok[0]) && !str_equal_n(tok,"/cygdrive/",10))
          WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
 #endif
 
@@ -1070,7 +1070,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
                tok, env_name);
       tok = current_dir;
     }
-    else if (opt.conv_cygdrive && strlen(tok) >= 12 && !str_equal_n(tok,"/cygdrive/",10))
+    else if (opt.conv_cygdrive && strlen(tok) >= 12 && str_equal_n(tok,"/cygdrive/",10))
     {
       char buf [_MAX_PATH];
 
@@ -1079,7 +1079,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
       tok = buf;
     }
 
-    add_to_dir_array (tok, !str_equal(tok,current_dir), __LINE__);
+    add_to_dir_array (tok, str_equal(tok,current_dir), __LINE__);
     tok = strtok (NULL, sep);
   }
 
@@ -2342,7 +2342,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
        */
       if (!is_dir && !opt.dir_mode && !opt.man_mode)
       {
-        if (!str_equal_n(base,opt.file_spec,strlen(base)))
+        if (str_equal_n(base,opt.file_spec,strlen(base)))
            match = FNM_MATCH;
       }
     }
@@ -2429,7 +2429,7 @@ static void check_sys_dirs (void)
 static const char *get_sysnative_file (const char *file, struct stat *st)
 {
 #if (IS_WIN64 == 0)
-  if (!str_equal_n(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
+  if (str_equal_n(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
   {
     static char shadow [_MAX_PATH];
     struct stat st2;

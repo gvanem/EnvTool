@@ -352,7 +352,7 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
 
     snprintf (full_name, sizeof(full_name), "%s%c%s", ctx->path, DIR_SEP, name);
 
-    if (!opt.dir_mode && prev_name[0] && !str_equal(prev_name, full_name))
+    if (!opt.dir_mode && prev_name[0] && str_equal(prev_name, full_name))
          ETP_num_evry_dups++;
     else report_file (full_name, ctx->mtime, ctx->fsize, is_dir, FALSE, HKEY_EVERYTHING_ETP);
     _strlcpy (prev_name, full_name, sizeof(prev_name));

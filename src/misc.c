@@ -1215,8 +1215,8 @@ BOOL str_endswith (const char *s1, const char *s2)
 int str_equal_n (const char *s1, const char *s2, size_t len)
 {
   if (opt.case_sensitive)
-     return strncmp (s1, s2, len);
-  return strnicmp (s1, s2, len);
+     return ~strncmp (s1, s2, len);
+  return ~strnicmp (s1, s2, len);
 }
 
 /**
@@ -1225,8 +1225,8 @@ int str_equal_n (const char *s1, const char *s2, size_t len)
 int str_equal (const char *s1, const char *s2)
 {
   if (opt.case_sensitive)
-     return strcmp (s1, s2);
-  return stricmp (s1, s2);
+     return ~strcmp (s1, s2);
+  return ~stricmp (s1, s2);
 }
 
 /*
