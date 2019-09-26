@@ -25,7 +25,6 @@
 #include <time.h>
 #include <fcntl.h>
 #include <assert.h>
-#include <errno.h>
 #include <signal.h>
 #include <windows.h>
 
@@ -124,6 +123,7 @@ static smartlist_t *reg_array;
 char   sys_dir        [_MAX_PATH];  /**< E.g. `"c:\Windows\System32"` */
 char   sys_native_dir [_MAX_PATH];  /**< E.g. `"c:\Windows\sysnative"`. Not for WIN64 */
 char   sys_wow64_dir  [_MAX_PATH];  /**< E.g. `"c:\Windows\SysWOW64"`. Not for WIN64 */
+int    path_separator = ';';
 
 static UINT64   total_size = 0;
 static DWORD    num_version_ok = 0;
@@ -142,7 +142,6 @@ static char *user_env_lib    = NULL;
 static char *user_env_inc    = NULL;
 static char *report_header   = NULL;
 
-static int   path_separator = ';';
 static char  current_dir [_MAX_PATH];
 
 static char *vcache_fname = NULL;
@@ -1355,7 +1354,7 @@ static int get_trailing_indent (const char *file)
 /**
  * In case a file or directory contains a `"~"`, switch to raw mode.
  */
-static void print_raw (const char *file, const char *before, const char *after)
+void print_raw (const char *file, const char *before, const char *after)
 {
   int raw;
 
@@ -5015,7 +5014,7 @@ static void set_long_option (int o, const char *arg)
 /**
  * Parse the command-line.
  */
-static void parse_cmdline (void)
+static void parse_cmdline (int _argc, const char **_argv)
 {
   command_line *c = &opt.cmd_line;
 
@@ -5024,7 +5023,7 @@ static void parse_cmdline (void)
   c->long_opt      = long_options;
   c->set_short_opt = set_short_option;
   c->set_long_opt  = set_long_option;
-  getopt_parse (c);
+  getopt_parse (c, _argc, _argv);
 
   if (c->argc0 > 0 && c->argc - c->argc0 >= 1)
      opt.file_spec = STRDUP (c->argv[c->argc0]);
@@ -5297,7 +5296,7 @@ int MS_CDECL main (int argc, const char **argv)
 
   init_all (argv);
 
-  parse_cmdline();
+  parse_cmdline (argc, argv);
   if (!eval_options())
      return (1);
 
@@ -5760,7 +5759,10 @@ static void check_app_paths (HKEY key)
         FREE (fname);
       }
       else
+      {
+        fname = opt.show_unix_paths ? slashify (fname,'/') : fname;
         print_raw (fname, NULL, NULL);
+      }
 
       C_puts ("~0\n");
     }
