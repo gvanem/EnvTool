@@ -248,7 +248,7 @@ int MS_CDECL main (int argc, char **argv)
 
     C_printf ("  ~3%s~0 -> ~6%s~0\n", program_descr, program_exe);
 
-    C_printf ("\nAll Associations for ~3%s~0:\n", extension_to_test);
+    C_printf ("\nAll associations for ~3%s~0:\n", extension_to_test);
     get_file_assoc_all (extension_to_test);
   }
 
