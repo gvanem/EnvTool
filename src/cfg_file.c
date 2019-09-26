@@ -113,7 +113,7 @@ static unsigned config_get_line (CFG_FILE *cf)
     /* Remove trailing ';' or '#' comment characters.
      * First check for a correctly quoted string value.
      */
-    if (l_quote && r_quote && r_quote> l_quote)
+    if (l_quote && r_quote && r_quote > l_quote)
          q = r_quote;
     else q = cf->value;
 
