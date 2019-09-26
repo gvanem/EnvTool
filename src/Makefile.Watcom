@@ -28,6 +28,7 @@ OBJECTS = auth.obj           &
           show_ver.obj       &
           smartlist.obj      &
           sort.obj           &
+          tests.obj          &
           vcpkg.obj          &
           win_trust.obj      &
           win_ver.obj

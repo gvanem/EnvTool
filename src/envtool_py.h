@@ -22,7 +22,8 @@ typedef enum python_variants {
 
 extern enum python_variants py_which;
 
-struct python_info; /* Forward */
+struct ver_info;     /* Forward */
+struct python_info;  /* Forward */
 
 extern void         py_init          (void);
 extern void         py_exit          (void);

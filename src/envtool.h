@@ -440,9 +440,10 @@ struct prog_options {
      };
 
 extern struct prog_options opt;
-
 extern char  *program_name;       /* used by getopt_long.c */
 extern HANDLE Everything_hthread; /* set by Everything.c */
+
+extern BOOL have_sys_native_dir, have_sys_wow64_dir;
 
 extern volatile int halt_flag;
 
@@ -455,6 +456,40 @@ extern int  report_file (const char *file, time_t mtime, UINT64 fsize,
 
 extern int  process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
                          BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key, BOOL recursive);
+
+extern smartlist_t *split_env_var (const char *env_name, const char *value);
+
+/**
+ * \struct directory_array
+ */
+struct directory_array {
+       char    *dir;         /**< FQDN of this entry */
+       char    *cyg_dir;     /**< The Cygwin POSIX form of the above */
+       int      exist;       /**< does it exist? */
+       int      is_native;   /**< and is it a native dir; like `%WinDir\sysnative` */
+       int      is_dir;      /**< and is it a dir; `_S_ISDIR()` */
+       int      is_cwd;      /**< and is it equal to `current_dir[]` */
+       int      exp_ok;      /**< `expand_env_var()` returned with no `%`? */
+       int      num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
+       BOOL     check_empty; /**< check if it contains at least 1 file? */
+       unsigned line;        /**< Debug: at what line was `add_to_dir_array()` called */
+     };
+
+/**
+ * \struct registry_array
+ */
+struct registry_array {
+       char   *fname;        /**< basename of this entry. I.e. the name of the enumerated key. */
+       char   *real_fname;   /**< normally the same as above unless aliased. E.g. "winzip.exe -> "winzip32.exe" */
+       char   *path;         /**< path of this entry */
+       int     exist;        /**< does it exist? */
+       time_t  mtime;        /**< file modification time */
+       UINT64  fsize;        /**< file size */
+       HKEY    key;
+     };
+
+extern void free_reg_array (void);
+extern void free_dir_array (void);
 
 /*
  * Defined in newer <sal.h> for MSVC.

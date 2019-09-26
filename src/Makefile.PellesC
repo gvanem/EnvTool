@@ -84,10 +84,10 @@ else
                Win/version.lib)
 endif
 
-SOURCES = auth.c envtool.c envtool_py.c Everything.c Everything_ETP.c \
-          color.c dirlist.c ignore.c get_file_assoc.c getopt_long.c   \
-          misc.c searchpath.c smartlist.c show_ver.c sort.c regex.c   \
-          vcpkg.c win_ver.c win_trust.c cfg_file.c
+SOURCES = auth.c cfg_file.c color.c dirlist.c envtool.c envtool_py.c \
+          Everything.c Everything_ETP.c ignore.c get_file_assoc.c getopt_long.c \
+          misc.c regex.c searchpath.c smartlist.c show_ver.c sort.c tests.c \
+          vcpkg.c win_ver.c win_trust.c
 
 OBJECTS = $(SOURCES:.c=.obj)
 
