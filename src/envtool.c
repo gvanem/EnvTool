@@ -3945,9 +3945,10 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
  * `envtool -VVV (print_lib_path = TRUE)` will print the internal
  * `*gcc` or `*g++` library paths too.
  */
-static void print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
+static int print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
 {
   BOOL   is_gnu;
+  int    rc = 0;
   size_t len = strlen (cc->short_name);
 
   C_printf ("    %s%*s -> ", cc->short_name, (int)(longest_cc-len), "");
@@ -3956,7 +3957,7 @@ static void print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
   else C_printf ("~5Not found~0\n");
 
   if (!cc->full_name || cc->ignore || !print_lib_path)
-     return;
+     return (rc);
 
   is_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GPP);
   if (is_gnu && setup_gcc_library_path(cc,FALSE) > 0)
@@ -3965,8 +3966,10 @@ static void print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
 
     print_gcc_internal_dirs ("LIBRARY_PATH", env);
     FREE (env);
+    rc = 1;
   }
   FREE (cygwin_root);
+  return (rc);
 }
 
 /**
@@ -4003,7 +4006,7 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
 {
   struct compiler_info *cc;
   BOOL   at_least_one_gnu = FALSE;
-  int    i, max, ignored, save = opt.cache_ver_level;
+  int    i, max, ignored, num_gxx, save = opt.cache_ver_level;
   int    save_u;
 
   ASSERT (all_cc == NULL);
@@ -4041,18 +4044,20 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
   /* Count the # of compilers that were ignored.
    * And print some info if it wasn't ignored.
    */
-  for (i = ignored = 0; i < max; i++)
+  for (i = ignored = num_gxx = 0; i < max; i++)
   {
     cc = smartlist_get (all_cc, i);
     if (cc->ignore)
          ignored++;
-    else print_compiler_info (cc, print_lib_path);
+    else num_gxx += print_compiler_info (cc, print_lib_path);
 
     if (!at_least_one_gnu)
        at_least_one_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GPP);
   }
 
-  if (print_lib_path && at_least_one_gnu)
+  /* Print the footnote only if at least 1 'gcc*' / 'g++*' was actually found on PATH.
+   */
+  if (print_lib_path && at_least_one_gnu && num_gxx > 0)
      C_puts ("    ~3(1)~0: internal GCC library paths.\n");
 
   opt.cache_ver_level = save;
