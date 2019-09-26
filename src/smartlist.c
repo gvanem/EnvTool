@@ -41,7 +41,7 @@ typedef struct smartlist_t {
  */
 #define SMARTLIST_MAX_CAPACITY  INT_MAX
 
-#if defined(_CRTDBG_MAP_ALLOC)
+#if defined(_CRTDBG_MAP_ALLOC) /* Implies '_DEBUG' defined */
  /**
   * \def ASSERT_VAL
   *
@@ -59,6 +59,9 @@ typedef struct smartlist_t {
 #else
   #define ASSERT_VAL(ptr) (void) 0
 #endif
+
+#undef smartlist_len
+#undef smartlist_get
 
 /**
  * Return the number of items in `sl`.
@@ -610,3 +613,23 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
   return (found ? smartlist_get(sl, idx) : NULL);
 }
 #endif  /* NOT_USED_YET */
+
+#ifdef _DEBUG
+int smartlist_len_dbg (const smartlist_t *sl, const char *sl_name, const char *file, unsigned line)
+{
+  if (!sl)
+     FATAL ("Illegal use of 'smartlist_len (%s)' from %s(%u).\n", sl_name, file, line);
+
+  ASSERT_VAL (sl);
+  return (sl->num_used);
+}
+
+void *smartlist_get_dbg (const smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line)
+{
+  if (!sl)
+     FATAL ("Illegal use of 'smartlist_get (%s, %d)' from %s(%u).\n", sl_name, idx, file, line);
+  ASSERT_VAL (sl);
+  return (sl->list[idx]);
+}
+#endif
+
