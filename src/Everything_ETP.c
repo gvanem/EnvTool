@@ -233,7 +233,6 @@ static BOOL state_exit                 (struct state_CTX *ctx);
 static BOOL state_parse_url            (struct state_CTX *ctx);
 static BOOL state_netrc_lookup         (struct state_CTX *ctx);
 static BOOL state_authinfo_lookup      (struct state_CTX *ctx);
-static BOOL state_envtool_cfg_lookup   (struct state_CTX *ctx);
 static BOOL state_send_login           (struct state_CTX *ctx);
 static BOOL state_send_pass            (struct state_CTX *ctx);
 static BOOL state_await_login          (struct state_CTX *ctx);
@@ -921,9 +920,10 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  *
- * \note Currently not used.
+ * \note Currently not used. So make it non-static to suppress a warning
+ *       from clang-cl and gcc.
  */
-static BOOL state_envtool_cfg_lookup (struct state_CTX *ctx)
+BOOL state_envtool_cfg_lookup (struct state_CTX *ctx)
 {
   ARGSUSED (ctx);
   return (FALSE);
