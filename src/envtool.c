@@ -978,7 +978,7 @@ void free_dir_array (void)
  */
 smartlist_t *split_env_var (const char *env_name, const char *value)
 {
-  char *tok, *val;
+  char *tok, *val, *_end;
   int   is_cwd, max, i;
   char  sep [2];
 
@@ -994,7 +994,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   sep[0] = (char) path_separator;
   sep[1] = '\0';
 
-  tok = strtok (val, sep);
+  tok = _strtok_r (val, sep, &_end);
   is_cwd = !strcmp(val,".") || !strcmp(val,".\\") || !strcmp(val,"./");
 
   DEBUGF (1, "'val': \"%s\". 'tok': \"%s\", is_cwd: %d\n", val, tok, is_cwd);
@@ -1080,7 +1080,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
     }
 
     add_to_dir_array (tok, str_equal(tok,current_dir), __LINE__);
-    tok = strtok (NULL, sep);
+    tok = _strtok_r (NULL, sep, &_end);
   }
 
   FREE (val);
