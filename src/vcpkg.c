@@ -467,7 +467,7 @@ static void make_dependencies (struct vcpkg_node *node, char *str)
 static void make_features (struct vcpkg_node *node, char *str)
 {
   if (!node->features)
-      node->features = smartlist_new();
+     node->features = smartlist_new();
   smartlist_add (node->features, STRDUP(str));
 }
 
@@ -493,6 +493,7 @@ static void CONTROL_parse (struct vcpkg_node *node, const char *file)
     {
       p = str_ltrim (p + sizeof(CONTROL_DESCRIPTION) - 1);
       node->description = STRDUP (p);
+      str_replace ('~','-', node->description);
     }
     else if (!node->package[0] && !strnicmp(p,CONTROL_SOURCE,sizeof(CONTROL_SOURCE)-1))
     {
