@@ -628,9 +628,8 @@ static int show_help (void)
 
   C_printf ("    ~6-r~0, ~6--regex~0    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
             "    ~6-s~0, ~6--size~0     show size of files or directories found.\n"
-            "    ~6-S~3x~0, ~6--sort=~3y~0  sort files on ~3%s~0 / ", get_sort_methods_short());
-
-  C_printf ("~3%s~0 (not yet effective).\n", get_sort_methods_long());
+            "    ~6-S~3x~0, ~6--sort ~3x~0  sort files on a combination of ~3x=[%s]~0 (not yet effective).\n",
+            get_sort_methods());
 
   C_puts ("    ~6-q~0, ~6--quiet~0    disable warnings.\n"
           "    ~6-t~0             do some internal tests. Use ~6--owner~0, ~6--py~0 or ~6--evry~0 for extra tests.\n"
@@ -4762,7 +4761,7 @@ static int *values_tab[] = {
             &opt.do_check,            /* 35 */
             (int*)&opt.signed_status,
             &opt.no_cwd,              /* 37 */
-            (int*)&opt.sort_method,
+            NULL,
             &opt.do_vcpkg             /* 39 */
           };
 
@@ -4824,7 +4823,8 @@ static void set_vcpkg_options (const char *arg)
 }
 
 /**
- * `getopt_long()` handler for option `-H arg` or `--host arg` used by remote ETP queries.
+ * `getopt_long()` handler for option `-H arg`, `--host arg` or `--evry:arg`
+ * used by remote ETP queries.
  */
 static void set_evry_options (const char *arg)
 {
@@ -4887,6 +4887,8 @@ static void set_owner_options (const char *arg)
  */
 static void set_short_option (int o, const char *arg)
 {
+  char *err_opt;
+
   DEBUGF (2, "got short option '%c' (%d).\n", o, o);
 
   switch (o)
@@ -4922,9 +4924,9 @@ static void set_short_option (int o, const char *arg)
          opt.show_size = 1;
          break;
     case 'S':
-         if (!set_sort_method(arg, NULL))
-            usage ("Illegal \"-S\" method '%s'. Use one of: %s\n",
-                   arg, get_sort_methods_short());
+         if (!set_sort_method(arg,&err_opt))
+            usage ("Illegal \"-S\" method '%s'. Use a combination of: %s\n",
+                   err_opt, get_sort_methods());
          break;
     case 'T':
          opt.decimal_timestamp = 1;
@@ -4957,11 +4959,11 @@ static void set_long_option (int o, const char *arg)
 {
   int new_value, *val_ptr;
 
-  ASSERT (values_tab[o]);
-  ASSERT (long_options[o].name);
-
   ASSERT (o >= 0);
   ASSERT (o < DIM(values_tab));
+
+  ASSERT (values_tab[o]);
+  ASSERT (long_options[o].name);
 
   DEBUGF (2, "got long option \"--%s\" with argument \"%s\".\n",
           long_options[o].name, arg);
@@ -4981,9 +4983,11 @@ static void set_long_option (int o, const char *arg)
 
   if (!strcmp("sort",long_options[o].name))
   {
-    if (!set_sort_method(NULL, arg))
-       usage ("Illegal \"-S\" method '%s'. Use one of: %s\n",
-              arg, get_sort_methods_long());
+    char *err_opt;
+
+    if (!set_sort_method(arg,&err_opt))
+       usage ("Illegal \"--sort\" method '%s'. Use a combination of: %s\n",
+              err_opt, get_sort_methods());
     return;
   }
 
