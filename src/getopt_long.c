@@ -763,7 +763,9 @@ static void dump_argv (const struct command_line *c, unsigned line)
  *    program --arg1 @response-file-1 --arg2 @response-file-2 --arg3
  *  \endcode
  *
- * \param[in] c  The structure defining how the command-line is to be set and parsed.
+ * \param[in] c     The structure defining how the command-line is to be set and parsed.
+ * \param[in] _argc CygWin only; the number of command-line arguments from `main()`.
+ * \param[in] _argv CygWin only; the array of command-line arguments from `main()`.
  */
 void getopt_parse (struct command_line *c, int _argc, const char **_argv)
 {
