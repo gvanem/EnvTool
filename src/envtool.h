@@ -390,6 +390,13 @@ typedef struct beep_info {
         unsigned  msec;
       } beep_info;
 
+/** struct prog_options
+ *
+ * All vital program options are set here.
+ *
+ * Set by `parse_cmdline()` and the handlers `set_short_option()`
+ * and `set_short_option()`.
+ */
 struct prog_options {
        int             debug;
        int             verbose;
@@ -438,14 +445,13 @@ struct prog_options {
        int             conv_cygdrive;
        int             case_sensitive;
        int             cache_ver_level;
-       int             keep_temp;
-       int             under_conemu;
-       int             under_appveyor;
-       enum SortMethod sort_method;
-       BOOL            evry_raw;      /* use raw non-regex searches */
+       int             keep_temp;         /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
+       int             under_conemu;      /**< TRUE if running under ConEmu console-emulator */
+       int             under_appveyor;    /**< TRUE if running under AppVeyor */
+       enum SortMethod sort_methods[10];  /**< the specified sort methods */
+       BOOL            evry_raw;          /**< use raw non-regex searches */
        smartlist_t    *evry_host;
        char           *file_spec;
-       int             remaining_arg_pos;
        beep_info       beep;
        command_line    cmd_line;
      };
