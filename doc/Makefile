@@ -1,8 +1,6 @@
 #
 # This is a GNU-make Makefile for Envtool's './doc'
 #
-THIS_DIR = $(dir $(realpath Makefile))
-
 DOC_GENERATED    = envtool.chm envtool.chw doxygen.log
 OUTPUT_GENERATED = $(addprefix ./output/, \
                      *.css *.html *.js *.png *.map *.md5 index.{hhc,hhk,hhp} )
@@ -18,7 +16,7 @@ envtool.chm: Makefile envtool.Doxyfile main_page.dox envtool.css ../src/*.[ch]
 	@echo 'Doxygen done. Look in "$(realpath doxygen.log)" for messages.'
 
 check_msc:
-ifeq ($(wildcard $(THIS_DIR)/output/msc*.png),)
+ifeq ($(wildcard output/msc*.png),)
 	@echo 'MSCGEN failed.'
 else
 	@echo 'MSCGEN run seemed okay.'
