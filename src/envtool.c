@@ -930,7 +930,10 @@ static int reg_array_compare (const void **_a, const void **_b)
 
   snprintf (fqdn_a, sizeof(fqdn_a), "%s%c%s", slashify(a->path, slash), slash, a->real_fname);
   snprintf (fqdn_b, sizeof(fqdn_b), "%s%c%s", slashify(b->path, slash), slash, b->real_fname);
-  return ~str_equal (fqdn_a, fqdn_b);
+
+  if (opt.case_sensitive)
+       return strcmp (fqdn_a, fqdn_b);
+  else return stricmp (fqdn_a, fqdn_b);
 }
 
 static void print_reg_array (const char *intro)
@@ -1039,7 +1042,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
       /*
        * Check for missing drive-letter (`x:`) in component.
        */
-      if (!is_cwd && IS_SLASH(tok[0]) && !str_equal_n(tok,"/cygdrive/",10))
+      if (!is_cwd && IS_SLASH(tok[0]) && str_equal_n(tok,"/cygdrive/",10))
          WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
 #endif
 
@@ -2938,7 +2941,7 @@ static int do_check_manpath (void)
     if (arr->is_cwd)
     {
       if (done_cwd)
-           WARN ("%s: Contains multiple \"%s\".\n", env_name, ".\\");
+           WARN ("%s: Contains multiple \".\\\".\n", env_name);
       else found += check_man_dir (".\\", env_name);
       done_cwd = TRUE;
     }
