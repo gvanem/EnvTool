@@ -95,6 +95,7 @@ The following modes handles these environment variables:
                                        <tr><td>\c pypy   <td>Use a PyPy program only.
                                      </table>
                                      Otherwise use only first Python found on PATH (i.e. the default).
+  <tr><td>\c --vcpkg[=\em all]   <td>Check and search for VCPKG packages.
   <tr><td>\c --check             <td>Check for missing directories in all supported environment variables
                                      and missing files in these Registry keys:
                                      \verbatim HKCU\Microsoft\Windows\CurrentVersion\App Paths \endverbatim
@@ -144,7 +145,7 @@ Envtool contains a lot of options. These are:
   <tr><td>\c -t             <td> Do some internal tests.
   <tr><td>\c -T             <td> Show file times in sortable decimal format. E.g. \c "20121107.180658".
   <tr><td>\c -u             <td> Show all paths on Unix format. E.g. \c c:/ProgramFiles/.
-  <tr><td>\c -v             <td> Increase verbose level (currently only used in \c --pe).
+  <tr><td>\c -v             <td> Increase verbose level (currently used in \c --pe and \c --check).
   <tr><td>\c -V             <td> Show basic program version information. <br>
                                  \c -VV and \c -VVV  prints much more information.
   <tr><td>\c -h, \c -?      <td> Show this help.
