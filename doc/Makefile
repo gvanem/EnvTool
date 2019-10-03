@@ -2,7 +2,7 @@
 # This is a GNU-make Makefile for Envtool's './doc'
 #
 DOC_GENERATED    = envtool.chm envtool.chw doxygen.log
-OUTPUT_GENERATED = $(addprefix ./output/, \
+OUTPUT_GENERATED = $(addprefix output/, \
                      *.css *.html *.js *.png *.map *.md5 index.{hhc,hhk,hhp} )
 
 all: envtool.chm check_msc
@@ -25,5 +25,5 @@ endif
 clean:
 	rm -f $(OUTPUT_GENERATED)
 	rm -f $(DOC_GENERATED)
-	-rmdir output
+	- rmdir output
 	@echo '"clean" done.'
