@@ -912,6 +912,7 @@ static void add_to_reg_array (HKEY key, const char *fname, const char *fqdn)
   reg->path       = dirname (fqdn);
   reg->exist      = (rc == 0) && FILE_EXISTS (fqdn);
   reg->key        = key;
+  _fix_drive (reg->path);
 }
 
 /**
