@@ -296,7 +296,7 @@ static char *recv_line (struct state_CTX *ctx, char *out_buf, size_t out_len)
 
   ETP_total_rcv += num;
   *out_buf = '\0';
-  strip_nl (start);
+  str_strip_nl (start);
   start = str_ltrim (start);
 
   ETP_tracef (ctx, "Rx: \"%s\", len: %d\n", start, num);

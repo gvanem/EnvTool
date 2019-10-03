@@ -484,7 +484,7 @@ static void CONTROL_parse (struct vcpkg_node *node, const char *file)
 
   while (fgets(buf,sizeof(buf)-1,f))
   {
-    strip_nl (buf);
+    str_strip_nl (buf);
     p = str_ltrim (buf);
 
     DEBUGF (4, "p: '%s'\n", p);
@@ -919,7 +919,7 @@ static const char *get_info_file (const struct vcpkg_package *pkg)
 static void parse_info_file (smartlist_t *sl, char *line)
 {
   char  file [_MAX_PATH];
-  char *slash = strrchr (strip_nl(line), '/');
+  char *slash = strrchr (str_strip_nl(line), '/');
 
   if (slash && slash[1] == '\0')
      return;

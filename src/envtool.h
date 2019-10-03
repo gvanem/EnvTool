@@ -532,12 +532,15 @@ int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1
 
 extern void   init_misc     (void);
 extern void   exit_misc     (void);
+
 extern char *_strlcpy       (char *dst, const char *src, size_t sz);
-extern char *_strsep        (char **s, const char *delim);
-extern char *_stracat       (char *s1, const char *s2);
-extern char *_strndup       (const char *s, size_t sz);
-extern char *_strjoin       (char *const *arr, const char *sep);
-extern char *strip_nl       (char *s);
+extern char *_strtok_r      (char *ptr, const char *sep, char **end);
+
+extern char *str_sep        (char **s, const char *delim);
+extern char *str_acat       (char *s1, const char *s2);
+extern char *str_ndup       (const char *s, size_t sz);
+extern char *str_join       (char *const *arr, const char *sep);
+extern char *str_strip_nl   (char *s);
 extern char *str_ltrim      (char *s);
 extern char *str_rtrim      (char *s);
 extern char *str_trim       (char *s);
@@ -546,8 +549,8 @@ extern char *str_repeat     (int ch, size_t num);
 extern char *str_replace    (int ch1, int ch2, char *str);
 extern int   str_equal      (const char *s1, const char *s2);
 extern int   str_equal_n    (const char *s1, const char *s2, size_t len);
-extern char *_strtok_r      (char *ptr, const char *sep, char **end);
 extern char *str_shorten    (const char *str, size_t max_len);
+
 extern char *searchpath     (const char *file, const char *env_var);
 extern int   searchpath_pos (void);
 extern char *_fix_path      (const char *path, char *result);

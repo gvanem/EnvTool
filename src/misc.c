@@ -322,7 +322,7 @@ const char *check_if_shebang (const char *fname)
      return (FALSE);
 
   /** If it's a Unix file with 2 "\r\r" in the `shebang[]` buffer,
-   *  we cannot use `strip_nl()`. That will only remove the last
+   *  we cannot use `str_strip_nl()`. That will only remove the last
    *  `\r`. Look for the 1st `\n` or `\r` and remove them.
    */
   p = strchr (shebang, '\n');
@@ -491,7 +491,7 @@ const char *get_man_link (const char *file)
   {
     static char fqfn_name [_MAX_PATH];
     char       *dir_name = dirname (file);
-    const char *base = basename (strip_nl(buf+4));
+    const char *base = basename (str_strip_nl(buf+4));
 
     fclose (f);
     DEBUG_NL (1);
@@ -1136,7 +1136,7 @@ DWORD reg_swap_long (DWORD val)
 /**
  * Removes end-of-line termination from a string.
  */
-char *strip_nl (char *s)
+char *str_strip_nl (char *s)
 {
   char *p;
 
@@ -2352,7 +2352,7 @@ char *str_repeat (int ch, size_t num)
  *
  * If `*stringp` is NULL, `strsep()` returns `NULL`.
  */
-char *_strsep (char **stringp, const char *delim)
+char *str_sep (char **stringp, const char *delim)
 {
   int         c, sc;
   char       *tok, *s = *stringp;
@@ -2384,9 +2384,9 @@ char *_strsep (char **stringp, const char *delim)
 
 /**
  * `"string allocate and concatinate"`.
- * Assumes `s1` is allocated. Thus `FREE(s1)` after `_stracat()` is done.
+ * Assumes `s1` is allocated. Thus `FREE(s1)` after `str_acat()` is done.
  */
-char *_stracat (char *s1, const char *s2)
+char *str_acat (char *s1, const char *s2)
 {
   size_t sz = strlen(s1) + strlen(s2) + 1;
   char  *s  = MALLOC (sz);
@@ -2405,7 +2405,7 @@ char *_stracat (char *s1, const char *s2)
  * Allocate and return a new string containing the
  * first `n` characters of `s`.
  */
-char *_strndup (const char *s, size_t sz)
+char *str_ndup (const char *s, size_t sz)
 {
   char *dup = MALLOC (sz+1);
 
@@ -2423,7 +2423,7 @@ char *_strndup (const char *s, size_t sz)
  * \retval  NULL  if `arr` is empty
  * \retval  !NULL a `MALLOC()`-ed string of the concatinated result.
  */
-char *_strjoin (char * const *arr, const char *sep)
+char *str_join (char * const *arr, const char *sep)
 {
   char  *p,  *ret = NULL;
   int    i, num;
@@ -2571,7 +2571,7 @@ char *win_strerror (unsigned long err)
   if (hr)
        snprintf (buf, sizeof(buf), "0x%08lX: %s", (unsigned long)hr, err_buf);
   else snprintf (buf, sizeof(buf), "%lu: %s", err, err_buf);
-  strip_nl (buf);
+  str_strip_nl (buf);
   p = strrchr (buf, '.');
   if (p && p[1] == '\0')
      *p = '\0';
@@ -2613,7 +2613,7 @@ char *ws2_strerror (int err)
       FormatMessageA (FORMAT_MESSAGE_FROM_HMODULE,
                      kernel32_hnd, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                      buf, sizeof(buf), NULL))
-     return strip_nl (buf);
+     return str_strip_nl (buf);
 
   snprintf (buf, sizeof(buf), "%d?", err);
   return (buf);
@@ -3425,7 +3425,7 @@ int popen_run (popen_callback callback, const char *cmd)
   {
     int rc;
 
-    strip_nl (buf);
+    str_strip_nl (buf);
     DEBUGF (3, " _popen() buf: '%s'\n", buf);
     if (!buf[0] || !callback)
        continue;

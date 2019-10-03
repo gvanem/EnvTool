@@ -4519,7 +4519,7 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
 {
   const char *isystem = "-isystem @\\..\\";
 
-  line = strip_nl (str_ltrim(line));
+  line = str_strip_nl (str_ltrim(line));
   DEBUGF (2, "line: %s.\n", line);
 
   if (!strnicmp(line,isystem,strlen(isystem)))
@@ -4554,7 +4554,7 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
 {
   const char *Ldir = "-L@\\..\\";
 
-  line = strip_nl (str_ltrim(line));
+  line = str_strip_nl (str_ltrim(line));
   DEBUGF (2, "line: %s.\n", line);
 
   if (!strnicmp(line,Ldir,strlen(Ldir)))
@@ -5053,7 +5053,7 @@ static void parse_cmdline (int _argc, const char **_argv)
   if ((c->argc0 > 0) && (c->argc - c->argc0 >= 2))
   {
     FREE (opt.file_spec);
-    opt.file_spec = _strjoin (c->argv + c->argc0, " ");
+    opt.file_spec = str_join (c->argv + c->argc0, " ");
     opt.evry_raw  = TRUE;
   }
 
@@ -5393,13 +5393,13 @@ int MS_CDECL main (int argc, const char **argv)
       if (!dot && !opt.do_vcpkg && !opt.do_python)
       {
         if (opt.do_pkg && end > opt.file_spec && end[-1] != '*')
-           opt.file_spec = _stracat (opt.file_spec, ".pc*");
+           opt.file_spec = str_acat (opt.file_spec, ".pc*");
 
         else if (opt.do_vcpkg && end > opt.file_spec && end[-1] != '*')
-           opt.file_spec = _stracat (opt.file_spec, "*");
+           opt.file_spec = str_acat (opt.file_spec, "*");
 
         else if (end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
-           opt.file_spec = _stracat (opt.file_spec, ".*");
+           opt.file_spec = str_acat (opt.file_spec, ".*");
       }
     }
     else
