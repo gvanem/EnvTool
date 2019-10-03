@@ -688,7 +688,7 @@ extern void   get_PE_version_info_free (void);
  *  Used by buf_printf(), buf_puts() and buf_putc().
  */
 typedef struct FMT_buf {
-        char   *buffer;        /**< the 'alloca() buffer */
+        char   *buffer;        /**< the `alloca()` buffer */
         char   *buffer_start;  /**< as above + 4 bytes (past the marker) */
         char   *buffer_pos;    /**< current position in the buffer */
         size_t  buffer_size;   /**< number of bytes allocated in the buffer */
