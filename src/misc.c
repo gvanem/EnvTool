@@ -1214,9 +1214,12 @@ BOOL str_endswith (const char *s1, const char *s2)
  */
 int str_equal_n (const char *s1, const char *s2, size_t len)
 {
+  int rc;
+
   if (opt.case_sensitive)
-     return !!strncmp (s1, s2, len);
-  return !!strnicmp (s1, s2, len);
+       rc = strncmp (s1, s2, len);
+  else rc = strnicmp (s1, s2, len);
+  return (rc == 0 ? 1 : 0);
 }
 
 /**
@@ -1224,9 +1227,12 @@ int str_equal_n (const char *s1, const char *s2, size_t len)
  */
 int str_equal (const char *s1, const char *s2)
 {
+  int rc;
+
   if (opt.case_sensitive)
-     return !!strcmp (s1, s2);
-  return !!stricmp (s1, s2);
+       rc = strcmp (s1, s2);
+  else rc = stricmp (s1, s2);
+  return (rc == 0 ? 1 : 0);
 }
 
 /*
@@ -2878,7 +2884,7 @@ void crtdbug_exit (void)
 #endif
 
 /**
- * A `snprintf()` replacement to print and append to a local `fmt_buf`
+ * A `snprintf()` replacement to print and append to a local `FMT_buf*`
  * initialised using `BUF_INIT()`.
  */
 int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
@@ -2927,7 +2933,7 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
 }
 
 /**
- * A `puts()` replacement to print and append to a local `fmt_buf`
+ * A `puts()` replacement to print and append to a local `FMT_buf*`
  * initialised using `BUF_INIT()`.
  */
 int buf_puts (FMT_buf *fmt_buf, const char *string)
@@ -2956,7 +2962,7 @@ int buf_puts (FMT_buf *fmt_buf, const char *string)
 }
 
 /**
- * A `putc()` replacement to print a single character to a `fmt_buf`.
+ * A `putc()` replacement to print a single character to a `FMT_buf*`.
  */
 int buf_putc (FMT_buf *fmt_buf, int ch)
 {
@@ -2972,7 +2978,11 @@ int buf_putc (FMT_buf *fmt_buf, int ch)
 }
 
 /**
- * Print a long line to a `fmt_buf`.
+ * Print a long line to a `FMT_buf*`.
+ *
+ * A line is wrapped at a space (` `) to fit the screen-width nicely.
+ * If the console is redirected, wrap at the `UINT_MAX` edge (practically
+ * no wrapping at all).
  */
 void buf_puts_long_line (FMT_buf *fmt_buf, const char *line, size_t indent)
 {
@@ -3013,6 +3023,11 @@ void buf_puts_long_line (FMT_buf *fmt_buf, const char *line, size_t indent)
   buf_putc (fmt_buf, '\n');
 }
 
+/**
+ * Restart using a `FMT_buf*`. <br>
+ * Call this after `fmt_buf->buffer_start` has been used (printed) and before
+ * adding more text to the buffer (using e.g. `buf_printf()`).
+ */
 void buf_reset (FMT_buf *fmt_buf)
 {
   fmt_buf->buffer_pos  = fmt_buf->buffer_start;
