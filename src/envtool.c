@@ -2847,7 +2847,7 @@ static int do_check_env (const char *env_name, BOOL recursive)
   {
     struct directory_array *arr = smartlist_get (list, i);
 
-    if (check_empty && arr->exist)
+    if (check_empty && arr->exist && !arr->is_cwd)
        arr->check_empty = check_empty;
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
                           arr->is_dir, arr->exp_ok, env_name, NULL,
