@@ -104,17 +104,19 @@ int cfg_ignore_lookup (const char *section, const char *value)
     if (stricmp(section, node->section))
        continue;
 
-    /* An exact case-insensitive match
+    /* An exact match.
+     * This is case-sensitive if option '-c' was used.
      */
-    if (!stricmp(value, node->value))
+    if (str_equal(value, node->value))
     {
       DEBUGF (3, "Found '%s' in %s.\n", value, section);
       return (1);
     }
 
-    /* A wildcard case-insensitive match
+    /* A wildcard match.
+     * This is case-sensitive if option '-c' was used.
      */
-    if (fnmatch(node->value, value, FNM_FLAG_NOCASE) == FNM_MATCH)
+    if (fnmatch(node->value, value, fnmatch_case(0)) == FNM_MATCH)
     {
       DEBUGF (3, "Wildcard match for '%s' in %s.\n", value, section);
       return (1);
