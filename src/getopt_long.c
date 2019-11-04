@@ -66,9 +66,9 @@
 #define PRINT_ERROR ((opterr) && (*options != ':'))
 
 /**
- * \def FLAGS_PERMUTE   permute non-options to the end of `argv`.
- * \def FLAGS_ALLARGS   treat non-options as args to option "-1".
- * \def FLAGS_LONGONLY  operate as `getopt_long_only()`.
+ * \def FLAG_PERMUTE   permute non-options to the end of `argv`.
+ * \def FLAG_ALLARGS   treat non-options as args to option "-1".
+ * \def FLAG_LONGONLY  operate as `getopt_long_only()`.
  */
 #define FLAG_PERMUTE    0x01
 #define FLAG_ALLARGS    0x02
