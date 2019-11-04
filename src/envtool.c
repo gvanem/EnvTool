@@ -3105,7 +3105,7 @@ static int do_check_pkg (void)
 static int get_pkg_info (const char *pc_file, const char *filler)
 {
   FILE *f = fopen (pc_file, "rt");
-  char  buf [1000];
+  char  buf [1000], *p;
   char  descr [1000] = { "" };
   char  version [50] = { "" };
 
@@ -3114,8 +3114,9 @@ static int get_pkg_info (const char *pc_file, const char *filler)
 
   while (fgets(buf, sizeof(buf), f))
   {
-    sscanf (buf, "Description: %999[^\r\n]", descr);
-    sscanf (buf, "Version: %49s", version);
+    p = str_ltrim (buf);
+    sscanf (p, "Description: %999[^\r\n]", descr);
+    sscanf (p, "Version: %49s", version);
   }
   if (descr[0] && version[0])
      C_printf ("\n%s%s (v%s)", filler, str_ltrim(descr), str_ltrim(version));
