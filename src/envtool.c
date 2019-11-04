@@ -2727,6 +2727,7 @@ static int do_check_evry (void)
     UINT64 fsize = (__int64)-1;  /* since a 0-byte file is valid */
     time_t mtime = 0;
     BOOL   is_shadow = FALSE;
+    int    ignore;
 
     if (halt_flag > 0)
        break;
@@ -2741,7 +2742,9 @@ static int do_check_evry (void)
       break;
     }
 
-    if (cfg_ignore_lookup("[EveryThing]",file))
+    ignore = cfg_ignore_lookup("[EveryThing]",file);
+    DEBUGF (3, "cfg_ignore_lookup(\"[EveryThing]\", \"%s\") -> %d\n", file, ignore);
+    if (ignore)
     {
       num_evry_ignored++;
       continue;
