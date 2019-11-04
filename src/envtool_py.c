@@ -2358,7 +2358,7 @@ static void free_arg_vector (arg_vector *av)
  * \def PY_EXEC3_FMT
  *   The Python 3.x program to execute a file.
  */
-#define PY_EXEC3_FMT() "__file__='%s'; f=open('%s','rt'); exec(f.read())"
+#define PY_EXEC3_FMT() "__file__='%s'; f=open(r'%s','rt'); exec(f.read())"
 
 /**
  * Executes a Python script, optionally with arguments.
