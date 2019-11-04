@@ -156,7 +156,7 @@ static void init_syntax_once (void)
   #define REGEX_REALLOCATE_STACK(source, osize, nsize) \
                                  REGEX_REALLOCATE (source, osize, nsize)
 
-  #define REGEX_FREE_STACK(arg)   /* No need to explicitly free anything. */
+  #define REGEX_FREE_STACK(arg) ((void)0)  /* No need to explicitly free anything. */
 #endif
 
 /* True if `size1' is non-NULL and PTR is pointing anywhere inside
@@ -970,7 +970,7 @@ typedef struct {
   /* Make the register vectors big enough for NUM_REGS registers,
    * but don't make them smaller.
    */
-  static regex_grow_registers (int num_regs)
+  static void regex_grow_registers (int num_regs)
   {
     if (num_regs > regs_allocated_size)
     {
@@ -2722,9 +2722,9 @@ int re_match (struct re_pattern_buffer *bufp, const char *string,
                               pos, regs, size);
 }
 
-static boolean group_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type * reg_info);
-static boolean alt_match_null_string_p (unsigned char *p, unsigned char *end, register_info_type * reg_info);
-static boolean common_op_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type * reg_info);
+static boolean group_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info);
+static boolean alt_match_null_string_p (unsigned char *p, unsigned char *end, register_info_type *reg_info);
+static boolean common_op_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info);
 static int bcmp_translate (const char *s1, const char *s2, int len, char *translate);
 
 /* re_match_2 matches the compiled pattern in BUFP against the
@@ -3163,7 +3163,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
            {
              do
              {
-               PREFETCH();
+               PREFETCH()
                if ((unsigned char)translate[(unsigned char)*d++] != (unsigned char)*p++)
                   goto fail;
              }
@@ -3173,7 +3173,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
            {
              do
              {
-               PREFETCH();
+               PREFETCH()
                if (*d++ != (char)*p++)
                   goto fail;
              }
@@ -3184,7 +3184,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
 
            /* Match any character except possibly a newline or a null. */
       case anychar:
-           PREFETCH();
+           PREFETCH()
 
            if ((!(bufp->syntax & RE_DOT_NEWLINE) && TRANSLATE(*d) == '\n') ||
                (bufp->syntax & RE_DOT_NOT_NULL && TRANSLATE(*d) == '\000'))
@@ -3200,7 +3200,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
              unsigned char c;
              boolean not = (re_opcode_t)*(p-1) == charset_not;
 
-             PREFETCH();
+             PREFETCH()
              c = TRANSLATE (*d); /* The character to match. */
 
              /* Cast to `unsigned' instead of `unsigned char' in case the
@@ -3442,7 +3442,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
                   break;
 
                /* If necessary, advance to next segment in data. */
-               PREFETCH();
+               PREFETCH()
 
                /* How many characters left in this segment to match. */
                mcnt = dend - d;
@@ -3730,7 +3730,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
              const char    *sdummy;
 
              POP_FAILURE_POINT (sdummy, pdummy, dummy_low_reg, dummy_high_reg,
-                                reg_dummy, reg_dummy, reg_info_dummy);
+                                reg_dummy, reg_dummy, reg_info_dummy)
              ARGSUSED (sdummy);
              ARGSUSED (pdummy);
            }
@@ -3863,7 +3863,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
            goto fail;
 
       case wordchar:
-           PREFETCH();
+           PREFETCH()
            if (!WORDCHAR_P(d))
               goto fail;
            SET_REGS_MATCHED();
@@ -3871,7 +3871,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
            break;
 
       case notwordchar:
-           PREFETCH();
+           PREFETCH()
            if (WORDCHAR_P(d))
               goto fail;
            SET_REGS_MATCHED();
@@ -3890,7 +3890,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
       /* A restart point is known.  Restore to that state.
        */
       POP_FAILURE_POINT (d, p, lowest_active_reg, highest_active_reg,
-                         regstart, regend, reg_info);
+                         regstart, regend, reg_info)
 
       /* If this failure point is a dummy, try the next one.
        */
