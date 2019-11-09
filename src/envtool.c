@@ -5062,7 +5062,7 @@ static void parse_cmdline (int _argc, const char **_argv)
   }
 
   DEBUGF (2, "c->argc0:      %d\n", c->argc0);
-  DEBUGF (2, "opt.file_spec: %s'\n", opt.file_spec);
+  DEBUGF (2, "opt.file_spec: '%s'\n", opt.file_spec);
   DEBUGF (2, "opt.evry_raw:  %d\n", opt.evry_raw);
 }
 
