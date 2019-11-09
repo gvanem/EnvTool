@@ -3427,10 +3427,10 @@ int popen_run (popen_callback callback, const char *cmd)
 
     str_strip_nl (buf);
     DEBUGF (3, " _popen() buf: '%s'\n", buf);
+    _strlcpy (popen_last, buf, sizeof(popen_last));
     if (!buf[0] || !callback)
        continue;
 
-    _strlcpy (popen_last, buf, sizeof(popen_last));
     rc = (*callback) (buf, i++);
     j += rc;
     if (rc < 0)
