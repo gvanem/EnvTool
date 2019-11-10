@@ -48,6 +48,7 @@
 #include "get_file_assoc.h"
 #include "cfg_file.h"
 #include "tests.h"
+#include "description.h"
 
 /**
  * <!-- \includedoc README.md ->
@@ -598,6 +599,7 @@ static int show_help (void)
           "                   Add ~6-v~0 / ~6--verbose~0 for more checks.\n");
 
   C_puts ("  ~6[options]~0\n"
+          "    ~6--descr~0        show 4NT/TCC file-description.\n"
           "    ~6--no-gcc~0       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
           "    ~6--no-g++~0       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
           "    ~6--no-prefix~0    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs.    ~2[2]~0\n"
@@ -1387,7 +1389,9 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
 {
   const char *note   = NULL;
   const char *filler = "      ";
+  const char *description;
   char        size [40] = "?";
+  int         len;
   BOOL        have_it = TRUE;
   BOOL        show_dir_size = TRUE;
   BOOL        show_pc_files_only = FALSE;
@@ -1634,10 +1638,19 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
     return (0);
   }
 
-  C_puts (fmt_buf_time_size.buffer_start);
+  len = C_puts (fmt_buf_time_size.buffer_start);
   C_puts (fmt_buf_owner_info.buffer_start);
 
   print_raw (fmt_buf_file_info.buffer_start, NULL, NULL);
+
+  if (opt.show_descr && (description = file_descr_get(file)) != NULL && *description)
+  {
+    int raw = C_setraw (1);
+
+    C_printf ("\n%*s", len-2, "");
+    C_puts_long_line (description, len-2);
+    C_setraw (raw);
+  }
 
   /* All this must be printed on the next line
    */
@@ -4727,6 +4740,7 @@ static const struct option long_options[] = {
            { "no-cwd",      no_argument,       NULL, 0 },    /* 37 */
            { "sort",        required_argument, NULL, 0 },
            { "vcpkg",       optional_argument, NULL, 0 },    /* 39 */
+           { "descr",       no_argument,       NULL, 0 },
            { NULL,          no_argument,       NULL, 0 }
          };
 
@@ -4770,7 +4784,8 @@ static int *values_tab[] = {
             (int*)&opt.signed_status,
             &opt.no_cwd,              /* 37 */
             NULL,
-            &opt.do_vcpkg             /* 39 */
+            &opt.do_vcpkg,            /* 39 */
+            &opt.show_descr
           };
 
 /**
@@ -5150,7 +5165,7 @@ static void MS_CDECL cleanup (void)
   cfg_exit (cf);
 
   vcpkg_free();
-
+  file_descr_exit();
   exit_misc();
 
   if (halt_flag == 0 && opt.debug > 0)
@@ -5239,6 +5254,7 @@ static void init_all (const char **argv)
 #endif
 
   vcache_fname = getenv_expand ("%TEMP%\\envtool.cache");
+  file_descr_init();
 
   current_dir[0] = '.';
   current_dir[1] = DIR_SEP;
