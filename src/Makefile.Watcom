@@ -14,6 +14,7 @@ EX_LIBS = advapi32.lib imagehlp.lib version.lib shfolder.lib shlwapi.lib &
 OBJECTS = auth.obj           &
           cfg_file.obj       &
           color.obj          &
+          description.obj    &
           dirlist.obj        &
           envtool.obj        &
           envtool_py.obj     &

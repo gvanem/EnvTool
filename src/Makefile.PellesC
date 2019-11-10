@@ -84,7 +84,7 @@ else
                Win/version.lib)
 endif
 
-SOURCES = auth.c cfg_file.c color.c dirlist.c envtool.c envtool_py.c \
+SOURCES = auth.c cfg_file.c color.c description.c dirlist.c envtool.c envtool_py.c \
           Everything.c Everything_ETP.c ignore.c get_file_assoc.c getopt_long.c \
           misc.c regex.c searchpath.c smartlist.c show_ver.c sort.c tests.c \
           vcpkg.c win_ver.c win_trust.c
@@ -148,10 +148,11 @@ define link_EXE
 endef
 
 envtool.res:        envtool.h
-envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h envtool.h envtool_py.h sort.h
+envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h envtool.h envtool_py.h sort.h description.h
 envtool_py.obj:     envtool_py.c envtool.h envtool_py.h
 Everything.obj:     Everything.c Everything.h Everything_IPC.h
 Everything_ETP.obj: Everything_ETP.c envtool.h color.h
+description.obj:    description.c description.h color.h smartlist.h envtool.h sort.h
 get_file_assoc.obj: get_file_assoc.c envtool.h color.h get_file_assoc.h
 getopt_long.obj:    getopt_long.c getopt_long.h
 color.obj:          color.c color.h
