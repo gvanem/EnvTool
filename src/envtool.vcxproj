@@ -157,7 +157,7 @@
     <ClInclude Include="auth.h" />
     <ClInclude Include="cfg_file.h" />
     <ClInclude Include="color.h" />
-    <ClCompile Include="description.h" />
+    <ClInclude Include="description.h" />
     <ClInclude Include="dirlist.h" />
     <ClInclude Include="envtool.h" />
     <ClInclude Include="envtool_py.h" />
