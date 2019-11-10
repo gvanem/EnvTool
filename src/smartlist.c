@@ -311,7 +311,7 @@ smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
 
   while (sl)
   {
-    char buf[500], *p;
+    char buf[5000], *p;
 
     if (!fgets(buf,sizeof(buf)-1,f))   /* EOF */
        break;
