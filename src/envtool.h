@@ -406,6 +406,7 @@ struct prog_options {
        int             no_cwd;
        int             show_unix_paths;
        int             show_owner;
+       int             show_descr;
        smartlist_t    *owners;
        int             decimal_timestamp;
        int             no_sys_env;
