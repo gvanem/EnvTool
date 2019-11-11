@@ -548,6 +548,7 @@ extern char *str_trim       (char *s);
 extern BOOL  str_endswith   (const char *s, const char *with);
 extern char *str_repeat     (int ch, size_t num);
 extern char *str_replace    (int ch1, int ch2, char *str);
+extern char *str_reverse    (char *str);
 extern int   str_equal      (const char *s1, const char *s2);
 extern int   str_equal_n    (const char *s1, const char *s2, size_t len);
 extern char *str_shorten    (const char *str, size_t max_len);

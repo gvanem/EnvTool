@@ -3794,7 +3794,7 @@ const char *dump20 (const void *data, unsigned size)
 /**
  * Return a reverse of string `str` in place.
  */
-char *strreverse (char *str)
+char *str_reverse (char *str)
 {
   int i, j;
 
@@ -3831,7 +3831,7 @@ char *_itoa (int value, char *buf, int radix)
   if (sign < 0)
      buf [i++] = '-';
   buf [i] = '\0';
-  return strreverse (buf);
+  return str_reverse (buf);
 }
 
 /**
