@@ -1645,11 +1645,15 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
 
   if (opt.show_descr && (description = file_descr_get(file)) != NULL && *description)
   {
-    int raw = C_setraw (1);
+    int raw;
+
+    C_puts ("~6");
+    raw = C_setraw (1);
 
     C_printf ("\n%*s", len-2, "");
     C_puts_long_line (description, len-2);
     C_setraw (raw);
+    C_puts ("~0");
   }
 
   /* All this must be printed on the next line
