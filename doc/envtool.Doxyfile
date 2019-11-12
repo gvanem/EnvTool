@@ -774,6 +774,7 @@ INPUT = main_page.dox           \
         ../src/color.c          \
         ../src/Everything.c     \
         ../src/Everything_ETP.c \
+        ../src/description.c    \
         ../src/dirlist.c        \
         ../src/get_file_assoc.c \
         ../src/getopt_long.c    \
@@ -790,6 +791,7 @@ INPUT = main_page.dox           \
         ../src/win_ver.c        \
         ../src/auth.h           \
         ../src/color.h          \
+        ../src/description.h    \
         ../src/dirlist.h        \
         ../src/envtool.h        \
         ../src/envtool_py.h     \
