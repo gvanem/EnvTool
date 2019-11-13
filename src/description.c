@@ -108,7 +108,7 @@ static void all_descr_dump (void)
 
     debug_printf ("  %2d  %2d  %s:\n", i, num, d->dir);
     for (j = 0; j < num; j++)
-        debug_printf ("         %2d %s\n", j, smartlist_get(d->descr, j));
+        debug_printf ("         %2d %s\n", j, (const char*)smartlist_get(d->descr, j));
   }
 }
 
