@@ -8,7 +8,7 @@
 
 /**\typedef struct smartlist_t
  *
- * From Tor's src/common/container.h:
+ * From Tor's `src/lib/smartlist_core/smartlist.h`:
  *
  * A resizeable list of pointers, with associated helpful functionality.
  *
@@ -405,6 +405,23 @@ void smartlist_swap (smartlist_t *sl, int idx1, int idx2)
     smartlist_set (sl, idx1, smartlist_get(sl, idx2));
     smartlist_set (sl, idx2, elt);
   }
+}
+
+/**
+ * If `element` is the same pointer as an element of `sl`,
+ * return that element's index.
+ * Otherwise, return -1.
+ */
+int smartlist_pos (const smartlist_t *sl, const void *element)
+{
+  int i;
+
+  ASSERT (sl);
+
+  for (i = 0; i < sl->num_used; i++)
+      if (sl->list[i] == element)
+         return (i);
+  return (-1);
 }
 
 /**\typedef int (*UserCmpFunc) (const void *, const void *);
