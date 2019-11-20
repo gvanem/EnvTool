@@ -183,7 +183,7 @@
 #endif
 
 /* Using "Visual Leak Detector" in _RELEASE mode is possible via the
- * '-DVLD_FORCE_ENABLE' flag. But not adviceable according to:
+ * '-DVLD_FORCE_ENABLE' flag. But not advisable according to:
  * https://github.com/KindDragon/vld/wiki
  *
  * VLD is useful for '_MSC_VER' only.
@@ -307,10 +307,10 @@
   #define ADDR_CAST(x)  ((unsigned long)(x))
 #endif
 
-/*
- * All MS compilers insists that 'main()', signal-handlers, atexit functions and
- * var-arg functions must be defined as cdecl. This is only an issue if a program
- * is using 'fastcall' globally (cl option '-Gr').
+/**
+ * All MS compilers insists that 'main()', signal-handlers, `atexit()` functions and
+ * var-arg functions must be defined as `cdecl`. This is only an issue if a program
+ * is using `fastcall` globally (cl option `-Gr`).
  */
 #if defined(_MSC_VER) && !defined(__POCC__)
   #define MS_CDECL __cdecl
@@ -326,7 +326,8 @@
 #define UINT64  unsigned __int64
 #endif
 
-/* Check for 'strcat_s()' used in envtool_py.c.
+/**
+ * Check for `strcat_s()` used in envtool_py.c.
  */
 #undef HAVE_STRCAT_S
 
@@ -355,11 +356,12 @@ extern "C" {
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
 /** \enum SignStatus
- *  Used with the "--pe" and "--signed[=0|1]" options to filter PE-files
- *  according to signed-status. This signed-status is obtained by wintrust_check().
+ *  Used with the `--pe` and `--signed[=0|1]` options to filter PE-files
+ *  according to signed-status.
+ *  This signed-status is obtained by `wintrust_check()`.
  */
 typedef enum SignStatus {
-       /** Do not report signed status of any PE-files. <br>
+        /** Do not report signed status of any PE-files. <br>
          * I.e. option `"--signed[=0|1]"` was not used.
          */
         SIGN_CHECK_NONE,
@@ -643,7 +645,7 @@ struct ver_info {
  */
 struct search_list {
        unsigned    value;  /**< the value */
-       const char *name;   /**< the name of the assosited value */
+       const char *name;   /**< the name of the associated value */
      };
 
 /** \enum Bitness
