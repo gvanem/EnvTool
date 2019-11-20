@@ -96,10 +96,11 @@ static void all_descr_dump (void)
 {
   size_t i, max = smartlist_len (all_descr);
 
-  debug_printf ("file_descr_dump(): cache_hits: %lu\n"
-                "  Idx  Len  directory\n"
-                "  -----------------------------------------------------------------\n",
-                cache_hits);
+  if (max)
+     debug_printf ("file_descr_dump(): cache_hits: %lu\n"
+                   "  Idx  Len  directory\n"
+                   "  -----------------------------------------------------------------\n",
+                   cache_hits);
 
   for (i = 0; i < max; i++)
   {
