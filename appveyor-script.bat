@@ -27,6 +27,7 @@ goto :EOF
 
 :build
   cd %APPVEYOR_BUILD_FOLDER%\src
+  set WK_VER=8.1
   msbuild -nologo -p:Configuration=Release -p:Platform="Win32" envtool.sln
   goto :EOF
 
