@@ -377,7 +377,7 @@ static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
 
   if (is_authinfo)
   {
-    file = getenv_expand ("%APPDATA%\\.authinfo");
+    file = getenv_expand2 ("%APPDATA%\\.authinfo");
     if (!FILE_EXISTS(file))
          WARN ("%s: file not found.", file);
     else WARN ("%s: user/password/port not found for host \"%s\".", file, ctx->hostname);
@@ -387,7 +387,7 @@ static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
   }
   else
   {
-    file = getenv_expand ("%APPDATA%\\.netrc");
+    file = getenv_expand2 ("%APPDATA%\\.netrc");
     if (!FILE_EXISTS(file))
          WARN ("%s: file not found.", file);
     else WARN ("%s: user/password not found for host \"%s\".", file, ctx->hostname);
