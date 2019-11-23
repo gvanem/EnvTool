@@ -10,6 +10,12 @@
 #include "cfg_file.h"
 #include "envtool.h"
 
+/**
+ * \def CFG_MAX_SECTIONS  Maximum number of sections in a config-file.
+ * \def CFG_SECTION_LEN   Maximum length of a section name.
+ * \def CFG_KEYWORD_LEN   Maximum length of a keyword.
+ * \def CFG_VALUE_LEN     Maximum length of a value.
+ */
 #define CFG_MAX_SECTIONS  10
 #define CFG_SECTION_LEN   40
 #define CFG_KEYWORD_LEN   40
@@ -22,7 +28,7 @@ typedef struct CFG_FILE {
         int          num_sections;                 /**< Number of sections / handlers set in `cfg_init()`. */
         const char  *sections [CFG_MAX_SECTIONS];  /**< The sections this structure handles. */
         cfg_handler  handlers [CFG_MAX_SECTIONS];  /**< The config-handlers for this config-file. */
-        smartlist_t *list;                         /**< A 'smartlist_t' of 'struct cfg_node *' */
+        smartlist_t *list;                         /**< A `smartlist_t` of `struct cfg_node *` */
 
         /** The work-buffers used by `config_get_line()`.
          */
@@ -59,7 +65,7 @@ static unsigned cfg_line;
  * section.
  *
  * \param[in] cf  the config-file structure of the current config-file (`cf->fname`).
- * \retval    0   when we have 'reached end-of-file'.
+ * \retval    0   when we have reached end-of-file.
  * \retval   >0   the line-number of the current line.
  */
 static unsigned config_get_line (CFG_FILE *cf)
@@ -90,7 +96,7 @@ static unsigned config_get_line (CFG_FILE *cf)
       continue;
     }
 
-    /* Got a '[section]' line. Find a 'key = val' on next 'fgets()'.
+    /* Got a `[section]` line. Find a `key = val`' on next `fgets()`.
      */
     snprintf (fmt, sizeof(fmt), "[%%%d[^]\r\n]", CFG_SECTION_LEN);
     if (sscanf(p, fmt, cf->section) == 1)
@@ -110,7 +116,7 @@ static unsigned config_get_line (CFG_FILE *cf)
     r_quote = strrchr (cf->value, '\"');
     l_quote = strchr (cf->value, '\"');
 
-    /* Remove trailing ';' or '#' comment characters.
+    /* Remove trailing `;` or `#` comment characters.
      * First check for a correctly quoted string value.
      */
     if (l_quote && r_quote && r_quote > l_quote)
@@ -155,6 +161,10 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
 
 /**
  * The "do nothing" parser to catch sections not hooked by others.
+ *
+ * \param[in] section  the current config-file section.
+ * \param[in] key      the current config-file keyword.
+ * \param[in] value    the current config-file value.
  */
 static void none_or_global_handler (const char *section, const char *key, const char *value)
 {
@@ -167,8 +177,8 @@ static void none_or_global_handler (const char *section, const char *key, const 
 }
 
 /**
- * Parse the config-file given in 'cf->file'.
- * Build the 'cf->list' smartlist as it is parsed.
+ * Parse the config-file given in `cf->file`.
+ * Build the `cf->list` smartlist as it is parsed.
  *
  * \param[in] cf  the config-file structure.
  */
@@ -185,9 +195,11 @@ static void parse_config_file (CFG_FILE *cf)
     if (!config_get_line(cf))
        break;
 
+    if (!cf->section[0])
+       strcpy (cf->section, "<None>");
+
     DEBUGF (3, "line %2u: [%s]: %s = %s\n",
-            cf->line, cf->section[0] == '\0' ? "<None>" : cf->section,
-            cf->keyword, cf->value);
+            cf->line, cf->section, cf->keyword, cf->value);
 
     /* Ignore "foo = <empty value>"
      */
@@ -195,20 +207,15 @@ static void parse_config_file (CFG_FILE *cf)
        continue;
 
     cfg = MALLOC (sizeof(*cfg));
-    if (cf->section[0])
-    {
-      snprintf (buf, sizeof(buf), "[%s]", cf->section);
-      cfg->section = STRDUP (buf);
-    }
-    else
-      cfg->section = NULL;
-
-    cfg->key = STRDUP (cf->keyword);
+    snprintf (buf, sizeof(buf), "[%s]", cf->section);
+    cfg->section = STRDUP (buf);
+    cfg->key     = STRDUP (cf->keyword);
 
     str_rtrim (cf->value);
     if (strchr(cf->value,'%'))
          val = getenv_expand (cf->value);   /* Allocates memory */
     else val = NULL;
+
     if (val)
          cfg->value = STRDUP (val);
     else cfg->value = STRDUP (cf->value);
@@ -222,11 +229,12 @@ static void parse_config_file (CFG_FILE *cf)
 
 /**
  * Open a config-file with a number of `[section]` and `key = value` pairs.
- * Build up the 'cf->list' as we go along and calling the parsers
+ * Build up the `cf->list` as we go along and calling the parsers
  * in the var-arg list.
  *
- * \param[in] fname   the config-file to parse.
- * \param[in] section the first section to handle.
+ * \param[in] fname   The config-file to parse.
+ * \param[in] section The first section to handle.
+ *                    The next `va_arg` is the callback function for this section.
  */
 CFG_FILE *cfg_init (const char *fname, const char *section, ...)
 {
@@ -262,6 +270,8 @@ CFG_FILE *cfg_init (const char *fname, const char *section, ...)
   va_start (args, section);
   for (i = 0; section && i < CFG_MAX_SECTIONS; section = va_arg(args, const char*), i++)
   {
+    if (!*section)
+       section = "[<None>]";
     cf->sections [i] = section;
     cf->handlers [i] = va_arg (args, cfg_handler);
     cf->num_sections++;
@@ -277,7 +287,9 @@ CFG_FILE *cfg_init (const char *fname, const char *section, ...)
 }
 
 /**
- * Clean-up after 'cfg_init()'.
+ * Clean-up after `cfg_init()`.
+ *
+ * \param[in] cf  the config-file structure.
  */
 void cfg_exit (CFG_FILE *cf)
 {
