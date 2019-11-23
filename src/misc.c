@@ -3502,6 +3502,18 @@ char *getenv_expand (const char *variable)
 }
 
 /**
+ * Similar to `getenv_expand()`, but always returns a non-NULL allocated string.
+ */
+char *getenv_expand2 (const char *variable)
+{
+  char *e = getenv_expand (variable);
+
+  if (!e)
+     return STRDUP (variable);
+  return (e);
+}
+
+/**
  * As above, but expand an environment variable for SYSTEM.
  * This will do similar to what 4NT/TCC's `set /m foo` command does.
  *

@@ -575,6 +575,7 @@ extern int  _file_exists    (const char *file);
 
 extern char *evry_raw_query    (void);
 extern char *getenv_expand     (const char *variable);
+extern char *getenv_expand2    (const char *variable);
 extern char *getenv_expand_sys (const char *variable);
 extern BOOL  getenv_system     (smartlist_t **sl);
 
