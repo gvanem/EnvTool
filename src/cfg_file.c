@@ -116,7 +116,7 @@ static unsigned config_get_line (CFG_FILE *cf)
     p = strchr (q, '#');
     if (p)
        *p = '\0';
-
+    str_rtrim (cf->value);
     break;
   }
   return (++cf->line);
@@ -156,7 +156,8 @@ static void parse_config_file (CFG_FILE *cf)
   while (1)
   {
     struct cfg_node *cfg;
-    char             buf [40];
+    char            *p;
+    size_t           p_size = CFG_SECTION_LEN + CFG_KEYWORD_LEN + 3;
     cfg_handler      handler;
 
     if (!config_get_line(cf))
@@ -173,17 +174,18 @@ static void parse_config_file (CFG_FILE *cf)
     if (!*cf->value)
        continue;
 
-    cfg = MALLOC (sizeof(*cfg));
-    snprintf (buf, sizeof(buf), "[%s]", cf->section);
-    cfg->section = STRDUP (buf);
-    cfg->key     = STRDUP (cf->keyword);
+    cfg = MALLOC (sizeof(*cfg) + p_size);
+    p = (char*) (cfg + 1);
+    cfg->section = p;
 
-    str_rtrim (cf->value);
+    snprintf (cfg->section, p_size, "[%s] %s", cf->section, cf->keyword);
+    p = strchr (cfg->section, ']');
+    p[1] = '\0';
+    cfg->key   = p + 2;
     cfg->value = getenv_expand2 (cf->value);   /* Allocates memory */
     smartlist_add (cf->list, cfg);
 
     handler = lookup_section_handler (cf, cfg->section);
-
     if (handler)
        (*handler) (cfg->section, cfg->key, cfg->value);
     else
@@ -211,14 +213,11 @@ CFG_FILE *cfg_init (const char *fname, const char *section, ...)
 {
   CFG_FILE *cf;
   va_list   args;
-  char     *_fname;
   int       i;
-
-  _fname = getenv_expand2 (fname);   /* Allocates memory */
 
   cf = CALLOC (sizeof(*cf), 1);
   cf->list  = smartlist_new();
-  cf->fname = _fname;
+  cf->fname = getenv_expand2 (fname);   /* Allocates memory */
   cf->file  = fopen (cf->fname, "rt");
   if (!cf->file)
   {
@@ -262,8 +261,6 @@ void cfg_exit (CFG_FILE *cf)
   {
     struct cfg_node *cfg = smartlist_get (cf->list, i);
 
-    FREE (cfg->section);
-    FREE (cfg->key);
     FREE (cfg->value);
     FREE (cfg);
   }
