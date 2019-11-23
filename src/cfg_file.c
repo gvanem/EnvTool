@@ -48,19 +48,6 @@ struct cfg_node {
      };
 
 /**
- * The default "do nothing" parser.
- */
-static void none_or_global_handler (const char *section, const char *key, const char *value);
-
-/** The current config-file we are parsing.
- */
-static const char *cfg_fname = NULL;
-
-/** The current line of the config-file we are parsing.
- */
-static unsigned cfg_line;
-
-/**
  * Return the next line from the config-file with key, value and
  * section.
  *
@@ -145,9 +132,6 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
 {
   int i;
 
-  cfg_line  = cf->line;
-  cfg_fname = cf->fname;
-
   for (i = 0; i < cf->num_sections; i++)
   {
     if (section && !stricmp(section, cf->sections[i]))
@@ -156,24 +140,7 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
       return (cf->handlers[i]);
     }
   }
-  return (none_or_global_handler);
-}
-
-/**
- * The "do nothing" parser to catch sections not hooked by others.
- *
- * \param[in] section  the current config-file section.
- * \param[in] key      the current config-file keyword.
- * \param[in] value    the current config-file value.
- */
-static void none_or_global_handler (const char *section, const char *key, const char *value)
-{
-  if (!section || section[0] == '\0')
-     DEBUGF (3, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
-             cfg_fname, cfg_line, key, value);
-  else
-     DEBUGF (3, "%s(%u): Keyword '%s' = '%s' in unknown section '%s'.\n",
-             cfg_fname, cfg_line, key, value, section);
+  return (NULL);
 }
 
 /**
@@ -184,12 +151,12 @@ static void none_or_global_handler (const char *section, const char *key, const 
  */
 static void parse_config_file (CFG_FILE *cf)
 {
-  DEBUGF (3, "file: %s.\n", cfg_fname);
+  DEBUGF (3, "file: %s.\n", cf->fname);
 
   while (1)
   {
     struct cfg_node *cfg;
-    char            *val, buf [40];
+    char             buf [40];
     cfg_handler      handler;
 
     if (!config_get_line(cf))
@@ -212,18 +179,22 @@ static void parse_config_file (CFG_FILE *cf)
     cfg->key     = STRDUP (cf->keyword);
 
     str_rtrim (cf->value);
-    if (strchr(cf->value,'%'))
-         val = getenv_expand (cf->value);   /* Allocates memory */
-    else val = NULL;
-
-    if (val)
-         cfg->value = STRDUP (val);
-    else cfg->value = STRDUP (cf->value);
-
+    cfg->value = getenv_expand2 (cf->value);   /* Allocates memory */
     smartlist_add (cf->list, cfg);
 
     handler = lookup_section_handler (cf, cfg->section);
-    (*handler) (cfg->section, cfg->key, cfg->value);
+
+    if (handler)
+       (*handler) (cfg->section, cfg->key, cfg->value);
+    else
+    {
+      if (!cfg->section || cfg->section[0] == '\0')
+         DEBUGF (3, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
+                 cf->fname, cf->line, cfg->key, cfg->value);
+      else
+         DEBUGF (3, "%s(%u): Keyword '%s' = '%s' in unknown section '%s'.\n",
+                 cf->fname, cf->line, cfg->key, cfg->value, cfg->section);
+    }
   }
 }
 
@@ -243,28 +214,16 @@ CFG_FILE *cfg_init (const char *fname, const char *section, ...)
   char     *_fname;
   int       i;
 
-  if (strchr(fname,'%'))
-       _fname = getenv_expand (fname);    /* Allocates memory */
-  else _fname = STRDUP (fname);
-
-  if (!_fname)
-     return (NULL);
+  _fname = getenv_expand2 (fname);   /* Allocates memory */
 
   cf = CALLOC (sizeof(*cf), 1);
   cf->list  = smartlist_new();
   cf->fname = _fname;
-  cfg_fname = cf->fname;
   cf->file  = fopen (cf->fname, "rt");
   if (!cf->file)
   {
     cfg_exit (cf);
     return (NULL);
-  }
-
-  for (i = 0; i < CFG_MAX_SECTIONS; i++)
-  {
-    cf->sections[i] = NULL;
-    cf->handlers[i] = none_or_global_handler;
   }
 
   va_start (args, section);
@@ -312,6 +271,4 @@ void cfg_exit (CFG_FILE *cf)
   smartlist_free (cf->list);
   FREE (cf->fname);
   FREE (cf);
-  cfg_fname = NULL;
-  cfg_line  = 0;
 }
