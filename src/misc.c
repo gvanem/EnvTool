@@ -706,6 +706,8 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
  * creating a proper quoted 'content:\"xx yy\"' string.
  *
  * Called before to `Everything_SetSearch()` and in `state_send_query()`.
+ *
+ * \todo Do this for other EveryThing functions that accept spaces.
  */
 char *evry_raw_query (void)
 {
