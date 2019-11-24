@@ -49,16 +49,16 @@ dirlist.exe: dirlist.c misc.obj color.obj getopt_long.obj searchpath.obj smartli
 	rm dirlist.obj
 
 .ERASE
-win_trust.exe: win_trust.c misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj
+win_trust.exe: win_trust.c dirlist.obj misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj
 	$(CC) $(CFLAGS) -DWIN_TRUST_TEST win_trust.c
-	$(LINK) name $*.exe file { win_trust.obj misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj } &
+	$(LINK) name $*.exe file { win_trust.obj dirlist.obj misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj } &
 	        library { $(EX_LIBS) }
 	rm win_trust.obj
 
 .ERASE
-win_ver.exe: win_ver.c misc.obj color.obj searchpath.obj smartlist.obj
+win_ver.exe: win_ver.c dirlist.obj misc.obj color.obj searchpath.obj smartlist.obj
 	$(CC) $(CFLAGS) -DWIN_VER_TEST win_ver.c
-	$(LINK) name $*.exe file { win_ver.obj misc.obj color.obj searchpath.obj smartlist.obj } &
+	$(LINK) name $*.exe file { win_ver.obj dirlist.obj misc.obj color.obj searchpath.obj smartlist.obj } &
 	        library { $(EX_LIBS) }
 	rm win_ver.obj
 

@@ -80,17 +80,17 @@ dirlist.exe: dirlist.c misc.c color.c getopt_long.c searchpath.c smartlist.c
 	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q dirlist.obj searchpath.obj
 
-win_glob.exe: win_glob.c misc.c color.c getopt_long.c searchpath.c smartlist.c
+win_glob.exe: win_glob.c dirlist.c misc.c color.c getopt_long.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) -DWIN_GLOB_TEST -c $**
 	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q win_glob.obj
 
-win_ver.exe: win_ver.c misc.c color.c searchpath.c smartlist.c
+win_ver.exe: win_ver.c dirlist.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) -DWIN_VER_TEST -c $**
 	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q win_ver.obj
 
-win_trust.exe: win_trust.c getopt_long.c misc.c color.c searchpath.c smartlist.c
+win_trust.exe: win_trust.c dirlist.c getopt_long.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) -DWIN_TRUST_TEST -c $**
 	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
 	del /q win_trust.obj

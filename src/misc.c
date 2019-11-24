@@ -35,6 +35,7 @@
 
 #include "color.h"
 #include "envtool.h"
+#include "dirlist.h"
 
 #ifndef IMAGE_FILE_MACHINE_ALPHA
 #define IMAGE_FILE_MACHINE_ALPHA 0x123456
@@ -2020,6 +2021,45 @@ UINT64 get_file_alloc_size (const char *file, UINT64 size)
   if (size % cluster_size)
      num_clusters++;
   return (num_clusters * cluster_size);
+}
+
+/**
+ * Get the size of files in a directory by walking
+ * recursively in all sub-directories under `dir`.
+ */
+UINT64 get_directory_size (const char *dir)
+{
+  struct dirent2 **namelist = NULL;
+  int    i, n = scandir2 (dir, &namelist, NULL, NULL);
+  UINT64 size = 0;
+
+  for (i = 0; i < n; i++)
+  {
+    int   is_dir      = (namelist[i]->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+    int   is_junction = (namelist[i]->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+    const char *link;
+
+    if (is_junction)
+    {
+      link = namelist[i]->d_link ? namelist[i]->d_link : "?";
+      DEBUGF (1, "Not recursing into junction \"%s\"\n", link);
+      size += get_file_alloc_size (dir, (UINT64)-1);
+    }
+    else if (is_dir)
+    {
+      DEBUGF (1, "Recursing into \"%s\"\n", namelist[i]->d_name);
+      size += get_file_alloc_size (namelist[i]->d_name, (UINT64)-1);
+      size += get_directory_size (namelist[i]->d_name);
+    }
+    else
+      size += get_file_alloc_size (namelist[i]->d_name, namelist[i]->d_fsize);
+  }
+
+  while (n--)
+    FREE (namelist[n]);
+  FREE (namelist);
+
+  return (size);
 }
 
 /**

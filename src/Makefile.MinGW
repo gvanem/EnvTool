@@ -74,17 +74,17 @@ dirlist.exe: dirlist.c misc.c color.c getopt_long.c searchpath.c smartlist.c
 	rm -f dirlist.o
 	@echo
 
-win_glob.exe: win_glob.c misc.c color.c getopt_long.c searchpath.c smartlist.c
+win_glob.exe: win_glob.c dirlist.c misc.c color.c getopt_long.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_GLOB_TEST -o $@ $^ $(EX_LIBS) > win_glob.map
 	rm -f win_glob.o
 	@echo
 
-win_ver.exe: win_ver.c misc.c color.c searchpath.c smartlist.c
+win_ver.exe: win_ver.c dirlist.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_VER_TEST -o $@ $^ $(EX_LIBS) > win_ver.map
 	rm -f win_ver.o
 	@echo
 
-win_trust.exe: win_trust.c getopt_long.c misc.c color.c searchpath.c smartlist.c
+win_trust.exe: win_trust.c dirlist.c getopt_long.c misc.c color.c searchpath.c smartlist.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DWIN_TRUST_TEST -o $@ $^ $(EX_LIBS) > win_trust.map
 	rm -f win_trust.o
 	@echo

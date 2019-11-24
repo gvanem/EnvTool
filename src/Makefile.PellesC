@@ -98,17 +98,17 @@ all: cflags_PellesC.h ldflags_PellesC.h envtool.exe
 envtool.exe: $(OBJECTS) envtool.res
 	$(call link_EXE, $@, $^)
 
-win_trust.exe: win_trust.c getopt_long.obj misc.obj color.obj smartlist.obj
+win_trust.exe: win_trust.c dirlist.obj getopt_long.obj misc.obj color.obj smartlist.obj
 	$(CC) -c $(CFLAGS) -DWIN_TRUST_TEST $^
-	$(call link_EXE, $@, win_trust.obj getopt_long.obj misc.obj color.obj smartlist.obj)
+	$(call link_EXE, $@, win_trust.obj dirlist.obj getopt_long.obj misc.obj color.obj smartlist.obj)
 
-win_glob.exe: win_glob.c misc.obj color.obj smartlist.obj
+win_glob.exe: win_glob.c dirlist.obj misc.obj color.obj smartlist.obj
 	$(CC) -c $(CFLAGS) -DWIN_GLOB_TEST $^
-	$(call link_EXE, $@, win_glob.obj misc.obj color.obj smartlist.obj)
+	$(call link_EXE, $@, win_glob.obj dirlist.obj misc.obj color.obj smartlist.obj)
 
-win_ver.exe: win_ver.c misc.obj color.obj smartlist.obj
+win_ver.exe: win_ver.c dirlist.obj misc.obj color.obj smartlist.obj
 	$(CC) -c $(CFLAGS) -DWIN_VER_TEST win_ver.c
-	$(call link_EXE, $@, win_ver.obj misc.obj color.obj smartlist.obj)
+	$(call link_EXE, $@, win_ver.obj dirlist.obj misc.obj color.obj smartlist.obj)
 
 envtool.res: envtool.rc
 	$(RC) $(RCFLAGS) -Foenvtool.res envtool.rc
@@ -156,7 +156,7 @@ description.obj:    description.c description.h color.h smartlist.h envtool.h so
 get_file_assoc.obj: get_file_assoc.c envtool.h color.h get_file_assoc.h
 getopt_long.obj:    getopt_long.c getopt_long.h
 color.obj:          color.c color.h
-misc.obj:           misc.c envtool.h color.h
+misc.obj:           misc.c envtool.h color.h dirlist.h
 searchpath.obj:     searchpath.c envtool.h
 show_ver.obj:       show_ver.c envtool.h
 smartlist.obj:      smartlist.c envtool.h

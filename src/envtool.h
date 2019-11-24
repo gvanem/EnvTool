@@ -581,6 +581,7 @@ extern BOOL  getenv_system     (smartlist_t **sl);
 
 extern UINT   get_disk_type         (int disk);
 extern BOOL   get_disk_cluster_size (int disk, DWORD *size);
+extern UINT64 get_directory_size    (const char *dir);
 extern UINT64 get_file_alloc_size   (const char *file, UINT64 size);
 extern int    disk_ready            (int disk);
 extern BOOL   chk_disk_ready        (int disk);
