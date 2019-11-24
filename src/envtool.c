@@ -103,11 +103,6 @@ BOOL have_sys_wow64_dir  = FALSE;
 struct prog_options opt;
 
 /**
- * The config-file structure.
- */
-static CFG_FILE *cf = NULL;
-
-/**
  * A list of 'struct directory_array'
  */
 static smartlist_t *dir_array;
@@ -391,11 +386,9 @@ static void show_ext_versions (void)
 
   if (vcpkg_exe)
   {
-    unsigned num1, num2;
+    unsigned num1 = vcpkg_get_num_installed();
+    unsigned num2 = vcpkg_get_num_CONTROLS();
 
-    vcpkg_get_list();
-    num1 = vcpkg_get_num_installed();
-    num2 = vcpkg_get_num_CONTROLS();
     C_printf ("%-*s -> ~6%s~0", pad_len, found[3], vcpkg_exe);
     if (num1 >= 1)
          C_printf (" (%u packages installed, %u packages available).\n", num1, num2);
@@ -511,6 +504,8 @@ static int show_version (void)
 
   if (opt.do_version >= 2)
   {
+    unsigned num;
+
     opt.cache_ver_level = 2;
 
     C_printf ("  OS-version: %s (%s bits).\n", os_full_version(), os_bits());
@@ -529,7 +524,8 @@ static int show_version (void)
     C_printf ("\n  Pythons on ~3PATH~0:");
     py_searchpaths();
 
-    vcpkg_list_installed();
+    num = vcpkg_list_installed();
+    DEBUGF (2, "vcpkg_list_installed(): %u.\n", num);
   }
 
   if (opt.under_appveyor)
@@ -687,8 +683,8 @@ static int show_help (void)
   C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n");
 
   C_puts ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 & ~6CONTROL~0 files.\n"
-          "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n"
-          "      Used as ~6--vcpkg=all~0, will list install status of all available packages.\n");
+          "      Used as ~6--vcpkg=all~0, will list install status of all available packages matching ~6<file-spec>~0.\n"
+          "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n");
 
   C_puts ("\n"
           "Notes:\n"
@@ -1298,41 +1294,6 @@ static BOOL get_wintrust_info (const char *file, char *dest, size_t dest_size)
   return (FALSE);
 }
 
-UINT64 get_directory_size (const char *dir)
-{
-  struct dirent2 **namelist = NULL;
-  int    i, n = scandir2 (dir, &namelist, NULL, NULL);
-  UINT64 size = 0;
-
-  for (i = 0; i < n; i++)
-  {
-    int   is_dir      = (namelist[i]->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-    int   is_junction = (namelist[i]->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
-    const char *link;
-
-    if (is_junction)
-    {
-      link = namelist[i]->d_link ? namelist[i]->d_link : "?";
-      DEBUGF (1, "Not recursing into junction \"%s\"\n", link);
-      size += get_file_alloc_size (dir, (UINT64)-1);
-    }
-    else if (is_dir)
-    {
-      DEBUGF (1, "Recursing into \"%s\"\n", namelist[i]->d_name);
-      size += get_file_alloc_size (namelist[i]->d_name, (UINT64)-1);
-      size += get_directory_size (namelist[i]->d_name);
-    }
-    else
-      size += get_file_alloc_size (namelist[i]->d_name, namelist[i]->d_fsize);
-  }
-
-  while (n--)
-    FREE (namelist[n]);
-  FREE (namelist);
-
-  return (size);
-}
-
 /**
  * Return the indentation needed for the next `she-bang` or `man-file link`
  * to align up more nicely.
@@ -1369,6 +1330,16 @@ void print_raw (const char *file, const char *before, const char *after)
   C_setraw (raw);
   if (after)
      C_puts (after);
+}
+
+/**
+ * Print the `report_header` once for each `--mode`.
+*/
+static void print_report_header (void)
+{
+  if (report_header)
+     C_printf ("~3%s~0", report_header);
+  report_header = NULL;
 }
 
 /**
@@ -1517,10 +1488,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   else
     size[0] = '\0';
 
-  if (report_header)
-     C_printf ("~3%s~0", report_header);
-
-  report_header = NULL;
+  print_report_header();
 
   if (possible_PE_file && opt.PE_check)
   {
@@ -2708,7 +2676,7 @@ static int do_check_evry (void)
   DEBUGF (1, "Everything_GetNumResults() num: %lu, err: %s\n",
           (u_long)num, evry_strerror(Everything_GetLastError()));
 
-  if (opt.beep.enable && end_time > start_time && (end_time - start_time) >= opt.beep.limit)
+  if (opt.beep.enable && end_time >= start_time && (end_time - start_time) >= opt.beep.limit)
      Beep (opt.beep.freq, opt.beep.msec);
 
   if (num == 0)
@@ -3142,21 +3110,27 @@ static int get_pkg_info (const char *pc_file, const char *filler)
 }
 
 /**
- * Search for VCPKG packages matching the `opt.file_spec`.
- * Also show if a package matching `opt.file_spec` is installed.
+ * Search for VCPKG installed packages matching the `opt.file_spec`.
+ * If option `--vcpkg=all` was used, show the package status for `opt.file_spec` regardless
+ * of being installed.
  */
 static int do_check_vcpkg (void)
 {
   unsigned num;
 
-  vcpkg_get_list();
-  num = vcpkg_get_num_CONTROLS();
-  if (num >= 1)
-     return (int) vcpkg_dump_control (opt.file_spec);
+  if (vcpkg_get_only_installed())
+       report_header = "Matches for installed VCPKG packages:\n";
+  else report_header = "Matches for any available VCPKG package:\n";
+  print_report_header();
 
-  if (!opt.quiet)
+  num = vcpkg_find (opt.file_spec);
+
+  if (num == 0 && vcpkg_get_only_installed())
+     C_printf ("Try the option ~6--vcpkg=all~0 to check if the package is available.\n");
+
+  if (!opt.quiet && *vcpkg_last_error())
      C_printf ("%s.\n", vcpkg_last_error());
-  return (0);
+  return (num);
 }
 
 /**
@@ -4844,7 +4818,7 @@ static void set_vcpkg_options (const char *arg)
   DEBUGF (2, "optarg: '%s'\n", arg);
   ASSERT (arg);
   if (!strcmp(arg,"all"))
-       vcpkg_only_installed = FALSE;
+       vcpkg_set_only_installed (FALSE);
   else usage ("Illegal '--vcpkg' option: '%s'.\n"
               "Use '--vcpkg' or 'vcpkg=all'.\n", arg);
 }
@@ -5165,10 +5139,9 @@ static void MS_CDECL cleanup (void)
   netrc_exit();
   authinfo_exit();
   envtool_cfg_exit();
+  cfg_exit (opt.cfg_file);
 
-  cfg_exit (cf);
-
-  vcpkg_free();
+  vcpkg_exit();
   file_descr_exit();
   exit_misc();
 
@@ -5250,6 +5223,8 @@ static void init_all (const char **argv)
 
   C_use_colours = 1;  /* Turned off by "--no-colour" */
 
+  vcpkg_set_only_installed (TRUE);
+
   dir_array = smartlist_new();
   reg_array = smartlist_new();
 
@@ -5317,12 +5292,15 @@ static void cfg_ETP_handler (const char *key, const char *value)
 static void envtool_cfg_handler (const char *section, const char *key, const char *value)
 {
   if (!strnicmp(key,"beep.",5))
-     cfg_beep_handler (key+5, value);
-
+  {
+    DEBUGF (2, "%s: Calling 'cfg_beep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
+    cfg_beep_handler (key+5, value);
+  }
   else if (!strnicmp(key,"ETP.",4))
-     cfg_ETP_handler (key+4, value);
-
-  ARGSUSED (section);
+  {
+    DEBUGF (2, "%s: Calling 'cfg_ETP_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
+    cfg_ETP_handler (key+4, value);
+  }
 }
 
 /**
@@ -5346,15 +5324,15 @@ int MS_CDECL main (int argc, const char **argv)
   if (!eval_options())
      return (1);
 
-  cf = cfg_init ("%APPDATA%/envtool.cfg",
-                 "",               envtool_cfg_handler,
-                 "[Compiler]",     cfg_ignore_handler,
-                 "[Registry]",     cfg_ignore_handler,
-                 "[Python]",       cfg_ignore_handler,
-                 "[PE-resources]", cfg_ignore_handler,
-                 "[EveryThing]",   cfg_ignore_handler,
-                 "[Login]",        auth_envtool_handler,
-                 NULL);
+  opt.cfg_file = cfg_init ("%APPDATA%/envtool.cfg",
+                           "",               envtool_cfg_handler,
+                           "[Compiler]",     cfg_ignore_handler,
+                           "[Registry]",     cfg_ignore_handler,
+                           "[Python]",       cfg_ignore_handler,
+                           "[PE-resources]", cfg_ignore_handler,
+                           "[EveryThing]",   cfg_ignore_handler,
+                           "[Login]",        auth_envtool_handler,
+                           NULL);
 
   cfg_ignore_dump();
 
