@@ -7,8 +7,9 @@
  * \def VCPKG_MAX_NAME
  * \def VCPKG_MAX_VERSION
  */
-#define VCPKG_MAX_NAME     30   /**< The max size of a `vcpkg_node::package` and `vcpkg_depend::package` entry */
+#define VCPKG_MAX_NAME     30   /**< The max size of a `vcpkg_node::package` and `vcpkg_package::package` entry */
 #define VCPKG_MAX_VERSION  30   /**< The max size of a `vcpkg_node::version` entry */
+#define VCPKG_MAX_URL     200   /**< The max size of a `vcpkg_node::homepage` entry */
 
 /**
  * \enum VCPKG_platform
@@ -26,19 +27,11 @@ typedef enum VCPKG_platform {
         VCPKG_plat_OSX     = 0x0080    /**< Package is for Apple's OSX only. */
       } VCPKG_platform;
 
-/**\def VCPKG_platform_INVERSE
+/**
+ * \def VCPKG_platform_INVERSE
  * Package is the inverse of the above specified bit.
  */
-#define VCPKG_platform_INVERSE 0x8000
-
-/**
- * \struct vcpkg_depend
- * The structure of a package-dependency.
- */
-struct vcpkg_depend {
-       char  package [VCPKG_MAX_NAME];  /**< The package name */
-       WORD  platform;                  /**< The supported (or not supported) OS platform */
-     };
+#define VCPKG_platform_INVERSE  0x8000
 
 /**
  * \struct vcpkg_node
@@ -47,10 +40,11 @@ struct vcpkg_depend {
 struct vcpkg_node {
        char  package [VCPKG_MAX_NAME];     /**< The package name */
        char  version [VCPKG_MAX_VERSION];  /**< The version */
+       char  homepage [VCPKG_MAX_URL];     /**< The URL of it's home-page */
        char *description;                  /**< The description */
        BOOL  have_CONTROL;                 /**< TRUE if this is a CONTROL-node */
 
-       /** The dependencies; a smartlist of `struct vcpkg_depend`.
+       /** The dependencies; a smartlist of `struct vcpkg_package *`.
         */
        smartlist_t *deps;
 
@@ -61,7 +55,8 @@ struct vcpkg_node {
 
 /**
  * \struct vcpkg_package
- * The structure of a single installed VCPKG package.
+ * The structure of a single installed VCPKG package or the
+ * structure of a package-dependency.
  */
 struct vcpkg_package {
        char               package [VCPKG_MAX_NAME]; /**< The package name */
@@ -69,19 +64,15 @@ struct vcpkg_package {
        struct vcpkg_node *link;                     /**< A link to the corresponding CONTROL node */
      };
 
-extern BOOL vcpkg_only_installed;
-
-extern unsigned    vcpkg_get_list (void);
+extern void        vcpkg_init (void);
+extern void        vcpkg_exit (void);
 extern unsigned    vcpkg_get_num_CONTROLS (void);
 extern unsigned    vcpkg_get_num_portfile (void);
 extern unsigned    vcpkg_get_num_installed (void);
 extern unsigned    vcpkg_list_installed (void);
-
-extern void        vcpkg_free (void);
-extern unsigned    vcpkg_dump_control (const char *package_spec);
-extern BOOL        vcpkg_get_control (int *index, const struct vcpkg_node **node_p, const char *package_spec);
-extern int         vcpkg_get_dep_platform (const struct vcpkg_depend *dep, BOOL *Not);
-extern const char *vcpkg_get_dep_name (const struct vcpkg_depend *dep);
+extern unsigned    vcpkg_find (const char *package_spec);
+extern BOOL        vcpkg_get_only_installed (void);
+extern BOOL        vcpkg_set_only_installed (BOOL True);
 extern const char *vcpkg_last_error (void);
 
 #endif
