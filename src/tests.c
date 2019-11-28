@@ -544,7 +544,7 @@ static void test_ReparsePoints (void)
     const char *p = points[i];
     char  result [_MAX_PATH];
     char  st_result [100] = "";
-    BOOL  rc = get_reparse_point (p, result, TRUE);
+    BOOL  rc = get_reparse_point (p, result, sizeof(result), TRUE);
 
 #if defined(__CYGWIN__)
     {

@@ -624,7 +624,7 @@ extern BOOL is_directory_writable (const char *path);
  */
 extern const char *last_reparse_err;
 extern BOOL        get_reparse_point (const char *dir, char *result,
-                                      BOOL return_print_name);
+                                      size_t result_size, BOOL return_print_name);
 
 /** \struct ver_info
  *

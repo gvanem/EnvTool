@@ -344,7 +344,7 @@ static int glob_add (const char *path, BOOL is_dir, unsigned line)
   if (is_dir)
   {
     char result [_MAX_PATH] = "??";
-    BOOL rc = get_reparse_point (path, result, TRUE);
+    BOOL rc = get_reparse_point (path, result, sizeof(result), TRUE);
 
     if (!rc)
          DEBUGF (1, "get_reparse_point(): %s\n", last_reparse_err);
@@ -808,7 +808,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
   {
     char result [_MAX_PATH] = "??";
     char orig   [_MAX_PATH+5];
-    BOOL rc = get_reparse_point (path, result, TRUE);
+    BOOL rc = get_reparse_point (path, result, sizeof(result), TRUE);
 
     if (rc)
     {

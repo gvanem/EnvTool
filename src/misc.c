@@ -3634,8 +3634,12 @@ BOOL getenv_system (smartlist_t **sl)
     size_t len = 1 + wcslen (e);
     char  *str = MALLOC (len);
 
+    DEBUGF (2, "e: '%" WIDESTR_FMT "'.\n", e);
     if (!wchar_to_mbchar(str, len, e))
-       break;
+    {
+      FREE (str);
+      break;
+    }
     smartlist_add (list, str);
     e += 1 + wcslen (e);
     if (!e[0])
@@ -3990,7 +3994,7 @@ BOOL wchar_to_mbchar (char *result, size_t len, const wchar_t *buf)
   const char *def_char;
 
   if (len >= _MAX_PATH)
-     return reparse_err (1, "len: %u too large.", len);
+     return reparse_err (1, "len: %u too large for buf.", len);
 
 #if 1
   cp = CP_ACP;
@@ -4016,7 +4020,7 @@ BOOL wchar_to_mbchar (char *result, size_t len, const wchar_t *buf)
  * So it is a good idea to call `get_disk_type(dir[0])` and verify
  * that it returns `DRIVE_FIXED` first.
  */
-BOOL get_reparse_point (const char *dir, char *result, BOOL return_print_name)
+BOOL get_reparse_point (const char *dir, char *result, size_t result_size, BOOL return_print_name)
 {
   struct REPARSE_DATA_BUFFER *rdata;
   HANDLE   hnd;
