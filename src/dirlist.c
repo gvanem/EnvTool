@@ -801,7 +801,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
       if (is_junction && follow_junctions && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
       {
         char result [_MAX_PATH] = "??";
-        BOOL rc = get_reparse_point (de->d_name, result, sizeof(result), TRUE);
+        BOOL rc = get_reparse_point (de->d_name, result, sizeof(result));
 
         if (rc)
            namelist[i]->d_link = _fix_drive (result);
@@ -850,7 +850,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
     if (is_junction && follow_junctions && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
     {
       char result [_MAX_PATH] = "??";
-      BOOL rc = get_reparse_point (de->d_name, result, sizeof(result), TRUE);
+      BOOL rc = get_reparse_point (de->d_name, result, sizeof(result));
 
       if (rc)
          de->d_link = STRDUP (_fix_drive(result));

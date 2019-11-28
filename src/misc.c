@@ -3993,9 +3993,6 @@ BOOL wchar_to_mbchar (char *result, size_t len, const wchar_t *buf)
   DWORD cp;
   const char *def_char;
 
-  if (len >= _MAX_PATH)
-     return reparse_err (1, "len: %u too large for buf.", len);
-
 #if 1
   cp = CP_ACP;
   def_char = "?";
@@ -4004,7 +4001,7 @@ BOOL wchar_to_mbchar (char *result, size_t len, const wchar_t *buf)
   def_char = NULL;
 #endif
 
-  num = WideCharToMultiByte (cp, 0, buf, (int)len, result, _MAX_PATH, def_char, NULL);
+  num = WideCharToMultiByte (cp, 0, buf, (int)len, result, (int)len, def_char, NULL);
   if (num == 0)
      return reparse_err (1, "WideCharToMultiByte(): %s\n",
                          win_strerror(GetLastError()));
@@ -4020,7 +4017,7 @@ BOOL wchar_to_mbchar (char *result, size_t len, const wchar_t *buf)
  * So it is a good idea to call `get_disk_type(dir[0])` and verify
  * that it returns `DRIVE_FIXED` first.
  */
-BOOL get_reparse_point (const char *dir, char *result, size_t result_size, BOOL return_print_name)
+BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
 {
   struct REPARSE_DATA_BUFFER *rdata;
   HANDLE   hnd;
@@ -4109,9 +4106,9 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size, BOOL 
     hex_dump (print_name, plen);
   }
 
-  if (return_print_name)
-     return wchar_to_mbchar (result, plen, print_name);
-  return wchar_to_mbchar (result, slen, sub_name);
+  if (result_size < plen)
+     return (FALSE);
+  return wchar_to_mbchar (result, result_size, print_name);
 }
 
 #if defined(__POCC__)

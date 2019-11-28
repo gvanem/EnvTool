@@ -568,7 +568,7 @@ extern char *slashify       (const char *path, char use);
 extern char *slashify2      (char *buf, const char *path, char use);
 extern char *win_strerror   (unsigned long err);
 extern char *ws2_strerror   (int err);
-extern BOOL  wchar_to_mbchar(char *result, size_t len, const wchar_t *buf);
+extern BOOL  wchar_to_mbchar(char *result, size_t result_size, const wchar_t *buf);
 
 extern void  set_error_mode (int on_off);
 extern int  _file_exists    (const char *file);
@@ -624,7 +624,7 @@ extern BOOL is_directory_writable (const char *path);
  */
 extern const char *last_reparse_err;
 extern BOOL        get_reparse_point (const char *dir, char *result,
-                                      size_t result_size, BOOL return_print_name);
+                                      size_t result_size);
 
 /** \struct ver_info
  *

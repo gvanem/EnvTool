@@ -5703,7 +5703,7 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
       if ((attr != INVALID_FILE_ATTRIBUTES) &&
           (attr & FILE_ATTRIBUTE_REPARSE_POINT) &&
           get_disk_type(arr->dir[0]) != DRIVE_REMOTE &&
-          get_reparse_point (arr->dir, link, sizeof(link), TRUE))
+          get_reparse_point (arr->dir, link, sizeof(link)))
       {
         C_puts ("\n      -> ");
         print_raw (_fix_drive(link), "~4", NULL);
