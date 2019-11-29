@@ -687,13 +687,13 @@ static int show_help (void)
           "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n");
 
   C_puts ("\n"
-          "Notes:\n"
-          "  ~6<file-spec>~0 accepts Posix ranges. E.g. \"~6[a-f]*.txt~0\".\n"
-          "  ~6<file-spec>~0 matches both files and directories. If ~6-D~0/~6--dir~0 is used, only\n"
-          "              matching directories are reported.\n"
-          "  Quote argument if it contains a shell-character [~6^&%~0]."
-          " E.g. use ~6--regex \"^foo%%\\.exe$\"~0\n"
-          "  Commonly used options can be set in ~3%ENVTOOL_OPTIONS%~0.\n");
+          "  Notes:\n"
+          "    ~6<file-spec>~0 accepts Posix ranges. E.g. \"~6[a-f]*.txt~0\".\n"
+          "    ~6<file-spec>~0 matches both files and directories. If ~6-D~0/~6--dir~0 is used, only\n"
+          "                matching directories are reported.\n"
+          "    Quote argument if it contains a shell-character [~6^&%~0]."
+          "   E.g. use ~6--regex \"^foo%%\\.exe$\"~0\n"
+          "    Commonly used options can be set in ~3%ENVTOOL_OPTIONS%~0.\n");
   return (0);
 }
 
@@ -1762,9 +1762,10 @@ static char *fix_filespec (char **sub_dir)
   /**
    * Similar for a given 'envtool --py module.subdir' syntax, we must
    * split and store into 'fspec' and 'subdir'.
+   * Unless '.subdir' matches '.*' or '.py*'.
    */
   p = strchr (fspec, '.');
-  if (opt.do_python && p && p[1])
+  if (p && opt.do_python && strnicmp(p,".*",2) && strnicmp(p,".py",3))
   {
     memcpy (&subdir, fspec, p-fspec);
     subdir [p-fspec] = '/';
