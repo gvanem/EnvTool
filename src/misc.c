@@ -3987,26 +3987,36 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
                                              FILE_ANY_ACCESS         /* == 0 */)
 #endif
 
-BOOL wchar_to_mbchar (char *result, size_t len, const wchar_t *buf)
+/*
+ * Mainly used in 'get_reparse_point()'. Hence the use of 'reparse_err()'.
+ */
+#define WIDECHAR_ERR(...)  reparse_err (__VA_ARGS__)
+
+BOOL wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
 {
-  int   num;
-  DWORD cp;
-  const char *def_char;
+  int   size_needed, rc;
+  DWORD cp = CP_ACP;
+  const char *def_char = "?";
 
-#if 1
-  cp = CP_ACP;
-  def_char = "?";
-#else
-  cp = CP_UTF8;
-  def_char = NULL;
-#endif
+  /* Figure out the size needed for the conversion.
+   */
+  size_needed = WideCharToMultiByte (cp, 0, w_buf, (int)result_size, NULL, 0, def_char, NULL);
+  if (size_needed == 0)
+     return WIDECHAR_ERR (1, "WideCharToMultiByte(): %s\n",
+                          win_strerror(GetLastError()));
 
-  num = WideCharToMultiByte (cp, 0, buf, (int)len, result, (int)len, def_char, NULL);
-  if (num == 0)
-     return reparse_err (1, "WideCharToMultiByte(): %s\n",
-                         win_strerror(GetLastError()));
+  if (size_needed > result_size)
+     return WIDECHAR_ERR (1, "result_size too small (%u). Need %d for WideCharToMultiByte().\n",
+                          result_size, size_needed);
 
-  DEBUGF (2, "len: %u, num: %d, result: '%s'\n", (unsigned)len, num, result);
+  rc = WideCharToMultiByte (cp, 0, w_buf, (int)result_size, result, (int)result_size, def_char, NULL);
+  if (rc <= 0)
+     return WIDECHAR_ERR (1, "WideCharToMultiByte(): %s\n",
+                          win_strerror(GetLastError()));
+
+  WIDECHAR_ERR (0, NULL); /* clear any previous error */
+
+  DEBUGF (2, "rc: %d, result: '%s'\n", rc, result);
   return (TRUE);
 }
 
