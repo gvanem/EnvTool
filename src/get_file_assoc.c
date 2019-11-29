@@ -217,12 +217,13 @@ char *searchpath (const char *file, const char *env_var)
 
 static void usage (const char *I_am)
 {
-  printf ("Usage: %s [.file-extension | *]\n", I_am);
+  printf ("Usage: %s [-d] [.file-extension | *]\n", I_am);
   exit (1);
 }
 
 int MS_CDECL main (int argc, char **argv)
 {
+  const char *argv0 = argv[0];
   const char *extension_to_test;
   char       *program_descr, *program_exe;
 
@@ -230,9 +231,16 @@ int MS_CDECL main (int argc, char **argv)
   C_use_colours = 1;
   crtdbug_init();
 
+   if (argc >= 2 && !strcmp(argv[1],"-d"))
+   {
+     opt.debug = 1;
+     argc--;
+     argv++;
+   }
+
   if (argc == 2 && (argv[1][0] == '.' || argv[1][0] == '*'))
        extension_to_test = argv[1];
-  else usage (argv[0]);
+  else usage (argv0);
 
   C_printf ("File Associations (ASSOCSTR_EXECUTABLE) for ~3%s~0:\n", extension_to_test);
 
