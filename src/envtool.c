@@ -135,7 +135,6 @@ static char *system_env_inc  = NULL;
 static char *user_env_path   = NULL;
 static char *user_env_lib    = NULL;
 static char *user_env_inc    = NULL;
-static char *report_header   = NULL;
 
 static char  current_dir [_MAX_PATH];
 
@@ -1333,13 +1332,29 @@ void print_raw (const char *file, const char *before, const char *after)
 }
 
 /**
- * Print the `report_header` once for each `--mode`.
-*/
+ * Set the `report_header`.
+ */
+static char report_header [_MAX_PATH+50];
+
+void set_report_header (const char *fmt, ...)
+{
+  va_list args;
+
+  va_start (args, fmt);
+  if (!fmt || !fmt[0])
+       report_header[0] = '\0';
+  else vsnprintf (report_header, sizeof(report_header), fmt, args);
+  va_end (args);
+}
+
+/**
+ * Print the `report_header` once once for each `--mode`.
+ */
 static void print_report_header (void)
 {
-  if (report_header)
+  if (report_header[0])
      C_printf ("~3%s~0", report_header);
-  report_header = NULL;
+  report_header[0] = '\0';
 }
 
 /**
@@ -2057,7 +2072,7 @@ static int scan_system_env (void)
 {
   int found = 0;
 
-  report_header = "Matches in HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment:\n";
+  set_report_header ("Matches in HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment:\n");
 
   scan_reg_environment (HKEY_LOCAL_MACHINE,
                         "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
@@ -2079,7 +2094,7 @@ static int scan_user_env (void)
 {
   int found = 0;
 
-  report_header = "Matches in HKCU\\Environment:\n";
+  set_report_header ("Matches in HKCU\\Environment:\n");
 
   scan_reg_environment (HKEY_CURRENT_USER, "Environment",
                         &user_env_path, &user_env_inc, &user_env_lib);
@@ -2138,22 +2153,16 @@ static int report_registry (const char *reg_key)
 
 static int do_check_registry (void)
 {
-  char reg[300];
-  int  found = 0;
+  int found = 0;
 
-  snprintf (reg, sizeof(reg), "Matches in HKCU\\%s:\n", REG_APP_PATH);
-  report_header = reg;
-  DEBUGF (1, "%s\n", reg);
+  set_report_header ("Matches in HKCU\\%s:\n", REG_APP_PATH);
   build_reg_array_app_path (HKEY_CURRENT_USER);
   found += report_registry (REG_APP_PATH);
 
-  snprintf (reg, sizeof(reg), "Matches in HKLM\\%s:\n", REG_APP_PATH);
-  report_header = reg;
-  DEBUGF (1, "%s\n", reg);
+  set_report_header ("Matches in HKLM\\%s:\n", REG_APP_PATH);
   build_reg_array_app_path (HKEY_LOCAL_MACHINE);
   found += report_registry (REG_APP_PATH);
 
-  report_header = NULL;
   return (found);
 }
 
@@ -2875,7 +2884,6 @@ static int do_check_manpath (void)
   smartlist_t *list;
   int    i, j, max, found = 0;
   char  *orig_e;
-  char   report [300];
   BOOL   save1, save2, done_cwd = FALSE;
   static const char env_name[] = "MANPATH";
 
@@ -2904,8 +2912,7 @@ static int do_check_manpath (void)
     return (0);
   }
 
-  snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
-  report_header = report;
+  set_report_header ("Matches in %%%s:\n", env_name);
 
   /* Man-files should have an extension. Hence do not report dotless files as a
    * match in process_dir().
@@ -3036,7 +3043,6 @@ static int do_check_pkg (void)
   int          i, max, num, prev_num = 0, found = 0;
   BOOL         do_warn = FALSE;
   char        *orig_e;
-  char         report [300];
   static const char env_name[] = "PKG_CONFIG_PATH";
 
   orig_e = getenv_expand (env_name);
@@ -3047,8 +3053,7 @@ static int do_check_pkg (void)
     return (0);
   }
 
-  snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
-  report_header = report;
+  set_report_header ("Matches in %%%s:\n", env_name);
 
   max = smartlist_len (list);
   for (i = 0; i < max; i++)
@@ -3120,8 +3125,8 @@ static int do_check_vcpkg (void)
   unsigned num;
 
   if (vcpkg_get_only_installed())
-       report_header = "Matches for installed VCPKG packages:\n";
-  else report_header = "Matches for any available VCPKG package:\n";
+       set_report_header ("Matches for installed VCPKG packages:\n");
+  else set_report_header ("Matches for any available VCPKG package:\n");
   print_report_header();
 
   num = vcpkg_find (opt.file_spec);
@@ -3192,7 +3197,6 @@ static int do_check_cmake (void)
   const char *env_name = "CMAKE_MODULE_PATH";
   int         found = 0;
   BOOL        check_env = TRUE;
-  char        report [_MAX_PATH+50];
 
   cmake_major = cmake_minor = cmake_micro = -1;
 
@@ -3221,7 +3225,7 @@ static int do_check_cmake (void)
       DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
               cmake_major, cmake_minor, cmake_micro, dir);
 
-      report_header = "Matches among built-in Cmake modules:\n";
+      set_report_header ("Matches among built-in Cmake modules:\n");
       found = process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, NULL, FALSE);
     }
     else
@@ -3238,11 +3242,10 @@ static int do_check_cmake (void)
 
   if (check_env)
   {
-    snprintf (report, sizeof(report), "Matches in %%%s:\n", env_name);
-    report_header = report;
+    set_report_header ("Matches in %%%s:\n", env_name);
     found += do_check_env ("CMAKE_MODULE_PATH", TRUE);
   }
-  report_header = NULL;
+  set_report_header (NULL);
   return (found);
 }
 
@@ -4095,7 +4098,6 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
  */
 static int check_gnu_includes (compiler_type type, int *num_dirs)
 {
-  char  report [_MAX_PATH+50];
   int   i, max, found;
   const compiler_info *cc;
   const char          *env;
@@ -4109,8 +4111,7 @@ static int check_gnu_includes (compiler_type type, int *num_dirs)
     if (cc->type == type && !cc->ignore && setup_gcc_includes(cc) > 0)
     {
       env = (cc->type == CC_GNU_GCC) ? "%C_INCLUDE_PATH%" : "%CPLUS_INCLUDE_PATH%";
-      snprintf (report, sizeof(report), "Matches in %s %s path:\n", cc->full_name, env);
-      report_header = report;
+      set_report_header ("Matches in %s %s path:\n", cc->full_name, env);
       found += process_gcc_dirs (cc->short_name, num_dirs);
     }
     FREE (cygwin_root);
@@ -4140,7 +4141,6 @@ static int do_check_gpp_includes (void)
 
 static int do_check_gcc_library_paths (void)
 {
-  char  report [_MAX_PATH+50];
   int   found = 0;
   int   num_dirs = 0;
   int   i, max;
@@ -4157,8 +4157,7 @@ static int do_check_gcc_library_paths (void)
     if (is_gnu && !cc->ignore && setup_gcc_library_path(cc,TRUE) > 0)
     {
       gcc = cc->short_name;
-      snprintf (report, sizeof(report), "Matches in %s %%LIBRARY_PATH%% path:\n", cc->full_name);
-      report_header = report;
+      set_report_header ("Matches in %s %%LIBRARY_PATH%% path:\n", cc->full_name);
       found += process_gcc_dirs (gcc, &num_dirs);
     }
     FREE (cygwin_root);
@@ -4285,7 +4284,6 @@ static int setup_clang_library_path (const compiler_info *cc)
  */
 static int do_check_clang_includes (void)
 {
-  char report [_MAX_PATH+50];
   int  i, found, num_dirs = 0;
   int  max = smartlist_len (all_cc);
 
@@ -4297,8 +4295,7 @@ static int do_check_clang_includes (void)
         !stricmp("clang.exe",cc->short_name)   &&   /* Do it for clang.exe only */
         setup_clang_includes(cc) > 0)
     {
-      snprintf (report, sizeof(report), "Matches in %s %%INCLUDE%% path:\n", cc->full_name);
-      report_header = report;
+      set_report_header ("Matches in %s %%INCLUDE%% path:\n", cc->full_name);
       found += process_clang_dirs (cc->short_name, &num_dirs);
     }
     FREE (cygwin_root);
@@ -4314,7 +4311,6 @@ static int do_check_clang_includes (void)
  */
 static int do_check_clang_library_paths (void)
 {
-  char report [_MAX_PATH+50];
   int  i, found, num_dirs = 0;
   int  max = smartlist_len (all_cc);
 
@@ -4326,8 +4322,7 @@ static int do_check_clang_library_paths (void)
         !stricmp("clang.exe",cc->short_name)   &&   /* Do it for clang.exe only */
         setup_clang_library_path(cc) > 0)
     {
-      snprintf (report, sizeof(report), "Matches in %s %%LIB%% path:\n", cc->full_name);
-      report_header = report;
+      set_report_header ("Matches in %s %%LIB%% path:\n", cc->full_name);
       found += process_clang_dirs (cc->short_name, &num_dirs);
     }
     FREE (cygwin_root);
@@ -4442,7 +4437,7 @@ static int do_check_watcom_includes (void)
    */
   make_unique_dir_array ("%NT_INCLUDE%");
 
-  report_header = "Matches in %NT_INCLUDE:\n";
+  set_report_header ("Matches in %%NT_INCLUDE:\n");
 
   max = smartlist_len (dir_array);
   for (i = 0; i < max; i++)
@@ -4475,7 +4470,7 @@ static int do_check_watcom_library_paths (void)
   if (!setup_watcom_dirs("%WATCOM%\\lib386", "%WATCOM%\\lib386\\nt", "%WATCOM%\\lib386\\linux"))
      return (0);
 
-  report_header = "Matches in %WATCOM libraries:\n";
+  set_report_header ("Matches in %%WATCOM libraries:\n");
 
   max = smartlist_len (dir_array);
   for (i = found = 0; i < max; i++)
@@ -4623,10 +4618,7 @@ static int do_check_borland_inc_lib (const char *inc_lib, const char *matches, b
 
     if (!cc->ignore && setup_borland_dirs(cc, parser))
     {
-      char report [_MAX_PATH+50];
-
-      snprintf (report, sizeof(report), matches, cc->full_name);
-      report_header = report;
+      set_report_header (matches, cc->full_name);
 
       max_j = smartlist_len (dir_array);
       for (j = 0; j < max_j; j++)
@@ -5430,13 +5422,13 @@ int MS_CDECL main (int argc, const char **argv)
     if (!opt.no_app_path)
        found += do_check_registry();
 
-    report_header = "Matches in %PATH:\n";
+    set_report_header ("Matches in %%PATH:\n");
     found += do_check_env ("PATH", FALSE);
   }
 
   if (opt.do_lib)
   {
-    report_header = "Matches in %LIB:\n";
+    set_report_header ("Matches in %%LIB:\n");
     found += do_check_env ("LIB", FALSE);
 
     if (!opt.no_watcom)
@@ -5454,7 +5446,7 @@ int MS_CDECL main (int argc, const char **argv)
 
   if (opt.do_include)
   {
-    report_header = "Matches in %INCLUDE:\n";
+    set_report_header ("Matches in %%INCLUDE:\n");
     found += do_check_env ("INCLUDE", FALSE);
 
     if (!opt.no_watcom)
@@ -5486,16 +5478,7 @@ int MS_CDECL main (int argc, const char **argv)
      found += do_check_vcpkg();
 
   if (opt.do_python)
-  {
-    char  report [_MAX_PATH+50];
-    char *py_exe;
-
-    py_get_info (&py_exe, NULL, NULL);
-    snprintf (report, sizeof(report), "Matches in \"%s\" sys.path[]:\n", py_exe);
-    report_header = report;
-    found += py_search();
-    FREE (py_exe);
-  }
+     found += py_search();
 
   /* Mode "--evry" specified.
    */
@@ -5512,15 +5495,13 @@ int MS_CDECL main (int argc, const char **argv)
     for (i = 0; i < max; i++)
     {
       const char *host = smartlist_get (opt.evry_host, i);
-      char  buf [200];
 
-      snprintf (buf, sizeof(buf), "Matches from %s:\n", host);
-      report_header = buf;
+      set_report_header ("Matches from %s:\n", host);
       found += do_check_evry_ept (host);
     }
     if (max  == 0)
     {
-      report_header = "Matches from EveryThing:\n";
+      set_report_header ("Matches from EveryThing:\n");
       found += do_check_evry();
     }
   }
