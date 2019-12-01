@@ -788,7 +788,7 @@ static int test_python_funcs (void)
 
   c = &opt.cmd_line;
   if (c->argc0 > 0)
-       str = py_execfile ((const char**)(c->argv + c->argc0), FALSE);
+       str = py_execfile ((const char**)(c->argv + c->argc0), TRUE);
   else py_test();
 
   FREE (str);
