@@ -67,28 +67,19 @@
 
 #if !defined(RC_INVOKED)  /* rest of file */
 
-#if defined(__MINGW32__) || defined(_CYGWIN__)
+#if (defined(__MINGW32__) || defined(__CYGWIN__)) && defined(_FORTIFY_SOURCE)
   /*
-   * So that <sec_api/string_s.h> gets included in <string.h>.
+   * Enable GNU LibSSP; "Stack Smashing Protector".
+   *   Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
    */
-  #ifndef MINGW_HAS_SECURE_API
-  #define MINGW_HAS_SECURE_API 1
+  #if (_FORTIFY_SOURCE == 1) && defined(INSIDE_ENVTOOL_C)
+    #pragma message ("Using _FORTIFY_SOURCE=1")
+  #elif (_FORTIFY_SOURCE == 2) && defined(INSIDE_ENVTOOL_C)
+    #pragma message ("Using _FORTIFY_SOURCE=2")
   #endif
 
-  #if defined(_FORTIFY_SOURCE)
-    /*
-     * Enable GNU LibSSP; "Stack Smashing Protector".
-     *   Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
-     */
-    #if (_FORTIFY_SOURCE == 1) && defined(INSIDE_ENVTOOL_C)
-      #pragma message ("Using _FORTIFY_SOURCE=1")
-    #elif (_FORTIFY_SOURCE == 2) && defined(INSIDE_ENVTOOL_C)
-      #pragma message ("Using _FORTIFY_SOURCE=2")
-    #endif
-
-    #include <ssp/stdio.h>
-    #include <ssp/string.h>
-  #endif
+  #include <ssp/stdio.h>
+  #include <ssp/string.h>
 #endif
 
 #include <stdio.h>
@@ -326,21 +317,6 @@
 #define UINT64  unsigned __int64
 #endif
 
-/**
- * Check for `strcat_s()` used in envtool_py.c.
- */
-#undef HAVE_STRCAT_S
-
-#if defined(__POCC__)
-  #if defined(__STDC_WANT_LIB_EXT1__) && (__STDC_WANT_LIB_EXT1__ >= 1)
-  #define HAVE_STRCAT_S
-  #endif
-
-#elif defined(_MSC_VER)
-  #define HAVE_STRCAT_S
-#else
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -544,6 +520,7 @@ extern char *_strtok_r      (char *ptr, const char *sep, char **end);
 
 extern char *str_sep        (char **s, const char *delim);
 extern char *str_acat       (char *s1, const char *s2);
+extern int   str_cat        (char *dst, size_t dst_size, const char *src);
 extern char *str_ndup       (const char *s, size_t sz);
 extern char *str_join       (char *const *arr, const char *sep);
 extern char *str_strip_nl   (char *s);

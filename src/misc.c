@@ -33,6 +33,10 @@
   #include <pwd.h>
 #endif
 
+#if defined(__MINGW32__) || defined(__CYGWIN__)
+  #include <sec_api/string_s.h>
+#endif
+
 #include "color.h"
 #include "envtool.h"
 #include "dirlist.h"
@@ -2457,6 +2461,24 @@ char *str_ndup (const char *s, size_t sz)
 }
 
 /**
+ * Concatinate 2 strings; `src` to `dst.
+ * If we have `strcat_s()`, use the `dst_size`.
+ */
+int str_cat (char *dst, size_t dst_size, const char *src)
+{
+#if (defined(__POCC__)    && (__STDC_WANT_LIB_EXT1__ >= 1)) || \
+    (defined(__WATCOMC__) && (__STDC_WANT_LIB_EXT1__ == 1)) || \
+    (defined(__MINGW32__) && defined(MINGW_HAS_SECURE_API)) || \
+     defined(_MSC_VER)
+  return strcat_s (dst, dst_size, src);
+#else
+  strcat (dst, src);
+  ARGSUSED (dst_size);
+  return (0);
+#endif
+}
+
+/**
  * Create a joined string from an array of strings.
  *
  * \param[in] arr  the array of strings to join and return as a single string.
@@ -2471,22 +2493,23 @@ char *str_join (char * const *arr, const char *sep)
   int    i, num;
   size_t sz = 0;
 
-  if (!arr)
+  if (!arr || !arr[0])
      return (NULL);
 
   /* Get the needed size for `ret`
    */
   for (i = num = 0; arr[i]; i++, num++)
-      sz += strlen (arr[i]) + strlen(sep) + 1;
-  if (sz == 0)
-     return (NULL);
+      sz += strlen(arr[i]) + strlen(sep);
 
-  ret = p = MALLOC (sz);
-  for (i = 0; arr[i]; i++)
+  sz++;
+  sz -= strlen(sep);      /* No `sep` after last `arr[]` */
+  p = ret = MALLOC (sz);
+  for (i = 0; i < num; i++)
   {
     strcpy (p, arr[i]);
+    p = strchr (p, '\0');
     if (i < num-1)
-       strcat (p, sep);
+       strcpy (p, sep);
     p = strchr (p, '\0');
   }
   return (ret);
@@ -4005,7 +4028,7 @@ BOOL wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
      return WIDECHAR_ERR (1, "WideCharToMultiByte(): %s\n",
                           win_strerror(GetLastError()));
 
-  if (size_needed > result_size)
+  if (size_needed > (int)result_size)
      return WIDECHAR_ERR (1, "result_size too small (%u). Need %d for WideCharToMultiByte().\n",
                           result_size, size_needed);
 

@@ -4240,13 +4240,8 @@ static int find_clang_library_path_cb (char *buf, int index)
     _strlcpy (buf1, tok, sizeof(buf1));
     _strlcpy (buf2, buf1, sizeof(buf2));
 
-#ifdef HAVE_STRCAT_S
-    strcat_s (buf1, sizeof(buf1), "\\lib\\windows");
-    strcat_s (buf2, sizeof(buf2), "\\..\\..");
-#else
-    strcat (buf1, "\\lib\\windows");
-    strcat (buf2, "\\..\\..");
-#endif
+    str_cat (buf1, sizeof(buf1), "\\lib\\windows");
+    str_cat (buf2, sizeof(buf2), "\\..\\..");
 
     _fix_path (buf1, buf1);
     _fix_path (buf2, buf2);
