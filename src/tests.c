@@ -786,11 +786,10 @@ static int test_python_funcs (void)
   if (halt_flag)
      return (1);
 
-  py_test();
-
   c = &opt.cmd_line;
   if (c->argc0 > 0)
-     str = py_execfile ((const char**)(c->argv + c->argc0), FALSE);
+       str = py_execfile ((const char**)(c->argv + c->argc0), FALSE);
+  else py_test();
 
   FREE (str);
   return (0);
