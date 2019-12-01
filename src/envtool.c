@@ -629,7 +629,7 @@ static int show_help (void)
             get_sort_methods());
 
   C_puts ("    ~6-q~0, ~6--quiet~0    disable warnings.\n"
-          "    ~6-t~0             do some internal tests. Use ~6--owner~0, ~6--py~0 or ~6--evry~0 for extra tests.\n"
+          "    ~6-t~0, ~6--test~0     do some internal tests. Use ~6--owner~0, ~6--py~0 or ~6--evry~0 for extra tests  ~2[3]~0.\n"
           "    ~6-T~0             show file times in sortable decimal format. E.g. \"~620121107.180658~0\".\n"
           "    ~6-u~0             show all paths on Unix format: \"~3c:/ProgramFiles/~0\".\n"
           "    ~6-v~0, ~6--verbose~0  increase verbosity level.\n"
@@ -679,7 +679,8 @@ static int show_help (void)
          C_printf ("      ~6%-6s~0 use all of the below Python programs (when found).\n", *py);
     else C_printf ("      ~6%-6s~0 use a %s program only.\n", *py, py_variant_name(v));
   }
-  C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n");
+  C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n"
+          "      A ~6--py=~0[=~3X~0] ~6--test file.py~0 will execute ~6file.py~0 at end of tests.\n");
 
   C_puts ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 & ~6CONTROL~0 files.\n"
           "      Used as ~6--vcpkg=all~0, will list install status of all available packages matching ~6<file-spec>~0.\n"
