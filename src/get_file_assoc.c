@@ -200,7 +200,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   *file_p = _new;
   last_err[0] = '\0';
 
-  DEBUGF (1, "\n    short: '%s' ->\n    long:  '%s'\n", buf, *file_p);
+  DEBUGF (3, "\n    short: '%s' ->\n    long:  '%s'\n", buf, *file_p);
   return (TRUE);
 }
 
