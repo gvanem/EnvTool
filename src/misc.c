@@ -1889,19 +1889,20 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 
 /**
  * Create a `%TEMP%-file`.
- * \return The allocated name which caller must call `FREE()` on.
+ * \return An allocated string of the file-name.
+ *         Caller must call `FREE()` on it after use.
  */
 char *create_temp_file (void)
 {
-#if defined(HAVE_TMPNAM_S)
-  char  buf [_MAX_PATH];
+  char buf [_MAX_PATH];
+#if defined(HAVE_TMPNAM_S) && 0
   char *tmp = buf;
 
   if (tmpnam_s (buf, sizeof(buf)) != 0)
      return (NULL);
 
 #elif defined(__POCC__)
-  char *tmp = tmpnam ("envtool-tmp");
+  char *tmp = tmpnam (buf);
 #else
   char *tmp = _tempnam (NULL, "envtool-tmp");
 #endif
@@ -1911,12 +1912,13 @@ char *create_temp_file (void)
     char *t = STRDUP (tmp);
 
     DEBUGF (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
-#if !defined(HAVE_TMPNAM_S)
+#if !defined(HAVE_TMPNAM_S) && !defined(__POCC__)
     free (tmp);
 #endif
     return (t);     /* Caller must FREE() */
   }
   DEBUGF (2, " %s() _tempname() failed: %s\n", __FUNCTION__, strerror(errno));
+  ARGSUSED (buf);
   return (NULL);
 }
 
