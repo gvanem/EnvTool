@@ -1898,7 +1898,7 @@ char *create_temp_file (void)
 #if defined(HAVE_TMPNAM_S) && 0
   char *tmp = buf;
 
-  if (tmpnam_s (buf, sizeof(buf)) != 0)
+  if (tmpnam_s(buf, sizeof(buf)) != 0)
      return (NULL);
 
 #elif defined(__POCC__)
@@ -1912,10 +1912,9 @@ char *create_temp_file (void)
     char *t = STRDUP (tmp);
 
     DEBUGF (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
-#if !defined(HAVE_TMPNAM_S) && !defined(__POCC__)
-    free (tmp);
-#endif
-    return (t);     /* Caller must FREE() */
+    if (tmp != buf)
+        free (tmp);  /* Free CRT data */
+    return (t);      /* Caller must FREE() */
   }
   DEBUGF (2, " %s() _tempname() failed: %s\n", __FUNCTION__, strerror(errno));
   ARGSUSED (buf);
