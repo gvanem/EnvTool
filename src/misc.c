@@ -53,6 +53,14 @@
 #define KEY_WOW64_64KEY          0x0100
 #endif
 
+#if (defined(__POCC__)    && (__STDC_WANT_LIB_EXT1__ >= 1)) || \
+    (defined(__WATCOMC__) && (__STDC_WANT_LIB_EXT1__ == 1)) || \
+    (defined(__MINGW32__) && defined(MINGW_HAS_SECURE_API)) || \
+     defined(_MSC_VER)
+  #define HAVE_STRCAT_S
+  #define HAVE_TMPNAM_S
+#endif
+
 /** From Windows-Kit's <ctype.h> comment:
  *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
  */
@@ -1690,19 +1698,20 @@ wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
 #endif
 
 /**
- * Canonize file and paths names. E.g. convert this:
+ * Canonicalize file and paths names. E.g. convert this:
  * \code
  *   f:\mingw32\bin\../lib/gcc/x86_64-w64-mingw32/4.8.1/include
  * \endcode
+ *
  * into something more readable:
  * \code
  *   f:\mingw32\lib\gcc\x86_64-w64-mingw32\4.8.1\include
  * \endcode
  *
- * I.e. turns 'path' into a fully-qualified path.
+ * I.e. turns `path` into a fully-qualified path.
  *
- * \note the `path` doesn't have to exist.
- *       assumes `result` is at least `_MAX_PATH` characters long (if non-NULL).
+ * \note The `path` doesn't have to exist.
+ *       Assumes `result` is at least `_MAX_PATH` characters long (if non-NULL).
  */
 char *_fix_path (const char *path, char *result)
 {
@@ -1884,10 +1893,17 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
  */
 char *create_temp_file (void)
 {
-#if defined(__POCC__)
+#if defined(HAVE_TMPNAM_S)
+  char buf [_MAX_PATH];
+
+  if (tmpnam_s (buf, sizeof(buf) != 0)
+     return (NULL);
+  char *tmp = buf;
+#elif defined(__POCC__)
   char *tmp = tmpnam ("envtool-tmp");
 #else
   char *tmp = _tempnam (NULL, "envtool-tmp");
+#endif
 #endif
 
   if (tmp)
@@ -1895,7 +1911,9 @@ char *create_temp_file (void)
     char *t = STRDUP (tmp);
 
     DEBUGF (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
+#if !defined(HAVE_TMPNAM_S)
     free (tmp);
+#endif
     return (t);     /* Caller must FREE() */
   }
   DEBUGF (2, " %s() _tempname() failed: %s\n", __FUNCTION__, strerror(errno));
@@ -2466,10 +2484,7 @@ char *str_ndup (const char *s, size_t sz)
  */
 int str_cat (char *dst, size_t dst_size, const char *src)
 {
-#if (defined(__POCC__)    && (__STDC_WANT_LIB_EXT1__ >= 1)) || \
-    (defined(__WATCOMC__) && (__STDC_WANT_LIB_EXT1__ == 1)) || \
-    (defined(__MINGW32__) && defined(MINGW_HAS_SECURE_API)) || \
-     defined(_MSC_VER)
+#if defined(HAVE_STRCAT_S)
   return strcat_s (dst, dst_size, src);
 #else
   strcat (dst, src);
