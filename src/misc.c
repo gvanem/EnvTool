@@ -1894,16 +1894,16 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 char *create_temp_file (void)
 {
 #if defined(HAVE_TMPNAM_S)
-  char buf [_MAX_PATH];
-
-  if (tmpnam_s (buf, sizeof(buf) != 0)
-     return (NULL);
+  char  buf [_MAX_PATH];
   char *tmp = buf;
+
+  if (tmpnam_s (buf, sizeof(buf)) != 0)
+     return (NULL);
+
 #elif defined(__POCC__)
   char *tmp = tmpnam ("envtool-tmp");
 #else
   char *tmp = _tempnam (NULL, "envtool-tmp");
-#endif
 #endif
 
   if (tmp)
