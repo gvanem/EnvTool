@@ -2892,10 +2892,10 @@ static int do_check_manpath (void)
    *   This should be all directories matching "man?[pn]" or "cat?[pn]".
    *   Make this array into a smartlist too?
    */
-  static const char *sub_dirs[] = { "cat1", "cat2", "cat3", "cat4", "cat5",
-                                    "cat6", "cat7", "cat8", "cat9",
-                                    "man1", "man2", "man3", "man4", "man5",
-                                    "man6", "man7", "man8", "man9", "mann"
+  static const char *sub_dirs[] = { "cat0", "cat1", "cat2", "cat3", "cat4",
+                                    "cat5", "cat6", "cat7", "cat8", "cat9",
+                                    "man0", "man1", "man2", "man3", "man4",
+                                    "man5", "man6", "man7", "man8", "man9", "mann"
                                   };
 
   /* Do not implicit add current directory in searches.
