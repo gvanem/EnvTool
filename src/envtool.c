@@ -14,7 +14,7 @@
  *          for consistency (reports missing directories in `%INCLUDE%`) and
  *          prints all the locations of `afxwin.h`.
  *
- * By Gisle Vanem <gvanem@yahoo.no> August 2011 - 2018.
+ * By Gisle Vanem <gvanem@yahoo.no> 2011 - 2020.
  *
  * Functions fnmatch() and searchpath() taken from djgpp and modified:
  *   Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details
