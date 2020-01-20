@@ -367,10 +367,10 @@ int check_if_zip (const char *fname)
   FILE  *f;
   int    rc = 0;
 
-  /** Return 0 if extension is neither `.egg` nor `.zip`.
+  /** Return 0 if extension is neither `.egg` nor `.zip` nor `.whl`.
    */
   ext = get_file_ext (fname);
-  if (stricmp(ext,"egg") && stricmp(ext,"zip"))
+  if (stricmp(ext,"egg") && stricmp(ext,"whl") && stricmp(ext,"zip"))
      return (0);
 
   f = fopen (fname, "rb");
@@ -3466,8 +3466,8 @@ char *popen_last_line (void)
  *                      This function should return number of matches.
  *                      The `callback` is allowed to modify the `buf` given to it.
  *
- * \retval -1   if `"/bin/sh"` is not found for Cygwin.
- * \retval -1   if `cmd` was not found or `_popen()` fails for some reason. `errno` should be set.
+ * \retval -1   if `"/bin/sh"` is not found for Cygwin. <br>
+ *              if `cmd` was not found or `_popen()` fails for some reason. `errno` should be set.
  * \retval >=0  total number of matches from `callback`.
  *
  * \anchor popen_run
