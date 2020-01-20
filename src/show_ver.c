@@ -21,7 +21,7 @@
  * THIS DISCLAIMER.
  *
  * Several changes for the EnvTool program
- * by Gisle Vanem <gvanem@yahoo.no> August 2011.
+ * by Gisle Vanem <gvanem@yahoo.no> 2011.
  *
  * Use at your own risk!
  */
