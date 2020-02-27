@@ -1299,7 +1299,6 @@ char *str_replace2 (int ch, const char *replace, char *str, size_t max_size)
   }
   *p = '\0';
   strcpy (str, copy);
-  DEBUGF (1, "num: %u, str: '%s'.\n", num, str);
   return (str);
 }
 
