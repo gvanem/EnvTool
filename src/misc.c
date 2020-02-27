@@ -1251,7 +1251,7 @@ int str_equal (const char *s1, const char *s2)
 }
 
 /*
- * Replace 'ch1' with 'ch2' in string 'str'.
+ * Replace all 'ch1' with 'ch2' in string 'str'.
  */
 char *str_replace (int ch1, int ch2, char *str)
 {
@@ -1263,6 +1263,43 @@ char *str_replace (int ch1, int ch2, char *str)
         *s = (char)ch2;
     s++;
   }
+  return (str);
+}
+
+/*
+ * Replace all 'ch' with 'replace' in string 'str' growing the
+ * size of 'str' limited by 'max_size'.
+ */
+char *str_replace2 (int ch, const char *replace, char *str, size_t max_size)
+{
+  char  *p, *copy;
+  size_t ofs = 0, left = max_size;
+  int    num = 0;
+
+  if (!strchr(str,ch))   /* Nothing to do here */
+     return (str);
+
+  copy = p = alloca (max_size);
+
+  while (str[ofs] && left > 1)
+  {
+    if (str[ofs] == ch)
+    {
+      _strlcpy (p, replace, left);
+      p    += strlen (replace);
+      left -= strlen (replace);
+      num++;
+    }
+    else
+    {
+      *p++ = str[ofs];
+      left--;
+    }
+    ofs++;
+  }
+  *p = '\0';
+  strcpy (str, copy);
+  DEBUGF (1, "num: %u, str: '%s'.\n", num, str);
   return (str);
 }
 
