@@ -322,7 +322,7 @@ static unsigned vcpkg_find_internal (FMT_buf *fmt_buf, const char *package_spec)
     const char *package = node->package;
 
     matches++;
-    padding = VCPKG_MAX_NAME - strlen (package);
+    padding = VCPKG_MAX_NAME - (int)strlen (package);
     padding = max (0, padding-2);
 
     if (sub_level == 0)

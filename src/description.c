@@ -94,7 +94,7 @@ void file_descr_init (void)
  */
 static void all_descr_dump (void)
 {
-  size_t i, max = smartlist_len (all_descr);
+  int i, max = smartlist_len (all_descr);
 
   if (max)
      debug_printf ("file_descr_dump(): cache_hits: %lu\n"
@@ -107,7 +107,7 @@ static void all_descr_dump (void)
     const struct descr_dir *d = smartlist_get (all_descr, i);
     int   j, num = d->descr ? smartlist_len(d->descr) : 0;
 
-    debug_printf ("  %2d  %2d  %s:\n", i, num, d->dir);
+    debug_printf ("  %d  %2d  %s:\n", i, num, d->dir);
     for (j = 0; j < num; j++)
         debug_printf ("         %2d %s\n", j, (const char*)smartlist_get(d->descr, j));
   }
@@ -200,7 +200,7 @@ static void descr_parse (smartlist_t *sl, const char *buf)
  */
 static const char *lookup_file_descr (const smartlist_t *sl, const char *file_dir)
 {
-  size_t i, max = smartlist_len (sl);
+  int i, max = smartlist_len (sl);
 
   for (i = 0; i < max; i++)
   {
@@ -261,7 +261,7 @@ static const char *all_descr_new (const char *dir, const char *file)
 static const char *all_descr_lookup (const char *dir, const char *file_dir, BOOL *empty)
 {
   const struct descr_dir *d;
-  size_t i, max = smartlist_len (all_descr);
+  int   i, max = smartlist_len (all_descr);
 
   *empty = FALSE;
   DEBUGF (2, "all_descr_lookup(): max: %d, looking for dir: %s\n", max, dir);

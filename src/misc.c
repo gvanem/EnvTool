@@ -2897,7 +2897,7 @@ void mem_report (void)
   for (m = mem_list, num = 0; m; m = m->next, num++)
   {
     C_printf ("  Un-freed memory 0x%p at %s (%u). %u bytes: \"%s\"\n",
-              m+1, m->file, m->line, (unsigned int)m->size, dump10(m+1,m->size));
+              m+1, m->file, m->line, (unsigned int)m->size, dump10(m+1,(unsigned)m->size));
     if (num > 20)
     {
       C_printf ("  ..and more.\n");
@@ -3121,7 +3121,7 @@ void buf_puts_long_line (FMT_buf *fmt_buf, const char *line, size_t indent)
 
       if (left < 2 || (left <= (size_t)(p - c)))
       {
-        buf_printf (fmt_buf, "\n%*c", indent, ' ');
+        buf_printf (fmt_buf, "\n%*c", (int)indent, ' ');
         left = width - indent;
         line = ++c;
         continue;
@@ -3828,7 +3828,7 @@ BOOL test_shell_pattern (void)
 
   printf ("out: '%s' -> %s\n", out_pattern, equal ? "OKAY" : "FAILED");
   if (!equal)
-     printf ("%*c\n", pos+sizeof("ref: '"), '^');
+     printf ("%*c\n", (int)(pos+sizeof("ref: '")), '^');
   return (equal);
 }
 
