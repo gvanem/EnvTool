@@ -716,13 +716,13 @@ static void CONTROL_parse (struct vcpkg_node *node, const char *file)
     {
       p = str_ltrim (p + sizeof(CONTROL_DESCRIPTION) - 1);
       node->description = STRDUP (p);
-      str_replace ('~','-', node->description);
+      str_replace2 ('~', "~~", node->description, sizeof(node->description));
     }
     else if (!node->version[0] && !strnicmp(p,CONTROL_VERSION,sizeof(CONTROL_VERSION)-1))
     {
       p = str_ltrim (p + sizeof(CONTROL_VERSION) - 1);
       _strlcpy (node->version, p, sizeof(node->version));
-      str_replace ('~', '-', node->version);
+      str_replace2 ('~', "~~", node->version, sizeof(node->version));
     }
     else if (!strnicmp(p,CONTROL_FEATURE,sizeof(CONTROL_FEATURE)-1))
     {
@@ -733,6 +733,10 @@ static void CONTROL_parse (struct vcpkg_node *node, const char *file)
     {
       p = str_ltrim (p + sizeof(CONTROL_HOMEPAGE) - 1);
       _strlcpy (node->homepage, p, sizeof(node->homepage));
+
+      /* In case 'node->homepage' contains a '~', replace with "~~".
+       */
+      str_replace2 ('~', "~~", node->homepage, sizeof(node->homepage));
     }
     else if (!node->deps && !strnicmp(p,CONTROL_BUILD_DEPENDS,sizeof(CONTROL_BUILD_DEPENDS)-1))
     {
@@ -973,21 +977,16 @@ static void dump_nodes (void)
     const char              *yes_no = "NO";
     const char              *details = "";
     const char              *version = node->version;
-    int                      save, zero = 0;
+    int                      zero = 0;
 
     if (!node->have_CONTROL)
        continue;
 
     if (*version == '\0' || *version == ' ')
        version = "<unknown>";
-    len = C_printf ("~6%4d ~2%s~0 / ~7%s~3", ++num, node->package, version);
 
-    /* In case 'node->homepage' contains a '~'
-     */
-    save = C_setraw (1);
-    C_printf ("%-*s%s\n", len-len0-1, "", node->homepage);
-    C_setraw (save);
-    C_puts ("~0");
+    len = C_printf ("~6%4d ~2%s~0 / ~7%s~3", ++num, node->package, version);
+    C_printf ("%-*s%s~0\n", len-len0-1, "", node->homepage);
 
     node_dump_description (node);
     node_dump_deps (node, width);
@@ -1033,8 +1032,7 @@ static unsigned vcpkg_get_num (BOOL have_CONTROL)
  */
 static unsigned vcpkg_get_all_available (const smartlist_t *dirs)
 {
-  unsigned num_vcpkg_nodes;
-  int      i;
+  unsigned i, num_vcpkg_nodes;
 
   if (dirs)
   {
@@ -1103,7 +1101,7 @@ void vcpkg_init (void)
 {
   smartlist_t *ports_dirs;
   smartlist_t *packages_dirs;
-  int          i, max;
+  int          i, max = 0;
   static       BOOL done = FALSE;
 
   if (done)
@@ -1113,7 +1111,7 @@ void vcpkg_init (void)
 
   /**
    * Try to set the `vcpkg_root` location. Based either on:
-   *  \li  - an existing directory `%VCPKG_ROOT` or
+   *  \li  - an existing directory `%VCPKG_ROOT%` or
    *  \li  - The directory name of `searchpath("vcpkg.exe")`.
    */
   if (!get_base_env() && !get_base_exe())
@@ -1133,9 +1131,12 @@ void vcpkg_init (void)
   packages_dirs = build_dir_list ("packages");
 
   vcpkg_get_all_available (ports_dirs);
-  smartlist_free_all (ports_dirs);
 
-  max = smartlist_len (packages_dirs);
+  if (ports_dirs)
+     smartlist_free_all (ports_dirs);
+
+  if (packages_dirs)
+     max = smartlist_len (packages_dirs);
 
   /**
    * Loop over all our installed packages directory
