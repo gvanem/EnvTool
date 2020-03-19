@@ -422,6 +422,7 @@ static void test_SHGetFolderPath (void)
                       ADD_VALUE (CSIDL_COMMON_DESKTOPDIRECTORY),
                       ADD_VALUE (CSIDL_COOKIES),
                       ADD_VALUE (CSIDL_DESKTOP),
+                      ADD_VALUE (CSIDL_COMMON_APPDATA),
                       ADD_VALUE (CSIDL_LOCAL_APPDATA),
                       ADD_VALUE (CSIDL_NETWORK),
                       ADD_VALUE (CSIDL_NETHOOD),
@@ -788,8 +789,16 @@ static int test_python_funcs (void)
 
   c = &opt.cmd_line;
   if (c->argc0 > 0)
-       str = py_execfile ((const char**)(c->argv + c->argc0), TRUE);
-  else py_test();
+  {
+    char *py_argv [10];
+    char  buf [_MAX_PATH];
+
+    memcpy (&py_argv, (const void*)(c->argv + c->argc0), sizeof(py_argv));
+    py_argv[0] = _fix_path (py_argv[0], buf);
+    str = py_execfile ((const char**)py_argv, FALSE);
+  }
+  else
+    py_test();
 
   FREE (str);
   return (0);
@@ -810,6 +819,7 @@ int do_tests (void)
 
   if (opt.do_python)
      return test_python_funcs();
+
   test_split_env ("PATH");
   test_split_env ("MANPATH");
 
