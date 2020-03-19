@@ -36,9 +36,10 @@ typedef enum SortMethod {
         SORT_FILE_UNSORTED   = 0x00,
         SORT_FILE_NAME       = 0x01,
         SORT_FILE_EXTENSION  = 0x02,
-        SORT_FILE_DATETIME   = 0x04,
-        SORT_FILE_SIZE       = 0x08,
-        SORT_PE_VERSION      = 0x10
+        SORT_FILE_DATE       = 0x04,
+        SORT_FILE_TIME       = 0x08,
+        SORT_FILE_SIZE       = 0x10,
+        SORT_PE_VERSION      = 0x20
       } SortMethod;
 
 extern BOOL        set_sort_method (const char *opt, char **err_opt);

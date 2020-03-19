@@ -12,7 +12,8 @@
 static const struct search_list method_names[] = {
                     ADD_VALUE (SORT_FILE_NAME),
                     ADD_VALUE (SORT_FILE_EXTENSION),
-                    ADD_VALUE (SORT_FILE_DATETIME),
+                    ADD_VALUE (SORT_FILE_DATE),
+                    ADD_VALUE (SORT_FILE_TIME),
                     ADD_VALUE (SORT_FILE_SIZE),
                     ADD_VALUE (SORT_PE_VERSION)
                   };
@@ -20,7 +21,8 @@ static const struct search_list method_names[] = {
 static const struct search_list short_methods[] = {
            { SORT_FILE_NAME,      "n" },
            { SORT_FILE_EXTENSION, "e"  },
-           { SORT_FILE_DATETIME,  "t" },
+           { SORT_FILE_DATE,      "d" },
+           { SORT_FILE_TIME,      "t" },
            { SORT_FILE_SIZE,      "s" },
            { SORT_PE_VERSION,     "v" }
          };
@@ -28,7 +30,8 @@ static const struct search_list short_methods[] = {
 static const struct search_list long_methods[] = {
            { SORT_FILE_NAME,      "name"    },
            { SORT_FILE_EXTENSION, "ext"     },
-           { SORT_FILE_DATETIME,  "time"    },
+           { SORT_FILE_DATE,      "date"    },
+           { SORT_FILE_TIME,      "time"    },
            { SORT_FILE_SIZE,      "size"    },
            { SORT_PE_VERSION,     "version" }
          };
