@@ -2,11 +2,11 @@
  *  \ingroup Envtool_PY
  *  \brief The Python functions for the envtool program.
  *
- * All functions need that py_init() was called first.
- * The output from call_python_func() is captured and can be parsed.
- * Look at py_print_modules() for an example.
+ * All functions require that `py_init()` was called first.
+ * The output from `call_python_func()` is captured and can be parsed.
+ * Look at `py_print_modinfo()` for an example.
  *
- * By Gisle Vanem <gvanem@yahoo.no> August 2011 - 2018.
+ * By Gisle Vanem <gvanem@yahoo.no> 2011 - 2020.
  */
 
 #include <stddef.h>
@@ -19,43 +19,70 @@
 #include "envtool.h"
 #include "envtool_py.h"
 #include "dirlist.h"
+#include "get_file_assoc.h"
 
 /* No need to include <Python.h> just for this:
  */
 
 /** \typedef PyObject
- *  Most things in Python are objects of something we don't care about
+ *  Most things in Python are objects of something we don't care about.
  */
 typedef void PyObject;
 
 /** \typedef Py_ssize_t
- *  Storage-size type
+ *  The storage-size type.
  */
 typedef long Py_ssize_t;
 
-/** \struct python_path
- * The layout of each `sys.path[]` entry.
+/** \typedef python_path
+ *  The layout of each `sys.path[]` entry.
  */
-struct python_path {
-       char dir [_MAX_PATH];  /**< Fully qualified directory of this entry */
-       int  exist;            /**< does it exist? */
-       int  is_dir;           /**< and is it a dir; `_S_ISDIR()` */
-       int  is_zip;           /**< or is it a zip; an .EGG or .zip-file. */
-     };
+typedef struct python_path {
+        char dir [_MAX_PATH];  /**< Fully qualified directory of this entry. */
+        int  exist;            /**< does it exist? */
+        int  is_dir;           /**< and is it a dir; `_S_ISDIR()` */
+        int  is_zip;           /**< or is it a zip; an .egg, .zip or a .whl file. */
+      } python_path;
+
+/** \typedef python_module
+ *  The layout of each `pi->modules[]` entry.
+ */
+typedef struct python_module {
+        char name [30];               /**<  */
+        char version [20];            /**<  */
+        char location [_MAX_PATH];    /**<  */
+        char meta_path [_MAX_PATH];   /**<  */
+        BOOL is_zip;                  /**<  */
+        BOOL is_actual;               /**< Already called `get_actual_filename (&m->location)` */
+
+       /** \todo
+        * Put the module/package `RECORD` information here as a smartlist of `struct record_info`.
+        smartlist_t *record;
+        */
+      } python_module;
+
+/**\typedef arg_vector
+ * The structure used in `PySys_SetArgvEx()`.
+ */
+typedef struct arg_vector {
+        int       argc;         /**< The number of element in one of the below arrays. */
+        char    **ascii;        /**< Only used for Python 2.x. */
+        wchar_t **wide;         /**< Only used for Python 3.x. */
+      } arg_vector;
 
 /**
  * The type of Python we're currently using.
  *
- * Ref: \ref g_py
+ * Ref: \ref g_pi
  *      \ref bitness
  */
 enum python_variants py_which = DEFAULT_PYTHON;
 
 /**
- * \struct python_info
+ * \typedef python_info
  *  All important data for each Python we support.
  */
-struct python_info {
+typedef struct python_info {
 
   /** The basename of the specific Python interpreter.
    */
@@ -75,23 +102,29 @@ struct python_info {
    */
   const char *libraries [3];
 
-  /** The FQFN of `program`.
+  /** The FQFN of the Python `program`.
    */
   char *exe_name;
 
   /** The FQFN of the .dll that matches the first `libraries[]` format above.<br>
    *  If this Python `is_embeddable`, use this `dll_name` in `LoadLibrary()`
-   *  during py_init_embedding().
+   *  during `py_init_embedding()`.
    */
   char *dll_name;
 
   /** The directory of above `exe_name`.
    */
-  char dir [_MAX_PATH];
+  char exe_dir [_MAX_PATH];
 
-  /** The `sys.path[]` array of above `exe_name`.
+  /** The `sys.path[]` array of above Python `exe_name`.
+   * A smartlist of `struct python_path`.
    */
   smartlist_t *sys_path;
+
+  /** The Python modules and packages array.
+   *  A smartlist of `struct python_module`.
+   */
+  smartlist_t *modules;
 
   /** The user's `site-packages` path (if any).
    */
@@ -101,7 +134,7 @@ struct python_info {
    */
   BOOL do_warn_user_site;
 
-  /** The version information.
+  /** The Python version information.
    */
   int ver_major, ver_minor, ver_micro;
 
@@ -110,11 +143,11 @@ struct python_info {
    */
   enum Bitness bitness;
 
-  /** Embedding requires that the bitness of this CPython is the same as this program.
+  /** Embedding requires that the bitness of this CPython is the same as this calling program.
    */
   BOOL bitness_ok;
 
-  /** This is the only default; i.e. the first `program` in the `%PATH`.
+  /** This is the only default; i.e. the first Python `program` on `%PATH`.
    */
   BOOL is_default;
 
@@ -122,12 +155,12 @@ struct python_info {
    */
   BOOL is_cygwin;
 
-  /** It's `sys.prefix` used in `Py_SetPythonHome()`.
+  /** The `sys.prefix` used in `(*Py_SetPythonHome)()`.
    */
   char    *home_a;  /**< ASCII-version for Python 2.x */
   wchar_t *home_w;  /**< Widechar-version for Python 3.x */
 
-  /* The program-names used in `Py_SetProgramName()`.
+  /** The program-names used in `(*Py_SetProgramName)()`.
    */
   char    *prog_a;  /**< ASCII-version for Python 2.x */
   wchar_t *prog_w;  /**< Widechar-version for Python 3.x */
@@ -136,16 +169,16 @@ struct python_info {
    */
   BOOL     do_warn_home;
 
-  /** Only set if `is_embeddable == TRUE`:
-   *  - contains the `sys.stdout` catcher object.
+  /** Holds a reference to the `sys.stdout` catcher object.
+   *  Only set if `is_embeddable == TRUE`:
    */
   PyObject *catcher;
 
-  /** Only set if `is_embeddable == TRUE`:
-   *  - contains the handle from `LoadLibrary()`.
+  /** Holds the handle from `LoadLibrary()`.
+   *  Only set if `is_embeddable == TRUE`:
    */
   HANDLE dll_hnd;
-};
+} python_info;
 
 /**
  * List of all Pythons we care about. Ignore the console-less `pythonw.exe` programs.
@@ -156,13 +189,8 @@ static struct python_info all_py_programs[] = {
     { "pypy.exe",   PYPY_PYTHON,   FALSE, { "%s\\libpypy-c.dll", NULL }, },
 
     /* CPython */
-#if defined(__CYGWIN__) && 0
-    { "python2.7.exe", PY3_PYTHON, TRUE,  { "~\\libpython%d.%d.dll", NULL }, },
-    { "python3.6m.exe", PY2_PYTHON, TRUE, { "~\\libpython%d.%d.dll", NULL }, },
-#else
     { "python.exe", PY3_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
     { "python.exe", PY2_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
-#endif
 
     /* IronPython */
     { "ipy.exe",    IRON2_PYTHON,  FALSE, { "~\\IronPython.dll", NULL }, },
@@ -172,19 +200,27 @@ static struct python_info all_py_programs[] = {
     { "jython.exe", JYTHON_PYTHON, FALSE, { "~\\jpython.dll", NULL }, }
   };
 
-/** The global Python instance data.
+/**
+ * The global Python instance pointer.
+ * We need this mostly for `build_sys_path()` to work.
  */
-static struct python_info *g_py;
+static struct python_info *g_pi;
 
 /**
  * The bitness (32/64-bit) of our running program.
  * To interact directly between the C-world and the Python-world, the
  * first priority is that these are the same.
  */
-static enum Bitness  our_bitness;
+static enum Bitness our_bitness;
 
 /**
- * Some temporary globals.
+ * Help index for `py_select_first()` and `py_select_next()`.
+ */
+static int py_index = -1;
+
+/**
+ * Some temporary globals for retrieving the Python version and
+ * the path for user's `site-packages` via "sysconfig.get_path('purelib'...".
  */
 static int  tmp_ver_major, tmp_ver_minor, tmp_ver_micro;
 static char tmp_user_site [_MAX_PATH];
@@ -192,6 +228,14 @@ static char tmp_user_site [_MAX_PATH];
 static int longest_py_program = 0;  /** set in py_init() */
 static int longest_py_version = 0;  /** set in py_init() */
 static int global_indent = 0;
+
+/**
+ * Variables used in the generic callback helper function popen_append_out().
+ */
+static char  *popen_tmp = NULL;
+static char  *popen_out = NULL;
+static size_t popen_out_sz = 0;
+static BOOL   popen_py_crash = FALSE;
 
 #if !defined(_DEBUG)
   static HANDLE exc_hnd = NULL;
@@ -207,29 +251,49 @@ static int get_python_version (const char *exe_name);
 static smartlist_t *py_programs;
 
 /**
- * \def LOAD_FUNC(is_opt, f)
+ * \def LOAD_FUNC(pi, is_opt, f)
  *   A `GetProcAddress()` helper.
+ *   \param pi      the `struct python_info` to work on.
  *   \param is_opt  `== 1` if the function is optional.
  *   \param f       the name of the function (without any `"`).
  */
-#define LOAD_FUNC(is_opt, f)  do {                                               \
-                                f = (func_##f) GetProcAddress (py->dll_hnd, #f); \
-                                if (!f && !is_opt) {                             \
-                                  WARN ("Failed to find \"%s()\" in %s.\n",      \
-                                        #f, py->dll_name);                       \
-                                  goto failed;                                   \
-                                }                                                \
-                                DEBUGF (3, "Function %s(): %*s 0x%p\n",          \
-                                           #f, 23-(int)strlen(#f), "", f);       \
-                              } while (0)
+#define LOAD_FUNC(pi, is_opt, f)  do {                                               \
+                                    f = (func_##f) GetProcAddress (pi->dll_hnd, #f); \
+                                    if (!f && !is_opt) {                             \
+                                      WARN ("Failed to find \"%s()\" in %s.\n",      \
+                                            #f, pi->dll_name);                       \
+                                      goto failed;                                   \
+                                    }                                                \
+                                    DEBUGF (3, "Function %s(): %*s 0x%p.\n",         \
+                                               #f, 23-(int)strlen(#f), "", f);       \
+                                  } while (0)
+
+/**
+ * \def LOAD_INT_PTR(is_opt, f)
+ *   A `GetProcAddress()` helper for setting an int-pointer.
+ *   \param pi   the `struct python_info` to work on.
+ *   \param ptr  the name of the variable (without any `"`).
+ */
+#define LOAD_INT_PTR(pi, ptr)  do {                                                         \
+                                 ptr = (int*) GetProcAddress (pi->dll_hnd, #ptr);           \
+                                 if (!ptr)                                                  \
+                                      DEBUGF (2, "Failed to find \"%s\" in %s.\n",          \
+                                              #ptr, pi->dll_name);                          \
+                                 else DEBUGF (3, "Variable %s: %*s 0x%p = %d.\n",           \
+                                              #ptr, 25-(int)strlen(#ptr), "", ptr, *(ptr)); \
+                               } while (0)
 
 /**
  * We only need 1 set of function-pointers for each embeddable Python program
- * since we can only embed 1 Python at a time.
+ * since we currently only embed 1 Python at a time.
+ *
+ * But ideally, these function-pointers should be put in `struct python_info` to be able
+ * to use several Pythons without calling `py_init_embedding()` and `py_exit_embedding()`
+ * for each embeddable Python variant.
  *
  * \def DEF_FUNC(ret,f,(args))
  *   define the `typedef` and declare the function-pointer for
- *   the Python-function we want to import.
+ *   the Python-2/3 function we want to import.
  *   \param ret    the return value type (or `void`)
  *   \param f      the name of the function (without any `"`).
  *   \param (args) the function arguments (as one list).
@@ -240,25 +304,30 @@ static smartlist_t *py_programs;
 DEF_FUNC (void,        Py_InitializeEx,        (int init_sigs));
 DEF_FUNC (int,         Py_IsInitialized,       (void));
 DEF_FUNC (void,        Py_Finalize,            (void));
-DEF_FUNC (void,        PySys_SetArgvEx,        (int argc, wchar_t **argv, int updatepath));
+DEF_FUNC (void,        PySys_SetArgvEx,        (int argc, wchar_t **argv, int update_path));
 DEF_FUNC (void,        Py_FatalError,          (const char *message));
 DEF_FUNC (void,        Py_SetProgramName,      (char *name));
 DEF_FUNC (void,        Py_SetPythonHome,       (void *home));
 DEF_FUNC (int,         PyRun_SimpleString,     (const char *cmd));
 DEF_FUNC (PyObject*,   PyImport_AddModule,     (const char *name));
 DEF_FUNC (PyObject*,   PyObject_GetAttrString, (PyObject *o, char *attr));
-DEF_FUNC (char *,      PyString_AsString,      (PyObject *o));    /* Python 2.x */
-DEF_FUNC (char *,      PyBytes_AsString,       (PyObject *o));    /* Python 3.x */
-DEF_FUNC (Py_ssize_t,  PyString_Size,          (PyObject *o));    /* Python 2.x */
-DEF_FUNC (Py_ssize_t,  PyBytes_Size,           (PyObject *o));    /* Python 3.x */
+DEF_FUNC (char *,      PyString_AsString,      (PyObject *o));
+DEF_FUNC (char *,      PyBytes_AsString,       (PyObject *o));
+DEF_FUNC (Py_ssize_t,  PyString_Size,          (PyObject *o));
+DEF_FUNC (Py_ssize_t,  PyBytes_Size,           (PyObject *o));
 DEF_FUNC (void,        PyObject_Free,          (PyObject *o));
 DEF_FUNC (void,        Py_DecRef,              (PyObject *o));
 DEF_FUNC (PyObject*,   PyObject_CallMethod,    (PyObject *o, char *method, char *fmt, ...));
 DEF_FUNC (wchar_t*,    Py_DecodeLocale,        (const char *arg, size_t *size));
 DEF_FUNC (void,        PyMem_RawFree,          (void *ptr));
-DEF_FUNC (void,        initposix,              (void));  /* In Cygwin's 'libpython2.x.dll' */
-DEF_FUNC (void,        PyInit_posix,           (void));  /* In Cygwin's 'libpython3.x.dll' */
-DEF_FUNC (const char*, Anaconda_GetVersion,    (void));  /* In Anaconda's 'python3x.dll' */
+DEF_FUNC (void,        PyErr_PrintEx,          (int set_sys_last_vars));
+DEF_FUNC (PyObject*,   PyErr_Occurred,         (void));
+DEF_FUNC (void,        PyErr_Clear,            (void));
+DEF_FUNC (void,        initposix,              (void));
+DEF_FUNC (void,        PyInit_posix,           (void));
+DEF_FUNC (const char*, Anaconda_GetVersion,    (void));
+
+static int *Py_InspectFlag = NULL;
 
 static const struct search_list short_names[] = {
                   { ALL_PYTHONS,   "all"     },
@@ -313,8 +382,6 @@ const char *py_variant_name (enum python_variants v)
          return ("Unknown");
     case DEFAULT_PYTHON:
          return ("Default");
-    case ALL_PYTHONS:
-         return ("All");
     default:
          return list_lookup_name (v, full_names, DIM(full_names));
   }
@@ -336,15 +403,15 @@ static int MS_CDECL compare_strings (const void *_s1, const void *_s2)
 const char **py_get_variants (void)
 {
   static char *result [DIM(all_py_programs)+1];
-  const struct python_info *py;
+  const struct python_info *pi;
   int   i, j;
 
   if (result[0])  /* Already done this */
      return (const char**) result;
 
-  for (i = j = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
+  for (i = j = 0, pi = all_py_programs; i < DIM(all_py_programs); pi++, i++)
   {
-    switch (py->variant)
+    switch (pi->variant)
     {
       case PY2_PYTHON:
            result [j++] = "py2";
@@ -395,7 +462,7 @@ const char **py_get_variants (void)
      DEBUGF (3, "py_get_variants(); result[%d] = %s\n", i, result[i]);
 
   j = i;
-  assert (j < DIM(result));
+  ASSERT (j < DIM(result));
 
   result [j] = NULL;
   return (const char**) result;
@@ -406,7 +473,7 @@ const char **py_get_variants (void)
  * and that is of a suitable variant.
  * We cannot select \ref ALL_PYTHONS here.
  */
-struct python_info *py_select (enum python_variants which)
+static struct python_info *py_select (enum python_variants which)
 {
   struct python_info *pi;
   int    i, max = smartlist_len (py_programs);
@@ -439,7 +506,7 @@ struct python_info *py_select (enum python_variants which)
  */
 int py_get_info (char **exe, char **dll, struct ver_info *ver)
 {
-  const struct python_info *py;
+  const struct python_info *pi;
 
   if (exe)
      *exe = NULL;
@@ -448,23 +515,23 @@ int py_get_info (char **exe, char **dll, struct ver_info *ver)
      *dll = NULL;
 
   if (py_which == ALL_PYTHONS)          /* Not possible here */
-       py = py_select (DEFAULT_PYTHON);
-  else py = py_select (py_which);
+       pi = py_select (DEFAULT_PYTHON);
+  else pi = py_select (py_which);
 
-  if (!py)
+  if (!pi)
      return (0);
 
   if (exe)
-     *exe = STRDUP (py->exe_name);
+     *exe = STRDUP (pi->exe_name);
 
   if (dll)
-     *dll = STRDUP (py->dll_name);
+     *dll = STRDUP (pi->dll_name);
 
   if (ver)
   {
-    ver->val_1 = py->ver_major;
-    ver->val_2 = py->ver_minor;
-    ver->val_3 = py->ver_micro;
+    ver->val_1 = pi->ver_major;
+    ver->val_2 = pi->ver_minor;
+    ver->val_3 = pi->ver_micro;
     ver->val_4 = 0;
   }
   return (1);
@@ -473,19 +540,19 @@ int py_get_info (char **exe, char **dll, struct ver_info *ver)
 /**
  * Since both Python2 and Python3 usually have the same `python.exe` name, we
  * don't know it's variant for sure before obtaining it's `py->ver_major` value.
- * If the `value` from all_py_programs[] is either PY2_PYTHON or
- * PY3_PYTHON, fix the `py->py_variant` member accordingly.
+ * If the `value` from `all_py_programs[]` is either `PY2_PYTHON` or
+ * `PY3_PYTHON`, fix the `py->py_variant` member accordingly.
  */
-static void fix_python_variant (struct python_info *py, enum python_variants v)
+static void fix_python_variant (struct python_info *pi, enum python_variants v)
 {
   if (v == PY2_PYTHON || v == PY3_PYTHON)
   {
-    if (py->ver_major >= 3)
-         py->variant = PY3_PYTHON;
-    else py->variant = PY2_PYTHON;
+    if (pi->ver_major >= 3)
+         pi->variant = PY3_PYTHON;
+    else pi->variant = PY2_PYTHON;
   }
   else
-    py->variant = v;
+    pi->variant = v;
 }
 
 /**
@@ -510,6 +577,9 @@ static const char *dir_name (const char *dir, BOOL is_dir)
   return (ret);
 }
 
+/**
+ * As part of `py_test()` print the `sys.path[]` for this Python.
+ */
 static void print_sys_path (const struct python_info *pi, int indent)
 {
   int i, max = smartlist_len (pi->sys_path);
@@ -550,7 +620,11 @@ static void print_user_site_path (const struct python_info *pi, int indent)
   else C_puts (" ~5<none>~0\n");
 }
 
-static char *get_prog_name_ascii (const struct python_info *py)
+/**
+ * Get the name of the calling program. This allocated ASCII string is used in
+ * `(*Py_SetProgramName)()` and `(*Py_SetPythonHome)()`.
+ */
+static char *get_prog_name_ascii (const struct python_info *pi)
 {
   char  prog [_MAX_PATH];
   char *p = NULL;
@@ -566,14 +640,14 @@ static char *get_prog_name_ascii (const struct python_info *py)
        p = cyg_name;
   }
 #else
-  if (py->is_cygwin)
+  if (pi->is_cygwin)
      p = make_cyg_path (prog, prog);
 #endif
 
   return (p ? STRDUP(p) : NULL);
 }
 
-static wchar_t *get_prog_name_wchar (const struct python_info *py)
+static wchar_t *get_prog_name_wchar (const struct python_info *pi)
 {
   wchar_t  prog [_MAX_PATH];
   wchar_t *p = NULL;
@@ -589,7 +663,7 @@ static wchar_t *get_prog_name_wchar (const struct python_info *py)
        p = cyg_name;
   }
 #else
-  if (py->is_cygwin)
+  if (pi->is_cygwin)
      p = make_cyg_pathw (prog, prog);
 #endif
 
@@ -601,80 +675,94 @@ static wchar_t *get_prog_name_wchar (const struct python_info *py)
  *
  * The allocated string (ASCII or Unicode) is freed in py_exit().
  */
-static void set_python_prog (struct python_info *py)
+static void set_python_prog (struct python_info *pi)
 {
-  if (py->ver_major >= 3)
+  if (pi->ver_major >= 3)
   {
-    py->prog_w = get_prog_name_wchar (py);
-    py->prog_a = NULL;
+    pi->prog_w = get_prog_name_wchar (pi);
+    pi->prog_a = NULL;
   }
   else
   {
-    py->prog_a = get_prog_name_ascii (py);
-    py->prog_w = NULL;
+    pi->prog_a = get_prog_name_ascii (pi);
+    pi->prog_w = NULL;
   }
 }
 
 /**
  * This should be the same as `sys.prefix`.
  *
- * The allocated string (ASCII or Unicode) gets freed in py_exit().
+ * The allocated string (ASCII or Unicode) gets freed in `py_exit()`.
  */
-static void set_python_home (struct python_info *py)
+static void set_python_home (struct python_info *pi)
 {
 #if defined(__CYGWIN__)
-  py->home_a = STRDUP ("/usr/lib");
-  py->home_w = NULL;
+  pi->home_a = STRDUP ("/usr/lib");
+  pi->home_w = NULL;
 #else
-  char *dir = py->dir;
+  char *dir = pi->exe_dir;
 
-  if (py->ver_major >= 3)
+  if (pi->ver_major >= 3)
   {
     wchar_t buf [_MAX_PATH];
 
     buf[0] = L'\0';
     MultiByteToWideChar (CP_ACP, 0, dir, -1, buf, DIM(buf));
-    if (py->is_cygwin)
+    if (pi->is_cygwin)
     {
-      py->home_w = WCSDUP (L"/usr");
-      py->home_a = STRDUP ("/usr");
+      pi->home_w = WCSDUP (L"/usr");
+      pi->home_a = STRDUP ("/usr");
     }
     else
     {
-      py->home_w = WCSDUP (buf);
-      py->home_a = STRDUP (dir);
+      pi->home_w = WCSDUP (buf);
+      pi->home_a = STRDUP (dir);
     }
   }
   else
   {
     /* Reallocate again because FREE() is used in py_exit()!
      */
-    if (py->is_cygwin)
-         py->home_a = STRDUP ("/usr");
-    else py->home_a = STRDUP (dir);
-    py->home_w = NULL;
+    if (pi->is_cygwin)
+         pi->home_a = STRDUP ("/usr");
+    else pi->home_a = STRDUP (dir);
+    pi->home_w = NULL;
   }
 #endif
 }
 
 /**
- * Free the Python DLL handle allocated by py_init_embedding().
+ * Set the imported `Py_InspectFlag`.
  */
-static void py_exit_embedding (struct python_info *py)
+static void py_set_inspect_flag (int v)
 {
-  if (py->dll_hnd && py->dll_hnd != INVALID_HANDLE_VALUE)
-  {
-    DEBUGF (4, "Calling Py_Finalize().\n");
-    (*Py_Finalize)();
-    CloseHandle (py->dll_hnd);
-  }
-  py->dll_hnd = INVALID_HANDLE_VALUE;
+  if (Py_InspectFlag)
+     *Py_InspectFlag = v;
 }
 
 /**
- * A smartlist_wipe() helper:
+ * Free the Python DLL handle allocated by `py_init_embedding()`.
+ */
+static void py_exit_embedding (struct python_info *pi)
+{
+  if (pi->dll_hnd && pi->dll_hnd != INVALID_HANDLE_VALUE)
+  {
+    py_set_inspect_flag (0);
+    Py_InspectFlag = NULL;
+    if (Py_Finalize)
+    {
+      DEBUGF (4, "Calling Py_Finalize().\n");
+      (*Py_Finalize)();
+    }
+    CloseHandle (pi->dll_hnd);
+  }
+  pi->dll_hnd = INVALID_HANDLE_VALUE;
+}
+
+/**
+ * Some smartlist_wipe() helpers:
  *
- * Free the `sys.path[]` for a single \ref python_info program.
+ * Free a `sys.path[]` element for a single `python_info` program.
  */
 static void free_sys_path (void *e)
 {
@@ -684,31 +772,46 @@ static void free_sys_path (void *e)
 }
 
 /**
+ * Free a `modules[]` element for a single `python_info` program.
+ */
+static void free_module (void *_m)
+{
+  struct python_module *m = (struct python_module*) _m;
+
+  FREE (m);
+}
+
+/**
  * A smartlist_wipe() helper:
  *
  * Free one element in \ref py_programs.
  */
-static void free_py_program (void *e)
+static void free_py_program (void *_pi)
 {
-  struct python_info *py = (struct python_info*) e;
+  struct python_info *pi = (struct python_info*) _pi;
 
-  FREE (py->prog_a);
-  FREE (py->prog_w);
-  FREE (py->home_a);
-  FREE (py->home_w);
-  FREE (py->dll_name);
-  FREE (py->exe_name);
-  FREE (py->user_site_path);
+  FREE (pi->prog_a);
+  FREE (pi->prog_w);
+  FREE (pi->home_a);
+  FREE (pi->home_w);
+  FREE (pi->dll_name);
+  FREE (pi->exe_name);
+  FREE (pi->user_site_path);
 
-  if (py->is_embeddable)
-     py_exit_embedding (py);
+  if (pi->is_embeddable)
+     py_exit_embedding (pi);
 
-  if (py->sys_path)
+  if (pi->sys_path)
   {
-    smartlist_wipe (py->sys_path, free_sys_path);
-    smartlist_free (py->sys_path);
+    smartlist_wipe (pi->sys_path, free_sys_path);
+    smartlist_free (pi->sys_path);
   }
-  FREE (py);
+  if (pi->modules)
+  {
+    smartlist_wipe (pi->modules, free_module);
+    smartlist_free (pi->modules);
+  }
+  FREE (pi);
 }
 
 /**
@@ -728,7 +831,7 @@ void py_exit (void)
   exc_hnd = NULL;
 #endif
 
-  g_py = NULL;
+  g_pi = NULL;
 }
 
 /**
@@ -786,129 +889,172 @@ static PyObject *setup_stdout_catcher (void)
 /**
  * Do NOT call this unless `py->is_embeddable == TRUE`.
  */
-static int py_init_embedding (struct python_info *py)
+static BOOL py_init_embedding (struct python_info *pi)
 {
-  char *exe = py->exe_name;
-  char *dll = py->dll_name;
+  char *exe = pi->exe_name;
+  char *dll = pi->dll_name;
 
   if (!dll)
   {
     WARN ("Failed to find Python DLL for %s.\n", exe);
-    return (0);
+    return (FALSE);
   }
 
-  py->dll_hnd = LoadLibrary (dll);
-  if (!py->dll_hnd || py->dll_hnd == INVALID_HANDLE_VALUE)
+  pi->dll_hnd = LoadLibrary (dll);
+  if (!pi->dll_hnd || pi->dll_hnd == INVALID_HANDLE_VALUE)
   {
     WARN ("Failed to load %s; %s\n", dll, win_strerror(GetLastError()));
-    py->is_embeddable = FALSE;  /* Do not do this again */
-    return (0);
+    pi->is_embeddable = FALSE;  /* Do not do this again */
+    return (FALSE);
   }
 
-  DEBUGF (2, "Full DLL name: \"%s\". Handle: 0x%p\n", py->dll_name, py->dll_hnd);
+  DEBUGF (2, "Full DLL name: \"%s\". Handle: 0x%p\n", pi->dll_name, pi->dll_hnd);
 
-  LOAD_FUNC (0, Py_InitializeEx);
-  LOAD_FUNC (0, Py_IsInitialized);
-  LOAD_FUNC (0, Py_Finalize);
-  LOAD_FUNC (0, PySys_SetArgvEx);
-  LOAD_FUNC (0, Py_FatalError);
-  LOAD_FUNC (0, Py_SetProgramName);
-  LOAD_FUNC (0, Py_SetPythonHome);
-  LOAD_FUNC (0, PyRun_SimpleString);
-  LOAD_FUNC (0, PyObject_GetAttrString);
-  LOAD_FUNC (0, PyImport_AddModule);
-  LOAD_FUNC (1, PyString_AsString);
-  LOAD_FUNC (1, PyBytes_AsString);
-  LOAD_FUNC (1, PyString_Size);
-  LOAD_FUNC (1, PyBytes_Size);
-  LOAD_FUNC (0, PyObject_CallMethod);
-  LOAD_FUNC (0, PyObject_Free);
-  LOAD_FUNC (0, Py_DecRef);
-  LOAD_FUNC (1, Py_DecodeLocale);
-  LOAD_FUNC (1, PyMem_RawFree);
-  LOAD_FUNC (1, initposix);
-  LOAD_FUNC (1, PyInit_posix);
-  LOAD_FUNC (1, Anaconda_GetVersion);
+  LOAD_FUNC (pi, 0, Py_InitializeEx);
+  LOAD_FUNC (pi, 0, Py_IsInitialized);
+  LOAD_FUNC (pi, 0, Py_Finalize);
+  LOAD_FUNC (pi, 0, PySys_SetArgvEx);
+  LOAD_FUNC (pi, 0, Py_FatalError);
+  LOAD_FUNC (pi, 0, Py_SetProgramName);
+  LOAD_FUNC (pi, 0, Py_SetPythonHome);
+  LOAD_FUNC (pi, 0, PyRun_SimpleString);
+  LOAD_FUNC (pi, 0, PyObject_GetAttrString);
+  LOAD_FUNC (pi, 0, PyImport_AddModule);
+  LOAD_FUNC (pi, 0, PyObject_CallMethod);
+  LOAD_FUNC (pi, 0, PyObject_Free);
+  LOAD_FUNC (pi, 0, Py_DecRef);
+  LOAD_FUNC (pi, 0, PyErr_Occurred);
+  LOAD_FUNC (pi, 0, PyErr_PrintEx);
+  LOAD_FUNC (pi, 0, PyErr_Clear);
+  LOAD_FUNC (pi, 1, PyString_AsString);      /* CPython 2.x */
+  LOAD_FUNC (pi, 1, PyBytes_AsString);       /* CPython 3.x */
+  LOAD_FUNC (pi, 1, PyString_Size);          /* CPython 2.x */
+  LOAD_FUNC (pi, 1, PyBytes_Size);           /* CPython 3.x */
+  LOAD_FUNC (pi, 1, Py_DecodeLocale);        /* CPython 3.x */
+  LOAD_FUNC (pi, 1, PyMem_RawFree);          /* CPython 3.x */
+  LOAD_FUNC (pi, 1, initposix);              /* In Cygwin's libpython2.x.dll */
+  LOAD_FUNC (pi, 1, PyInit_posix);           /* In Cygwin's libpython3.x.dll */
+  LOAD_FUNC (pi, 1, Anaconda_GetVersion);    /* In Anaconda's python3x.dll. Not used yet. */
+
+  LOAD_INT_PTR (pi, Py_InspectFlag);
 
   if (initposix || PyInit_posix)
-     py->is_cygwin = TRUE;
+     pi->is_cygwin = TRUE;
 
-  if (py->ver_major >= 3)
+  if (pi->ver_major >= 3)
   {
     PyString_AsString = PyBytes_AsString;
     PyString_Size     = PyBytes_Size;
 
-    DEBUGF (2, "Py_SetProgramName (\"%" WIDESTR_FMT "\")\n", py->prog_w);
-    (*Py_SetProgramName) ((char*)py->prog_w);
+    DEBUGF (2, "Py_SetProgramName (\"%" WIDESTR_FMT "\")\n", pi->prog_w);
+    (*Py_SetProgramName) ((char*)pi->prog_w);
 
-    DEBUGF (2, "Py_SetPythonHome (\"%" WIDESTR_FMT "\")\n", py->home_w);
-    (*Py_SetPythonHome) (py->home_w);
+    DEBUGF (2, "Py_SetPythonHome (\"%" WIDESTR_FMT "\")\n", pi->home_w);
+    (*Py_SetPythonHome) (pi->home_w);
   }
   else
   {
-    DEBUGF (2, "Py_SetProgramName (\"%s\")\n", py->prog_a);
-    (*Py_SetProgramName) (py->prog_a);
+    DEBUGF (2, "Py_SetProgramName (\"%s\")\n", pi->prog_a);
+    (*Py_SetProgramName) (pi->prog_a);
 
-    DEBUGF (2, "Py_SetPythonHome (\"%s\")\n", py->home_a);
-    (*Py_SetPythonHome) (py->home_a);
+    DEBUGF (2, "Py_SetPythonHome (\"%s\")\n", pi->home_a);
+    (*Py_SetPythonHome) (pi->home_a);
   }
 
   (*Py_InitializeEx) (0);
 
-  py->catcher = setup_stdout_catcher();
-  if (py->catcher)
-     return (1);   /* Success, return 1 */
+  py_set_inspect_flag (1);
+
+  pi->catcher = setup_stdout_catcher();
+  if (pi->catcher)
+     return (TRUE);   /* Success! */
 
   /* Fail, fall through */
 
 failed:
-  py_exit_embedding (py);
-  return (0);
+  py_exit_embedding (pi);
+  return (FALSE);
+}
+
+/**
+ * Dump a `py_prog` to `stdout` or `stderr` in case of errors.
+ * Add leading line numbers while printing the `py_prog`.
+ *
+ * \param[in] out      the `FILE*` to print to; either `stdout` or `stderr`.
+ * \param[in] py_prog  the Python program to dump.
+ * \param[in] where    the line-number where the `py_prog` was executed.
+ */
+static char *py_prog_dump (FILE *out, const char *py_prog, unsigned where)
+{
+  char *chunk, *tok_end;
+  char *prog = STRDUP (py_prog);
+  int   line;
+
+  if (out == stderr)
+     Beep (1000, 30);
+
+  fprintf (out, "py_prog at line %u:\n"
+                "---------------------------\n", where);
+
+  for (line = 1, chunk = _strtok_r(prog,"\n",&tok_end);
+       chunk;
+       chunk = _strtok_r(NULL,"\n",&tok_end), line++)
+  {
+    fprintf (out, "%2d: %s\n", line, chunk);
+    if (*tok_end == '\n')
+       fprintf (out, "%2d:\n", line++); /* empty program line */
+  }
+
+  fputs ("---------------------------\n", out);
+  FREE (prog);
+  return (NULL);
 }
 
 /**
  * Call some Python code (for an embedded Python only).
  *
- * \param[in] py      The currently used Python-info. Should be the same as \ref g_py.
- * \param[in] py_prog The code to run.
- * \retval !NULL      The output from Python. **Must** be freed using `FREE()`.<br>
- *                    The `catcher.value` is reset.
- * \retval NULL       The `PyRun_SimpleString()` failed (a syntax error?). <br>
- *                    The `PyObject_GetAttrString()` failed to get the `catcher.value`.<br>
- *                    The `PyString_Size()` returned 0 (no `print()` were called?).<br>
- *                    The `catcher.value` is *not* reset.
+ * \param[in] pi     The currently used Python-info. Should be the same as \ref g_pi.
+ * \param[in] prog   The code to run.
+ * \param[in] line   The line where this function was called (for tracing).
+ * \retval !NULL     The output from Python. **Must** be freed using `FREE()`.<br>
+ *                   The `catcher.value` is reset.
+ * \retval NULL      The `PyRun_SimpleString()` failed (a syntax error?). <br>
+ *                   The `PyObject_GetAttrString()` failed to get the `catcher.value`.<br>
+ *                   The `PyString_Size()` returned 0 (no `print()` was called?).<br>
+ *                   The `catcher.value` is *not* reset.
  *
  * \note if `opt.debug >= 3`:
- *       - the program is dumped one line at a time prior to running it.
- *       - the program output is parsed and the lines are counted. Then the size is
- *         compared against what a DOS-ified string-size would become (`dos_size`).<br>
- *         I.e. compare against a string with all `"\r\n"` line-endings.
+ *       \li the program is dumped one line at a time prior to running it.
+ *       \li the program output is parsed and the lines are counted. Then the size is
+ *           compared against what a DOS-ified string-size would become (`dos_size`).<br>
+ *           I.e. compare against a string with all `"\r\n"` line-endings.
  */
-static char *call_python_func (struct python_info *py, const char *py_prog)
+static char *call_python_func (struct python_info *pi, const char *prog, unsigned line)
 {
-  PyObject  *obj;
+  PyObject  *obj, *err;
   Py_ssize_t size = 0;
   char      *str = NULL;
   int        rc;
 
   if (opt.debug >= 3)
+     py_prog_dump (stdout, prog, line);
+
+  ASSERT (pi->catcher);
+  rc = (*PyRun_SimpleString) (prog);
+
+  err = (*PyErr_Occurred)();
+  DEBUGF (2, "rc: %d, err: %p\n", rc, err);
+
+  if (rc < 0)
   {
-    char *chunk, *prog = STRDUP (py_prog);
-    int   line;
-
-    debug_printf ("py_prog:\n----------------------\n");
-    for (line = 1, chunk = strtok(prog,"\n"); chunk; chunk = strtok(NULL,"\n"), line++)
-        debug_printf ("%2d: %s\n", line, chunk);
-    FREE (prog);
-    debug_printf ("----------------------\n");
+    (*PyErr_Clear)();
+    WARN ("Failed script (%s): ", pi->exe_name);
+    return py_prog_dump (stderr, prog, line);
   }
-
-  ASSERT (py->catcher);
-  rc  = (*PyRun_SimpleString) (py_prog);
 
   /* Get a reference to `catcher.value` where the catched `sys.stdout` string is stored.
    */
-  obj = (*PyObject_GetAttrString) (py->catcher, "value");
+  obj = (*PyObject_GetAttrString) (pi->catcher, "value");
 
   DEBUGF (4, "rc: %d, obj: %p\n", rc, obj);
 
@@ -918,28 +1064,29 @@ static char *call_python_func (struct python_info *py, const char *py_prog)
     if (size > 0)
        str = STRDUP ((*PyString_AsString)(obj));
 
-    /*
-     * Reset the `catcher.value` to prepare for next call
+    /* Reset the `catcher.value` to prepare for next call
      * to this call_python_func().
      */
-    (*PyObject_CallMethod) (py->catcher, "reset", NULL);
+    (*PyObject_CallMethod) (pi->catcher, "reset", NULL);
   }
   DEBUGF (3, "PyString_Size(): %ld, output:\n%s\n", size, str);
 
-  /*
-   * Count the lines in the output `str` and compare `size` against what
+  /* Count the lines in the output `str` and compare `size` against what
    * a DOS-ified string-size would become (`dos_size`).
    * I.e. compare against a string with all `"\r\n"` line-endings.
    */
   if (size > 0 && opt.debug >= 3)
   {
-    char      *chunk;
+    char      *chunk, *tok_end;
     char      *copy = STRDUP (str);
     int        okay, lines = 0;
     Py_ssize_t dos_size = 0;
 
-    for (chunk = strtok(copy,"\n"); chunk; chunk = strtok(NULL,"\n"), lines++)
+    for (chunk = _strtok_r(copy,"\n",&tok_end);
+         chunk;
+         chunk = _strtok_r(NULL,"\n",&tok_end), lines++)
         dos_size += strlen(chunk) + 2;   /* 2 for "\r\n" line-endings */
+
     FREE (copy);
     okay = (dos_size == size+lines);
     DEBUGF (3, "dos_size: %ld, size+lines: %ld, lines: %d; %s\n",
@@ -949,109 +1096,50 @@ static char *call_python_func (struct python_info *py, const char *py_prog)
 }
 
 /**
- * Figure out if `where` and `file` overlaps.
- * And if it does, return a shorter path; `"<prefix>\\<non-overlap>"`.<br>
- * Otherwise return `NULL`.
+ * Return a `file` with correct slashes and filename casing.
  */
-static const char *relative_to_where (const char *file,
-                                      const char *where,
-                                      const char *prefix)
+static const char *py_filename (const char *file)
 {
-  static char  buf [_MAX_PATH+50];
-  const  char *p   = where ? path_ltrim(file, where) : file;
-  size_t       len = where ? strlen(where) : 0;
-
-  if (IS_SLASH(*p))  /* if 'where' doesn't end in a slash. */
-     p++;
-
-  DEBUGF (3, "p: '%s', where: '%s', file: '%s'\n", p, where, file);
-
-  if (p != file && !strnicmp(where,file,len))
-  {
-    snprintf (buf, sizeof(buf), "%s\\%s", prefix, p);
-    return slashify2 (buf, buf, opt.show_unix_paths ? '/' : '\\');
-  }
-  return (NULL);
-}
-
-static const char *relative_to_user_site (struct python_info *py, const char *file)
-{
-  const char *ret = relative_to_where (file, py->user_site_path, "<USER-SITE>");
-
-  if (py->do_warn_user_site)
-  {
-    DEBUGF (2, "py->user_site_path: %s\n", py->user_site_path);
-    if (py->user_site_path && !is_directory(py->user_site_path))
-       WARN ("%s points to non-existing directory: \"%s\".\n", "<USER-SITE>", py->user_site_path);
-    py->do_warn_user_site = FALSE;
-  }
-  return (ret);
-}
-
-static const char *relative_to_py_home (struct python_info *py, const char *file)
-{
-  const char *ret = relative_to_where (file, py->home_a, "$PYTHONHOME");
-
-  if (py->do_warn_home)
-  {
-    DEBUGF (2, "py->home_a: %s\n", py->home_a);
-    if (py->home_a && !is_directory(py->home_a))
-       WARN ("%s points to non-existing directory: \"%s\".\n", "$PYTHONHOME", py->home_a);
-    py->do_warn_home = FALSE;
-  }
-  return (ret);
-}
-
-/**
- * Return a relative path (with prefix) to one of the above.
- * Or simply `file` (with correct slashes) if not relative to either.
- */
-static const char *py_relative (struct python_info *py, const char *file)
-{
-  const char *rel;
   static char buf [_MAX_PATH];
+  char *p = _strlcpy (buf, file, sizeof(buf));
 
-  rel = relative_to_py_home (py, file);
-  if (!rel)
-     rel = relative_to_user_site (py, file);
-
-  if (rel)
-     return (rel);
-
-  /* Returns 'file' unchanged except for the slashes.
-   */
-  return slashify2 (buf, file, opt.show_unix_paths ? '/' : '\\');
+  if (get_actual_filename(&p, FALSE))
+  {
+    _strlcpy (buf, p, sizeof(buf));
+    FREE (p);
+  }
+  return (buf);
 }
 
 /**
  * A simple embedded test; capture the output from Python's
  * `print()` function.
  */
-static BOOL test_python_funcs (struct python_info *py)
+static BOOL test_python_funcs (struct python_info *pi, BOOL reinit)
 {
-  const char *prog = "import sys\n"
-                     "print (sys.version_info)\n"
-                     "for i in range(5):\n"
-                     "  print (\"  Hello world\")\n";
-  const char *name = py_variant_name (py->variant);
+  static char prog[] = "import sys\n"
+                       "print (sys.version_info)\n"
+                       "for i in range(3):\n"
+                       "  print (\"  Hello world\")\n";
+  const char *name = py_variant_name (pi->variant);
   char *str;
 
-  if (!py->bitness_ok || !py_init_embedding(py))
+  if (reinit && (!pi->bitness_ok || !py_init_embedding(pi)))
      return (FALSE);
 
-  /* The 'str' should now contain the Python output of above 'prog'.
+  /* The `str` should now contain the Python output of above `prog`.
    */
-  str = call_python_func (py, prog);
+  str = call_python_func (pi, prog, __LINE__);
   C_printf ("~3Captured output of %s:~0\n** %s **\n", name, str);
   FREE (str);
 
-  /* Restore 'sys.stdout' to it's old value. Thus this should return no output.
+  /* Restore `sys.stdout` to it's old value. Thus this should return no output.
    */
   C_printf ("~3The rest should not be captured:~0\n");
-  str = call_python_func (py, "sys.stdout = old_stdout\n");
+  str = call_python_func (pi, "sys.stdout = old_stdout\n", __LINE__);
   FREE (str);
 
-  str = call_python_func (py, prog);
+  str = call_python_func (pi, prog, __LINE__);
   C_printf ("~3Captured output of %s now:~0\n** %s **\n", name, str);
   FREE (str);
   return (TRUE);
@@ -1066,10 +1154,10 @@ static BOOL test_python_funcs (struct python_info *py)
  *               after use.
  * \retval NULL  the function failed. `errno` should be set.
  */
-static char *tmp_fputs (const struct python_info *py, const char *buf)
+static char *tmp_fputs (const struct python_info *pi, const char *buf)
 {
-  FILE  *fil;
-  char  *tmp = create_temp_file();
+  FILE *fil;
+  char *tmp = create_temp_file();
 
   if (!tmp)
      return (NULL);
@@ -1080,39 +1168,30 @@ static char *tmp_fputs (const struct python_info *py, const char *buf)
     FREE (tmp);
     return (NULL);
   }
-
   fprintf (fil, "#\n"
-                "# Tmp-file %s for command \"%s %s\".\n"
-                "# Created %.24s.\n"
-                "#\n", tmp, py->exe_name, tmp, get_time_str(time(NULL)));
+                "# Temp-file %s for command \"%s %s\".\n"
+                "# Created %s (%s).\n"
+                "#\n", tmp, pi->exe_name, tmp,
+                get_time_str(time(NULL)), _tzname[0]);
   fwrite (buf, 1, strlen(buf), fil);
   fclose (fil);
   return (tmp);
 }
 
 /**
- * Variables used in the generic callback helper function popen_append_out().
- */
-static char  *popen_tmp = NULL;
-static char  *popen_out = NULL;
-static size_t popen_out_sz = 0;
-static BOOL   popen_py_crash = FALSE;
-
-/**
  * Append `str` to `popen_out` updating `popen_out_sz` as needed.
  *
  * This **must** be used if the Python is *not* embeddable.
- * But it can be used if the Python *is* embeddable (allthough
- * this is much slower than using call_python_func() directly).
+ * But it can be used if the Python is embeddable (allthough
+ * this is much slower than using `call_python_func()` directly).
  *
- * Write the Python-code (\ref PY_LIST_MODULES or \ref PY_ZIP_LIST) to a
- * temporary file and call popen_runf() on it. Then parse the output
- * in the `strtok()` loop below.
+ * Write the Python-code (\ref `PY_LIST_MODULES()` or \ref `PY_ZIP_LIST()`) to a
+ * temporary file and `call popen_runf()` on it. Then parse the output.
  */
 static int popen_append_out (char *str, int index)
 {
   /**
-   * Report this Python "crash" to popen_run_py().
+   * Report this Python "crash" to `popen_run_py()`.
    * Hopefully it will happen only at the first line (`index=0`).
    * This also needs `stderr` to be redirected into `stdout`.
    */
@@ -1125,59 +1204,54 @@ static int popen_append_out (char *str, int index)
     popen_out = REALLOC (popen_out, popen_out_sz);
   }
 
-  DEBUGF (2, "index: %d, strlen(popen_out): %u, popen_out_sz: %u\n",
+  DEBUGF (2, "index: %d, strlen(popen_out): %zu, popen_out_sz: %zu\n",
           index, strlen(popen_out), popen_out_sz);
 
   if (index == 0)
      popen_out[0] = '\0';
 
-#ifdef HAVE_STRCAT_S
-  strcat_s (popen_out, popen_out_sz, str);
-  strcat_s (popen_out, popen_out_sz-1, "\n");
-#else
-  strcat (popen_out, str);
-  strcat (popen_out, "\n");
-#endif
-
+  str_cat (popen_out, popen_out_sz, str);
+  str_cat (popen_out, popen_out_sz-1, "\n");
+  popen_out_sz = strlen (popen_out);
   return (1);
 }
 
 /**
- * Clear up things after popen_run_py() has finished.
+ * Clear up things after `popen_run_py()` has finished.
  */
 static void popen_append_clear (void)
 {
   if (popen_tmp && !opt.keep_temp)
      unlink (popen_tmp);
 
-  FREE (popen_out);
   popen_out_sz = 0;
   popen_py_crash = FALSE;
+  FREE (popen_out);
   FREE (popen_tmp);
 }
 
 /**
- * The popen_runf() function for running a non-embedded Python program.
+ * The `popen_runf()` function for running a non-embedded Python program.
  */
-static char *popen_run_py (const struct python_info *py, const char *py_prog, BOOL redir_stderr)
+static char *popen_run_py (const struct python_info *pi, const char *prog)
 {
   char report [1000];
   int  rc;
 
-  popen_tmp = tmp_fputs (py, py_prog);
+  popen_tmp = tmp_fputs (pi, prog);
   if (!popen_tmp)
   {
-    WARN ("\"%s\": Failed to create a temp-file; errno: %d.\n", py->exe_name, errno);
+    WARN ("\"%s\": Failed to create a temp-file; errno: %d.\n", pi->exe_name, errno);
     popen_append_clear();
     return (NULL);
   }
 
-  rc = popen_runf (popen_append_out, "%s %s %s", py->exe_name, popen_tmp,
-                   redir_stderr ? "2>&1" : "");
+  rc = popen_runf (popen_append_out, "%s %s 2>&1", pi->exe_name, popen_tmp);
   if (rc < 0)
   {
-    snprintf (report, sizeof(report), "\"%s %s\"; errno: %d\n", py->exe_name, popen_tmp, errno);
-    WARN ("Failed script: ");
+    snprintf (report, sizeof(report), "\"%s %s\"; errno: %d\n", pi->exe_name, popen_tmp, errno);
+    Beep (1000, 30);
+    WARN ("Failed script (%s): ", pi->exe_name);
     C_puts (report);
     popen_append_clear();
     return (NULL);
@@ -1185,148 +1259,281 @@ static char *popen_run_py (const struct python_info *py, const char *py_prog, BO
 
   if (popen_py_crash)
   {
-    snprintf (report, sizeof(report), "\"%s %s\":\n%s\n", py->exe_name, popen_tmp, popen_out);
-    WARN ("Failed script: ");
+    snprintf (report, sizeof(report), "\"%s %s\":\n%s\n", pi->exe_name, popen_tmp, popen_out);
+    Beep (1000, 30);
+    WARN ("Failed script (%s): ", pi->exe_name);
     C_puts (report);
     popen_append_clear();
     return (NULL);
   }
-
   return (popen_out);
 }
 
 /**
- * \def PY_TRACE_DEF
- *   `trace(s)` to print to `stderr`.
- *   Assumes `import sys` was done.
+ * Print the list of installed Python modules with
+ * their location and version.
+ *
+ * \param[in] spec  Print only those module-names `m->name` that matches `spec`.
+ * \retval          The number of modules printed.
  */
-#define PY_TRACE_DEF()                                 \
-        "PY3 = (sys.version_info[0] == 3)\n"           \
-        "def trace (s):\n"  /* trace to stderr (2) */  \
-        "  if PY3:\n"                                  \
-        "    sys.stderr.write (bytes(s,\"UTF-8\"))\n"  \
-        "  else:\n"                                    \
-        "    sys.stderr.write (s)\n"
+static int py_print_modinfo (const char *spec)
+{
+  BOOL  match_all = !strcmp (spec, "*");
+  int   found = 0, zips_found = 0;
 
+  int i, max = g_pi->modules ? smartlist_len (g_pi->modules) : 0;
+
+  for (i = 0; i < max; i++)
+  {
+    struct python_module *m = smartlist_get (g_pi->modules, i);
+
+    if (fnmatch(spec, m->name, fnmatch_case(0)) != FNM_MATCH)
+       continue;
+
+    found++;
+    if (m->is_zip)
+       zips_found++;
+
+    if (match_all)
+    {
+      const char *loc = py_filename (m->location);
+
+      C_printf ("~6%3d:~0 %-25s %-10s -> %s%s\n", found, m->name, m->version,
+                m->is_actual ? m->location : loc,
+                m->is_zip ? " (ZIP)" : "");
+
+      if (m->meta_path[0])
+         C_printf ("     meta: %s\n", m->meta_path);
+
+      _strlcpy (m->location, loc, sizeof(m->location));
+      m->is_actual = TRUE;
+    }
+    else
+      C_printf ("   %s%s\n", m->version, m->is_zip ? " (ZIP)" : "");
+  }
+  if (match_all)
+     C_printf ("~6Found %d modules~0 (%d are ZIP/EGG files).\n", found, zips_found);
+  return (found);
+}
+
+/**
+ * \todo
+ * Check if there is a `RECORD` file on `m->meta_path`.
+ * It there is:
+ *   \li build a list of files for this package.
+ *   \li extract the size and SHA256 value for the file from a RECORD-line like:
+
+         wheel/__init__.py,sha256=YumT_ajakW9VAgnV3umrUYypy6VzpbLKE-OPbVnWm8M,96
+         ^                        ^                                           ^
+         |                        |                                           |__ `__init__.py` size
+         |                        |___ Base64 encoded?
+         |_ relative to parent dir?
+ */
+static void py_get_meta_info (struct python_module *m)
+{
 #if 0
-  /**
-   * \def PY_IMPORT_PIP
-   *   One would normally use a `try` block here to exit gracefully.
-   *   But to test `popen_py_crash` reports, we don't.
-   */
-  #define PY_IMPORT_PIP()                                    \
-          "try:\n"                                           \
-          "  import pip\n"                                   \
-          "except ImportError:\n"                            \
-          "  sys.stderr.write ('Failed to import pip\\n')\n" \
-          "  sys.exit (1)\n"
+
 #else
-  /**
-   * \def PY_IMPORT_PIP
-   *   Catch the `Traceback` or `ImportError` (sent to `stderr`) in
-   *   popen_append_out() and report the "crash" in popen_run_py().
-   */
-  #define PY_IMPORT_PIP()  "import pip\n"
+  ARGSUSED (m);
 #endif
+}
+
 
 /**
  * \def PY_LIST_MODULES
- *   The Python program to print the modules in `py_print_modules()`.
- *   If the `get_installed_distributions()` is an obsoleted PIP function,
+ *   The Python program for getting the modules information in `py_get_module_info()`.
+ *   If the `pip.get_installed_distributions()` is an obsoleted PIP function,
  *   try the `pkg_resources.working_set` instead.
-  */
+ *
+ * \note The details of Modules versus Packages:
+ *       https://docs.python.org/3/reference/import.html#packages
+ */
 #define PY_LIST_MODULES()                                                              \
         "import os, sys, re, zipfile\n"                                                \
-        PY_IMPORT_PIP()                                                                \
         "\n"                                                                           \
-        "def is_zipfile (path):\n"                                                     \
-        "  return zipfile.is_zipfile (path)\n"                                         \
-        "\n"                                                                           \
-        "def list_modules():\n"                                                        \
+        "def list_modules (spec):\n"                                                   \
         "  try:\n"                                                                     \
+        "    import pip\n"                                                             \
         "    packages = pip.get_installed_distributions (local_only=False, skip=())\n" \
-        "  except AttributeError:\n"                                                   \
+        "  except (AttributeError, ImportError):\n"                                    \
         "    import pkg_resources\n"                                                   \
         "    packages = pkg_resources.working_set\n"                                   \
         "  package_list = []\n"                                                        \
         "  for p in packages:\n"                                                       \
         "    if os.path.isdir (p.location):\n"                                         \
-        "      loc = p.location + \'\\\\\'\n"                                          \
-        "    elif is_zipfile (p.location):\n"                                          \
-        "      loc = p.location + \' (ZIP)\'\n"                                        \
-        "    elif not os.path.exists (p.location):\n"                                  \
-        "      loc = p.location + \' !\'\n"                                            \
+        "      loc = p.location + '\\\\'\n"                                            \
+        "    elif zipfile.is_zipfile (p.location):\n"                                  \
+        "      loc = p.location + ' (ZIP)\'\n"                                         \
         "    else:\n"                                                                  \
         "      loc = p.location\n"                                                     \
-        "    ver = \"v.%.6s\" % p.version\n"                                           \
-        "    package_list.append (\"%-20s %-10s -> %s\" % (p.key, ver, loc))\n"        \
+        "    ver = \"%.20s\" % p.version\n"                                            \
+        "    try:\n"                                                                   \
+        "      meta = p._get_metadata_path_for_display (p.PKG_INFO)\n"                 \
+        "    except AttributeError:\n"                                                 \
+        "      meta = \"-\"\n"                                                         \
+        "    package_list.append ('%s;%s;%s;%s' % (p.key,ver,loc,meta))\n"             \
         "\n"                                                                           \
         "  for p in sorted (package_list):\n"                                          \
         "    print (p)\n"                                                              \
         "\n"                                                                           \
-        "list_modules()\n"
+        "list_modules (\"*\")\n"
 
 /**
- * Print the list of installed Python modules.
+ * \def PY_LIST_MODULES2
+ *   A more detailed version of `PY_LIST_MODULES()` returning
+ *   modules and packages at runtime.
  */
-int py_print_modules (void)
+#define PY_LIST_MODULES2()                                                               \
+        "from __future__ import print_function\n"                                        \
+        "import os, sys, pip, imp\n"                                                     \
+        "\n"                                                                             \
+        "types = { imp.PY_SOURCE:     'source file',      # = 1\n"                       \
+        "          imp.PY_COMPILED:   'object file',\n"                                  \
+        "          imp.C_EXTENSION:   'shared library',   # = 3\n"                       \
+        "          imp.PKG_DIRECTORY: 'package directory',\n"                            \
+        "          imp.C_BUILTIN:     'built-in module',  # = 6\n"                       \
+        "          imp.PY_FROZEN:     'frozen module'\n"                                 \
+        "        }\n"                                                                    \
+        "mod_paths    = {}\n"                                                            \
+        "mod_builtins = {}\n"                                                            \
+        "prev_pathname = ''\n"                                                           \
+        "prev_modtype  = None\n"                                                         \
+        "\n"                                                                             \
+        "def get_module_path (mod, mod_type, mod_path):\n"                               \
+        "  next_scope = mod.index ('.') + 1\n"                                           \
+        "  last_scope = mod.rindex ('.') + 1\n"                                          \
+        "\n"                                                                             \
+        "  fname = mod_path + '\\\\' + mod[next_scope:].replace('.','\\\\\') + '.py'\n"  \
+        "  if os.path.exists(fname):\n"                                                  \
+        "    return fname\n"                                                             \
+        "\n"                                                                             \
+        "  init = mod_path + '\\\\' + mod[last_scope:] + '\\\\__init__.py'\n"            \
+        "  if os.path.exists(init):\n"                                                   \
+        "    return init\n"                                                              \
+        "\n"                                                                             \
+        "  try:\n"                                                                       \
+        "    if mod_builtins[mod[last_scope:]] == 1:\n"                                  \
+        "      return '__builtin__ ' + mod[last_scope:]\n"                               \
+        "  except KeyError:\n"                                                           \
+        "    pass\n"                                                                     \
+        "\n"                                                                             \
+        "  try:\n"                                                                       \
+        "    return mod_paths [mod[last_scope:]] + ' !'\n"                               \
+        "  except KeyError:\n"                                                           \
+        "    pass\n"                                                                     \
+        "\n"                                                                             \
+        "  try:\n"                                                                       \
+        "    _x, pathname, _y = imp.find_module (mod, mod_path)\n"                       \
+        "    return pathname\n"                                                          \
+        "  except ImportError:\n"                                                        \
+        "    return '<unknown>'\n"                                                       \
+        "  except RuntimeError:\n"                                                       \
+        "    mod_builtins [mod] = 1\n"                                                   \
+        "    return '__builtin__ ' + mod[last_scope:]\n"                                 \
+        "\n"                                                                             \
+        "for s in sorted(sys.modules):\n"                                                \
+        "  print ('%s' % s, end='')\n"                                                   \
+        "  if '.' in s:\n"                                                               \
+        "    print (',%s' % get_module_path(s,prev_modtype,prev_pathname))\n"            \
+        "    continue\n"                                                                 \
+        "\n"                                                                             \
+        "  try:\n"                                                                       \
+        "    _, pathname, descr = imp.find_module (s)\n"                                 \
+        "    t = types [descr[2]]\n"                                                     \
+        "    prev_modtype = t\n"                                                         \
+        "    print (',%s,' % t, end='')\n"                                               \
+        "    if pathname and '\\\\' in pathname:\n"                                      \
+        "      print ('%s' % pathname)\n"                                                \
+        "      prev_pathname = pathname\n"                                               \
+        "      prev_modtype  = t\n"                                                      \
+        "      mod_paths [s] = pathname\n"                                               \
+        "    else:\n"                                                                    \
+        "      mod_builtins [s] = 1\n"                                                   \
+        "  except ImportError:\n"                                                        \
+        "    print (',<unknown>')\n"
+
+
+/**
+ * Call the Python program and build up the `pi->modules` smartlist of the module information.
+ *
+ * If the Python is embedable, use `(*PyRun_SimpleString)()` directly.
+ * Otherwise call the Python program via a temporary file in `popen_run_py()`.
+ */
+static int py_get_module_info (struct python_info *pi)
 {
   char *line, *str = NULL;
-  int   found = 0, zips_found = 0;
+  char *str2 = NULL;
+  char *tok_end;
 
-  C_printf ("~6List of modules for %s:~0\n", g_py->exe_name);
-
-  if (g_py->is_embeddable)
+  if (pi->is_embeddable)
   {
+    if (!pi->bitness_ok || !py_init_embedding(pi))
+       return (0);
+
     /**
      * Re-enable the catcher as `"sys.stdout = old_stdout"` was called
      * in above `test_python_funcs()`.
      */
-    g_py->catcher = setup_stdout_catcher();
-    if (!g_py->catcher)
+    pi->catcher = setup_stdout_catcher();
+    if (!pi->catcher)
     {
       WARN (" Failed to setup py_catcher.\n");
       return (0);
     }
     set_error_mode (0);
-    str = call_python_func (g_py, PY_LIST_MODULES());
+    str = call_python_func (pi, PY_LIST_MODULES(), __LINE__);
+//  str2 = call_python_func (pi, PY_LIST_MODULES2(), __LINE__);
+    ARGSUSED (str2);
     set_error_mode (1);
   }
   else
-    str = popen_run_py (g_py, PY_LIST_MODULES(), TRUE);
+    str = popen_run_py (pi, PY_LIST_MODULES());
 
   if (str)
   {
-    for (found = 0, line = strtok(str,"\n"); line; line = strtok(NULL,"\n"))
+    for (line = _strtok_r(str,"\n",&tok_end); line; line = _strtok_r(NULL,"\n",&tok_end))
     {
       /** The `print()` statement from `PY_LIST_MODULES()` should look like this:
        *  \code
-       *    cachetools  v.2.0.1 -> f:\programfiler\python36\lib\site-packages\
-       *    pygeoip     v.0.2.6 -> f:\programfiler\python36\lib\site-packages\pygeoip-0.2.6-py2.7.egg (ZIP)
+       *    pygeoip,v.0.2.6,f:\programfiler\python27\lib\site-packages\pygeoip-0.2.6-py2.7.egg (ZIP),f:\programfiler\python27\lib\site-packages\pygeoip-0.2.6-py2.7.egg\EGG-INFO\PKG-INFO
        *  \endcode
        *
-       * Split them into `module`, `version`, `path` and `is_zip` before printing them.
+       * Split them into `module`, `version`, `path` and `meta` before adding
+       * them to the `pi->modules` smartlist.
        */
       char module  [40+1]  = { "?" };
-      char version [20+1]  = { "?" };
-      char path    [256+1] = { "?" };
-      char is_zip  [10+1]  = { "" };
+      char version [30+1]  = { "?" };
+      char fname   [256+1] = { "?" };
+      char meta    [256+1] = { "" };
+      int  num = sscanf (line, "%40[^;];%20[^;];%256[^;];%256s", module, version, fname, meta);
 
-      if (sscanf(line,"%40s %20s -> %256s %10s", module, version, path, is_zip) >= 3)
+      if (num == 4)
       {
-        C_printf ("~6%3d:~0 %-25s %-10s -> %s %s\n", found+1, module, version, py_relative(g_py,path), is_zip);
-        found++;
-        if (is_zip[0])
-           zips_found++;
+        struct python_module *m = CALLOC (sizeof(*m), 1);
+
+        _strlcpy (m->name, module, sizeof(m->name));
+        _strlcpy (m->version, version, sizeof(m->version));
+        _strlcpy (m->location, fname, sizeof(m->location));
+        if (str_endswith(fname,"(ZIP)"))
+        {
+          m->location [strlen(m->location)-sizeof("ZIP)")] = '\0';
+          m->is_zip = TRUE;
+        }
+        if (meta[0] != '-')
+        {
+          _strlcpy (m->meta_path, meta, sizeof(m->meta_path));
+          py_get_meta_info (m);
+        }
+        smartlist_add (pi->modules, m);
       }
+      else
+        DEBUGF (1, "Suspicious line: num: %d, '%s'\n", num, line);
     }
   }
-  popen_append_clear();
-
-  if (str)
-     C_printf ("~6Found %d modules~0 (%d are ZIP/EGG files).\n", found, zips_found);
-  FREE (str);
-  return (found);
+  if (str == popen_out)
+       popen_append_clear();
+  else FREE (str);
+  return smartlist_len (pi->modules);
 }
 
 /**
@@ -1360,7 +1567,7 @@ static BOOL check_bitness (struct python_info *pi, char **needed_bits)
  *    size  time: YYYYMMDD.HHMMSS
  * \endcode
  */
-static int report_zip_file (struct python_info *py, const char *zip_file, char *output)
+static int report_zip_file (const char *zip_file, char *output)
 {
   struct tm    tm;
   const  char *space, *p, *file_within_zip;
@@ -1415,7 +1622,7 @@ static int report_zip_file (struct python_info *py, const char *zip_file, char *
    */
   slashify2 (report, file_within_zip, opt.show_unix_paths ? '/' : '\\');
   q = strchr (report, '\0');
-  snprintf (q, sizeof(report) - (q-report), "  (%s)", py_relative(py,zip_file));
+  snprintf (q, sizeof(report) - (q-report), "  (%s)", py_filename(zip_file));
 
   /** \todo incase `--pe-check` is specified and `report` file is a .pyd-file,
    *        we should save the .pyd to a `%TEMP`-file and examine it in `report_file()`.
@@ -1440,17 +1647,19 @@ static int report_zip_file (struct python_info *py, const char *zip_file, char *
  *   will return True!
  *
  * \def PY_ZIP_LIST
- *   This text goes into a buffer used by call_python_func().
+ *   This text goes into a buffer used by `call_python_func()`.
  */
 #define PY_ZIP_LIST()                                                               \
         "import os, sys, fnmatch, zipfile\n"                                        \
-        PY_TRACE_DEF()                                                              \
         "\n"                                                                        \
-        "def print_zline (f, debug):\n"                                             \
+        "def trace (s):\n"                                                          \
+        "  if %d >= 3:\n"                         /* opt.debug */                   \
+        "    sys.stderr.write (s)\n"                                                \
+        "\n"                                                                        \
+        "def print_zip (f):\n"                                                      \
         "  base = os.path.basename (f.filename)\n"                                  \
-        "  if debug >= 3:\n"                                                        \
-        "    trace ('egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"         \
-        "  if (%d):\n"                            /* opt.case_sensitive */          \
+        "  trace ('egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"           \
+        "  if %d:\n"                              /* opt.case_sensitive */          \
         "    match = fnmatch.fnmatchcase\n"                                         \
         "  else:\n"                                                                 \
         "    match = fnmatch.fnmatch\n"                                             \
@@ -1460,37 +1669,45 @@ static int report_zip_file (struct python_info *py, const char *zip_file, char *
         "    date = \"%%4d%%02d%%02d\"  %% (f.date_time[0:3])\n"                    \
         "    time = \"%%02d%%02d%%02d\" %% (f.date_time[3:6])\n"                    \
         "    str = \"%%d %%s.%%s %%s\"  %% (f.file_size, date, time, f.filename)\n" \
-        "    if debug >= 3:\n"                                                      \
-        "      trace ('str: \"%%s\"\\n' %% str)\n"                                  \
+        "    trace ('str: \"%%s\"\\n' %% str)\n"                                    \
         "    print (str)\n"                                                         \
         "\n"                                                                        \
-        "zf = zipfile.ZipFile (r\"%s\", 'r')\n"   /* zfile */                       \
+        "zf = zipfile.ZipFile (r'%s', 'r')\n"   /* zfile */                         \
         "for f in zf.infolist():\n"                                                 \
-        "  print_zline (f, %d)\n"                 /* opt.debug */
+        "  print_zip (f)\n"
 
-static int process_zip (struct python_info *py, const char *zfile)
+static int process_zip (struct python_info *pi, const char *zfile)
 {
-  char  cmd [sizeof(PY_ZIP_LIST()) + _MAX_PATH + 100];
-  char *line, *str = NULL;
+  char  prog [sizeof(PY_ZIP_LIST()) + _MAX_PATH + 100];
+  char *line, *tok_end, *str = NULL;
   int   found = 0;
-  int   len = snprintf (cmd, sizeof(cmd), PY_ZIP_LIST(),
-                        opt.case_sensitive, opt.file_spec, zfile, opt.debug);
-  if (len < 0)
-     FATAL ("cmd[] buffer too small.\n");
+  int   len = snprintf (prog, sizeof(prog), PY_ZIP_LIST(),
+                        opt.debug, opt.case_sensitive, opt.file_spec, zfile);
 
-  if (py->is_embeddable)
-       str = call_python_func (py, cmd);
-  else str = popen_run_py (py, cmd, TRUE);
+  if (len < 0)
+     FATAL ("`char prog[%zu]` buffer too small. Approx. %zu bytes needed.\n",
+            sizeof(prog), sizeof(PY_ZIP_LIST()) + _MAX_PATH);
+
+  if (pi->is_embeddable)
+       str = call_python_func (pi, prog, __LINE__);
+  else str = popen_run_py (pi, prog);
 
   if (str)
   {
-    for (found = 0, line = strtok(str,"\n"); line; line = strtok(NULL,"\n"), found++)
+    for (found = 0, line = _strtok_r(str,"\n",&tok_end);
+         line;
+         line = _strtok_r(NULL,"\n",&tok_end), found++)
     {
       DEBUGF (2, "line: \"%s\", found: %d\n", line, found);
+
       if (!strncmp(line,"str: ",5))   /* if opt.debug >= 3; ignore these from stderr */
          continue;
-      if (!report_zip_file(py, zfile, line))
+      if (!report_zip_file(zfile, line))
          break;
+#if 0
+      if (opt.verbose)
+         py_print_modinfo (opt.file_spec);
+#endif
     }
   }
   popen_append_clear();
@@ -1505,10 +1722,16 @@ static int process_zip (struct python_info *py, const char *zfile)
 /**
  * Check if the `dir` is already in the `sys.path[]` smartlist.
  * Compare the `dir` with no case-sensitivity.
+ *
+ * Most often only the `site-packages` directory gets duplicated with different casings:
+ * \code
+ *   f:\ProgramFiler\Python36\lib\site-packages
+ *   f:\programfiler\Python36\lib\site-packages
+ * \endcode
  */
 static BOOL py_path_found (smartlist_t *sl, const char *dir)
 {
-  int  i, max = smartlist_len (sl);
+  int i, max = smartlist_len (sl);
 
   for (i = 0; i < max; i++)
   {
@@ -1525,7 +1748,7 @@ static BOOL py_path_found (smartlist_t *sl, const char *dir)
  */
 static void add_sys_path (const char *dir)
 {
-  if (!py_path_found(g_py->sys_path, dir))
+  if (!py_path_found(g_pi->sys_path, dir))
   {
     struct python_path *pp = CALLOC (1, sizeof(*pp));
     struct stat st;
@@ -1535,28 +1758,28 @@ static void add_sys_path (const char *dir)
     pp->exist  = (stat(dir, &st) == 0);
     pp->is_dir = pp->exist && _S_ISDIR(st.st_mode);
     pp->is_zip = pp->exist && _S_ISREG(st.st_mode) && check_if_zip (dir);
-    smartlist_add (g_py->sys_path, pp);
+    smartlist_add (g_pi->sys_path, pp);
   }
 }
 
 /**
- * Build up the `g_py->sys_path[]` array.
+ * Build up the `g_pi->sys_path[]` array.
  *
- * \param[in] str    the string to add to `g_py->sys_path[]`.
- * \param[in] index  `index == -1`  we are called from call_python_func().
- *                   `index != -1`  we are the popen_runf() callback.
+ * \param[in] str    the string to add to `g_pi->sys_path[]`.
+ * \param[in] index  `index == -1`  we are called from `call_python_func()`.
+ *                   `index != -1`  we are the `popen_runf()` callback.
  */
 static int build_sys_path (char *str, int index)
 {
   if (index == -1)
   {
-    char *tok = strtok (str, "\n");
+    char *tok_end, *tok = _strtok_r (str, "\n", &tok_end);
 
     for (index = 0; tok; index++)
     {
       DEBUGF (2, "index: %d: \"%s\"\n", index, tok);
       add_sys_path (tok);
-      tok = strtok (NULL, "\n");
+      tok = _strtok_r (NULL, "\n", &tok_end);
     }
   }
   else
@@ -1601,15 +1824,14 @@ static int build_sys_path (char *str, int index)
                           "print (sys.version_info); "  \
                           "print (sysconfig.get_path('purelib', '%s_user' % os.name))"
 
-
 /**
  * \def PY_PRINT_SYS_PATH_DIRECT
  *   The code which is used if `py->is_embeddable == TRUE`.
- *   Used in the parameter to call_python_func().
+ *   Used in the parameter to `call_python_func()`.
  */
 #define PY_PRINT_SYS_PATH_DIRECT()  "import sys\n" \
                                     "for (i,p) in enumerate(sys.path):\n" \
-                                    "  print('%s' % p)\n"
+                                    "  print ('%s' % p)\n"
 
 /**
  * \def PY_PRINT_SYS_PATH2_CMD
@@ -1632,18 +1854,18 @@ static int build_sys_path (char *str, int index)
  *   Do something like `cygwin_create_path(CCP_WIN_A_TO_POSIX, dir)`
  *   does in CygWin.
  */
-static int get_sys_path (struct python_info *pi)
+static int get_sys_path (const struct python_info *pi)
 {
-  ASSERT (pi == g_py);
+  ASSERT (pi == g_pi);
   return popen_runf (build_sys_path, "%s -c \"%s\"",
-                     pi->exe_name, pi->ver_major >= 3 ?
-                     PY_PRINT_SYS_PATH3_CMD() : PY_PRINT_SYS_PATH2_CMD());
+                     pi->exe_name,
+                     pi->ver_major >= 3 ? PY_PRINT_SYS_PATH3_CMD() : PY_PRINT_SYS_PATH2_CMD());
 }
 
 /**
  * \todo
  *   If multiple DLLs with same name but different time-stamps are found
- *   (in `pi->dir` and `sys_dir`), report a warning.
+ *   (in `pi->exe_dir` and `sys_dir`), report a warning.
  *   Check PE-version and/or MD5 finger-print?
  */
 static int get_dll_name (struct python_info *pi, const char **libs)
@@ -1663,13 +1885,13 @@ static int get_dll_name (struct python_info *pi, const char **libs)
   {
     if (!strncmp(lib_fmt,"%s\\",3))
     {
-      snprintf (dll1, sizeof(dll1), lib_fmt, pi->dir, pi->ver_major, pi->ver_minor);
+      snprintf (dll1, sizeof(dll1), lib_fmt, pi->exe_dir, pi->ver_major, pi->ver_minor);
       snprintf (dll2, sizeof(dll2), lib_fmt, sys_dir, pi->ver_major, pi->ver_minor);
     }
     else if (!strncmp(lib_fmt,"~\\",2))
     {
       len = strlen (dll1);
-      strcpy (dll1, pi->dir);
+      strcpy (dll1, pi->exe_dir);
       snprintf (dll1+len, sizeof(dll1)-len, lib_fmt+1, pi->ver_major, pi->ver_minor);
       dll2[0] = '\0';
     }
@@ -1705,7 +1927,7 @@ static int get_dll_name (struct python_info *pi, const char **libs)
     equal = (st1.st_mtime == st2.st_mtime) && (st1.st_size == st2.st_size);
     if (equal)
     {
-      newest = dll1;    /* The one in 'exe_dir' */
+      newest = dll1;    /* The one in `exe_dir` */
       use_st = &st1;
     }
     else
@@ -1722,7 +1944,7 @@ static int get_dll_name (struct python_info *pi, const char **libs)
   if (newest)
   {
     pi->dll_name = _fix_path (newest, NULL);
-    DEBUGF (1, "Found newest DLL: \"%s\", \"%s\"\n", newest, get_time_str(use_st->st_mtime));
+    DEBUGF (1, "Found newest DLL: \"%s\", %s\n", newest, get_time_str(use_st->st_mtime));
   }
   return (newest != NULL);
 }
@@ -1732,30 +1954,26 @@ static int get_dll_name (struct python_info *pi, const char **libs)
  * for matches. If a `sys.path[]` component contains a ZIP/EGG-file, use
  * `process_zip()` to list files inside it for a match.
  *
- * \note First setup `g_py` to use either the 1st suitable Python or the
- *       one specified with the `envtool --py=X` option.
- *
  * \note not all .EGG-files are ZIP-files. `check_if_zip()` is used to test
  *       that and set `pp->is_zip` accordingly.
  */
-int py_search (void)
+static int py_search_internal (struct python_info *pi, BOOL reinit)
 {
   char *str = NULL;
-  int   i, len, found;
+  int   i, max, found;
 
-  g_py = py_select (py_which);
-  if (!g_py)
-  {
-    WARN ("%s was not found on PATH.\n", py_variant_name(py_which));
-    return (0);
-  }
+  ASSERT (pi == g_pi);
 
-  if (g_py->is_embeddable)
+  DEBUGF (1, "pi->variant: %d.\n", pi->variant);
+
+  /**\todo Move this to py_init()? */
+
+  if (pi->is_embeddable)
   {
-    if (!py_init_embedding(g_py))
+    if (reinit && !py_init_embedding(pi))
        return (0);
 
-    str = call_python_func (g_py, PY_PRINT_SYS_PATH_DIRECT());
+    str = call_python_func (pi, PY_PRINT_SYS_PATH_DIRECT(), __LINE__);
     if (!str)
        return (0);
 
@@ -1763,81 +1981,177 @@ int py_search (void)
     FREE (str);
   }
   else
-    get_sys_path (g_py);
+    get_sys_path (pi);
+
+  /* end of todo */
 
   found = 0;
-  len = smartlist_len (g_py->sys_path);
+  max = smartlist_len (pi->sys_path);
 
-  for (i = 0; i < len; i++)
+  for (i = 0; i < max; i++)
   {
-    struct python_path *pp = smartlist_get (g_py->sys_path, i);
+    struct python_path *pp = smartlist_get (pi->sys_path, i);
+    int    rc;
 
-    /* Don't warn on missing .zip files in 'sys.path[]' (unless in debug-mode)
+    /* Don't warn on missing .zip files in `sys.path[]` (unless in debug-mode)
      */
-    if (!opt.debug && !pp->exist && !stricmp(get_file_ext(pp->dir), "zip"))
+    if (opt.debug == 0 && !pp->exist && !stricmp(get_file_ext(pp->dir), "zip"))
        pp->exist = pp->is_dir = TRUE;
 
     if (pp->is_zip)
-         found += process_zip (g_py, pp->dir);
-    else found += process_dir (pp->dir, 0, pp->exist, FALSE, pp->is_dir,
-                               TRUE, "sys.path[]", HKEY_PYTHON_PATH, FALSE);
+         rc = process_zip (pi, pp->dir);
+    else rc = process_dir (pp->dir, 0, pp->exist, FALSE, pp->is_dir,
+                           TRUE, "sys.path[]", HKEY_PYTHON_PATH, FALSE);
+    found += rc;
+
+#if 0
+    /* If there was a hit for `opt.file_spec` along the `sys.path[]`, this could also
+     * be a hit for a matching module.
+     */
+    if (rc >= 1 && opt.verbose)
+       py_print_modinfo (opt.file_spec);
+#endif
+  }
+  return (found);
+}
+
+/**
+ * Find the next Python that can be selected.
+ */
+static struct python_info *py_select_next (enum python_variants which)
+{
+  struct python_info *pi = NULL;
+  int    i, max;
+  BOOL   okay = FALSE;
+
+  if (py_index == -1)
+  {
+    DEBUGF (1, "py_index: -1.\n");
+    return (NULL);
+  }
+
+  max = smartlist_len (py_programs);
+
+  for (i = py_index; i < max; i++)
+  {
+    pi = smartlist_get (py_programs, i);
+    okay = (which == ALL_PYTHONS || pi->variant == which ||
+            (which == DEFAULT_PYTHON && pi->is_default)) &&
+           pi->exe_name;
+
+    if (which == ALL_PYTHONS)    /* select the `ALL_PYTHONS` only once */
+       which = pi->variant;
+
+    DEBUGF (1, "py_index: %d: which: %d/%s, pi->variant: %d/%s, okay: %d.\n",
+            py_index, which, py_variant_name(which), pi->variant, pi->exe_name, okay);
+
+    if (okay)
+       break;
+  }
+
+  /* Prepare for next call of `py_select_next()`.
+   */
+  if (!okay)
+       py_index = -1;
+  else py_index = i + 1;
+  return (okay ? pi : NULL);
+}
+
+/**
+ * Find the first Python that can be selected.
+ */
+static struct python_info *py_select_first (enum python_variants which)
+{
+  py_index = 0;
+  return py_select_next (which);
+}
+
+/**
+ * The public function for searching for a Python file-spec.
+ *
+ * Sets the global `g_pi` to the first suitable Python or one specified with the
+ * `envtool --py=X` option. In case `X=all` (`py_which == ALL_PYTHONS`), this
+ * function will loop over all found Pythons and do a search for each file-spec.
+ */
+int py_search (void)
+{
+  struct python_info *pi;
+  int    i = 0, found = 0;
+
+  for (pi = py_select_first(py_which);  /* if the 1st was okay, try the next too */
+       pi;
+       pi = py_select_next(py_which), i++)
+  {
+    BOOL reinit = (g_pi == pi) ? FALSE : TRUE; /* Need to call py_init_embedding() again? */
+
+    set_report_header ("Matches in \"%s\" sys.path[]:\n", pi->exe_name);
+    g_pi = pi;
+    found += py_search_internal (pi, reinit);
+  }
+
+  if (i == 0)
+  {
+    if (py_which == ALL_PYTHONS)
+         WARN ("No Pythons were found on PATH.\n");
+    else WARN ("%s was not found on PATH.\n", py_variant_name(py_which));
   }
   return (found);
 }
 
 /**
  * Allocate a new `python_info` node, fill it and return it
- * for adding to the \ref py_programs smartlist.
+ * for adding to the `py_programs` smartlist.
  */
-static struct python_info *add_python (const char *exe, struct python_info *py)
+static struct python_info *add_python (const struct python_info *pi, const char *exe)
 {
-  struct python_info *py2 = CALLOC (sizeof(*py2), 1);
+  struct python_info *pi2 = CALLOC (sizeof(*pi2), 1);
   const char         *base = basename (exe);
+  const char       **libs;
 
-  _strlcpy (py2->dir, exe, base - exe);
-  _strlcpy (py2->program, py->program, sizeof(py2->program));
-  py2->exe_name = _fix_path (exe, NULL);
-  py2->dll_hnd  = INVALID_HANDLE_VALUE;
-  py2->do_warn_home      = TRUE;
-  py2->do_warn_user_site = TRUE;
-  py2->sys_path = smartlist_new();
+  _strlcpy (pi2->exe_dir, exe, base - exe);
+  _strlcpy (pi2->program, pi->program, sizeof(pi2->program));
+  pi2->exe_name = _fix_path (exe, NULL);
+  pi2->dll_hnd  = INVALID_HANDLE_VALUE;
+  pi2->do_warn_home      = TRUE;
+  pi2->do_warn_user_site = TRUE;
+  pi2->sys_path = smartlist_new();
 
   if (get_python_version(exe) >= 1)
   {
-    py2->ver_major = tmp_ver_major;
-    py2->ver_minor = tmp_ver_minor;
-    py2->ver_micro = tmp_ver_micro;
-    py2->user_site_path = tmp_user_site[0] ? STRDUP(tmp_user_site) : NULL;
+    pi2->ver_major = tmp_ver_major;
+    pi2->ver_minor = tmp_ver_minor;
+    pi2->ver_micro = tmp_ver_micro;
+    pi2->user_site_path = tmp_user_site[0] ? STRDUP(tmp_user_site) : NULL;
 
-    if (get_dll_name(py2, py->libraries))
+    libs = (const char**) pi->libraries;
+    if (get_dll_name(pi2, libs))
     {
      /** If embeddable, test the bitness of the .DLL to check
       *  if `LoadLibrary()` will succeed.
       */
-      py2->is_embeddable = py->is_embeddable;
-      if (py2->is_embeddable)
-         check_bitness (py2, NULL);
+      pi2->is_embeddable = pi->is_embeddable;
+      if (pi2->is_embeddable)
+         check_bitness (pi2, NULL);
 
-      fix_python_variant (py2, py->variant);
-      set_python_home (py2);
-      set_python_prog (py2);
+      fix_python_variant (pi2, pi->variant);
+      set_python_home (pi2);
+      set_python_prog (pi2);
     }
   }
-  return (py2);
+  return (pi2);
 }
 
 /**
  * For each directory in the `%PATH`, try to match a Python from the
  * ones in \ref all_py_programs[].
  *
- * If it's found in the *ignore-list* (by cfg_ignore_lookup()) do not add it.<br>
+ * If it's found in the *ignore-list* (by `cfg_ignore_lookup()`) do not add it.<br>
  * Figure out it's version and .DLL-name (if it's embeddable).
  */
 static int match_python_exe (const char *dir)
 {
   struct od2x_options opts;
   struct dirent2     *de;
-  struct python_info *py, *py2;
   const char *base;
   DIR2       *dp;
   int         i, rc = 1;
@@ -1862,14 +2176,17 @@ static int match_python_exe (const char *dir)
 
   while ((de = readdir2(dp)) != NULL)
   {
+    const struct python_info *pi;
+    struct python_info       *pi2;
+
     if ((de->d_attrib & FILE_ATTRIBUTE_DIRECTORY) ||
         (de->d_attrib & FILE_ATTRIBUTE_DEVICE))
       continue;
 
     base = basename (de->d_name);
-    for (i = 0, py = all_py_programs; i < DIM(all_py_programs); py++, i++)
+    for (i = 0, pi = all_py_programs; i < DIM(all_py_programs); pi++, i++)
     {
-      if (stricmp(base,py->program) != 0)
+      if (stricmp(base,pi->program) != 0)
          continue;
 
       if (cfg_ignore_lookup("[Python]",de->d_name))
@@ -1877,17 +2194,18 @@ static int match_python_exe (const char *dir)
 
       found++;
       DEBUGF (1, "de->d_name: %s matches: '%s', variant: %d\n",
-              de->d_name, py->program, py->variant);
+              de->d_name, pi->program, pi->variant);
 
-      py2 = add_python (de->d_name, py);
+      pi2 = add_python (pi, de->d_name);
 
       /* First Python found is default.
        */
       if (found == 1)
-         py2->is_default = TRUE;
-      smartlist_add (py_programs, py2);
+         pi2->is_default = TRUE;
 
-      /* If we specified 'envtool -V', just show the default Python found.
+      smartlist_add (py_programs, pi2);
+
+      /* If we specified `envtool -V`, just show the default Python found.
        */
       if (opt.do_version == 1)
          rc = 0;
@@ -1911,15 +2229,36 @@ static int match_python_exe (const char *dir)
 static void enum_pythons_on_path (void)
 {
   char *path = getenv_expand ("PATH");
-  char *dir, dir_sep[2] = ";";
+  char *dir, path_sep[2] = ";";
+  char *tok_end;
 
-  for (dir = strtok(path, dir_sep); dir; dir = strtok(NULL,dir_sep))
+  for (dir = _strtok_r(path,path_sep,&tok_end); dir; dir = _strtok_r(NULL,path_sep,&tok_end))
   {
     slashify2 (dir, dir, DIR_SEP);
     if (!match_python_exe(dir))
        break;
   }
   FREE (path);
+}
+
+/**
+ * Do some tests on a single Python.
+ */
+static void py_test_internal (struct python_info *pi)
+{
+  BOOL reinit = (g_pi == pi) ? FALSE : TRUE; /* Need to call py_init_embedding() again? */
+
+  g_pi = pi;
+  get_sys_path (pi);
+  C_puts ("Python paths:\n");
+  print_sys_path (pi, 0);
+
+  if (reinit && pi->is_embeddable && !test_python_funcs(pi,reinit))
+     C_puts ("Embedding failed.");
+
+  C_printf ("~6List of modules for %s:~0\n", pi->exe_name);
+  py_print_modinfo ("*");
+  C_putc ('\n');
 }
 
 /**
@@ -1931,66 +2270,38 @@ static void enum_pythons_on_path (void)
 int py_test (void)
 {
   struct python_info *pi;
-  int    i, found = 0, max = smartlist_len (py_programs);
+  int    i = 0;
 
-  for (i = 0; i < max; i++)
+  for (pi = py_select_first(py_which);   /* if the 1st was okay, try the next too */
+       pi;
+       pi = py_select_next(py_which), i++)
   {
-    enum python_variants which = py_which;
-    BOOL test_it;
-
-    pi = smartlist_get (py_programs, i);
-    test_it = (which == ALL_PYTHONS || pi->variant == which ||
-               (which == DEFAULT_PYTHON && pi->is_default)) &&
-              pi->exe_name;
-
-    if (i > 0)
-    {
-      const struct python_info *pi2 = smartlist_get (py_programs, i-1);
-
-      /* This should never become TRUE.
-       */
-      if (pi2->variant == pi->variant && !stricmp(pi2->program,pi->program))
-         test_it = FALSE;
-    }
-
-    if (which == ALL_PYTHONS)
-       py_which = pi->variant;
-
-    C_printf ("~6Will%s try to test: ~3%s~0%s (%sembeddable): %s\n",
-              test_it ? "" : " not",
+    C_printf ("~6Will try to test: ~3%s~0%s (%sembeddable): %s\n",
               py_variant_name(pi->variant),
               pi->is_default    ? " ~6(Default)~0," : "",
               pi->is_embeddable ? ""                : "not ",
-              pi->exe_name      ? pi->exe_name      : "~5Not found~0");
-
-    if (test_it)
-    {
-      g_py = pi;
-      get_sys_path (pi);
-      C_puts ("Python paths:\n");
-      print_sys_path (pi, 0);
-
-      if (pi->is_embeddable && !test_python_funcs(pi))
-         C_puts ("Embedding failed.");
-
-      py_print_modules();
-      found++;
-      C_putc ('\n');
-    }
-    py_which = which;
+              pi->exe_name);
+    py_test_internal (pi);
   }
 
-  if (max == 0)
-     C_puts ("Found no Pythons to test.\n");
-  return (found);
+  if (i == 0)
+  {
+    if (py_which == ALL_PYTHONS)
+         WARN ("No Pythons were found on PATH.\n");
+    else WARN ("%s was not found on PATH.\n", py_variant_name(py_which));
+  }
+  return (i);
 }
 
 /**
  * `popen_runf()` callback to get the Python version.
+ *
+ * \param[in] output  the string from `popen_runf()`.
+ * \param[in] line    the line-number from `popen_runf()`.
  */
 static int report_py_version_cb (char *output, int line)
 {
- /* 'pypy.exe -c "import sys; print(sys.version_info)"' doesn't print this
+ /** `pypy.exe -c "import sys; print (sys.version_info)"` doesn't print this.
   */
   const char *prefix = "sys.version_info";
   int   num;
@@ -2023,9 +2334,9 @@ static int get_python_version (const char *exe_name)
 }
 
 /**
- * Called from show_version():
- *   \li Print information for all found Pythons if `"envtool -VV"` was specified.
- *   \li Print the `sys_path[]` if `"envtool -VVV"` was specified.
+ * Called from `show_version()`:
+ *   \li Print information for all found Pythons if `envtool -VV` was specified.
+ *   \li Print the `sys_path[]` if `envtool -VVV` was specified.
  */
 void py_searchpaths (void)
 {
@@ -2076,11 +2387,11 @@ void py_searchpaths (void)
       int save = opt.cache_ver_level;
 
       opt.cache_ver_level = 3;
-      g_py = pi;
-      print_home_path (g_py, 12);
-      print_user_site_path (g_py, 12);
-      get_sys_path (g_py);
-      print_sys_path (g_py, 12);
+      print_home_path (pi, 12);
+      print_user_site_path (pi, 12);
+      g_pi = pi;
+      get_sys_path (pi);
+      print_sys_path (pi, 12);
       opt.cache_ver_level = save;
     }
   }
@@ -2106,7 +2417,7 @@ void py_searchpaths (void)
  * Add the `REG_SZ` data in a `"HKLM\Software\Python\PythonCore\xx\InstallPath"` key
  * to the \ref py_programs smartlist.
  */
-static void get_install_path (const char *key_name, const struct python_info *pi)
+static void get_install_path (const struct python_info *pi, const char *key_name)
 {
   HKEY  key = NULL;
   DWORD rc  = RegOpenKeyEx (HKEY_LOCAL_MACHINE, key_name, 0, reg_read_access(), &key);
@@ -2141,7 +2452,7 @@ static void get_install_path (const char *key_name, const struct python_info *pi
         pi2 = CALLOC (sizeof(*pi2), 1);
         pi2->ver_major = pi->ver_major;
         pi2->ver_minor = pi->ver_minor;
-        _strlcpy (pi2->dir, data, end-data);
+        _strlcpy (pi2->exe_dir, data, end-data);
         _strlcpy (pi2->program, slash+1, slash-data);
         pi2->exe_name = STRDUP (data);
         pi2->sys_path = smartlist_new();
@@ -2158,9 +2469,9 @@ static void get_install_path (const char *key_name, const struct python_info *pi
 
       pi2->ver_major = pi->ver_major;
       pi2->ver_minor = pi->ver_minor;
-      _strlcpy (pi2->dir, data, sizeof(pi2->dir));
+      _strlcpy (pi2->exe_dir, data, sizeof(pi2->exe_dir));
       _strlcpy (pi2->program, "python.exe", sizeof(pi2->program));
-      snprintf (data, sizeof(data), "%s\\%s", pi2->dir, pi2->program);
+      snprintf (data, sizeof(data), "%s\\%s", pi2->exe_dir, pi2->program);
       pi2->exe_name = STRDUP (data);
       pi2->sys_path = smartlist_new();
       smartlist_add (py_programs, pi2);
@@ -2171,8 +2482,10 @@ static void get_install_path (const char *key_name, const struct python_info *pi
 }
 
 /**
- * Recursively walks the Registry branch under `"HKLM\\Software\\Python\\PythonCore"`. <br>
+ * Recursively walks the Registry branch under `HKLM\\ + <key_name>`. <br>
  * Look for `"InstallPath"` keys and gather the `REG_SZ / "InstallPath"` values.
+ *
+ * \param[in] key_name  On first call, this is always `"Software\\Python\\PythonCore"`.
  */
 void enum_python_in_registry (const char *key_name)
 {
@@ -2208,8 +2521,9 @@ void enum_python_in_registry (const char *key_name)
       else pi.bitness = bit_32;
       DEBUGF (2, " ver: %d.%d, bitness:s %d\n", pi.ver_major, pi.ver_major, pi.bitness);
     }
-    else if (!stricmp(value,"InstallPath"))
-            get_install_path (sub_key, &pi);
+    else
+    if (!stricmp(value,"InstallPath"))
+       get_install_path (&pi, sub_key);
 
     rec_level++;
     enum_python_in_registry (sub_key);
@@ -2222,9 +2536,16 @@ void enum_python_in_registry (const char *key_name)
 
 /**
  * Main initialiser function for this module:
- *  \li Find the details of all supported Pythons in \ref all_py_programs.
- *  \li Walk the `%PATH` and Registry (not yet) to find this information.
- *  \li Add each Python found to the \ref py_programs smartlist as they are found.
+ *  \li Find the details of all supported Pythons in `all_py_programs`.
+ *  \li Walk the `%PATH` (and Registry; not yet) to find this information.
+ *  \li Add each Python found to the `py_programs` smartlist as they are found.
+ *
+ * When the above is done, loop over all wanted Pythons
+ * (e.g. if `py_which == ALL_PYTHONS`) and figure out the list of modules/packages
+ * for each.
+ *
+ * \note The `sys.path[]` entries are not collected here. But in
+ *       `py_search_internal()` when that information is needed.
  */
 void py_init (void)
 {
@@ -2248,14 +2569,17 @@ void py_init (void)
   enum_python_in_registry ("Software\\Python\\PythonCore");
 #endif
 
-  DEBUGF (1, "py_which: %d/%s\n\n", py_which, py_variant_name(py_which));
+  DEBUGF (1, "------------------------------------------------------------------\n"
+          "py_which: %d/%s\n\n", py_which, py_variant_name(py_which));
 
   max = smartlist_len (py_programs);
   for (i = 0; i < max; i++)
   {
-    const struct python_info *pi = smartlist_get (py_programs, i);
-    int   len, indent = 1 + f_len;
-    char  version [20];
+    struct python_info *pi = smartlist_get (py_programs, i);
+    int    len, indent = 1 + (int)f_len;
+    char  *num_mod;
+    char   mod_buf [20];
+    char   version [20];
 
     len = (int) strlen (pi->program);
     if (len > longest_py_program)
@@ -2266,27 +2590,29 @@ void py_init (void)
     if (len > longest_py_version)
        longest_py_version = len;
 
+    if (pi->is_default || py_which == pi->variant || py_which == ALL_PYTHONS)
+    {
+      pi->modules = smartlist_new();
+      num_mod = _itoa (py_get_module_info(pi), mod_buf, 10);
+    }
+    else
+      num_mod = "<N/A>";
+
     DEBUGF (1, "%u: %-*s -> \"%s\".  ver: %s\n"
                "%*sDLL:         -> \"%s\"\n"
                "%*suser_site:   -> %s\n"
-               "%*sVariant:     -> %s%s\n",
+               "%*sVariant:     -> %s%s\n"
+               "%*snum_mod:     -> %s\n",
             i, 2+longest_py_program, pi->program, pi->exe_name, version,
             indent+longest_py_program, "", pi->dll_name,
             indent+longest_py_program, "", pi->user_site_path ? pi->user_site_path : "<None>",
-            indent+longest_py_program, "", py_variant_name(pi->variant),
-            pi->is_default ? " (Default)" : "");
+            indent+longest_py_program, "", py_variant_name(pi->variant), pi->is_default ? " (Default)" : "",
+            indent+longest_py_program, "", num_mod);
   }
+  DEBUGF (1, "py_init() finished\n"
+          "------------------------------------------------------------------\n");
   global_indent = longest_py_version + longest_py_program;
 }
-
-/**
- *\struct arg_vector
- */
-typedef struct {
-        int       argc;
-        char    **ascii;
-        wchar_t **wide;
-      } arg_vector;
 
 /**
  * Make an `arg_vector` suitable for `PySys_SetArgvEx()`.
@@ -2299,6 +2625,9 @@ typedef struct {
 static int make_arg_vector (arg_vector *av, const char **argv, BOOL wide)
 {
   int i, num;
+
+  if (wide && !Py_DecodeLocale)
+     return (0);
 
   av->ascii = NULL;
   av->wide  = NULL;
@@ -2338,6 +2667,9 @@ static void free_arg_vector (arg_vector *av)
 {
   int i;
 
+  if (av->wide)
+     ASSERT (PyMem_RawFree);
+
   for (i = 0; i < av->argc; i++)
   {
     if (av->wide)
@@ -2350,61 +2682,59 @@ static void free_arg_vector (arg_vector *av)
 
 /**
  * \def PY_EXEC2_FMT
- *   The Python 2.x program to execute a file.
+ *   The Python 2.x program to execute for a file.
  */
-#define PY_EXEC2_FMT() "__file__='%s'; execfile('%s')"
+#define PY_EXEC2_FMT() "__file__=r'%s'; execfile(r'%s')"
 
 /**
  * \def PY_EXEC3_FMT
- *   The Python 3.x program to execute a file.
+ *   The Python 3.x program to execute for a file.
  */
-#define PY_EXEC3_FMT() "__file__='%s'; f=open(r'%s','rt'); exec(f.read())"
+#define PY_EXEC3_FMT() "__file__=r'%s'; f=open(r'%s','rt'); exec(f.read())"
 
 /**
- * Executes a Python script, optionally with arguments.
+ * Executes a Python script for a single Python.
  *
- * \param[in] py_argv  The Python-script to run must be in `py_argv[0]`.<br>
- *                     The remaining command-line is in `py_argv[1..]`.
- *
+ * \param[in] pi       The currently used Python-info variable.
+ * \param[in] py_argv  The argument vector for the Python-script to run.
  * \param[in] capture  If `TRUE`, `sys.stdout` in the Python-script is
  *                     captured and stored in the return value `str`.
  *
- * \retval str The captured string or `NULL`. Ref. call_python_func().
- *             Caller must call 'FREE(str)' on this value when done with it.
+ * \retval If `capture == TRUE`, an allocated string of the Python-script output. <br>
+ *         If `capture == FALSE`, this function returns `NULL`.
+ *
+ * \note No expansion is done on `py_argv[0]`. The caller should expand it to a
+ *       Fuly Qualified Pathname before use. Call `py_argv[0] = _fix_path (py_argv[0], buf)` first.
  */
-char *py_execfile (const char **py_argv, BOOL capture)
+static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOOL capture)
 {
-  char       *str, *prog, *py_file;
   const char *prog0, *fmt;
+  char       *str, *prog;
   size_t      size;
-  arg_vector av;
+  arg_vector  av;
 
-  /* 'py_which' is set by option "--py=pyX" or the first supported
-   * Python found on PATH.
+  C_printf ("Executing ~6%s~0 using ~6%s~0: ", py_argv[0], pi->dll_name);
+
+  if (!pi->is_embeddable)
+  {
+    WARN ("Failed; not embeddable.\n");
+    return (NULL);
+  }
+  C_putc ('\n');
+
+  /* Call `py_exit_embedding()` in case the previous Python used was a different variant.
+   * Calling again `py_init_embedding()` will set the `PySys_SetArgvEx()` function pointer
+   * and also call `setup_stdout_catcher()`.
    */
-  g_py = py_select (py_which);
-  if (!g_py)
-  {
-    WARN ("%s was not found on PATH.\n", py_variant_name(py_which));
-    return (NULL);
-  }
+  py_exit_embedding (pi);
 
-  if (!g_py->is_embeddable)
-  {
-    DEBUGF (1, "This Python (ver. %d.%d.%d) is not embeddable.\n",
-            g_py->ver_major, g_py->ver_minor, g_py->ver_micro);
-    return (NULL);
-  }
-
-  if (PySys_SetArgvEx == NULL && !py_init_embedding(g_py))
+  if (!py_init_embedding(pi))
   {
     DEBUGF (1, "py_init_embedding() failed.\n");
     return (NULL);
   }
 
-  py_file = (char*) py_argv[0];
-
-  if (g_py->ver_major >= 3)
+  if (pi->ver_major >= 3)
   {
     make_arg_vector (&av, py_argv, TRUE);
     (*PySys_SetArgvEx) (av.argc, av.wide, 1);
@@ -2419,36 +2749,75 @@ char *py_execfile (const char **py_argv, BOOL capture)
 
   if (capture)
        prog0 = "";
-  else prog0 = "sys.stdout = old_stdout\n";
+  else prog0 = "sys.stdout = old_stdout\n";   /* Undo what `setup_stdout_catcher()` did */
 
-  size = strlen(prog0) + strlen(fmt) + 2 * strlen(py_file);
+  size = strlen(prog0) + strlen(fmt) + 2 * strlen(py_argv[0]);
   prog = alloca (size);
 
-  if (!capture)
-  {
-    strcpy (prog, prog0);
-    snprintf (prog+strlen(prog0), size, fmt, py_file, py_file);
-  }
-  else
-    snprintf (prog, size, fmt, py_file, py_file);
+  strcpy (prog, prog0);
+  snprintf (prog+strlen(prog0), size, fmt, py_argv[0], py_argv[0]);
 
-  str = call_python_func (g_py, prog);
+  str = call_python_func (pi, prog, __LINE__);
 
-  if (capture)
-  {
-    /* The 'str' should now contain the Python output of one of the above
-     * 'exec()' or 'execfile()' calls.
-     * Caller must call 'FREE(str)' on this value when done.
-     */
-    DEBUGF (1, "capture: TRUE, str:\n%s\n", str ? str : "<none>");
-  }
-  else
-  {
-    /* The 'str' should now be empty since 'sys.stdout' was not captured.
-     */
-    DEBUGF (1, "capture: FALSE, str:\n%s\n", str ? str : "<none>");
-  }
+  /* If `capture == TRUE`, the 'str' should now contain the Python output of one of the above
+   * 'exec()' or 'execfile()' calls.
+   * Caller must call 'FREE(str)' on this value when done.
+   *
+   * Otherwise, if `capture == FALSE`, the `str` should now be NULL.
+   */
+  DEBUGF (2, "capture: %d, str:\n'%s'\n", capture, str ? str : "<none>");
+
   free_arg_vector (&av);
   return (str);
+}
+
+/**
+ * Executes a Python script, optionally with arguments.
+ *
+ * If `py_wich == ALL_PYTHONS`, do it for all supported and found Pythons.
+ *
+ * \param[in] py_argv  The Python-script to run must be in `py_argv[0]`.<br>
+ *                     The remaining command-line is in `py_argv[1..]`.
+ *
+ * \param[in] capture  If `TRUE`, `sys.stdout` in the Python-script is
+ *                     captured and stored in the return value `str`.
+ *
+ * \retval str The captured string or `NULL`. If several `py_exec_internal()` are
+ *             called, this string is from all calls merged together.
+ *             Caller must call 'FREE(str)' on this value when done with it.
+ */
+char *py_execfile (const char **py_argv, BOOL capture)
+{
+  struct python_info *pi;
+  char  *array [DIM(all_py_programs)+1];
+  char  *ret, *str;
+  int   i = 0;
+  int   j = 0;
+
+  memset (&array, '\0', sizeof(array));
+
+  for (pi = py_select_first(py_which);   /* if the 1st was okay, try the next too */
+       pi;
+       pi = py_select_next(py_which), i++)
+  {
+    str = py_exec_internal (pi, py_argv, capture);
+    if (str)
+       array [j++] = str;
+  }
+
+  if (i == 0)
+  {
+    if (py_which == ALL_PYTHONS)
+         WARN ("No Pythons were found on PATH.\n");
+    else WARN ("%s was not found on PATH.\n", py_variant_name(py_which));
+    return (NULL);
+  }
+
+  ret = str_join (array, "");
+  DEBUGF (2, "str_join(): '%s'.\n", ret);
+
+  for (i = 0; i < j; i++)
+      FREE (array[i]);
+  return (ret);
 }
 
