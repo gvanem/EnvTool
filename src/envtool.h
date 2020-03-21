@@ -3,9 +3,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "1.2"
+#define VER_STRING  "1.3"
 #define MAJOR_VER   1
-#define MINOR_VER   2
+#define MINOR_VER   3
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 #define GITHUB_STR    "https://github.com/gvanem/EnvTool"
@@ -361,6 +361,14 @@ typedef enum SignStatus {
 #include "sort.h"
 #include "smartlist.h"
 
+#if defined(USE_MMAP)
+  #if defined(__CYGWIN__)
+    #include <sys/mman.h>
+  #else
+    #include "mmap.h"
+  #endif
+#endif
+
 typedef struct beep_info {
         BOOL      enable;
         unsigned  limit;
@@ -527,6 +535,7 @@ extern char *str_strip_nl   (char *s);
 extern char *str_ltrim      (char *s);
 extern char *str_rtrim      (char *s);
 extern char *str_trim       (char *s);
+extern BOOL  str_startswith (const char *s, const char *with);
 extern BOOL  str_endswith   (const char *s, const char *with);
 extern char *str_repeat     (int ch, size_t num);
 extern char *str_replace    (int ch1, int ch2, char *str);
@@ -683,6 +692,7 @@ typedef struct FMT_buf {
         char   *buffer_pos;    /**< current position in the buffer */
         size_t  buffer_size;   /**< number of bytes allocated in the buffer */
         size_t  buffer_left;   /**< number of bytes left in the buffer */
+        int     on_heap;       /**< `buffer` is on the heap (not the stack) */
       } FMT_buf;
 
 /** \def FMT_BUF_MARKER
@@ -691,25 +701,33 @@ typedef struct FMT_buf {
 #define FMT_BUF_MARKER  0xDEAFBABE
 
 /** \def BUF_INIT()
- *  Macro to setup the FMT_buf on stack.
+ *  Macro to setup the FMT_buf on stack or on the heap.
  *   \param fmt_buf  The buffer-structure to initialise.
  *   \param size     The size to allocate for the maximum string.
  *                   4 bytes are added to this to fit the magic markers.
  */
-#define BUF_INIT(fmt_buf, size) do {                               \
-        DWORD   *_marker;                                          \
-        FMT_buf *_buf = fmt_buf;                                   \
-                                                                   \
-        _buf->buffer = alloca (size + 2*sizeof(DWORD));            \
-        _marker  = (DWORD*) _buf->buffer;                          \
-        *_marker = FMT_BUF_MARKER;                                 \
-        _marker  = (DWORD*) (_buf->buffer + size + sizeof(DWORD)); \
-        *_marker = FMT_BUF_MARKER;                                 \
-        _buf->buffer_start  = _buf->buffer + sizeof(DWORD);        \
-        _buf->buffer_pos    = _buf->buffer_start;                  \
-        _buf->buffer_size   = size;                                \
-        _buf->buffer_left   = size;                                \
-        memset (_buf->buffer_pos, '\0', size);                     \
+#define BUF_INIT(fmt_buf, size, use_heap) do {                    \
+        DWORD   *_marker;                                         \
+        FMT_buf *_buf = fmt_buf;                                  \
+        size_t    _sz = size + 2*sizeof(DWORD);                   \
+                                                                  \
+        _buf->buffer = use_heap ? MALLOC (_sz) : alloca (_sz);    \
+        _marker  = (DWORD*) _buf->buffer;                         \
+        *_marker = FMT_BUF_MARKER;                                \
+        _marker  = (DWORD*) (_buf->buffer + _sz - sizeof(DWORD)); \
+        *_marker = FMT_BUF_MARKER;                                \
+        _buf->buffer_start  = _buf->buffer + sizeof(DWORD);       \
+        _buf->buffer_pos    = _buf->buffer_start;                 \
+        _buf->buffer_size   = size;                               \
+        _buf->buffer_left   = size;                               \
+        _buf->buffer_pos[0] = '\0';                               \
+     /* memset (_buf->buffer_pos, '\0', size); */                 \
+      } while (0)
+
+#define BUF_EXIT(fmt_buf) do {   \
+        FMT_buf *_buf = fmt_buf; \
+        if (_buf->on_heap)       \
+           FREE (_buf->buffer);  \
       } while (0)
 
 #if defined(__POCC__)
@@ -730,8 +748,7 @@ extern const char *os_update_build_rev (void);
 extern const char *os_full_version (void);
 
 /* Stuff in win_trust.c:
- */
-/*
+ *
  * Support older SDKs
  */
 #ifndef TRUST_E_NOSIGNATURE
