@@ -14,7 +14,6 @@ setlocal
 ::   Since only Python2.7 is in AppVeyor's PATH by default, add this
 ::   Python 3.4 (x86) to the PATH.
 ::
-::
 if "%APPVEYOR_BUILD_FOLDER%" == "" set APPVEYOR_BUILD_FOLDER=%~dp0
 set PATH=%PATH%;c:\Python34
 set PROMPT=$P$G
@@ -23,13 +22,13 @@ if %1. == build. goto build
 if %1. == test.  goto test
 
 echo Usage: %~dp0appveyor-script.bat "build / test"
-goto :EOF
+exit /b 1
 
 :build
   cd %APPVEYOR_BUILD_FOLDER%\src
   set WK_VER=8.1
   msbuild -nologo -p:Configuration=Release -p:Platform="Win32" envtool.sln
-  goto :EOF
+  exit /b
 
 ::
 :: Run some "envtool" tests.
@@ -81,7 +80,7 @@ goto :EOF
 
   @echo off
   del /q %APPDATA%\.netrc %APPDATA%\.authinfo
-  goto :EOF
+  exit /b
 
 ::
 :: Create a '<root>\.netrc' and '<root>\.authinfo' files for testing of 'src/auth.c' functions
