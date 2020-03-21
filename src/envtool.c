@@ -1391,11 +1391,11 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   FMT_buf     fmt_buf_ver_info;
   FMT_buf     fmt_buf_trust_info;
 
-  BUF_INIT (&fmt_buf_time_size, 100);
-  BUF_INIT (&fmt_buf_file_info, 100 + _MAX_PATH);
-  BUF_INIT (&fmt_buf_owner_info, 100);
-  BUF_INIT (&fmt_buf_ver_info, 100);
-  BUF_INIT (&fmt_buf_trust_info, 100);
+  BUF_INIT (&fmt_buf_time_size, 100, 0);
+  BUF_INIT (&fmt_buf_file_info, 100 + _MAX_PATH, 0);
+  BUF_INIT (&fmt_buf_owner_info, 100, 0);
+  BUF_INIT (&fmt_buf_ver_info, 100, 0);
+  BUF_INIT (&fmt_buf_trust_info, 100, 0);
 
   if (key == HKEY_CURRENT_USER)
   {
