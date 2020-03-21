@@ -1201,6 +1201,28 @@ char *str_trim (char *s)
 }
 
 /**
+ * Return TRUE if string `s1` starts with `s2`.
+ *
+ * Ignore casing of boith strings.
+ * And drop leading blanks in `s1` first.
+ */
+BOOL str_startswith (const char *s1, const char *s2)
+{
+  size_t s1_len, s2_len;
+
+  s1 = str_ltrim ((char*)s1);
+  s1_len = strlen (s1);
+  s2_len = strlen (s2);
+
+  if (s2_len > s1_len)
+     return (FALSE);
+
+  if (!strnicmp (s1, s2, s2_len))
+     return (TRUE);
+  return (FALSE);
+}
+
+/**
  * Return TRUE if string `s1` ends with `s2`.
  */
 BOOL str_endswith (const char *s1, const char *s2)
