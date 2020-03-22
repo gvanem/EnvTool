@@ -1317,6 +1317,14 @@ static int get_trailing_indent (const char *file)
 }
 
 /**
+ * Increment total size for found files.
+ */
+void incr_total_size (UINT64 size)
+{
+  total_size += size;
+}
+
+/**
  * In case a file or directory contains a `"~"`, switch to raw mode.
  */
 void print_raw (const char *file, const char *before, const char *after)
@@ -1489,7 +1497,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
     if (is_dir)
        fsize = get_directory_size (file);
     snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
-    total_size += fsize;
+    incr_total_size (fsize);
   }
   else if (opt.show_size)
   {
@@ -1497,8 +1505,8 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
     if (fsize < (__int64)-1)
     {
       if (key == HKEY_EVERYTHING_ETP)
-           total_size += fsize;
-      else total_size += get_file_alloc_size (file, fsize);
+           incr_total_size (fsize);
+      else incr_total_size (get_file_alloc_size (file, fsize));
     }
   }
   else

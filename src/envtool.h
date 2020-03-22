@@ -457,6 +457,8 @@ extern char sys_native_dir [_MAX_PATH];
 extern char sys_wow64_dir  [_MAX_PATH];
 extern int  path_separator;
 
+extern void incr_total_size (UINT64 size);
+
 extern void set_report_header (const char *fmt, ...);
 
 extern int  report_file (const char *file, time_t mtime, UINT64 fsize,
