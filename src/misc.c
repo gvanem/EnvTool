@@ -1246,6 +1246,22 @@ BOOL str_endswith (const char *s1, const char *s2)
 }
 
 /**
+ * Match a string `s` against word `what`.
+ * Set `*next` to position after `what` in `s`.
+ */
+BOOL str_match (const char *s, const char *what, char **next)
+{
+  size_t len = strlen (what);
+
+  if (str_startswith(s,what))
+  {
+    *next = str_ltrim ((char*)s + len);
+    return (TRUE);
+  }
+  return (FALSE);
+}
+
+/**
  * Comparisions of file-names:
  * Use `strnicmp()` or `strncmp()` depending on `opt.case_sensitive`.
  */

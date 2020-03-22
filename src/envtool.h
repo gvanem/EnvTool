@@ -537,6 +537,7 @@ extern char *str_rtrim      (char *s);
 extern char *str_trim       (char *s);
 extern BOOL  str_startswith (const char *s, const char *with);
 extern BOOL  str_endswith   (const char *s, const char *with);
+extern BOOL  str_match      (const char *s, const char *what, char **next);
 extern char *str_repeat     (int ch, size_t num);
 extern char *str_replace    (int ch1, int ch2, char *str);
 extern char *str_replace2   (int ch, const char *s, char *str, size_t max_size);
