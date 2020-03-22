@@ -13,7 +13,21 @@
 #include "vcpkg.h"
 
 /**
- * `CONTROL` file keywords we look for:
+ * \def BUF_INIT_SIZE
+ * The size of the `malloc()` buffer used in the `BUF_INIT()` macro.
+ */
+#define BUF_INIT_SIZE 200000
+
+/** From Windows-Kit's <ctype.h> comment:
+ *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
+ */
+#define VALID_CH(c)   ((c) >= -1 && (c) <= 255)
+
+/**
+ * `CONTROL` or `status` file keywords we look for:
+ *
+ * \def CONTROL_PACKAGE
+ *      "Package:" - The name of the package follows this.
  *
  * \def CONTROL_DESCRIPTION
  *      "Description:" - The descriptions of a package follows this.
@@ -31,30 +45,166 @@
  *      "Version:" - The version-info of a package follows this.
  *
  * \def CONTROL_BUILD_DEPENDS
- *      the list of packages this package depends on.
+ *      "Build-Depends:" the list of build dependencies for this package (?).
+ *
+ * \def CONTROL_DEPENDS
+ *      "Depends:" the list of installed dependencies for this package.
+ *
+ * \def CONTROL_STATUS
+ *      "Status:" the install status for this package.
+ *
+ * \def CONTROL_ARCH
+ *      "Architecture:" the architecture (x86/x64/arm etc.) for this package.
+ *
+ * \def CONTROL_ABI
+ *      "Abi:" Some kind of hash value (SHA1, SHA256 or SHA512?) for the installed package.
  */
+#define CONTROL_PACKAGE       "Package:"
 #define CONTROL_DESCRIPTION   "Description:"
 #define CONTROL_FEATURE       "Feature:"
 #define CONTROL_HOMEPAGE      "Homepage:"
 #define CONTROL_SOURCE        "Source:"
 #define CONTROL_VERSION       "Version:"
 #define CONTROL_BUILD_DEPENDS "Build-Depends:"
+#define CONTROL_DEPENDS       "Depends:"
+#define CONTROL_STATUS        "Status:"
+#define CONTROL_ARCH          "Architecture:"
+#define CONTROL_ABI           "Abi:"
+
+/**
+ * \def VCPKG_MAX_NAME
+ * \def VCPKG_MAX_VERSION
+ * \def VCPKG_MAX_URL
+ */
+#define VCPKG_MAX_NAME      30   /**< Max size of a `ports_node::package` entry. */
+#define VCPKG_MAX_VERSION   30   /**< Max size of a `ports_node::version` entry. */
+#define VCPKG_MAX_URL      200   /**< Max size of a `ports_node::homepage` entry. */
+
+/**
+ * \enum VCPKG_platform
+ * The platform enumeration.
+ */
+typedef enum VCPKG_platform {
+        VCPKG_plat_ALL     = 0,        /**< Package is for all supported OSes. */
+        VCPKG_plat_WINDOWS = 0x0001,   /**< Package is for Windows only (desktop, not UWP). */
+        VCPKG_plat_UWP     = 0x0002,   /**< Package is for Universal Windows Platform only. */
+        VCPKG_plat_LINUX   = 0x0004,   /**< Package is for Linux only. */
+        VCPKG_plat_x86     = 0x0008,   /**< Package is for x86 processors only. */
+        VCPKG_plat_x64     = 0x0010,   /**< Package is for x64 processors only. */
+        VCPKG_plat_ARM     = 0x0020,   /**< Package is for ARM processors only. */
+        VCPKG_plat_ANDROID = 0x0040,   /**< Package is for Android only. */
+        VCPKG_plat_OSX     = 0x0080    /**< Package is for Apple's OSX only. */
+      } VCPKG_platform;
+
+/**
+ * \def VCPKG_platform_INVERSE
+ * Package is the inverse of the above specified bit.
+ */
+#define VCPKG_platform_INVERSE  0x8000
+
+/**
+ * \typedef ports_node
+ * The structure of a single VCPKG package entry in the `ports_nodes`.
+ */
+typedef struct ports_node {
+        char   package [VCPKG_MAX_NAME];     /**< The package name. */
+        char   version [VCPKG_MAX_VERSION];  /**< The version. */
+        char   homepage [VCPKG_MAX_URL];     /**< The URL of it's home-page. */
+        char  *description;                  /**< The description. */
+        BOOL   have_CONTROL;                 /**< TRUE if this is a CONTROL-node. */
+
+        /** The dependencies; a smartlist of `struct vcpkg_package`.
+         */
+        smartlist_t *deps;
+
+        /** The features; a smartlist of `char *`.
+         */
+        smartlist_t *features;
+      } ports_node;
+
+/**
+ * \typedef vcpkg_package
+ * The structure of a single installed VCPKG package or the
+ * structure of a package-dependency.
+ */
+typedef struct vcpkg_package {
+        char          *package;       /**< The package name */
+        char          *version;       /**< The version */
+        char          *status;        /**< The install/purge status */
+        char          *depends;       /**< What package(s) it depends on */
+        char          *arch;          /**< The OS/CPU and ("-static") */
+        char          *ABI_tag;       /**< Some kind of hash value (SHA1, SHA256 or SHA512?) */
+        VCPKG_platform platform;      /**< The supported OS platform */
+        BOOL           Static;        /**< A `-static` package */
+        ports_node    *link;          /**< A link to the corresponding CONTROL node */
+        smartlist_t   *install_info;  /**< A list of `/bin`, `/lib` and `/include` files installed */
+      } vcpkg_package;
+
 
 /**
  * The list of `CONTROL` and `portfile.cmake` file entries.
- * A smartlist of `struct vcpkg_node`.
+ * A smartlist of `ports_node`.
  */
-static smartlist_t *vcpkg_nodes;
+static smartlist_t *ports_list;
 
 /**
  * A list of available and installable packages found in `CONTROL` files
  * under `<vcpkg_root>/ports`.
- * A smartlist of `struct vcpkg_package`.
+ * A smartlist of `vcpkg_package`.
  */
 static smartlist_t *available_packages;
 
 /**
- * A list of installed packages found under `<vcpkg_root>/packages/<package>-<platform>`.
+ * The `built_packages` is a list of built packages found under
+ * `<vcpkg_root>/packages/<package>-<platform>[-static]`.
+ *
+ *  \eg. A command `vcpkg list pcre`, this could list:
+ *    pcre:x64-windows                    8.44             Perl Compatible Regular Expressions
+ *    pcre:x86-windows                    8.44             Perl Compatible Regular Expressions
+ *    pcre:x86-windows-static             8.44             Perl Compatible Regular Expressions
+ *
+ *  But without any more details! One has to use the command `vcpkg owns pcre` to
+ *  get details such as:
+ *   \code
+ *     pcre:x86-windows-static: x86-windows-static/debug/lib/pcre16d.lib
+ *     pcre:x86-windows-static: x86-windows-static/debug/lib/pcre32d.lib
+ *     ...
+ *     pcre:x86-windows-static: x86-windows-static/include/pcre.h
+ *     pcre:x86-windows-static: x86-windows-static/include/pcre_scanner.h
+ *     pcre:x86-windows-static: x86-windows-static/include/pcre_stringpiece.h
+ *     pcre:x86-windows-static: x86-windows-static/include/pcrecpp.h
+ *     pcre:x86-windows-static: x86-windows-static/include/pcrecpparg.h
+ *     pcre:x86-windows-static: x86-windows-static/include/pcreposix.h
+ *     pcre:x86-windows-static: x86-windows-static/lib/pcre.lib
+ *     pcre:x86-windows-static: x86-windows-static/lib/pcre16.lib
+ *     pcre:x86-windows-static: x86-windows-static/lib/pcre32.lib
+ *     pcre:x86-windows-static: x86-windows-static/lib/pcrecpp.lib
+ *     pcre:x86-windows-static: x86-windows-static/lib/pcreposix.lib
+ *     pcre:x86-windows-static: x86-windows-static/share/pcre/copyright
+ *     pcre:x86-windows-static: x86-windows-static/share/pcre/vcpkg_abi_info.txt
+ *     gdk-pixbuf:x86-windows: x86-windows/tools/gdk-pixbuf/pcre.dll
+ *     glib:x86-windows: x86-windows/tools/glib/pcre.dll
+ *     ...
+ *  \endcode
+ *
+ * So the contents would be installed under:
+ *  \code
+ *   <vcpkg_root>/packages/pcre_x64-windows
+ *   <vcpkg_root>/packages/pcre_x86-windows
+ *   <vcpkg_root>/packages/pcre_x86-windows-static
+ *  \endcode
+ *
+ *  And if `pcre:x86-windows-static` was actually successfully built, it's .lib-files would be:
+ *  <vcpkg_root>/installed/x86-windows-static/lib/pcre*.lib  (ready for use by a `_RELEASE` version build)
+ *
+ * But these could also be left-overs from broken `vcpkg install <pkg>` (in case vcpkg would just cache them).
+ */
+static smartlist_t *built_packages;
+
+/**
+ * A list of actually installed packages found under `<vcpkg_root>/installed/<platform>[-static]`.
+ *
+ * A smartlist of `vcpkg_package`.
  */
 static smartlist_t *installed_packages;
 
@@ -84,6 +234,12 @@ static int sub_level = 0;
 static BOOL only_installed = TRUE;
 
 /**
+ * Memory allocated for the `<vcpkg_root>/installed/vcpkg/status` file.
+ * This is allocated in `parse_status_file()` and not freed until `vcpkg_exit()` is called.
+ */
+static char *f_status_mem = NULL;
+
+/**
  * The platforms we support when parsing in `make_depend_platform()`.
  */
 static const struct search_list platforms[] = {
@@ -97,12 +253,16 @@ static const struct search_list platforms[] = {
                               { VCPKG_plat_x64,     "x64"     },
                             };
 
-static BOOL        get_control_node (int *index_p, const struct vcpkg_node **node_p, const char *package_spec);
-static const char *get_depend_name (const struct vcpkg_package *dep);
-static unsigned    get_depend_platform (unsigned platform, BOOL *Not);
+static BOOL                 get_control_node (int *index_p, ports_node **node_p, const char *package_spec);
+static const char          *get_depend_name (const vcpkg_package *dep);
+static unsigned             get_depend_platform (unsigned platform, BOOL *Not);
+static const vcpkg_package *get_install_info (int *index_p, const char *package);
+static BOOL                 get_installed_info (vcpkg_package *pkg);
+static const char          *get_installed_dir (const vcpkg_package *pkg);
+static void                 pkg_dump_file_info (const vcpkg_package *pkg, const char *indent);
 
-static int  print_top_dependencies (FMT_buf *fmt_buf, const struct vcpkg_node *node, int indent);
-static int  print_sub_dependencies (FMT_buf *fmt_buf, const struct vcpkg_node *node, int indent);
+static int  print_top_dependencies (FMT_buf *fmt_buf, const ports_node *node, int indent);
+static int  print_sub_dependencies (FMT_buf *fmt_buf, const ports_node *node, int indent);
 static BOOL print_install_info     (FMT_buf *fmt_buf, const char *package, int indent1);
 
 /**
@@ -313,7 +473,7 @@ static BOOL sub_package_found (const char *package)
  */
 static unsigned vcpkg_find_internal (FMT_buf *fmt_buf, const char *package_spec)
 {
-  const struct vcpkg_node *node;
+  ports_node *node;
   int      i = 0,  indent, padding, num_deps;
   unsigned matches = 0;
 
@@ -365,11 +525,13 @@ unsigned vcpkg_find (const char *package_spec)
 
   vcpkg_init();
 
-  BUF_INIT (&fmt_buf, 200000);
+  BUF_INIT (&fmt_buf, BUF_INIT_SIZE, 1);
 
   sub_level = 0;
   num = vcpkg_find_internal (&fmt_buf, package_spec);
   sub_level = 0;
+
+  BUF_EXIT (&fmt_buf);
 
   smartlist_free (sub_package_list);
   return (num);
@@ -378,9 +540,9 @@ unsigned vcpkg_find (const char *package_spec)
 /**
  * Print the package sub-dependencies for a `CONTROL` node.
  */
-static int print_sub_dependencies (FMT_buf *fmt_buf, const struct vcpkg_node *node, int indent)
+static int print_sub_dependencies (FMT_buf *fmt_buf, const ports_node *node, int indent)
 {
-  const struct vcpkg_package *dep1, *dep2;
+  const vcpkg_package *dep1, *dep2;
   int   i, i_max, j, j_max, found;
 
   if (!node->deps || smartlist_len(node->deps) == 0)
@@ -408,7 +570,7 @@ static int print_sub_dependencies (FMT_buf *fmt_buf, const struct vcpkg_node *no
          */
         smartlist_add (sub_package_list, (void*)dep1->package);
 
-        /* Will call get_control_node() only once
+        /* Will call 'get_control_node()' only once
          */
         ++sub_level;
         vcpkg_find_internal (fmt_buf, dep1->package);
@@ -416,8 +578,10 @@ static int print_sub_dependencies (FMT_buf *fmt_buf, const struct vcpkg_node *no
       }
     }
   }
+#if 0
   if (found == 0 && sub_level == 0)
      buf_puts (fmt_buf, "None found\n");
+#endif
   return (found);
 }
 
@@ -425,9 +589,9 @@ static int print_sub_dependencies (FMT_buf *fmt_buf, const struct vcpkg_node *no
  * Print the package top-dependencies for a `CONTROL` node.
  * Return the number of dependencies at top.
  */
-static int print_top_dependencies (FMT_buf *fmt_buf, const struct vcpkg_node *node, int indent)
+static int print_top_dependencies (FMT_buf *fmt_buf, const ports_node *node, int indent)
 {
-  const struct vcpkg_package *d;
+  const  vcpkg_package *d;
   size_t longest_package = 0;
   int    dep, max_dep;
 
@@ -504,7 +668,7 @@ static unsigned get_depend_platform (unsigned platform, BOOL *Not)
  * Split a line like "!uwp&!windows" and fill `dep` list for it.
  * On the first call, do it recursively.
  */
-static void make_depend_platform (struct vcpkg_package *dep, char *platform, BOOL recurse)
+static void make_depend_platform (vcpkg_package *dep, char *platform, BOOL recurse)
 {
   BOOL     Not = FALSE;
   unsigned val;
@@ -563,55 +727,52 @@ static enum VCPKG_platform make_package_platform (char *platform, BOOL recurse)
 }
 
 /**
- * Split a line like "curl_x86-windows" into cpu and OS and check if these are legal.
+ * Split a line like "curl_x86-windows[-static]" into cpu and OS and check if these are legal.
  */
 static BOOL legal_package_name (const char *package)
 {
   char *cpu, *copy = NULL;
-  BOOL  cpu_ok;
+  BOOL  cpu_ok = FALSE;
 
   if (!package)
-     goto fail;
+     goto quit;
 
   copy = STRDUP (package);
   cpu  = strchr (copy, '_');
   DEBUGF (2, "package: '%s', cpu: '%.4s'.\n", package, cpu ? cpu+1 : "<None>");
 
   if (!cpu)
-     goto fail;
+     goto quit;
 
   cpu++;
   cpu_ok = (!strnicmp(cpu, "x86-", 4) || !strnicmp(cpu, "x64-", 4));
-  if (!cpu_ok)
-     goto fail;
+  if (cpu_ok)
+  {
+    cpu += 4;
+    if (list_lookup_value (cpu, platforms, DIM(platforms)) == UINT_MAX)
+       cpu_ok = FALSE;
+  }
 
-  cpu += 4;
-  if (list_lookup_value (cpu, platforms, DIM(platforms)) != UINT_MAX)
-     goto okay;
-
-fail:
+quit:
   FREE (copy);
-  return (FALSE);
-okay:
-  FREE (copy);
-  return (TRUE);
+  return (cpu_ok);
 }
 
 /**
  * Search the global `available_packages` for a matching `dep->package`.
  * If found return a pointer to it.
  *
- * If not found, create a new `struct vcpkg_package` entry and add to the
+ * If not found, create a new `vcpkg_package` entry and add to the
  * `available_packages` list. And then return a pointer to it.
  *
- * This is to save memory; no need to call `CALLOC()` for every `vcpkg_node::deps`
- * entry in the list. Hence many `vcpkg_node::deps` entries will have pointer to
+ * This is to save memory; no need to call `CALLOC()` for every `ports_node::deps`
+ * entry in the list. Hence many `ports_node::deps` entries will have pointer to
  * the same location.
  */
-static void *find_or_alloc_dependency (const struct vcpkg_package *dep1)
+static void *find_or_alloc_dependency (const vcpkg_package *dep1)
 {
-  struct vcpkg_package *dep2;
-  int    i, max = smartlist_len (available_packages);
+  vcpkg_package *dep2;
+  int   i, max = smartlist_len (available_packages);
 
   for (i = 0; i < max; i++)
   {
@@ -621,7 +782,9 @@ static void *find_or_alloc_dependency (const struct vcpkg_package *dep1)
   }
   dep2 = CALLOC (sizeof(*dep2), 1);
   memcpy (dep2, dep1, sizeof(*dep2));
-  return smartlist_add (available_packages, dep2);
+  dep2->package = STRDUP (dep1->package);
+  smartlist_add (available_packages, dep2);
+  return (dep2);
 }
 
 /**
@@ -634,17 +797,18 @@ static void *find_or_alloc_dependency (const struct vcpkg_package *dep1)
  * If a token contains a "(xx)" part, pass that to `make_depend_platform()`
  * which recursively figures out the platforms for the package.
  *
- * Add a package-dependency  to `node` as long as there are more ","
+ * Add a package-dependency to `node` as long as there are more ","
  * tokens in `str` to parse.
  */
-static void make_dependencies (struct vcpkg_node *node, char *str)
+static void make_dependencies (ports_node *node, char *str)
 {
   char *tok, *tok_end, *p;
+  int   str0 = str[0];
 
   if (strchr(str, ')') > strchr(str, '('))
      DEBUGF (2, "str: '%s'\n", str);
 
-  if (str[0] == '\0' || (isspace(str[0]) && str[1] == '\0'))
+  if (str0 == '\0' || (VALID_CH(str0) && isspace(str0) && str[1] == '\0'))
   {
     DEBUGF (2, "Empty dependencies! str: '%s'\n", str);
     return;
@@ -657,10 +821,10 @@ static void make_dependencies (struct vcpkg_node *node, char *str)
 
   while (tok)
   {
-    struct vcpkg_package dep;
-    char   package [2*VCPKG_MAX_NAME];
-    char   platform [51];
-    char  *l_paren;
+    vcpkg_package dep;
+    char  package [2*VCPKG_MAX_NAME];
+    char  platform [51];
+    char *l_paren;
 
     memset (&dep, '\0', sizeof(dep));
 
@@ -675,29 +839,20 @@ static void make_dependencies (struct vcpkg_node *node, char *str)
       DEBUGF (2, "platform: '%s', tok: '%s', tok_end: '%s'\n", platform, tok, tok_end);
       make_depend_platform (&dep, platform, TRUE);
     }
-
-    _strlcpy (dep.package, p, sizeof(dep.package));
+    dep.package = p;
     smartlist_add (node->deps, find_or_alloc_dependency(&dep));
 
     tok = _strtok_r (NULL, ",", &tok_end);
   }
 }
 
-static void make_features (struct vcpkg_node *node, const char *str)
-{
-  if (!node->features)
-     node->features = smartlist_new();
-  DEBUGF (3, "Adding feature: '%s'\n", str);
-  smartlist_add (node->features, STRDUP(str));
-}
-
 /**
  * Parse the content of a `CONTROL` file and add it's contents to `node`.
  */
-static void CONTROL_parse (struct vcpkg_node *node, const char *file)
+static void CONTROL_parse (ports_node *node, const char *file)
 {
   FILE *f = fopen (file, "r");
-  char *p, buf [5000];
+  char *p, buf [1000]; /* Enough? */
 
   if (!f)
   {
@@ -712,35 +867,32 @@ static void CONTROL_parse (struct vcpkg_node *node, const char *file)
 
     DEBUGF (4, "p: '%s'\n", p);
 
-    if (!node->description && !strnicmp(p,CONTROL_DESCRIPTION,sizeof(CONTROL_DESCRIPTION)-1))
+    /* In case 'node->homepage' etc. contains a '~', replace with "~~".
+     */
+    if (!node->description && str_match(p,CONTROL_DESCRIPTION,&p))
     {
-      p = str_ltrim (p + sizeof(CONTROL_DESCRIPTION) - 1);
       node->description = STRDUP (p);
       str_replace2 ('~', "~~", node->description, sizeof(node->description));
     }
-    else if (!node->version[0] && !strnicmp(p,CONTROL_VERSION,sizeof(CONTROL_VERSION)-1))
+    else if (!node->version[0] && str_match(p,CONTROL_VERSION,&p))
     {
-      p = str_ltrim (p + sizeof(CONTROL_VERSION) - 1);
       _strlcpy (node->version, p, sizeof(node->version));
       str_replace2 ('~', "~~", node->version, sizeof(node->version));
     }
-    else if (!strnicmp(p,CONTROL_FEATURE,sizeof(CONTROL_FEATURE)-1))
+    else if (str_match(p,CONTROL_HOMEPAGE,&p))
     {
-      p = str_ltrim (p + sizeof(CONTROL_FEATURE) - 1);
-      make_features (node, p);
-    }
-    else if (!strnicmp(p,CONTROL_HOMEPAGE,sizeof(CONTROL_HOMEPAGE)-1))
-    {
-      p = str_ltrim (p + sizeof(CONTROL_HOMEPAGE) - 1);
       _strlcpy (node->homepage, p, sizeof(node->homepage));
-
-      /* In case 'node->homepage' contains a '~', replace with "~~".
-       */
       str_replace2 ('~', "~~", node->homepage, sizeof(node->homepage));
     }
-    else if (!node->deps && !strnicmp(p,CONTROL_BUILD_DEPENDS,sizeof(CONTROL_BUILD_DEPENDS)-1))
+    else if (str_match(p,CONTROL_FEATURE,&p))
     {
-      p = str_ltrim (p + sizeof(CONTROL_BUILD_DEPENDS) - 1);
+      if (!node->features)
+         node->features = smartlist_new();
+      DEBUGF (3, "Adding feature: '%s'\n", p);
+      smartlist_add (node->features, STRDUP(p));
+    }
+    else if (!node->deps && str_match(p,CONTROL_BUILD_DEPENDS,&p))
+    {
       strtok (p, "[");
       if (opt.debug >= 10)
          regex_test (p, "[[:alnum:]_-]+");
@@ -754,7 +906,7 @@ static void CONTROL_parse (struct vcpkg_node *node, const char *file)
  * \todo
  *  Parse `file` for LOCAL package location or REMOTE package URL
  */
-static void portfile_cmake_parse (struct vcpkg_node *node, const char *file)
+static void portfile_cmake_parse (ports_node *node, const char *file)
 {
   ARGSUSED (node);
   ARGSUSED (file);
@@ -800,18 +952,18 @@ static smartlist_t *build_dir_list (const char *dir)
 
 /**
  * Look in `<vcpkg_root>\\ports\\dir` for `CONTROL` or `portfile.cmake` files and add
- * to `vcpkg_nodes`.
+ * to `ports_list`.
  */
-static void build_vcpkg_nodes (const char *dir, int ports_index)
+static void build_ports_list (const char *dir, int ports_index)
 {
-  struct vcpkg_node *node;
+  ports_node *node;
   char        file [_MAX_PATH];
   const char *pkg = dir + strlen ("ports\\");
 
   snprintf (file, sizeof(file), "%s\\ports\\%s\\CONTROL", vcpkg_root, pkg);
   if (FILE_EXISTS(file))
   {
-    DEBUGF (2, "%d: Building node for %s.\n", ports_index, file);
+    DEBUGF (2, "%d: Building ports-node for %s.\n", ports_index, file);
 
     node = CALLOC (sizeof(*node), 1);
     node->have_CONTROL = TRUE;
@@ -819,20 +971,20 @@ static void build_vcpkg_nodes (const char *dir, int ports_index)
     strcpy (node->homepage, "<none>");
 
     CONTROL_parse (node, file);
-    smartlist_add (vcpkg_nodes, node);
+    smartlist_add (ports_list, node);
   }
 
   snprintf (file, sizeof(file), "%s\\%s\\portfile.cmake", vcpkg_root, pkg);
   if (FILE_EXISTS(file))
   {
-    DEBUGF (2, "%d: Building node for %s.\n", ports_index, file);
+    DEBUGF (2, "%d: Building ports-node for %s.\n", ports_index, file);
 
     node = CALLOC (sizeof(*node), 1);
     _strlcpy (node->package, pkg, sizeof(node->package));
     strcpy (node->homepage, "<none>");
 
     portfile_cmake_parse (node, file);
-    smartlist_add (vcpkg_nodes, node);
+    smartlist_add (ports_list, node);
   }
 }
 
@@ -856,9 +1008,9 @@ const char *vcpkg_last_error (void)
  *
  * \param[in]     package   The package name to search for among the installed VCPKG packages.
  */
-static const struct vcpkg_package *get_install_info (int *index_p, const char *package)
+static const vcpkg_package *get_install_info (int *index_p, const char *package)
 {
-  const struct vcpkg_package *pkg;
+  const vcpkg_package *pkg;
   int   i, max = smartlist_len (installed_packages);
 
   for (i = *index_p; i < max; i++)
@@ -874,9 +1026,9 @@ static const struct vcpkg_package *get_install_info (int *index_p, const char *p
 }
 
 /**
- * Print the description for a `struct vcpkg_node *`.
+ * Print the description for a `ports_node`.
  */
-static void node_dump_description (const struct vcpkg_node *node)
+static void node_dump_description (const ports_node *node)
 {
   int len = C_puts ("     ~6description:~0 ") - 2;
   int save = C_setraw (1);
@@ -888,9 +1040,9 @@ static void node_dump_description (const struct vcpkg_node *node)
 }
 
 /**
- * Dump the dependencies for a `struct vcpkg_node *`.
+ * Dump the dependencies for a `ports_node`.
  */
-static void node_dump_deps (const struct vcpkg_node *node, size_t width)
+static void node_dump_deps (const ports_node *node, size_t width)
 {
   int i, max = node->deps ? smartlist_len (node->deps) : 0;
   int len, len0 = C_puts ("     ~6dependants:~0  ") - 2;
@@ -898,8 +1050,8 @@ static void node_dump_deps (const struct vcpkg_node *node, size_t width)
   len = len0;
   for (i = 0; i < max; i++)
   {
-    const struct vcpkg_package *dep = smartlist_get (node->deps, i);
-    const struct vcpkg_package *next_dep;
+    const vcpkg_package *dep = smartlist_get (node->deps, i);
+    const vcpkg_package *next_dep;
     BOOL   Not;
     size_t next_len = 0;
 
@@ -927,9 +1079,9 @@ static void node_dump_deps (const struct vcpkg_node *node, size_t width)
 }
 
 /**
- * Dump the features for a `struct vcpkg_node *`.
+ * Dump the features for a `ports_node`.
  */
-static void node_dump_features (const struct vcpkg_node *node, size_t width)
+static void node_dump_features (const ports_node *node, size_t width)
 {
   int i, max = node->features ? smartlist_len (node->features) : 0;
   int len, len0 = C_puts ("     ~6features:~0    ") - 2;
@@ -957,27 +1109,64 @@ static void node_dump_features (const struct vcpkg_node *node, size_t width)
 }
 
 /**
- * Dump the parsed information from all `vcpkg_nodes`.
+ * Iterate over all package files and get number and their total file-size.
+ */
+static const char *get_package_files_size (const vcpkg_package *pkg)
+{
+  UINT64   f_size = 0;
+  unsigned i, max = smartlist_len (pkg->install_info);
+
+  for (i = 0; i < max; i++)
+  {
+    struct stat st;
+    char        path [_MAX_PATH];
+    const char *file = smartlist_get (pkg->install_info, i);
+
+    snprintf (path, sizeof(path), "%s\\installed\\%s", vcpkg_root, file);
+    if (safe_stat(path, &st, NULL) == 0)
+       f_size += get_file_alloc_size (path, st.st_size);
+  }
+  incr_total_size (f_size);
+  return str_ltrim ((char*)get_file_size_str(f_size));
+}
+
+/**
+ * Print information for an installed package in `ports_list`.
+ */
+static void pkg_dump_file_info (const vcpkg_package *pkg, const char *indent)
+{
+  const char *dir = get_installed_dir (pkg);
+  unsigned    num = smartlist_len (pkg->install_info);
+
+  C_printf ("%s~6installed:   YES~0\n", indent);
+  C_printf ("%s~6location:    %s~0, %u files", indent, dir, num);
+
+  if (opt.show_size)
+     C_printf (", %s", get_package_files_size(pkg));
+  C_puts ("\n\n");
+}
+
+/**
+ * Dump the parsed information from `ports_list`.
  */
 static void dump_nodes (void)
 {
-  int    i, len, len0, num, max = smartlist_len (vcpkg_nodes);
+  const char *indent = "     ";
+  int    i, len, len0, num, max = smartlist_len (ports_list);
   size_t width = C_screen_width();
 
-  /* Print a header.
+  /* Print a simple header.
    */
-  len0 = C_printf ("~6Num  ~2Package~0 / ~7Version               ");
-  C_puts ("~3Homepage~0\n");
+  len0 = C_printf ("~6Num  ~2Package~0 / ~7Version\n");
   C_puts (str_repeat('=', 100));
   C_putc ('\n');
 
   for (i = num = 0; i < max; i++)
   {
-    const struct vcpkg_node *node = smartlist_get (vcpkg_nodes, i);
-    const char              *yes_no = "NO";
-    const char              *details = "";
-    const char              *version = node->version;
-    int                      zero = 0;
+    const ports_node    *node = smartlist_get (ports_list, i);
+    const vcpkg_package *pkg;
+    const char *version = node->version;
+    int         zero = 0;
 
     if (!node->have_CONTROL)
        continue;
@@ -985,24 +1174,22 @@ static void dump_nodes (void)
     if (*version == '\0' || *version == ' ')
        version = "<unknown>";
 
-    len = C_printf ("~6%4d ~2%s~0 / ~7%s~3", ++num, node->package, version);
-    C_printf ("%-*s%s~0\n", len-len0-1, "", node->homepage);
+    len = C_printf ("~6%4d ~2%s~0 / ~7%s~0\n", ++num, node->package, version);
+    C_printf ("%s~6homepage:~0    %s\n", indent, node->homepage);
 
     node_dump_description (node);
     node_dump_deps (node, width);
     node_dump_features (node, width);
 
-    if (get_install_info(&zero,node->package))
-    {
-//    details = get_packages_dir (pkg);
-      yes_no = "YES";
-    }
-    C_printf ("     ~6installed:   %s%s~0\n\n", yes_no, details);
+    pkg = get_install_info (&zero, node->package);
+    if (pkg)
+         pkg_dump_file_info (pkg, indent);
+    else C_printf ("%s~6installed:   NO~0\n\n", indent);
   }
 }
 
 /**
- * Traverse the smartlist `vcpkg_nodes` and
+ * Traverse the smartlist `ports_list` and
  * return the number of nodes where `node->have_CONTROL == have_CONTROL`.
  */
 static unsigned vcpkg_get_num (BOOL have_CONTROL)
@@ -1010,11 +1197,11 @@ static unsigned vcpkg_get_num (BOOL have_CONTROL)
   int      i, max;
   unsigned num = 0;
 
-  max = vcpkg_nodes ? smartlist_len (vcpkg_nodes) : 0;
+  max = ports_list ? smartlist_len (ports_list) : 0;
 
   for (i = 0; i < max; i++)
   {
-    const struct vcpkg_node *node = smartlist_get (vcpkg_nodes, i);
+    const ports_node *node = smartlist_get (ports_list, i);
 
     if (node->have_CONTROL == have_CONTROL)
        num++;
@@ -1023,16 +1210,16 @@ static unsigned vcpkg_get_num (BOOL have_CONTROL)
 }
 
 /**
- * Build the smartlist `vcpkg_nodes *` representing all available VCPKG packages
+ * Build the smartlist `ports_list *` representing all available VCPKG packages
  * (ignoring whether a package is installed or not).
  *
  * \param[in] dirs  The `smartlist_t*` of the directories to build the
- *                  `vcpkg_node*` list from.
+ *                  `ports_node*` list from.
  * \retval          The number of all node types.
  */
-static unsigned vcpkg_get_all_available (const smartlist_t *dirs)
+static unsigned get_all_available (const smartlist_t *dirs)
 {
-  unsigned i, num_vcpkg_nodes;
+  unsigned i, num_ports_list;
 
   if (dirs)
   {
@@ -1040,14 +1227,14 @@ static unsigned vcpkg_get_all_available (const smartlist_t *dirs)
 
     DEBUGF (2, "Found %d VCPKG port directories.\n", num);
     for (i = 0; i < num; i++)
-        build_vcpkg_nodes (smartlist_get(dirs,i), i);
+        build_ports_list (smartlist_get(dirs,i), i);
   }
 
-  num_vcpkg_nodes = smartlist_len (vcpkg_nodes);
-  if (num_vcpkg_nodes == 0)
+  num_ports_list = smartlist_len (ports_list);
+  if (num_ports_list == 0)
      _strlcpy (last_err_str, "No ~6VCPKG~0 packages found", sizeof(last_err_str));
 
-  return (num_vcpkg_nodes);
+  return (num_ports_list);
 }
 
 /**
@@ -1095,13 +1282,211 @@ static BOOL get_base_exe (void)
 }
 
 /**
- * Initialise VCPKG globals once and build the list of installed packages `installed_packages`.
+ * Traverse `install_packages` and add the `platform` for the `package`.
+ */
+static unsigned set_installed_package_platform (const char *package, VCPKG_platform platform)
+{
+  unsigned i, max = smartlist_len (installed_packages);
+
+  for (i = 0; i < max; i++)
+  {
+    vcpkg_package *pkg = smartlist_get (installed_packages, i);
+
+    if (!stricmp(pkg->package, package))
+    {
+      pkg->platform = platform;
+      return (unsigned) platform;
+    }
+  }
+  return (UINT_MAX);
+}
+
+/**
+ * Parse a line from `vcpkg_parse_status_file()` and add elements to
+ * the package at `*pkg`.
+ *
+ * Look for stuff like:
+ * ```
+ *   Package:      pybind11
+ *   Version:      2.2.4
+ *   Depends:      python3
+ *   Architecture: x86-windows
+ *   Abi:          d99c304a1e7c194349764a9a753c5cbcf5f14b5a
+ *   Status:       purge ok not-installed
+ * ```
+ *
+ * First the `line` gets 0-terminated and next call is ready to
+ * parse the next line. This will start at `eol+1` (end-of-line plus 1).
+ * Caller must ensure this function does not parse beyond the allocated
+ * file-buffer.
+ */
+static int vcpkg_parse_status_line (vcpkg_package *pkg, char **line_p)
+{
+  char *p, *eol, *line;
+
+  line = *line_p;
+  eol = strchr (line, '\n');
+  if (eol)
+     *eol = '\0';
+  else
+  {
+    eol = strchr (line, '\r');
+    if (eol)
+        *eol = '\0';
+    else eol = strchr (line, '\0'); /* could be the last line in file w/o EOF */
+  }
+  *line_p = eol + 1;
+
+  DEBUGF (2, "line: '%.50s'.\n", line);
+
+  if (str_match(line, CONTROL_PACKAGE, &p))
+  {
+    pkg->package = p;
+    return (1);
+  }
+
+  if (str_match(line, CONTROL_VERSION, &p))
+  {
+    pkg->version = p;
+    str_replace2 ('~', "~~", pkg->version, sizeof(pkg->version));
+    return (1);
+  }
+
+  if (str_match(line, CONTROL_DEPENDS, &p))
+  {
+    pkg->depends = p;
+    return (1);
+  }
+
+  if (str_match(line, CONTROL_STATUS, &p))
+  {
+    pkg->status = p;
+    return (1);
+  }
+
+  if (str_match(line, CONTROL_ARCH, &p))
+  {
+    pkg->arch = p;
+    return (1);
+  }
+
+  if (str_match(line, CONTROL_ABI, &p))
+  {
+    pkg->ABI_tag = p;
+    return (1);
+  }
+  return (0);
+}
+
+/**
+ * Open and parse the `<vcpkg_root>/installed/vcpkg/status` file.
+ * Build up a `installed_packages` smartlist as we go along.
+ *
+ * Also check against orpaned packages ("Status: purge ok") that is present
+ * in his `installed_packages` list, but not in the `built_packages` list.
+ *
+ * The memory for this file is not freed until `vcpkg_exit()` is called since
+ * this memory are used in e.g. `installed_packages::package` names.
+ *
+ * \todo Maybe use a `mmap()` style feature instead?
+ */
+static int vcpkg_parse_status_file (void)
+{
+  struct stat   st;
+  vcpkg_package pkg, *copy;
+  FILE         *f;
+  char          file [_MAX_PATH];
+  char         *f_end, *f_ptr;
+  size_t        f_size, f_read;
+  int           num_parsed = 0;  /* number of parsed lines in current record */
+  int           num_total = 0;   /* number of total packages parsed */
+  BOOL          eor = FALSE;     /* end-of-record for this package */
+  DWORD         win_err;
+
+  snprintf (file, sizeof(file), "%s\\installed\\vcpkg\\status", vcpkg_root);
+  memset (&st, '\0', sizeof(st));
+  if (safe_stat(file, &st, &win_err) || st.st_size == 0)
+  {
+    WARN ("Failed to get the file-size of %s. win_err: %lu\n", file, win_err);
+    return (0);
+  }
+  f = fopen (file, "rb");
+  if (!f)
+  {
+    WARN ("Failed to open %s.\n", file);
+    return (0);
+  }
+  if (st.st_size >= ULONG_MAX)
+  {
+    WARN ("File %s is too big %" S64_FMT ".\n", file, st.st_size);
+    fclose (f);
+    return (0);
+  }
+
+  f_size = (size_t) st.st_size;
+  f_status_mem = MALLOC (f_size + 1);
+  f_read = fread (f_status_mem, 1, f_size, f);
+  if (f_read != f_size)
+  {
+    WARN ("Failed to read the whole file %s. Only %zu bytes, errno: %d (%s)\n",
+          file, f_read, errno, strerror(errno));
+    fclose (f);
+    return (0);
+  }
+
+  fclose (f);
+  f_end = f_status_mem + f_size;
+  *f_end = '\0';
+
+  DEBUGF (2, "Building 'installed_packages' from %s (%zu bytes).\n", file, f_size);
+
+  memset (&pkg, '\0', sizeof(pkg));
+
+  for (f_ptr = f_status_mem; f_ptr <= f_end; )
+  {
+    num_parsed += vcpkg_parse_status_line (&pkg, &f_ptr);
+    if (*f_ptr == '\r' ||*f_ptr == '\n')
+    {
+      eor = TRUE;
+      f_ptr++;
+      num_total++;
+      DEBUGF (2, "reached EOR for package '%s'. num_parsed: %d, num_total: %d\n",
+              pkg.package, num_parsed, num_total);
+    }
+    else
+      continue;
+
+    if (str_endswith(pkg.arch,"-static"))
+    {
+      pkg.Static = TRUE;
+      DEBUGF (2, "package '%s' is 'static': '%s'.\n", pkg.package, pkg.arch);
+    }
+    if (get_installed_info(&pkg))
+    {
+      copy = CALLOC (sizeof(*copy), 1);
+      *copy = pkg;
+      smartlist_add (installed_packages, copy);
+    }
+
+    /* Ready for the next record of another package
+     */
+    memset (&pkg, '\0', sizeof(pkg));
+    num_parsed = 0;
+    eor = FALSE;
+  }
+  return smartlist_len (installed_packages);
+}
+
+/**
+ * Initialise VCPKG globals once and build the list of built packages (`built_packages`).
+ * This might NOT be the same as installed packages; usually more built than installed
+ * packages if something broke under-way.
  */
 void vcpkg_init (void)
 {
   smartlist_t *ports_dirs;
   smartlist_t *packages_dirs;
-  int          i, max = 0;
+  int          i, j, max;
   static       BOOL done = FALSE;
 
   if (done)
@@ -1117,66 +1502,81 @@ void vcpkg_init (void)
   if (!get_base_env() && !get_base_exe())
      return;
 
+  ASSERT (built_packages     == NULL);
   ASSERT (installed_packages == NULL);
   ASSERT (available_packages == NULL);
-  ASSERT (vcpkg_nodes        == NULL);
+  ASSERT (ports_list        == NULL);
 
+  built_packages     = smartlist_new();
   installed_packages = smartlist_new();
   available_packages = smartlist_new();
-  vcpkg_nodes        = smartlist_new();
+  ports_list         = smartlist_new();
 
   last_err_str[0] = '\0';   /* clear any error-string set */
 
   ports_dirs    = build_dir_list ("ports");
   packages_dirs = build_dir_list ("packages");
 
-  vcpkg_get_all_available (ports_dirs);
+  get_all_available (ports_dirs);
 
   if (ports_dirs)
      smartlist_free_all (ports_dirs);
 
+  max = vcpkg_parse_status_file();
+  for (i = j = 0; i < max; i++)
+  {
+    vcpkg_package *pkg = smartlist_get (installed_packages, i);
+
+    get_control_node (&j, &pkg->link, pkg->package);
+  }
+
   if (packages_dirs)
-     max = smartlist_len (packages_dirs);
+       max = smartlist_len (packages_dirs);
+  else max = 0;
 
   /**
-   * Loop over all our installed packages directory
-   * `vcpkg_root>/packages/`
+   * Loop over all our packages directory
+   * `<vcpkg_root>/packages/`
    *
    * and figure out which belongs to the
-   * `vcpkg_root>/installed/`
+   * `<vcpkg_root>/installed/`  i.e. the `installed_packeges` list.
    *
-   * directory. Some may have been orpaned.
+   * directory. Some packages may have been orpaned.
    */
-
   for (i = 0; i < max; i++)
   {
-    struct vcpkg_package *node;
-    char  *homepage, *p, *q;
+    vcpkg_package *node;
+    char *homepage, *p, *q;
 
     /**
      * If e.g. `dirs` contains "packages\\sqlite3_x86-windows", add a node
-     * with this to the `installed_packages` smartlist:
+     * with this to the `built_packages` smartlist:
      *   `node->package  = "sqlite3"`
      *   `node->platform = VCPKG_plat_x86 | VCPKG_plat_WINDOWS`.
-     *   `node->link`    = a pointer into `vcpkg_nodes` for more detailed info.
+     *   `node->link`    = a pointer into `ports_list` for more detailed info.
      */
     p = (char*) smartlist_get (packages_dirs, i) + strlen ("packages\\");
     q = strchr (p+1, '_');
     if (q && q - p < sizeof(node->package) && legal_package_name(p))
     {
-      int j = 0;
+      unsigned installed;
 
+      j = 0;
       node = CALLOC (sizeof(*node), 1);
-      _strlcpy (node->package, p, q - p + 1);
+      *q = '\0';
+      node->package = p;
       node->platform = make_package_platform (q+1, TRUE);
-      get_control_node (&j, (const struct vcpkg_node**)&node->link, node->package);
-      smartlist_add (installed_packages, node);
+      get_control_node (&j, &node->link, node->package);
+      smartlist_add (built_packages, node);
 
       if (node->link)
            homepage = node->link->homepage;
       else homepage = "?";
 
-      DEBUGF (2, "package: %-30s  homepage: %-40s  platform: 0x%04X (%s).\n",
+      installed = set_installed_package_platform (node->package, node->platform);
+      ASSERT (installed != UINT_MAX);
+
+      DEBUGF (1, "package: %-20s  %-50s  platform: 0x%04X (%s).\n",
               node->package, homepage, node->platform,
               flags_decode(node->platform, platforms, DIM(platforms)));
     }
@@ -1219,7 +1619,21 @@ unsigned vcpkg_get_num_portfile (void)
 }
 
 /**
- * Return the number of installed packages.
+ * Return the number of built packages.
+ */
+unsigned vcpkg_get_num_built (void)
+{
+  unsigned num_built;
+
+  vcpkg_init();
+
+  num_built = built_packages ? smartlist_len (built_packages) : 0;
+  DEBUGF (2, "Found %u `packages` directories.\n", num_built);
+  return (num_built);
+}
+
+/**
+ * Return the number of installedt packages.
  */
 unsigned vcpkg_get_num_installed (void)
 {
@@ -1228,7 +1642,7 @@ unsigned vcpkg_get_num_installed (void)
   vcpkg_init();
 
   num_installed = installed_packages ? smartlist_len (installed_packages) : 0;
-  DEBUGF (2, "Found %u `packages` directories.\n", num_installed);
+  DEBUGF (2, "Found %u `installed` directories.\n", num_installed);
   return (num_installed);
 }
 
@@ -1255,7 +1669,7 @@ static const char *get_platform_name (VCPKG_platform platform)
  * Get the `deps->platform` name(s) disregarding
  * the `VCPKG_platform_INVERSE` bit.
  */
-static const char *get_depend_name (const struct vcpkg_package *dep)
+static const char *get_depend_name (const vcpkg_package *dep)
 {
   unsigned val = dep->platform;
 
@@ -1266,7 +1680,39 @@ static const char *get_depend_name (const struct vcpkg_package *dep)
 }
 
 /**
- * Construct an relative directory-name for an installed package.
+ * Construct an absolute directory-name for an installed package.
+ *
+ * \eg
+ *  \li pkg->package:     "sqlite3"
+ *  \li pkg->platform:    VCPKG_plat_x86 | VCPKG_plat_WINDOWS
+ *  \li returns:          "<vcpkg_root>\\installed\\x86-windows"
+ *                        (or "<vcpkg_root>/installed/x86-windows")
+ */
+static const char *get_installed_dir (const vcpkg_package *pkg)
+{
+  static char dir [_MAX_PATH];
+
+  if (pkg)
+  {
+    snprintf (dir, sizeof(dir), "%s\\installed\\%s", vcpkg_root, pkg->arch);
+    DEBUGF (2, "platform_name: '%s', dir: '%s'\n", get_platform_name(pkg->platform), dir);
+  }
+  else
+    snprintf (dir, sizeof(dir), "%s\\installed", vcpkg_root);
+
+  if (!is_directory(dir))
+  {
+    snprintf (last_err_str, sizeof(last_err_str), "No such directory %s", dir);
+    return (NULL);
+  }
+  if (opt.show_unix_paths)
+     slashify2 (dir, dir, '/');
+  return (dir);
+}
+
+#if defined(NOT_NEEDED)
+/**
+ * Construct an relative directory-name for an built package.
  *
  * \eg
  *  \li pkg->package:        "sqlite3"
@@ -1274,14 +1720,18 @@ static const char *get_depend_name (const struct vcpkg_package *dep)
  *  \li pkg->platform:       VCPKG_plat_x86 | VCPKG_plat_WINDOWS
  *  \li returns:             "packages\\sqlite3_x86-windows"
  */
-static const char *get_packages_dir (const struct vcpkg_package *pkg)
+static const char *get_packages_dir (const vcpkg_package *pkg)
 {
   static char dir [_MAX_PATH];
 
   if (!pkg->link)
      return (NULL);     /* something is seriously wrong */
 
-  snprintf (dir, sizeof(dir), "%s\\packages\\%s_%s", vcpkg_root, pkg->package, get_platform_name(pkg->platform));
+  snprintf (dir, sizeof(dir), "%s\\packages\\%s_%s",
+            vcpkg_root, pkg->package, get_platform_name(pkg->platform));
+
+  DEBUGF (2, "architecture: '%s', dir: '%s'\n", pkg->arch, dir);
+
   if (!is_directory(dir))
   {
     snprintf (last_err_str, sizeof(last_err_str), "No such directory %s", dir);
@@ -1289,88 +1739,125 @@ static const char *get_packages_dir (const struct vcpkg_package *pkg)
   }
   return (dir + strlen(vcpkg_root) + 1);
 }
+#endif
 
 /**
- * For an `dir` returned by `get_packages_dir()`, look for directories to:
+ * For a package `pkg` print the information obtained from `get_installed_info()`.
+ *
+ * Print files in these directories:
  *  \li the `bin` directory
  *  \li the `lib` directory.
  *  \li the `include` directory
+ *  \li the `share` directory
+ *
+ * If òpt.show_size == TRUE`, print the total file-size of a package (ignoring
+ * files that are not under the above directories).
  */
-static void print_package_details (FMT_buf *fmt_buf, const struct vcpkg_package *pkg,
-                                   const char *package_dir, int indent)
+static void print_package_info (const vcpkg_package *pkg, FMT_buf *fmt_buf, int indent)
 {
-  smartlist_t *dirs;
-  char         slash = (opt.show_unix_paths) ? '/' : '\\';
-  int          i, max;
-
-  dirs = build_dir_list (package_dir);
-  max = dirs ? smartlist_len (dirs) : 0;
-
-  DEBUGF (1, "max %d, dirs: %p.\n", max, dirs);
+  char slash, path [_MAX_PATH];
+  int  i, max = smartlist_len (pkg->install_info);
 
   for (i = 0; i < max; i++)
   {
-    const char  *dir    = smartlist_get (dirs, i);
-    const char  *subdir = strrchr (dir, '\\');
-
-    DEBUGF (1, "subdir %s.\n", subdir);
-    if (!subdir)
-       continue;
-
-    subdir++;
-    if (!stricmp(subdir,"bin") || !stricmp(subdir,"lib") || !stricmp(subdir,"include"))
-    {
-      char   file [_MAX_PATH];
-      UINT64 dsize;
-
-      buf_printf (fmt_buf, "%*s", indent, "");
-      snprintf (file, sizeof(file), "%s\\%s", vcpkg_root, dir);
-      if (opt.show_size)
-      {
-        dsize = get_directory_size (file);
-        buf_printf (fmt_buf, "%s: ", get_file_size_str(dsize));
-      }
-      buf_printf (fmt_buf, "%s\n", slashify(file,slash));
-    }
+    buf_printf (fmt_buf, "%*s%s\n", i > 0 ? indent : 0, "",
+                (const char*)smartlist_get (pkg->install_info, i));
   }
 
-  if (max == 0)
-     buf_printf (fmt_buf, "%*sNo sub-dirs for package `%s` in\n%*s%s\\%s\\.\n",
-                 indent, "", pkg->package, indent, "", vcpkg_root, package_dir);
+  if (opt.show_size)
+     buf_printf (fmt_buf, "%*s~3%s~0", indent, "", get_package_files_size(pkg));
 
-  smartlist_free_all (dirs);
+  if (max == 0)
+  {
+    slash = (opt.show_unix_paths ? '/' : '\\');
+    snprintf (path, sizeof(path), "%s\\installed\\%s\\", vcpkg_root, pkg->arch);
+    buf_printf (fmt_buf, "%*sNo entries for package `%s` under\n%*s%s.",
+                indent, "", pkg->package, indent, "", slashify2(path, path, slash));
+  }
+  buf_putc (fmt_buf, '\n');
+}
+
+/**
+ * Parser for a single `*.list` file for a specific package.
+ * Add wanted `char *` elements to this smartlist as we parse the file.
+ */
+static const char *wanted_arch;
+
+static void info_parse (smartlist_t *sl, char *buf)
+{
+  char *q, *p = buf;
+
+  str_strip_nl (buf);
+  q = strchr (p, '\0') - 1;
+
+  if (!str_startswith(buf,wanted_arch) || *q == '/')
+     return;
+
+  q = p + strlen (wanted_arch);
+  if (str_startswith(q,"/bin") || str_startswith(q,"/lib") ||
+      str_startswith(q,"/include") || str_startswith(q,"/share"))
+  {
+    if (!opt.show_unix_paths)
+       p = slashify2 (p, p, '\\');
+    smartlist_add (sl, STRDUP(p));
+    DEBUGF (2, "adding: '%s'.\n", p);
+  }
+}
+
+/**
+ * Open and parse a `*.list` file to get the `bin`, `lib` and `include` files
+ * for an installed `pkg->package`.
+ *
+ * \eg.
+ *   For `zlib:x86-windows` with version `1.2.11-6`, open and parse the file
+ *   `<vcpkg_root>/installed/vcpkg/info/zlib_1.2.11-6_x86-windows.list`.
+ *
+ * Return TRUE if `*.list` file exists and the length of the `pkg->install_info`
+ * list is greater than zero.
+ */
+static BOOL get_installed_info (vcpkg_package *pkg)
+{
+  char file [_MAX_PATH];
+
+  snprintf (file, sizeof(file), "%s\\installed\\vcpkg\\info\\%s_%s_%s.list",
+            vcpkg_root, pkg->package, pkg->version, pkg->arch);
+
+  if (!FILE_EXISTS(file))
+  {
+    DEBUGF (2, "Package '%s' is not installed; no '%s'.\n", pkg->package, file);
+    return (FALSE);
+  }
+  DEBUGF (2, "Getting package information from '%s'.\n", file);
+  wanted_arch = pkg->arch;
+  pkg->install_info = smartlist_read_file (file, (smartlist_parse_func)info_parse);
+  return (pkg->install_info != NULL);
 }
 
 /**
  * Print a list of installed packages.
  *
- * \todo
- *   Use the `get_packages_dir()` file to list the `PATH`, `LIB` and `INCLUDE` env-variables
- *   needed to use the `bin`, `lib` and `include` files.
+ * \note Only called from `show_version()` in envtool.c.
  */
 unsigned vcpkg_list_installed (void)
 {
   const char *only = "";
   const char *last = "";
-  unsigned    i, num_installed, num_ignored;
+  unsigned    i, indent, num_installed, num_ignored;
   FMT_buf     fmt_buf;
 
-  BUF_INIT (&fmt_buf, 200000);
+  BUF_INIT (&fmt_buf, BUF_INIT_SIZE, 1);
 
   vcpkg_init();
-
-  num_installed = vcpkg_get_num_installed();
+  num_installed = installed_packages ? smartlist_len (installed_packages) : 0;
 
   if (opt.only_32bit)
      only = ". These are for x86";
   else if (opt.only_64bit)
      only = ". These are for x64";
 
-  num_installed = smartlist_len (installed_packages);
-
   for (i = num_ignored = 0; i < num_installed; i++)
   {
-    const struct vcpkg_package *pkg = smartlist_get (installed_packages, i);
+    const vcpkg_package *pkg = smartlist_get (installed_packages, i);
 
     if (opt.only_32bit && !(pkg->platform & VCPKG_plat_x86))
     {
@@ -1387,38 +1874,68 @@ unsigned vcpkg_list_installed (void)
       num_ignored++;
       continue;
     }
-    buf_printf (&fmt_buf, "    %s\n", pkg->package);
+    if (!pkg->install_info || !get_installed_dir(pkg))
+    {
+      num_ignored++;
+      continue;
+    }
+    indent = buf_printf (&fmt_buf, "    %-25s", pkg->package);
+
+    print_package_info (pkg, &fmt_buf, indent);
     last = pkg->package;
   }
 
-  C_printf ("\n  %u installed ~3VCPKG~0 packages%s:\n", num_installed - num_ignored, only);
+  if (num_installed - num_ignored == 0)
+     only = "";
+
+  C_printf ("\n  Found %u installed ~3VCPKG~0 packages under ~3%s~0%s:\n",
+            num_installed - num_ignored, get_installed_dir(NULL), only);
   C_puts (fmt_buf.buffer_start);
 
+  BUF_EXIT (&fmt_buf);
   return (num_installed - num_ignored);
 }
 
 /**
- * Free the memory allocated for `vcpkg_nodes`.
+ * Free the memory allocated for `ports_list`.
  */
 static void free_nodes (void)
 {
-  int i, max;
+  int i, max = ports_list ? smartlist_len (ports_list) : 0;
 
-  if (!vcpkg_nodes)
-     return;
-
-  max = smartlist_len (vcpkg_nodes);
   for (i = 0; i < max; i++)
   {
-    struct vcpkg_node *node = smartlist_get (vcpkg_nodes, i);
+    ports_node *node = smartlist_get (ports_list, i);
 
     smartlist_free (node->deps);
     smartlist_free_all (node->features);
     FREE (node->description);
     FREE (node);
   }
-  smartlist_free (vcpkg_nodes);
-  vcpkg_nodes = NULL;
+  smartlist_free (ports_list);
+  ports_list = NULL;
+}
+
+/**
+ * Free the memory allocated for `vcpkg_installed`.
+ */
+static void free_installed (void)
+{
+  int i, max;
+
+  if (!installed_packages)
+     return;
+
+  max = smartlist_len (installed_packages);
+  for (i = 0; i < max; i++)
+  {
+    vcpkg_package *pkg = smartlist_get (installed_packages, i);
+
+    smartlist_free_all (pkg->install_info);
+    FREE (pkg);
+  }
+  smartlist_free (installed_packages);
+  installed_packages = NULL;
 }
 
 /**
@@ -1426,13 +1943,24 @@ static void free_nodes (void)
  */
 void vcpkg_exit (void)
 {
-  smartlist_free_all (installed_packages);
+  vcpkg_package *pkg;
+  int   i, max = available_packages ? smartlist_len (available_packages) : 0;
+
+  for (i = 0; i < max; i++)
+  {
+    pkg = smartlist_get (available_packages, i);
+    FREE (pkg->package);
+  }
+
+  FREE (f_status_mem);
+  smartlist_free_all (built_packages);
   smartlist_free_all (available_packages);
 
-  installed_packages = available_packages = NULL;
-
+  free_installed();
   free_nodes();
   regex_free();
+
+  installed_packages = built_packages = available_packages = NULL;
   FREE (vcpkg_root);
 }
 
@@ -1440,15 +1968,15 @@ void vcpkg_exit (void)
  * Get the index at or above `index` that matches `package_spec`.
  * Modify `*index_p` on output to the next index to check.
  */
-static BOOL get_control_node (int *index_p, const struct vcpkg_node **node_p, const char *package_spec)
+static BOOL get_control_node (int *index_p, ports_node **node_p, const char *package_spec)
 {
-  int i, index, max = vcpkg_nodes ? smartlist_len (vcpkg_nodes) : 0;
+  int i, index, max = ports_list ? smartlist_len (ports_list) : 0;
 
   *node_p = NULL;
   index   = *index_p;
   for (i = index; i < max; i++)
   {
-    const struct vcpkg_node *node = smartlist_get (vcpkg_nodes, i);
+    ports_node *node = smartlist_get (ports_list, i);
 
     if (node->have_CONTROL &&
         fnmatch(package_spec, node->package, FNM_FLAG_NOCASE) == FNM_MATCH)
@@ -1476,14 +2004,13 @@ static BOOL get_control_node (int *index_p, const struct vcpkg_node **node_p, co
  *       -libpath:f:/gv/dx-radio/gnuradio/lib gnuradio-runtime.lib gnuradio-pmt.lib
  *   \endcode
  */
-static BOOL
-print_install_info (FMT_buf *fmt_buf, const char *package, int indent1)
+static BOOL print_install_info (FMT_buf *fmt_buf, const char *package, int indent1)
 {
-  const struct vcpkg_package *pkg = NULL;
-  const char                 *dir, *yes_no, *cpu = NULL;
-  unsigned                    num_installed = vcpkg_get_num_installed();
-  unsigned                    num_ignored = 0;
-  int                         found, i = 0;
+  const vcpkg_package *pkg = NULL;
+  const char          *dir, *yes_no, *cpu = NULL;
+  unsigned             num_installed = vcpkg_get_num_installed();
+  unsigned             num_ignored = 0;
+  int                  found, i = 0;
 
   if (num_installed == 0 || (pkg = get_install_info(&i,package)) == NULL)
        yes_no = C_BR_RED   "NO\n";
@@ -1517,13 +2044,17 @@ print_install_info (FMT_buf *fmt_buf, const char *package, int indent1)
 
     if (found > 0)
        buf_printf (fmt_buf, "  %*s%s~0", indent1, "", yes_no);
-    buf_printf (fmt_buf, "%s%c\n", get_platform_name(pkg->platform), opt.verbose >= 1 ? ':' : ' ');
 
-    dir = get_packages_dir (pkg);
+    buf_printf (fmt_buf, "%s, %u files", pkg->arch, smartlist_len(pkg->install_info));
+    if (opt.show_size)
+         buf_printf (fmt_buf, ", %s\n", get_package_files_size(pkg));
+    else buf_putc (fmt_buf, '\n');
+
+    dir = get_installed_dir (pkg);
     if (dir)
     {
+      buf_printf (fmt_buf, "  %*s%s~0\n", indent1, "", dir);
       found++;
-      print_package_details (fmt_buf, pkg, dir, indent1+2);
     }
   }
 
