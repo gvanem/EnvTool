@@ -4777,7 +4777,7 @@ static int *values_tab[] = {
             &opt.do_check,            /* 35 */
             (int*)&opt.signed_status,
             &opt.no_cwd,              /* 37 */
-            NULL,
+            (int*)1,                  /* Since option '-S' is handled specially. This address is not used. */
             &opt.do_vcpkg,            /* 39 */
             &opt.show_descr
           };
