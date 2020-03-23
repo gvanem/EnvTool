@@ -2642,6 +2642,25 @@ static int do_check_evry (void)
 
   Everything_SetMatchCase (opt.case_sensitive);
 
+  switch (opt.sort_methods[0])
+  {
+    case SORT_FILE_NAME:
+         Everything_SetSort (EVERYTHING_SORT_PATH_ASCENDING);
+         break;
+
+    case SORT_FILE_DATE:
+    case SORT_FILE_TIME:
+         Everything_SetSort (EVERYTHING_SORT_DATE_MODIFIED_ASCENDING);
+         break;
+
+    case SORT_FILE_SIZE:
+         Everything_SetSort (EVERYTHING_SORT_SIZE_ASCENDING);
+         break;
+
+    default:
+         break;
+  }
+
   DEBUGF (1, "Everything_SetSearch (\"%s\").\n"
              "                 Everything_SetMatchCase (%d).\n",
              query, opt.case_sensitive);
