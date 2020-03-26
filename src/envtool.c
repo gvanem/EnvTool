@@ -682,8 +682,8 @@ static int show_help (void)
   C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n"
           "      A ~6--py=~0[=~3X~0] ~6--test file.py~0 will execute ~6file.py~0 at end of tests.\n");
 
-  C_puts ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 & ~6CONTROL~0 files.\n"
-          "      Used as ~6--vcpkg=all~0, will list install status of all available packages matching ~6<file-spec>~0.\n"
+  C_puts ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 and ~6CONTROL~0 files.\n"
+          "      Used as ~6--vcpkg=all~0, it will list install status of any packages matching ~6<file-spec>~0.\n"
           "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n");
 
   C_puts ("\n"
