@@ -3732,9 +3732,11 @@ static int process_gcc_dirs (const char *gcc, int *num_dirs)
   for (i = found = 0; i < max; i++)
   {
     const struct directory_array *arr = smartlist_get (dir_array, i);
+    char  dir [_MAX_PATH];
 
-    DEBUGF (2, "dir: %s\n", arr->dir);
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
+    _fix_path (arr->dir, dir);
+    DEBUGF (2, "dir: %s\n", dir);
+    found += process_dir (dir, arr->num_dup, arr->exist, arr->check_empty,
                           arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE, FALSE);
   }
   *num_dirs = max;
