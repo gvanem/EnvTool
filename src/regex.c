@@ -3339,6 +3339,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
              {
                case jump_n:
                     is_a_jump_n = true;
+                    FALLTHROUGH()
                case pop_failure_jump:
                case maybe_pop_jump:
                case jump:
@@ -3708,7 +3709,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
              p[-1] = (unsigned char)jump;
              goto unconditional_jump;
            }
-           /* Note fall through. */
+           FALLTHROUGH()
 
            /* The end of a simple repeat has a pop_failure_jump back to
             * its matching on_failure_jump, where the latter will push a
@@ -3734,12 +3735,8 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
              ARGSUSED (sdummy);
              ARGSUSED (pdummy);
            }
-           /* Note fall through. */
-
          unconditional_jump:
-           /* Note fall through. */
 
-           /* Unconditionally jump (without popping any failure points). */
       case jump:
            EXTRACT_NUMBER_AND_INCR (mcnt, p); /* Get the amount to jump. */
            p += mcnt;           /* Do the jump. */
@@ -3911,6 +3908,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
         {
           case jump_n:
                is_a_jump_n = true;
+               FALLTHROUGH()
           case maybe_pop_jump:
           case pop_failure_jump:
           case jump:
@@ -4161,6 +4159,7 @@ static boolean common_op_match_null_string_p (unsigned char **p, unsigned char *
 
     case set_number_at:
          p1 += 4;
+         FALLTHROUGH()
 
     default:
          /* All other opcodes mean we cannot match the empty string.
