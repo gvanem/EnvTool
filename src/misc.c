@@ -1611,7 +1611,7 @@ int fnmatch (const char *pattern, const char *string, int flags)
                 return (FNM_NOMATCH);
              break;
            }
-           /* FALLTHROUGH */
+           FALLTHROUGH()
 
       default:
            if (IS_SLASH(c) && IS_SLASH(*string))
@@ -1935,7 +1935,8 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
    */
   if (attr != INVALID_FILE_ATTRIBUTES && (attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
   {
-    FILETIME      ftime;  /* Get 'lpLastWriteTime' */
+    FILETIME      c_ftime;  /* Get 'lpCreationTime' */
+    FILETIME      m_ftime;  /* Get 'lpLastWriteTime' */
     LARGE_INTEGER fsize;
 
     hnd = CreateFile (file, GENERIC_READ, FILE_SHARE_READ,
@@ -1943,8 +1944,11 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 
     if (hnd != INVALID_HANDLE_VALUE)
     {
-      if (GetFileTime(hnd,NULL,NULL,&ftime))
-         st->st_mtime = FILETIME_to_time_t (&ftime);
+      if (GetFileTime(hnd,&c_ftime,NULL,&m_ftime))
+      {
+        st->st_ctime = FILETIME_to_time_t (&c_ftime);
+        st->st_mtime = FILETIME_to_time_t (&m_ftime);
+      }
       if (GetFileSizeEx(hnd,&fsize))
          st->st_size = ((UINT64)fsize.HighPart << 32) + fsize.LowPart;
       CloseHandle (hnd);
