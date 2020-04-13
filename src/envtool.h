@@ -685,7 +685,7 @@ extern int    get_PE_version_info (const char *file, struct ver_info *ver);
 extern char  *get_PE_version_info_buf (void);
 extern void   get_PE_version_info_free (void);
 
-/** \struct FMT_buf
+/** \typedef FMT_buf
  *  The type used in formatting a string-buffer on the stack.<br>
  *  Used by buf_printf(), buf_puts() and buf_putc().
  */
