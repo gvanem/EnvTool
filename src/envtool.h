@@ -214,6 +214,13 @@
   #define _PRAGMA(x)
 #endif
 
+#if defined(__clang__) && (__clang_major__ >= 10)
+  #define FALLTHROUGH()  __attribute__((fallthrough));
+#else
+  #define FALLTHROUGH()
+#endif
+
+
 /*
  * To turn off these annoying warnings:
  *   misc.c(3552,36):  warning: precision used with 'S' conversion specifier, resulting in undefined behavior [-Wformat]
