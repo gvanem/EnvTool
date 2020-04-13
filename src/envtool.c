@@ -3293,7 +3293,7 @@ typedef enum compiler_type {
              CC_WATCOM       /**< A Watcom/OpenWatcom compiler */
            } compiler_type;
 
-/** \struct compiler_info
+/** \typdef compiler_info
  */
 typedef struct compiler_info {
         char          *short_name;  /**< the short name we're looking for on `%PATH` */
