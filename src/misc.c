@@ -3250,11 +3250,15 @@ const char *empty_time (void)
  *
  * Tests for `time_t == 0` which is returned from `safe_stat()`
  * of e.g. a protected `.sys`-file.
+ *
+ * Use 2 buffers in round-robin.
  */
 const char *get_time_str (time_t t)
 {
-  static char  res [50];
+  static char  buf [2][50];
+  static int   idx = 0;
   const struct tm *tm;
+  char  *res = buf [idx];
 
   if (t == 0)
      return empty_time();
@@ -3263,8 +3267,9 @@ const char *get_time_str (time_t t)
   if (!tm)
      return empty_time();
 
+  idx++;
   if (opt.decimal_timestamp)
-     snprintf (res, sizeof(res), "%04d%02d%02d.%02d%02d%02d",
+     snprintf (res, sizeof(buf[0]), "%04d%02d%02d.%02d%02d%02d",
                1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
   else
   {
@@ -3276,9 +3281,10 @@ const char *get_time_str (time_t t)
     if (tm->tm_mon >= 0 && tm->tm_mon < DIM(months))
          _month = months [tm->tm_mon];
     else _month = "???";
-    snprintf (res, sizeof(res), "%02d %s %04d - %02d:%02d:%02d",
+    snprintf (res, sizeof(buf[0]), "%02d %s %04d - %02d:%02d:%02d",
               tm->tm_mday, _month, 1900+tm->tm_year, tm->tm_hour, tm->tm_min, tm->tm_sec);
   }
+  idx &= 1;
   return (res);
 }
 
