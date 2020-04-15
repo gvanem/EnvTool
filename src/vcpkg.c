@@ -234,6 +234,11 @@ static int sub_level = 0;
 static BOOL only_installed = TRUE;
 
 /**
+ * Do we have a `<vcpkg_root>\\installed` directory?
+ */
+static BOOL have_installed_dir = FALSE;
+
+/**
  * Memory allocated for the `<vcpkg_root>/installed/vcpkg/status` file.
  * This is allocated in `parse_status_file()` and not freed until `vcpkg_exit()` is called.
  */
@@ -1404,18 +1409,21 @@ static int vcpkg_parse_status_file (void)
   DWORD         win_err;
 
   snprintf (file, sizeof(file), "%s\\installed\\vcpkg\\status", vcpkg_root);
+
   memset (&st, '\0', sizeof(st));
   if (safe_stat(file, &st, &win_err) || st.st_size == 0)
   {
     WARN ("Failed to get the file-size of %s. win_err: %lu\n", file, win_err);
     return (0);
   }
+
   f = fopen (file, "rb");
   if (!f)
   {
     WARN ("Failed to open %s.\n", file);
     return (0);
   }
+
   if (st.st_size >= ULONG_MAX)
   {
     WARN ("File %s is too big %" S64_FMT ".\n", file, st.st_size);
@@ -1502,6 +1510,9 @@ void vcpkg_init (void)
   if (!get_base_env() && !get_base_exe())
      return;
 
+  if (get_installed_dir(NULL))
+     have_installed_dir = TRUE;
+
   ASSERT (built_packages     == NULL);
   ASSERT (installed_packages == NULL);
   ASSERT (available_packages == NULL);
@@ -1522,7 +1533,7 @@ void vcpkg_init (void)
   if (ports_dirs)
      smartlist_free_all (ports_dirs);
 
-  max = vcpkg_parse_status_file();
+  max = have_installed_dir ? vcpkg_parse_status_file() : 0;
   for (i = j = 0; i < max; i++)
   {
     vcpkg_package *pkg = smartlist_get (installed_packages, i);
@@ -1702,7 +1713,7 @@ static const char *get_installed_dir (const vcpkg_package *pkg)
 
   if (!is_directory(dir))
   {
-    snprintf (last_err_str, sizeof(last_err_str), "No such directory %s", dir);
+    snprintf (last_err_str, sizeof(last_err_str), "No status file '%s'", dir);
     return (NULL);
   }
   if (opt.show_unix_paths)
@@ -1845,10 +1856,11 @@ unsigned vcpkg_list_installed (void)
   unsigned    i, indent, num_installed, num_ignored;
   FMT_buf     fmt_buf;
 
-  BUF_INIT (&fmt_buf, BUF_INIT_SIZE, 1);
-
   vcpkg_init();
+
   num_installed = installed_packages ? smartlist_len (installed_packages) : 0;
+
+  BUF_INIT (&fmt_buf, BUF_INIT_SIZE, 1);
 
   if (opt.only_32bit)
      only = ". These are for x86";
@@ -1888,8 +1900,11 @@ unsigned vcpkg_list_installed (void)
   if (num_installed - num_ignored == 0)
      only = "";
 
-  C_printf ("\n  Found %u installed ~3VCPKG~0 packages under ~3%s~0%s:\n",
-            num_installed - num_ignored, get_installed_dir(NULL), only);
+  if (have_installed_dir)
+       C_printf ("\n  Found %u installed ~3VCPKG~0 packages under ~3%s~0%s:\n",
+                 num_installed - num_ignored, get_installed_dir(NULL), only);
+  else C_printf ("\n  Found 0 installed ~3VCPKG~0 packages.\n");
+
   C_puts (fmt_buf.buffer_start);
 
   BUF_EXIT (&fmt_buf);
