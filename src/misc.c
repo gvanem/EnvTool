@@ -3288,6 +3288,38 @@ const char *get_time_str (time_t t)
   return (res);
 }
 
+/*
+ * Return a time-string for a `ft` like:
+ * 28 Oct 2019 - 16:22:49
+ *
+ * Use 2 buffers in round-robin.
+ */
+const char *get_time_str_FILETIME (const FILETIME *ft)
+{
+  static char  buf [2][50];
+  static int   idx = 0;
+  static const char *months [12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+                                   };
+  const char      *_month;
+  char  *res = buf [idx];
+
+  SYSTEMTIME st, lt;
+
+  if (!FileTimeToSystemTime(ft,&st) || !SystemTimeToTzSpecificLocalTime(NULL,&st,&lt))
+     return ("?");
+
+  if (lt.wMonth <= DIM(months))
+       _month = months [lt.wMonth-1];
+  else _month = "???";
+
+  snprintf (res, sizeof(buf[0]), "%02d %s %04u - %02u:%02u:%02u",
+            lt.wDay, _month, lt.wYear, lt.wHour, lt.wMinute, lt.wSecond);
+  idx++;
+  idx &= 1;
+  return (res);
+}
+
 /**
  * Function that prints the line argument while limiting it
  * to at most `C_screen_width()`.
