@@ -195,7 +195,7 @@ static smartlist_t *available_packages;
  *  \endcode
  *
  *  And if `pcre:x86-windows-static` was actually successfully built, it's .lib-files would be:
- *  <vcpkg_root>/installed/x86-windows-static/lib/pcre*.lib  (ready for use by a `_RELEASE` version build)
+ *  `<vcpkg_root>/installed/x86-windows-static/lib/pcre*.lib`  (ready for use by a `_RELEASE` version build)
  *
  * But these could also be left-overs from broken `vcpkg install <pkg>` (in case vcpkg would just cache them).
  */

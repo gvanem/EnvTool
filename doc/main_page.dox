@@ -60,6 +60,7 @@
  *     \li show_ver.c
  *     \li smartlist.c, smartlist.h
  *     \li win_trust.c, win_trust.h
+ *     \li win_sqlite3.c
  *     \li win_ver.c
  * @}
  */

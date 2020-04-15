@@ -1185,7 +1185,7 @@ static char *tmp_fputs (const struct python_info *pi, const char *buf)
  * But it can be used if the Python is embeddable (allthough
  * this is much slower than using `call_python_func()` directly).
  *
- * Write the Python-code (\ref `PY_LIST_MODULES()` or \ref `PY_ZIP_LIST()`) to a
+ * Write the Python-code (\ref PY_LIST_MODULES() or \ref PY_ZIP_LIST()) to a
  * temporary file and `call popen_runf()` on it. Then parse the output.
  */
 static int popen_append_out (char *str, int index)

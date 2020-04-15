@@ -725,9 +725,10 @@ typedef struct FMT_buf {
 
 /** \def BUF_INIT()
  *  Macro to setup the FMT_buf on stack or on the heap.
- *   \param fmt_buf  The buffer-structure to initialise.
- *   \param size     The size to allocate for the maximum string.
- *                   4 bytes are added to this to fit the magic markers.
+ *   \param fmt_buf   The buffer-structure to initialise.
+ *   \param size      The size to allocate for the maximum string.
+ *                    4 bytes are added to this to fit the magic markers.
+ *   \param use_heap  If TRUE, allocate using `MALLOC()`. Otherwise use `alloca()`.
  */
 #define BUF_INIT(fmt_buf, size, use_heap) do {                    \
         DWORD   *_marker;                                         \

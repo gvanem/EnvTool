@@ -786,6 +786,7 @@ INPUT = main_page.dox           \
         ../src/smartlist.c      \
         ../src/sort.c           \
         ../src/vcpkg.c          \
+        ../src/win_sqlite3.c    \
         ../src/win_trust.c      \
         ../src/win_glob.c       \
         ../src/win_ver.c        \
