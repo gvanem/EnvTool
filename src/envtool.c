@@ -3838,13 +3838,11 @@ static void add_clang_cl_compilers (void)
     if (full_name)
         cl->full_name = STRDUP (full_name);
 
-#if 1  // !!
     if (cfg_ignore_lookup("[Compiler]", clang[i]))
     {
       cl->ignore = TRUE;
       num_ignore++;
     }
-#endif
     smartlist_add (all_cc, cl);
   }
   if (num_ignore == i)
@@ -6202,11 +6200,6 @@ struct environ_fspec {
      };
 
 static struct environ_fspec envs[] = {
-#if 0
-               { "*.h",     "INCLUDE"            },
-               { "*.a",     "LIBRARY_PATH"       },
-               { "*.h",    "INCLUDE"             },
-#else
                { "*.exe",   "PATH"               },
                { "*.lib",   "LIB"                },
                { "*.a",     "LIBRARY_PATH"       },
@@ -6220,7 +6213,6 @@ static struct environ_fspec envs[] = {
                { NULL,      "CLASSPATH"          },  /* No support for these. But do it anyway. */
                { "*.go",    "GOPATH"             },
                { NULL,      "FOO"                },  /* Check that non-existing env-vars are also checked */
-#endif
                { NULL,      NULL                 },
     };
 
