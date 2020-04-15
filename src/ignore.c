@@ -22,7 +22,8 @@ static const struct search_list sections[] = {
                               { 2, "[Python]" },
                               { 3, "[PE-resources]" },
                               { 4, "[EveryThing]" },
-                              { 5, "[Login]" }  /* Only used in auth.c */
+                              { 5, "[Login]" },  /* Only used in auth.c */
+                              { 6, "[Shadow]" }  /* Use in 'envtool ---check -v' */
                             };
 
 /**\struct ignore_node
@@ -51,7 +52,7 @@ static UINT curr_sec = UINT_MAX;
  *
  * \param[in] section the section from the file opened in parse_config_file().
  * \param[in] key     the key from the file opened in parse_config_file().
- * \param[in] value   the value from the file opened in parse_config_file().
+ * \param[in] value   the malloced value from the file opened in parse_config_file().
  */
 void cfg_ignore_handler (const char *section, const char *key, const char *value)
 {
@@ -201,7 +202,6 @@ void cfg_ignore_dump (void)
   for (i = 0; i < DIM(sections); i++)
   {
     const char *ignored, *section = sections[i].name;
-
     j = 0;
     for (ignored = cfg_ignore_first(section);
          ignored;

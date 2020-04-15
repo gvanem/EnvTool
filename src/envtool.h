@@ -481,16 +481,17 @@ extern smartlist_t *split_env_var (const char *env_name, const char *value);
  * \struct directory_array
  */
 struct directory_array {
-       char    *dir;         /**< FQDN of this entry */
-       char    *cyg_dir;     /**< The Cygwin POSIX form of the above */
-       int      exist;       /**< does it exist? */
-       int      is_native;   /**< and is it a native dir; like `%WinDir\sysnative` */
-       int      is_dir;      /**< and is it a dir; `_S_ISDIR()` */
-       int      is_cwd;      /**< and is it equal to `current_dir[]` */
-       int      exp_ok;      /**< `expand_env_var()` returned with no `%`? */
-       int      num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
-       BOOL     check_empty; /**< check if it contains at least 1 file? */
-       unsigned line;        /**< Debug: at what line was `add_to_dir_array()` called */
+       char        *dir;         /**< FQDN of this entry */
+       char        *cyg_dir;     /**< The Cygwin POSIX form of the above */
+       int          exist;       /**< does it exist? */
+       int          is_native;   /**< and is it a native dir; like `%WinDir\sysnative` */
+       int          is_dir;      /**< and is it a dir; `_S_ISDIR()` */
+       int          is_cwd;      /**< and is it equal to `current_dir[]` */
+       int          exp_ok;      /**< `expand_env_var()` returned with no `%`? */
+       int          num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
+       BOOL         check_empty; /**< check if it contains at least 1 file? */
+       unsigned     line;        /**< Debug: at what line was `add_to_dir_array()` called */
+       smartlist_t *dirent2;     /**< List of `struct dirent2` for this directory; used in `check_shadow_files()` only */
      };
 
 /**
@@ -508,6 +509,17 @@ struct registry_array {
 
 extern void free_reg_array (void);
 extern void free_dir_array (void);
+
+/**
+ * \struct shadow_entry
+ * Structure used in `envtool --check -v`.
+ */
+struct shadow_entry {
+       char     *shadowed_file;        /**< the file being shadowed by an older file earier in an env-var. */
+       char     *shadowing_file;       /**< the file that shadows for the newer file. */
+       FILETIME  shadowed_FILE_TIME;   /**< dirent2::d_time_create or dirent2::d_time_write. */
+       FILETIME  shadowing_FILE_TIME;  /**< dirent2::d_time_create or dirent2::d_time_write. */
+     };
 
 /*
  * Defined in newer <sal.h> for MSVC.
@@ -665,6 +677,7 @@ extern unsigned    list_lookup_value (const char *name, const struct search_list
 extern const char *flags_decode (DWORD flags, const struct search_list *list, int num);
 extern const char *get_file_size_str (UINT64 size);
 extern const char *get_time_str (time_t t);
+extern const char *get_time_str_FILETIME (const FILETIME *ft);
 extern const char *get_file_ext (const char *file);
 extern char       *create_temp_file (void);
 extern const char *check_if_shebang (const char *fname);

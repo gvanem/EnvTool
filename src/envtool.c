@@ -848,6 +848,16 @@ static void reg_array_free (void *_r)
 static void dir_array_free (void *_d)
 {
   struct directory_array *d = (struct directory_array*) _d;
+  int    i, max = d->dirent2 ? smartlist_len (d->dirent2) : 0;
+
+  for (i = 0; i < max; i++)
+  {
+    struct dirent2 *de = smartlist_get (d->dirent2, i);
+
+    FREE (de->d_name);
+    FREE (de);
+  }
+  smartlist_free (d->dirent2);
 
   FREE (d->dir);
   FREE (d->cyg_dir);
@@ -1927,7 +1937,8 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
 
       case REG_DWORD_BIG_ENDIAN:
            val32 = reg_swap_long (*(DWORD*)&data[0]);
-           /* fall through */
+
+           FALLTHROUGH()
 
       case REG_DWORD:
            DEBUGF (1, "    num: %lu, %s, value: \"%s\", data: %lu\n",
@@ -3312,6 +3323,7 @@ static smartlist_t *all_cc = NULL;
 static size_t longest_cc        = 0;
 static BOOL   ignore_all_gcc    = FALSE;
 static BOOL   ignore_all_gpp    = FALSE;
+static BOOL   ignore_all_clang  = FALSE;
 static BOOL   looks_like_cygwin = FALSE;
 static BOOL   found_search_line = FALSE;
 static char  *cygwin_root       = NULL;
@@ -3813,7 +3825,7 @@ static void add_clang_cl_compilers (void)
                     "clang.exe",
                     "clang-cl.exe"
                   };
-  int i;
+  int i, num_ignore = 0;
 
   for (i = 0; i < DIM(clang); i++)
   {
@@ -3825,8 +3837,18 @@ static void add_clang_cl_compilers (void)
     full_name      = searchpath (cl->short_name, "PATH");
     if (full_name)
         cl->full_name = STRDUP (full_name);
+
+#if 1  // !!
+    if (cfg_ignore_lookup("[Compiler]", clang[i]))
+    {
+      cl->ignore = TRUE;
+      num_ignore++;
+    }
+#endif
     smartlist_add (all_cc, cl);
   }
+  if (num_ignore == i)
+     ignore_all_clang = TRUE;
 }
 
 /**
@@ -4326,7 +4348,7 @@ static int do_check_clang_includes (void)
     FREE (cygwin_root);
   }
 
-  if (num_dirs == 0)
+  if (num_dirs == 0 && !ignore_all_clang)  /* Impossible unless we ignore all `clang*.exe` */
      WARN ("No clang.exe programs returned any include paths.\n");
   return (found);
 }
@@ -5350,6 +5372,7 @@ int MS_CDECL main (int argc, const char **argv)
                            "[PE-resources]", cfg_ignore_handler,
                            "[EveryThing]",   cfg_ignore_handler,
                            "[Login]",        auth_envtool_handler,
+                           "[Shadow]",       cfg_ignore_handler,
                            NULL);
 
   cfg_ignore_dump();
@@ -5556,6 +5579,241 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
   else C_puts ("~0\n");
 }
 
+/*
+ * Returns a copy of `de`.
+ */
+static struct dirent2 *copy_de (const struct dirent2 *de)
+{
+  struct dirent2 *copy = MALLOC (sizeof(*copy));
+
+  DEBUGF (2, "Adding '%s'\n", de->d_name);
+  memcpy (copy, de, sizeof(*copy));
+  copy->d_link = NULL;
+  copy->d_name = STRDUP (de->d_name);
+  slashify2 (copy->d_name, copy->d_name, '\\');
+  return (copy);
+}
+
+/**
+ * Traverse a `dir` and look for files matching file-spec.
+ *
+ * \return A smartlist of `struct dirent2*` entries.
+ *
+ * \todo Use `scandir2()` instead. This can match a more advanced `file_spec`
+ *       that `fnmatch()` supports. Like `*.[ch]`.
+ */
+static smartlist_t *get_matching_files (const char *dir, const char *file_spec)
+{
+  struct dirent2     *de;
+  struct od2x_options dir_opt;
+  smartlist_t        *dir_list;
+  DIR2               *dp;
+
+  memset (&dir_opt, '\0', sizeof(dir_opt));
+  dir_opt.pattern = file_spec;
+  dir_opt.sort    = OD2X_FILES_FIRST;
+
+  if (!is_directory(dir) || (dp = opendir2x(dir, &dir_opt)) == NULL)
+     return (NULL);
+
+  dir_list = smartlist_new();
+
+  while ((de = readdir2(dp)) != NULL)
+  {
+    if (!(de->d_attrib & FILE_ATTRIBUTE_DIRECTORY) /* &&
+        fnmatch(file_spec, de->d_name, FNM_FLAG_NOCASE) == FNM_MATCH */)
+      smartlist_add (dir_list, copy_de(de));
+  }
+  closedir2 (dp);
+  return (dir_list);
+}
+
+/*
+ * Check 2 files with the same `basename()`.
+ *
+ * If `this_de->d_name` is older than `prev_de->d_name`, then it's considered a
+ * shadow of `prev_de->d_name`.
+ *
+ * Ignore if the file or (it's basename) is listed as `ignore` in the `[Shadow]`
+ * section of `~/envtool.cfg`.
+ */
+static BOOL is_shadow_candidate (const struct dirent2 *this_de,
+                                 const struct dirent2 *prev_de,
+                                 FILETIME *newest, FILETIME *oldest)
+{
+  const char *this_base = basename (this_de->d_name);
+  const char *prev_base = basename (prev_de->d_name);
+  ULONGLONG   this_ft, prev_ft;
+
+  if (stricmp(this_base, prev_base))
+     return (FALSE);
+
+  if (cfg_ignore_lookup("[Shadow]", this_base) ||
+      cfg_ignore_lookup("[Shadow]", this_de->d_name) ||
+      cfg_ignore_lookup("[Shadow]", prev_de->d_name))
+  {
+    DEBUGF (2, "Ignoring file '%s' and '%s'.\n", this_de->d_name, prev_de->d_name);
+    return (FALSE);
+  }
+
+  this_ft = (((ULONGLONG)this_de->d_time_write.dwHighDateTime) << 32) + this_de->d_time_write.dwLowDateTime;
+  prev_ft = (((ULONGLONG)prev_de->d_time_write.dwHighDateTime) << 32) + prev_de->d_time_write.dwLowDateTime;
+
+  if (this_ft && this_ft < prev_ft)
+  {
+    DEBUGF (1, "Write-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
+    *newest = prev_de->d_time_write;
+    *oldest = this_de->d_time_write;
+    return (TRUE);
+  }
+
+#if 0
+  this_ft = (((ULONGLONG)this_de->d_time_create.dwHighDateTime) << 32) + this_de->d_time_create.dwLowDateTime;
+  prev_ft = (((ULONGLONG)prev_de->d_time_create.dwHighDateTime) << 32) + prev_de->d_time_create.dwLowDateTime;
+
+  if (this_ft && this_ft < prev_ft)
+  {
+    DEBUGF (1, "Creation-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
+    *newest = prev_de->d_time_create;
+    *oldest = this_de->d_time_create;
+    return (TRUE);
+  }
+#endif
+
+  return (FALSE);
+}
+
+/**
+ * Traverse dir-lists of 2 directories and add a "shadow warning" to `shadow_list`
+ * if an older file is found in `prev_dir->dir` (which is ahead of `this_dir->dir`
+ * in the path for this env-var).
+ *
+ * E.g. with a `PATH=f:\ProgramFiler\Python27;f:\CygWin32\bin` and these files:
+ *
+ *  f:\ProgramFiler\Python27\python2.7.exe   24.06.2011  12:38   (oldest)
+ *  f:\CygWin32\bin\python2.7.exe            20.03.2019  18:32
+ *
+ * then the oldest `python2.7.exe` shadows the newest `python2.7.exe`.
+
+ f:\ProgramFiler\Git-2\usr\bin\seq.exe
+ f:\CygWin32\bin\seq.exe
+ */
+static void check_shadow_files (smartlist_t *this_de_list,
+                                smartlist_t *prev_de_list,
+                                smartlist_t *shadow_list)
+{
+  const struct dirent2 *this_de;
+  const struct dirent2 *prev_de;
+  int   i, max_i = smartlist_len (this_de_list);
+  int   j, max_j = smartlist_len (prev_de_list);
+
+  for (i = 0; i < max_i; i++)
+  {
+    const char *this_file, *base;
+
+    this_de   = smartlist_get (this_de_list, i);
+    this_file = this_de->d_name;
+    base = basename (this_file);
+
+    for (j = 0; j < max_j; j++)
+    {
+      FILETIME newest, oldest;
+
+      prev_de = smartlist_get (prev_de_list, j);
+      if (is_shadow_candidate(this_de, prev_de, &newest, &oldest))
+      {
+        struct shadow_entry *se = MALLOC (sizeof(*se));
+
+        se->shadowing_file      = this_de->d_name;
+        se->shadowed_file       = prev_de->d_name;
+        se->shadowed_FILE_TIME  = newest;
+        se->shadowing_FILE_TIME = oldest;
+        smartlist_add (shadow_list, se);
+      }
+    }
+  }
+}
+
+/**
+ * For all directories (specified in `dir_list`), build lists of files matching `file_spec`
+ * and do a shadow check of files in all directories after the `arr_i->dir`.
+ * This is to show possibly newer files that should be used instead.
+ */
+static void shadow_report (smartlist_t *dir_list, const char *file_spec)
+{
+  struct directory_array *arr_i, *arr_j;
+  smartlist_t            *shadows;
+  int                     i, j, max;
+
+  shadows = smartlist_new();
+  max = smartlist_len (dir_list);
+
+  for (i = 0; i < max; i++)
+  {
+    arr_i = smartlist_get (dir_list, i);
+    if (arr_i->exist && !arr_i->is_native)
+       arr_i->dirent2 = get_matching_files (arr_i->dir, file_spec);
+  }
+
+  /* For all directories in env-var, do a shadow check of files in
+   * all directories after the 'arr_i->dir'
+   */
+  for (i = 0; i < max; i++)
+  {
+    arr_i = smartlist_get (dir_list, i);
+    for (j = max-1; j > i; j--)
+    {
+      arr_j = smartlist_get (dir_list, j);
+      DEBUGF (1, "i/j: %2d/%2d: %-50.50s / %-50.50s\n", i, j, arr_i->dir, arr_j->dir);
+
+      if (arr_i->dirent2 && arr_j->dirent2)
+         check_shadow_files (arr_i->dirent2, arr_j->dirent2, shadows);
+    }
+  }
+
+  max = smartlist_len (shadows);
+  if (max > 0)
+  {
+    struct shadow_entry *se;
+    size_t len, longest = 0;
+
+    /* First find the longest shadow line
+     */
+    for (i = 0; i < max; i++)
+    {
+      se = smartlist_get (shadows, i);
+      len = strlen (se->shadowing_file);
+      if (len > longest)
+         longest = len;
+      len = strlen (se->shadowed_file);
+      if (len > longest)
+         longest = len;
+    }
+
+    C_printf ("     ~5%d shadows:~0\n", max);
+    for (i = 0; i < max; i++)
+    {
+      const char *t1, *t2;
+
+      se = smartlist_get (shadows, i);
+      t1 = get_time_str_FILETIME (&se->shadowed_FILE_TIME);
+      t2 = get_time_str_FILETIME (&se->shadowing_FILE_TIME);
+
+      C_printf ("     ~6shadowed:~0 %-*s  ~6%s~0\n", longest, se->shadowed_file, t1);
+      C_printf ("               %-*s  ~6%s~0\n", longest, se->shadowing_file, t2);
+    }
+
+    /* We're done; free the shadow-list
+     */
+    for (i = 0; i < max; i++)
+    {
+      se = smartlist_get (shadows, i);
+      FREE (se);
+    }
+  }
+  smartlist_free (shadows);
+}
+
 /**
  * Expand and check a single env-var for missing directories
  * and trailing/leading white space.
@@ -5569,20 +5827,21 @@ void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
  * would leave trailing white-space in `c:\foo1\lib ;` and `c:\foo2\lib;  ` <br>
  * and leading white-space in `        c:\foo3\lib`.
  *
- * \param[in]     env      the environment variable to check.
- * \param[out]    num      the number of elements in the '*env' value.
- * \param[in,out] status   the buffer to receive the state of the check.
- * \param[in]     status_sz the size of the above buffer.
+ * \param[in]     env         the environment variable to check.
+ * \param[in]     file_spec   the file-spec to check for shadowing files.
+ * \param[out]    num         the number of elements in the '*env' value.
+ * \param[in,out] status      the buffer to receive the state of the check.
+ * \param[in]     status_sz   the size of the above buffer.
  *
  * Quit the below for-loop on the first error and store the error in `status`.
  * (unless in verbose-mode; `opt.verbose`).
  */
-static void check_env_val (const char *env, int *num, char *status, size_t status_sz)
+static void check_env_val (const char *env, const char *file_spec, int *num, char *status, size_t status_sz)
 {
-  smartlist_t                  *list = NULL;
-  int                           i, errors, max = 0;
-  int                           save  = opt.conv_cygdrive;
-  char                         *value = getenv_expand (env);
+  smartlist_t *list = NULL;
+  int          i, errors, max = 0;
+  int          save  = opt.conv_cygdrive;
+  char        *value = getenv_expand (env);
   const struct directory_array *arr;
 
   status[0] = '\0';
@@ -5667,6 +5926,9 @@ static void check_env_val (const char *env, int *num, char *status, size_t statu
 #ifndef __CYGWIN__
   FREE (value);
 #endif
+
+  if (opt.verbose && file_spec)
+     shadow_report (list, file_spec);
 
   free_dir_array();
   opt.conv_cygdrive = save;
@@ -5930,25 +6192,40 @@ static void do_check_user_sys_env (void)
 /**
  * The handler for mode `"--check"`.
  * Check the Registry keys even if `opt.no_app_path` is set.
+ *
+ * \struct environ_fspec
+ * Check which file-spec in which environment variable.
  */
+struct environ_fspec {
+       const char *fspec;
+       const char *env;
+     };
+
+static struct environ_fspec envs[] = {
+#if 0
+               { "*.h",     "INCLUDE"            },
+               { "*.a",     "LIBRARY_PATH"       },
+               { "*.h",    "INCLUDE"             },
+#else
+               { "*.exe",   "PATH"               },
+               { "*.lib",   "LIB"                },
+               { "*.a",     "LIBRARY_PATH"       },
+               { "*.h",    "INCLUDE"             },
+               { "*.h"      "C_INCLUDE_PATH"     },
+               { "*",       "CPLUS_INCLUDE_PATH" },
+               { NULL,      "MANPATH"            },
+               { NULL,      "PKG_CONFIG_PATH"    },
+               { "*.py?",   "PYTHONPATH"         },
+               { "*.cmake", "CMAKE_MODULE_PATH"  },
+               { NULL,      "CLASSPATH"          },  /* No support for these. But do it anyway. */
+               { "*.go",    "GOPATH"             },
+               { NULL,      "FOO"                },  /* Check that non-existing env-vars are also checked */
+#endif
+               { NULL,      NULL                 },
+    };
+
 static int do_check (void)
 {
-  static const char *envs[] = {
-                    "PATH",
-                    "LIB",
-                    "LIBRARY_PATH",
-                    "INCLUDE",
-                    "C_INCLUDE_PATH",
-                    "CPLUS_INCLUDE_PATH",
-                    "MANPATH",
-                    "PKG_CONFIG_PATH",
-                    "PYTHONPATH",
-                    "CMAKE_MODULE_PATH",
-                    "CLASSPATH",  /* No support for these. But do it anyway. */
-                    "GOPATH",
-                    "FOO",        /* Check that non-existing env-vars are also checked */
-                    NULL
-                   };
   const char *env;
   char       *sys_env_path = NULL;
   char       *sys_env_inc  = NULL;
@@ -5962,7 +6239,7 @@ static int do_check (void)
   save = opt.no_cwd;
   opt.no_cwd = 1;
 
-  for (i = 0, env = envs[0]; i < DIM(envs) && env; env = envs[++i])
+  for (i = 0, env = envs[0].env; i < DIM(envs) && env; env = envs[++i].env)
   {
     indent = (int) (sizeof("CPLUS_INCLUDE_PATH") - strlen(env));
 
@@ -5970,7 +6247,7 @@ static int do_check (void)
     if (opt.verbose)
        C_putc ('\n');
 
-    check_env_val (env, &num, status, sizeof(status));
+    check_env_val (env, envs[i].fspec, &num, status, sizeof(status));
     C_printf ("%2d~0 elements, %s\n", num, status);
     if (opt.verbose)
        C_putc ('\n');
