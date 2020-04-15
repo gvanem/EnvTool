@@ -1,4 +1,4 @@
-# EnvTool v1.2:
+# EnvTool v1.3:
 
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/gvanem/envtool?branch=master&svg=true)](https://ci.appveyor.com/project/gvanem/envtool)
 
@@ -174,6 +174,37 @@ Matches in %PATH:
 The inverse `envtool.exe --path --owner=!Admin*` is also possible; showing files on the<br>
 `%PATH` who's owner does *not* match `Admin*`.
 
+**E.g. 10**: `envtool --check -v` does a shadow check for file-spec in these
+  environment variables:<br>
+	`PATH`, `LIB`, `LIBRARY_PATH`,`INCLUDE`, `C_INCLUDE_PATH`,
+  `CPLUS_INCLUDE_PATH`, `MANPATH`,<br>
+	`PKG_CONFIG_PATH`, `PYTHONPATH`,`CMAKE_MODULE_PATH`, `CLASSPATH` and `GOPATH`.
+
+For all directories in an env-var, build lists of files
+  matching a 'file_spec' and do a shadow check of files
+  in all directories after each directory. This is to show
+  possibly newer files (in "later" directories) that should
+  be used instead.
+
+  E.g. with a `PATH=c:\ProgramFiler\Python27;c:\CygWin32\bin`
+  and these files:
+  ```
+   c:\ProgramFiler\Python27\python.exe   24.06.2011  12:38   (oldest)
+   c:\CygWin32\bin\python.exe            20.03.2019  18:32
+  ```
+
+  then the oldest `python.exe` shadows the newest `python.exe`.
+  Situation such as thise can be tricky to diagnose,<br>
+	but won't always hurt.If you get many *shadow reports*, edit
+	`%APPDATA%\envtool.cfg` like this:
+```
+[Shadow]
+ ignore = f:\ProgramFiler\RKsupport\*.exe # ignore all .EXEs here
+ ignore = unins00*.exe  # Ignore uninstall programs everywhere.
+```
+
+---
+
 C-source included in `./src`. Makefiles for MinGW, Cygwin, Watcom, clang-cl and MSVC.
 Enjoy!
 
@@ -185,7 +216,6 @@ Enjoy!
 
 Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
 
----
 
 ### Changes:
 
@@ -271,6 +301,9 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
           envtool --evry Makefile.am content:pod2man        - find Makefile.am with pod2man commands.
           envtool --evry M*.mp3 artist:Madonna "year:<2002" - find all Madonna M*.mp3 titles issued prior to 2002.
 
+   1.3: Enhanced "envtool --check -v" to look for shadowed files
+	      in important environment variables like PATH, INCLUDE and LIB.
+				See E.g. 10. above.
 ```
 
 PS. This file is written with the aid of the **[Atom](https://atom.io/)**
