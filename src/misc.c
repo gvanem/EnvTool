@@ -1974,8 +1974,10 @@ char *create_temp_file (void)
 {
 #if defined(__POCC__)
   char *tmp = tmpnam (buf);
+  #define T_FUNC  "tmpnam()"
 #else
   char *tmp = _tempnam (NULL, "envtool-tmp");
+  #define T_FUNC  "_tempnam()"
 #endif
 
   if (tmp)
@@ -1986,7 +1988,7 @@ char *create_temp_file (void)
     free (tmp);     /* Free CRT data */
     return (t);     /* Caller must FREE() this */
   }
-  DEBUGF (2, " %s() _tempname() failed: %s\n", __FUNCTION__, strerror(errno));
+  DEBUGF (2, " %s() %s failed: %s\n", __FUNCTION__, T_FUNC, strerror(errno));
   return (NULL);
 }
 
