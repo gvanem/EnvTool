@@ -55,9 +55,11 @@ int smartlist_write_file (smartlist_t *sl, const char *file);
    */
   int   smartlist_len_dbg (const smartlist_t *sl, const char *sl_name, const char *file, unsigned line);
   void *smartlist_get_dbg (const smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line);
+  void *smartlist_add_dbg (smartlist_t *sl, void *element, const char *sl_name, const char *file, unsigned line);
 
   #define smartlist_len(sl)       smartlist_len_dbg (sl, #sl, __FILE(), __LINE__)
   #define smartlist_get(sl, idx)  smartlist_get_dbg (sl, idx, #sl, __FILE(), __LINE__)
+  #define smartlist_add(sl, elem) smartlist_add_dbg (sl, elem, #sl, __FILE(), __LINE__)
 #endif
 
 #endif

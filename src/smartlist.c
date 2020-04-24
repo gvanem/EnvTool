@@ -653,5 +653,15 @@ void *smartlist_get_dbg (const smartlist_t *sl, int idx, const char *sl_name, co
   ASSERT_VAL (sl);
   return (sl->list[idx]);
 }
+
+void *smartlist_add_dbg (smartlist_t *sl, void *element, const char *sl_name, const char *file, unsigned line)
+{
+  if (!sl)
+     FATAL ("Illegal use of 'smartlist_add (%s, %p)' from %s(%u).\n", sl_name, element, file, line);
+  ASSERT_VAL (sl);
+  smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
+  sl->list [sl->num_used++] = element;
+  return (element);
+}
 #endif
 
