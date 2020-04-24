@@ -184,6 +184,7 @@ void smartlist_ensure_capacity (smartlist_t *sl, size_t num)
 /**
  * Append `element` to the end of the `sl` list.
  */
+#if !defined(_DEBUG)
 void *smartlist_add (smartlist_t *sl, void *element)
 {
   ASSERT (sl);
@@ -191,6 +192,7 @@ void *smartlist_add (smartlist_t *sl, void *element)
   sl->list [sl->num_used++] = element;
   return (element);
 }
+#endif
 
 /**
  * Remove the `idx`-th element of `sl`: <br>
@@ -266,7 +268,7 @@ int smartlist_duplicates (smartlist_t *sl, smartlist_sort_func compare)
   {
     if ((*compare)((const void**)&sl->list[i-1],
                    (const void**)&sl->list[i]) == 0)
-     dups++;
+      dups++;
   }
   return (dups);
 }
@@ -377,7 +379,7 @@ void smartlist_insert (smartlist_t *sl, int idx, void *val)
   ASSERT (idx <= sl->num_used);
 
   if (idx == sl->num_used)
-    smartlist_add (sl, val);
+     smartlist_add (sl, val);
   else
   {
     smartlist_ensure_capacity (sl, ((size_t)sl->num_used)+1);
@@ -385,8 +387,7 @@ void smartlist_insert (smartlist_t *sl, int idx, void *val)
     /* Move other elements away
      */
     if (idx < sl->num_used)
-       memmove (sl->list + idx + 1, sl->list + idx,
-                sizeof(void*)*(sl->num_used-idx));
+       memmove (sl->list + idx + 1, sl->list + idx, sizeof(void*) * (sl->num_used-idx));
     sl->num_used++;
     sl->list[idx] = val;
   }
@@ -657,7 +658,7 @@ void *smartlist_get_dbg (const smartlist_t *sl, int idx, const char *sl_name, co
 void *smartlist_add_dbg (smartlist_t *sl, void *element, const char *sl_name, const char *file, unsigned line)
 {
   if (!sl)
-     FATAL ("Illegal use of 'smartlist_add (%s, %p)' from %s(%u).\n", sl_name, element, file, line);
+     FATAL ("Illegal use of 'smartlist_add (%s, 0x%p)' from %s(%u).\n", sl_name, element, file, line);
   ASSERT_VAL (sl);
   smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
   sl->list [sl->num_used++] = element;
