@@ -1972,14 +1972,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
  */
 char *create_temp_file (void)
 {
-  char buf [_MAX_PATH];
-#if defined(HAVE_TMPNAM_S) && 0
-  char *tmp = buf;
-
-  if (tmpnam_s(buf, sizeof(buf)) != 0)
-     return (NULL);
-
-#elif defined(__POCC__)
+#if defined(__POCC__)
   char *tmp = tmpnam (buf);
 #else
   char *tmp = _tempnam (NULL, "envtool-tmp");
@@ -1990,12 +1983,10 @@ char *create_temp_file (void)
     char *t = STRDUP (tmp);
 
     DEBUGF (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
-    if (tmp != buf)
-        free (tmp);  /* Free CRT data */
-    return (t);      /* Caller must FREE() */
+    free (tmp);     /* Free CRT data */
+    return (t);     /* Caller must FREE() this */
   }
   DEBUGF (2, " %s() _tempname() failed: %s\n", __FUNCTION__, strerror(errno));
-  ARGSUSED (buf);
   return (NULL);
 }
 
