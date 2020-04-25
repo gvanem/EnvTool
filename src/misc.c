@@ -1341,6 +1341,33 @@ char *str_replace2 (int ch, const char *replace, char *str, size_t max_size)
 }
 
 /**
+ * Remote quotes (`"`) inside a string `s`.
+ */
+char *str_unquote (char *s)
+{
+  char *p = s, *q;
+  char *copy = alloca (strlen(s)+1);
+
+  for (q = copy; *p; p++)
+      if (*p != '"')
+         *q++ = *p;
+  *q = '\0';
+  memcpy (s, copy, strlen(copy)+1);
+  return (s);
+}
+
+/**
+ * Return TRUE is string `s` is properly quoted.
+ */
+int str_isquoted (const char *s)
+{
+  char *l_quote = strchr (s, '\"');
+  char *r_quote = strrchr (s, '\"');
+
+  return (l_quote && r_quote && r_quote > l_quote);
+}
+
+/**
  * A `strtok_r()` function taken from libcurl:
  *
  * Copyright (C) 1998 - 2007, Daniel Stenberg, <daniel@haxx.se>, et al.

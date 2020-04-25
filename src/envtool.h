@@ -407,6 +407,7 @@ struct prog_options {
        int             no_app_path;
        int             no_colours;
        int             no_ansi;
+       int             use_cache;
        int             use_regex;
        int             use_buffered_io;
        int             use_nonblock_io;
@@ -438,7 +439,6 @@ struct prog_options {
        int             do_check;
        int             conv_cygdrive;
        int             case_sensitive;
-       int             cache_ver_level;
        int             keep_temp;         /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
        int             under_conemu;      /**< TRUE if running under ConEmu console-emulator */
        int             under_appveyor;    /**< TRUE if running under AppVeyor */
@@ -562,6 +562,8 @@ extern BOOL  str_match      (const char *s, const char *what, char **next);
 extern char *str_repeat     (int ch, size_t num);
 extern char *str_replace    (int ch1, int ch2, char *str);
 extern char *str_replace2   (int ch, const char *s, char *str, size_t max_size);
+extern char *str_unquote    (char *s);
+extern int   str_isquoted   (const char *s);
 extern char *str_reverse    (char *str);
 extern int   str_equal      (const char *s1, const char *s2);
 extern int   str_equal_n    (const char *s1, const char *s2, size_t len);
