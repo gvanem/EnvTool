@@ -902,6 +902,7 @@ extern char *fnmatch_res  (int rc);
 
 #define FATAL(...)          do {                                        \
                               CRTDBG_CHECK_OFF();                       \
+                              fflush (stdout);                          \
                               fprintf (stderr, "\nFatal: %s(%u): ",     \
                                        __FILE(), __LINE__);             \
                               fprintf (stderr, ##__VA_ARGS__);          \
