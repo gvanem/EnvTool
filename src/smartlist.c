@@ -331,9 +331,13 @@ smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
  */
 int smartlist_write_file (smartlist_t *sl, const char *file)
 {
-  FILE *f = fopen (file, "w+t");
+  FILE *f;
   int   i, max;
 
+  ASSERT (sl);
+  ASSERT_VAL (sl);
+
+  f = fopen (file, "w+t");
   if (!f)
      return (0);
 
@@ -466,7 +470,6 @@ void smartlist_sort (smartlist_t *sl, smartlist_sort_func compare)
   }
 }
 
-#if defined(NOT_USED_YET)
 /**
  * Assuming the members of `sl` are in order, return the index of the
  * member that matches `key`. <br>
@@ -630,7 +633,6 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
 
   return (found ? smartlist_get(sl, idx) : NULL);
 }
-#endif  /* NOT_USED_YET */
 
 #ifdef _DEBUG
 /*
