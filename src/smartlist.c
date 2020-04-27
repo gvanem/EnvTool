@@ -280,7 +280,7 @@ int smartlist_duplicates (smartlist_t *sl, smartlist_sort_func compare)
  * Otherwise, just removes them. <br>
  * Preserves the list order.
  */
-int smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, void (*free_fn)(void *a))
+int smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, smartlist_free_func free_fn)
 {
   int i, dups = 0;
 
