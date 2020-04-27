@@ -3419,6 +3419,7 @@ void print_long_line (const char *line, size_t indent)
     C_putc (*c++);
     left--;
   }
+  C_putc ('\n');
 }
 
 #if defined(NOT_USED_YET)
