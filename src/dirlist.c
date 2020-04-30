@@ -122,7 +122,7 @@ int make_dir_spec (const char *arg, char *dir, char *spec)
 
   /* First, remove any enclosing `"` given in `arg`.
    */
-  a_copy = p2 = STRDUP (arg);
+  a_copy = STRDUP (arg);
   if (*a_copy == '"')
      a_copy++;
   end = strchr (a_copy, '\0');
