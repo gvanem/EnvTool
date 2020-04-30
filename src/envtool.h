@@ -368,14 +368,6 @@ typedef enum SignStatus {
 #include "sort.h"
 #include "smartlist.h"
 
-#if defined(USE_MMAP)
-  #if defined(__CYGWIN__)
-    #include <sys/mman.h>
-  #else
-    #include "mmap.h"
-  #endif
-#endif
-
 typedef struct beep_info {
         BOOL      enable;
         unsigned  limit;
@@ -737,7 +729,8 @@ typedef struct FMT_buf {
         FMT_buf *_buf = fmt_buf;                                  \
         size_t    _sz = size + 2*sizeof(DWORD);                   \
                                                                   \
-        _buf->buffer = use_heap ? MALLOC (_sz) : alloca (_sz);    \
+        _buf->on_heap = use_heap;                                 \
+        _buf->buffer  = use_heap ? MALLOC (_sz) : alloca (_sz);   \
         _marker  = (DWORD*) _buf->buffer;                         \
         *_marker = FMT_BUF_MARKER;                                \
         _marker  = (DWORD*) (_buf->buffer + _sz - sizeof(DWORD)); \
