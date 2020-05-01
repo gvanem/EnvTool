@@ -1746,7 +1746,7 @@ static void put_all_to_cache (void)
 {
   int i, max;
 
-  if (!opt.use_cache)
+  if (!opt.use_cache || !vcpkg_root)
      return;
 
   cache_putf (SECTION_VCPKG, "vcpkg_root = %s", vcpkg_root);
