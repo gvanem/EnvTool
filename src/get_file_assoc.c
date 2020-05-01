@@ -178,7 +178,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   if (!is_sfn && GetShortPathNameA(*file_p, buf, sizeof(buf)) == 0)
   {
     _strlcpy (last_err, win_strerror(GetLastError()), sizeof(last_err));
-    DEBUGF (1, "Failed: %s\n", last_err);
+    DEBUGF (1, "*file_p: '%s' failed: %s\n", *file_p, last_err);
     return (FALSE);
   }
 
@@ -188,7 +188,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   if (GetLongPathNameA(file, _new, _MAX_PATH) == 0)
   {
     _strlcpy (last_err, win_strerror(GetLastError()), sizeof(last_err));
-    DEBUGF (1, "Failed: %s\n", last_err);
+    DEBUGF (1, "file: '%s' failed: %s\n", file, last_err);
     FREE (_new);
     return (FALSE);
   }
