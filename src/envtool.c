@@ -5762,7 +5762,7 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
  * if an older file is found in `prev_dir->dir` (which is ahead of `this_dir->dir`
  * in the path for this env-var).
  *
- * E.g. with a `PATH=f:\\ProgramFiler\\Python27;f:\\CygWin32\\bin` and these files:
+ * \eg. with a `PATH=f:\\ProgramFiler\\Python27;f:\\CygWin32\\bin` and these files:
  * ```
  *   f:\ProgramFiler\Python27\python2.7.exe   24.06.2011  12:38   (oldest)
  *   f:\CygWin32\bin\python2.7.exe            20.03.2019  18:32
@@ -5847,7 +5847,7 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
   max = smartlist_len (shadows);
   if (max > 0)
   {
-    struct shadow_entry *se;
+    const struct shadow_entry *se;
     size_t len, longest = 0;
 
     /* First find the longest shadow line
@@ -5878,12 +5878,13 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
 
     /* We're done; free the shadow-list
      */
-    for (i = 0; i < max; i++)
-    {
-      se = smartlist_get (shadows, i);
-      FREE (se);
-    }
+#if defined(_CRTDBG_MAP_ALLOC)
+    smartlist_wipe (shadows, free);
+#else
+    smartlist_wipe (shadows, (void (*)(void*))free_at);
+#endif
   }
+
   smartlist_free (shadows);
 }
 
