@@ -3321,8 +3321,8 @@ const char *get_time_str_FILETIME (const FILETIME *ft)
   static const char *months [12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
                                    };
-  const char      *_month;
-  char  *res = buf [idx];
+  const char *_month;
+  char       *res = buf [idx];
 
   SYSTEMTIME st, lt;
 
