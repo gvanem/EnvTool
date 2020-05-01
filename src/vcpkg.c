@@ -1454,11 +1454,11 @@ static unsigned vcpkg_get_num (BOOL have_CONTROL)
  */
 static unsigned get_all_available (const smartlist_t *dirs, BOOL from_cache)
 {
-  unsigned i, num_ports_list;
+  unsigned num_ports_list;
 
   if (dirs)
   {
-    int max = smartlist_len (dirs);
+    int i, max = smartlist_len (dirs);
 
     DEBUGF (2, "Found %d %sVCPKG port directories.\n", max, from_cache ? "cached " : "");
     for (i = 0; i < max; i++)
