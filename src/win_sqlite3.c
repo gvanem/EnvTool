@@ -9,15 +9,15 @@
 
 #if defined(USE_SQLITE3)   /* rest of file */
 
-#if !defined(_MSC_VER)
-#error "win_sqlite3.c is for MSVC/clang-cl only."
+#define SQLITE_API       __declspec(dllimport)
+#define SQLITE_APICALL   __stdcall
+#define SQLITE_CALLBACK  __stdcall
+
+#if defined(_MSC_VER)
+  #include <winsqlite/winsqlite3.h>
+#else
+  #include <winsqlite3.h>
 #endif
-
-#define SQLITE_API      __declspec(dllimport)
-#define SQLITE_APICALL  __stdcall
-#define SQLITE_CALLBACK __stdcall
-
-#include <winsqlite/winsqlite3.h>
 
 static const char *db_name = "test.db";
 
@@ -43,8 +43,8 @@ static const char *dll_name = "WinSqlite3.dll";
         do {                                               \
           p_##f = (func_##f) GetProcAddress (dll_hnd, #f); \
           if (!p_##f && !is_opt) {                         \
-            WARN ("  Failed to find '%s()' in %s.\n",      \
-                  #f, dll_name);                           \
+             WARN ("  Failed to find '%s()' in %s.\n",     \
+                   #f, dll_name);                          \
             goto failed;                                   \
           }                                                \
           DEBUGF (2, "Function %s(): %*s 0x%p.\n",         \
@@ -151,8 +151,6 @@ void test_sqlite3 (void)
             (*p_sqlite3_libversion)(), (*p_sqlite3_sourceid)());
 
   test_sqlite3_vfs();
-
-  // unlink (db_name);
 
   /* Create a handle to the SQlite3 API
    */
