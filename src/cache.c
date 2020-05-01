@@ -85,7 +85,6 @@ typedef struct CACHE {
         DWORD        inserted;               /**< Number of calls to `cache_insert()`. */
         DWORD        deleted;                /**< Number of calls to `cache_del()`. */
         DWORD        changed;                /**< Number of calls to `cache_putf()` with another value. */
-        DWORD        duplicates;             /**< Number of duplicates found in `cache_write()`. */
         vgetf_state  state [CACHE_STATES];   /**< State values for `cache_vgetf()`. */
       } CACHE;
 
@@ -263,11 +262,11 @@ static void cache_parse (FILE *f)
  */
 static void cache_report (int num)
 {
-  DEBUGF (1, "cache.entries:  %4lu, cache.hits:    %4lu, cache.misses:  %4lu\n",
+  DEBUGF (1, "cache.entries:  %4lu, cache.hits:    %4lu, cache.misses:  %4lu.\n",
           (unsigned long)num, cache.hits, cache.misses);
 
-  DEBUGF (1, "cache.inserted: %4lu, cache.deleted: %4lu, cache.changed: %4lu, cache.duplicates: %lu\n",
-          cache.inserted, cache.deleted, cache.changed, cache.duplicates);
+  DEBUGF (1, "cache.inserted: %4lu, cache.deleted: %4lu, cache.changed: %4lu.\n",
+          cache.inserted, cache.deleted, cache.changed);
 
   if (cache.bsearches)
   {
@@ -323,7 +322,6 @@ static void cache_write (void)
   time_t now;
   int    last_section = -1;
   int    i, max;
-  BOOL   is_dup;
 
   if (!cache.entries || !cache.filename)
      return;
@@ -352,18 +350,10 @@ static void cache_write (void)
   for (i = 0; i < max; i++)
   {
     c = smartlist_get (cache.entries, i);
-    is_dup = FALSE;
     if (c->section != last_section)
        fprintf (f, "\n%s # = %d\n", sections[c->section].name, c->section);
 
-    if (i > 0 && !compare_on_section_key1((const void**)&last_c, (const void**)&c))
-    {
-      is_dup = TRUE;
-      cache.duplicates++;
-      DEBUGF (1, "Duplicated key: '%s'.\n", c->key);
-    }
-    if (!is_dup)
-       fprintf (f, "%s = %s\n", c->key, c->value);
+    fprintf (f, "%s = %s\n", c->key, c->value);
     last_c = c;
     last_section = c->section;
   }
