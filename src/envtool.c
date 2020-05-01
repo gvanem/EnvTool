@@ -5803,9 +5803,14 @@ static void check_shadow_files (smartlist_t *this_de_list,
 }
 
 /**
- * For all directories (specified in `dir_list`), build lists of files matching `file_spec`
+ * For all directories (in `dir_list`), build lists of files matching `file_spec`
  * and do a shadow check of files in all directories after the `arr_i->dir`.
  * This is to show possibly newer files that should be used instead.
+ *
+ * \param[in] dir_list   List of directories from the expansion of e.g. `%PATH%`.
+ * \param[in] file_spec  The file-spec to check for shadows.
+ *                       E.g. `"*.exe"` if we look for shadows in `%PATH%` and
+ *                            `"*.h"` if we look for shadows in `%INCLUDE%`.
  */
 static void shadow_report (smartlist_t *dir_list, const char *file_spec)
 {
@@ -6273,8 +6278,8 @@ static struct environ_fspec envs[] = {
                { "*.exe",   "PATH"               },
                { "*.lib",   "LIB"                },
                { "*.a",     "LIBRARY_PATH"       },
-               { "*.h",    "INCLUDE"             },
-               { "*.h"      "C_INCLUDE_PATH"     },
+               { "*.h",     "INCLUDE"            },
+               { "*.h",     "C_INCLUDE_PATH"     },
                { "*",       "CPLUS_INCLUDE_PATH" },
                { NULL,      "MANPATH"            },
                { NULL,      "PKG_CONFIG_PATH"    },
