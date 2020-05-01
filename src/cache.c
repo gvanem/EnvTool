@@ -317,7 +317,7 @@ static void cache_free_node (void *_c)
  */
 static void cache_write (void)
 {
-  const cache_node *c, *last_c;
+  const cache_node *c;
   FILE  *f;
   time_t now;
   int    last_section = -1;
@@ -354,7 +354,6 @@ static void cache_write (void)
        fprintf (f, "\n%s # = %d\n", sections[c->section].name, c->section);
 
     fprintf (f, "%s = %s\n", c->key, c->value);
-    last_c = c;
     last_section = c->section;
   }
   fclose (f);
