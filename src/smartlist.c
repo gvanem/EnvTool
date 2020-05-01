@@ -391,9 +391,9 @@ void smartlist_insert (smartlist_t *sl, int idx, void *val)
     /* Move other elements away
      */
     if (idx < sl->num_used)
-       memmove (sl->list + idx + 1, sl->list + idx, sizeof(void*) * (sl->num_used-idx));
+       memmove (sl->list + idx + 1, sl->list + idx, sizeof(void*) * (sl->num_used - idx));
     sl->num_used++;
-    sl->list[idx] = val;
+    sl->list [idx] = val;
   }
 }
 
@@ -499,9 +499,6 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
   if (len == 0)
   {
     *found_out = 0;
-
-    /* We already know smartlist_len(sl) is 0 in this case
-     */
     return (0);
   }
 
