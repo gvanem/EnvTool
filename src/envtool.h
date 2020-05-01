@@ -507,7 +507,7 @@ extern void free_dir_array (void);
  * Structure used in `envtool --check -v`.
  */
 struct shadow_entry {
-       char     *shadowed_file;        /**< the file being shadowed by an older file earier in an env-var. */
+       char     *shadowed_file;        /**< the file being shadowed by an older file earlier in an env-var. */
        char     *shadowing_file;       /**< the file that shadows for the newer file. */
        FILETIME  shadowed_FILE_TIME;   /**< dirent2::d_time_create or dirent2::d_time_write. */
        FILETIME  shadowing_FILE_TIME;  /**< dirent2::d_time_create or dirent2::d_time_write. */
