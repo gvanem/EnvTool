@@ -5,6 +5,7 @@
 
 extern void        vcpkg_init (void);
 extern void        vcpkg_exit (void);
+extern BOOL        vcpkg_get_info (char **exe_p, struct ver_info *ver);
 extern unsigned    vcpkg_get_num_CONTROLS (void);
 extern unsigned    vcpkg_get_num_portfile (void);
 extern unsigned    vcpkg_get_num_built (void);

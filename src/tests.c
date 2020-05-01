@@ -14,6 +14,7 @@
 #include "Everything_ETP.h"
 #include "envtool_py.h"
 #include "envtool.h"
+#include "cache.h"
 
 extern BOOL find_vstudio_init (void);
 
@@ -865,6 +866,13 @@ int do_tests (void)
 #if defined(_MSC_VER) && !defined(_DEBUG)
   find_vstudio_init();
 #endif
+
+#if defined(USE_SQLITE3)
+  test_sqlite3();
+#endif
+
+  if (opt.use_cache)
+     cache_test();
 
   return (0);
 }

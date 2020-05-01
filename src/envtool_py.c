@@ -19,6 +19,7 @@
 #include "envtool.h"
 #include "envtool_py.h"
 #include "dirlist.h"
+#include "cache.h"
 #include "get_file_assoc.h"
 
 /* No need to include <Python.h> just for this:
@@ -49,9 +50,9 @@ typedef struct python_path {
  */
 typedef struct python_module {
         char name [30];               /**<  */
-        char version [20];            /**<  */
+        char version [40];            /**< This length should match the `p.version` in `PY_LIST_MODULES()` */
         char location [_MAX_PATH];    /**<  */
-        char meta_path [_MAX_PATH];   /**<  */
+        char meta_path [_MAX_PATH];   /**< path to `METADATA` or `PKG-INFO` file. Equals "-" if none. */
         BOOL is_zip;                  /**<  */
         BOOL is_actual;               /**< Already called `get_actual_filename (&m->location)` */
 
@@ -178,6 +179,12 @@ typedef struct python_info {
    *  Only set if `is_embeddable == TRUE`:
    */
   HANDLE dll_hnd;
+
+  /** The index of this Python in the `py_programs` smartlist.
+   * I.e. in the cache-file "python_in_pathX = ...", `py_index == X`.
+   */
+  int py_index;
+
 } python_info;
 
 /**
@@ -241,7 +248,8 @@ static BOOL   popen_py_crash = FALSE;
   static HANDLE exc_hnd = NULL;
 #endif
 
-static int get_python_version (const char *exe_name);
+static int  get_python_version (const char *exe_name);
+static BOOL py_add_module (struct python_info *pi, const struct python_module *m);
 
 /**
  * The list of Pythons from the `"%PATH"` and from the
@@ -827,7 +835,7 @@ void py_exit (void)
 
 #if !defined(_DEBUG)
   if (exc_hnd && exc_hnd != INVALID_HANDLE_VALUE)
-     FreeLibrary (exc_hnd);
+      FreeLibrary (exc_hnd);
   exc_hnd = NULL;
 #endif
 
@@ -1006,6 +1014,7 @@ static char *py_prog_dump (FILE *out, const char *py_prog, unsigned where)
   }
 
   fputs ("---------------------------\n", out);
+  fflush (out);
   FREE (prog);
   return (NULL);
 }
@@ -1204,8 +1213,8 @@ static int popen_append_out (char *str, int index)
     popen_out = REALLOC (popen_out, popen_out_sz);
   }
 
-  DEBUGF (2, "index: %d, strlen(popen_out): %zu, popen_out_sz: %zu\n",
-          index, strlen(popen_out), popen_out_sz);
+  DEBUGF (2, "index: %d, strlen(popen_out): %d, popen_out_sz: %d\n",
+          index, (int)strlen(popen_out), (int)popen_out_sz);
 
   if (index == 0)
      popen_out[0] = '\0';
@@ -1276,10 +1285,10 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
  * \param[in] spec  Print only those module-names `m->name` that matches `spec`.
  * \retval          The number of modules printed.
  */
-static int py_print_modinfo (const char *spec)
+static int py_print_modinfo (const char *spec, BOOL get_details)
 {
-  BOOL  match_all = !strcmp (spec, "*");
-  int   found = 0, zips_found = 0;
+  BOOL match_all = !strcmp (spec, "*");
+  int  found = 0, zips_found = 0;
 
   int i, max = g_pi->modules ? smartlist_len (g_pi->modules) : 0;
 
@@ -1290,11 +1299,22 @@ static int py_print_modinfo (const char *spec)
     if (fnmatch(spec, m->name, fnmatch_case(0)) != FNM_MATCH)
        continue;
 
+#if 0
+    if (opt.use_cache && m->meta_path[0] && !FILE_EXISTS(m->meta_path))
+    {
+      cache_delf (SECTION_PYTHON, "python_modules%d_%d", g_pi->py_index, i);
+      FREE (m);
+      smartlist_del (g_pi->modules, i);
+      max--;
+      continue;
+    }
+#endif
+
     found++;
     if (m->is_zip)
        zips_found++;
 
-    if (match_all)
+    if (get_details)
     {
       const char *loc = py_filename (m->location);
 
@@ -1302,16 +1322,17 @@ static int py_print_modinfo (const char *spec)
                 m->is_actual ? m->location : loc,
                 m->is_zip ? " (ZIP)" : "");
 
-      if (m->meta_path[0])
-         C_printf ("     meta: %s\n", m->meta_path);
+      if (m->meta_path[0] != '-')
+         C_printf ("      meta: %s\n", py_filename(m->meta_path));
 
       _strlcpy (m->location, loc, sizeof(m->location));
       m->is_actual = TRUE;
+      C_putc ('\n');
     }
     else
       C_printf ("   %s%s\n", m->version, m->is_zip ? " (ZIP)" : "");
   }
-  if (match_all)
+  if (match_all && !get_details)
      C_printf ("~6Found %d modules~0 (%d are ZIP/EGG files).\n", found, zips_found);
   return (found);
 }
@@ -1366,7 +1387,7 @@ static void py_get_meta_info (struct python_module *m)
         "      loc = p.location + ' (ZIP)\'\n"                                         \
         "    else:\n"                                                                  \
         "      loc = p.location\n"                                                     \
-        "    ver = \"%.20s\" % p.version\n"                                            \
+        "    ver = \"%.40s\" % p.version\n"                                            \
         "    try:\n"                                                                   \
         "      meta = p._get_metadata_path_for_display (p.PKG_INFO)\n"                 \
         "    except AttributeError:\n"                                                 \
@@ -1452,6 +1473,11 @@ static void py_get_meta_info (struct python_module *m)
         "  except ImportError:\n"                                                        \
         "    print (',<unknown>')\n"
 
+/**
+ * \todo
+ *   Use 'python data-to-c.py file-with-PY_LIST_MODULES > generated-PY_LIST_MODULES.c' and a
+ *   #include "generated-PY_LIST_MODULES.c" here instead.
+ */
 
 /**
  * Call the Python program and build up the `pi->modules` smartlist of the module information.
@@ -1459,16 +1485,19 @@ static void py_get_meta_info (struct python_module *m)
  * If the Python is embedable, use `(*PyRun_SimpleString)()` directly.
  * Otherwise call the Python program via a temporary file in `popen_run_py()`.
  */
-static int py_get_module_info (struct python_info *pi)
+static void py_get_module_info (struct python_info *pi)
 {
   char *line, *str = NULL;
   char *str2 = NULL;
   char *tok_end;
 
+  if (opt.use_cache && smartlist_len(pi->modules) > 0)
+     DEBUGF (1, "Calling %s() with a cache should not be neccesary.\n", __FUNCTION__);
+
   if (pi->is_embeddable)
   {
     if (!pi->bitness_ok || !py_init_embedding(pi))
-       return (0);
+       return;
 
     /**
      * Re-enable the catcher as `"sys.stdout = old_stdout"` was called
@@ -1478,7 +1507,7 @@ static int py_get_module_info (struct python_info *pi)
     if (!pi->catcher)
     {
       WARN (" Failed to setup py_catcher.\n");
-      return (0);
+      return;
     }
     set_error_mode (0);
     str = call_python_func (pi, PY_LIST_MODULES(), __LINE__);
@@ -1504,27 +1533,29 @@ static int py_get_module_info (struct python_info *pi)
       char module  [40+1]  = { "?" };
       char version [30+1]  = { "?" };
       char fname   [256+1] = { "?" };
-      char meta    [256+1] = { "" };
+      char meta    [256+1] = { "-" };
       int  num = sscanf (line, "%40[^;];%20[^;];%256[^;];%256s", module, version, fname, meta);
 
-      if (num == 4)
+      if (num >= 3)
       {
-        struct python_module *m = CALLOC (sizeof(*m), 1);
+        struct python_module m;
 
-        _strlcpy (m->name, module, sizeof(m->name));
-        _strlcpy (m->version, version, sizeof(m->version));
-        _strlcpy (m->location, fname, sizeof(m->location));
-        if (str_endswith(fname,"(ZIP)"))
+        _strlcpy (m.name, module, sizeof(m.name));
+        _strlcpy (m.version, version, sizeof(m.version));
+        _strlcpy (m.location, fname, sizeof(m.location));
+        _strlcpy (m.meta_path, "-", sizeof(m.meta_path));
+        m.is_actual = m.is_zip = FALSE;
+        if (str_endswith(fname," (ZIP)"))
         {
-          m->location [strlen(m->location)-sizeof("ZIP)")] = '\0';
-          m->is_zip = TRUE;
+          m.location [strlen(m.location) - sizeof(" (ZIP)") + 1] = '\0';
+          m.is_zip = TRUE;
         }
         if (meta[0] != '-')
         {
-          _strlcpy (m->meta_path, meta, sizeof(m->meta_path));
-          py_get_meta_info (m);
+          _strlcpy (m.meta_path, meta, sizeof(m.meta_path));
+          py_get_meta_info (&m);
         }
-        smartlist_add (pi->modules, m);
+        py_add_module (pi, &m);
       }
       else
         DEBUGF (1, "Suspicious line: num: %d, '%s'\n", num, line);
@@ -1533,7 +1564,6 @@ static int py_get_module_info (struct python_info *pi)
   if (str == popen_out)
        popen_append_clear();
   else FREE (str);
-  return smartlist_len (pi->modules);
 }
 
 /**
@@ -1685,12 +1715,23 @@ static int process_zip (struct python_info *pi, const char *zfile)
                         opt.debug, opt.case_sensitive, opt.file_spec, zfile);
 
   if (len < 0)
-     FATAL ("`char prog[%zu]` buffer too small. Approx. %zu bytes needed.\n",
-            sizeof(prog), sizeof(PY_ZIP_LIST()) + _MAX_PATH);
+     FATAL ("`char prog[%d]` buffer too small. Approx. %d bytes needed.\n",
+            (int)sizeof(prog), (int) (sizeof(PY_ZIP_LIST()) + _MAX_PATH));
 
   if (pi->is_embeddable)
        str = call_python_func (pi, prog, __LINE__);
   else str = popen_run_py (pi, prog);
+
+#if 0
+  /** \todo Add zip content to cache? */
+  if (opt.use_cache)
+  {
+    snprintf (prog, sizeof(prog), PY_ZIP_LIST(), opt.debug, opt.case_sensitive, "*", zfile);
+    for (i,z) in enumerate(zip_content):
+      snprintf (format, sizeof(format), "python_zip%d_%d = %%s,%%s", py_index, i);
+      cache_putf (SECTION_PYTHON, format, zfile, z);
+  }
+#endif
 
   if (str)
   {
@@ -1706,7 +1747,7 @@ static int process_zip (struct python_info *pi, const char *zfile)
          break;
 #if 0
       if (opt.verbose)
-         py_print_modinfo (opt.file_spec);
+         py_print_modinfo (opt.file_spec, TRUE);
 #endif
     }
   }
@@ -1720,6 +1761,40 @@ static int process_zip (struct python_info *pi, const char *zfile)
 }
 
 /**
+ * Check if the `module` is already in the `pi->modules` smartlist.
+ */
+static BOOL py_module_found (const struct python_info *pi, const char *module)
+{
+  int i, max = smartlist_len (pi->modules);
+
+  for (i = 0; i < max; i++)
+  {
+    const struct python_module *m = smartlist_get (pi->modules, i);
+
+    if (!stricmp(m->name,module))
+       return (TRUE);
+  }
+  return (FALSE);
+}
+
+/**
+ * If `m->name` is not already in the `pi->modules` smartlist, allocate and copy it.
+ */
+static BOOL py_add_module (struct python_info *pi, const struct python_module *m)
+{
+  if (!py_module_found(pi, m->name))
+  {
+    struct python_module *m2 = MALLOC (sizeof(*m2));
+
+    memcpy (m2, m, sizeof(*m2));
+    smartlist_add (pi->modules, m2);
+    return (TRUE);
+  }
+  DEBUGF (1, "module '%s' for '%s' already added!\n", m->name, pi->program);
+  return (FALSE);
+}
+
+/**
  * Check if the `dir` is already in the `sys.path[]` smartlist.
  * Compare the `dir` with no case-sensitivity.
  *
@@ -1729,13 +1804,13 @@ static int process_zip (struct python_info *pi, const char *zfile)
  *   f:\programfiler\Python36\lib\site-packages
  * \endcode
  */
-static BOOL py_path_found (smartlist_t *sl, const char *dir)
+static BOOL py_path_found (const struct python_info *pi, const char *dir)
 {
-  int i, max = smartlist_len (sl);
+  int i, max = smartlist_len (pi->sys_path);
 
   for (i = 0; i < max; i++)
   {
-    const struct python_path *pp = smartlist_get (sl, i);
+    const struct python_path *pp = smartlist_get (pi->sys_path, i);
 
     if (!stricmp(pp->dir,dir))
        return (TRUE);
@@ -1745,10 +1820,11 @@ static BOOL py_path_found (smartlist_t *sl, const char *dir)
 
 /**
  * Allocate a `python_path` node and add it to `pi->sys_path[]` smartlist.
+ * Not called if `opt.use_cache == TRUE` and something found in file-cache.
  */
 static void add_sys_path (const char *dir)
 {
-  if (!py_path_found(g_pi->sys_path, dir))
+  if (!py_path_found(g_pi, dir))
   {
     struct python_path *pp = CALLOC (1, sizeof(*pp));
     struct stat st;
@@ -1854,12 +1930,15 @@ static int build_sys_path (char *str, int index)
  *   Do something like `cygwin_create_path(CCP_WIN_A_TO_POSIX, dir)`
  *   does in CygWin.
  */
-static int get_sys_path (const struct python_info *pi)
+static void get_sys_path (const struct python_info *pi)
 {
+  if (smartlist_len(pi->sys_path) > 0)  /* We have this from cache */
+     return;
+
   ASSERT (pi == g_pi);
-  return popen_runf (build_sys_path, "%s -c \"%s\"",
-                     pi->exe_name,
-                     pi->ver_major >= 3 ? PY_PRINT_SYS_PATH3_CMD() : PY_PRINT_SYS_PATH2_CMD());
+  popen_runf (build_sys_path, "%s -c \"%s\"",
+              pi->exe_name,
+              pi->ver_major >= 3 ? PY_PRINT_SYS_PATH3_CMD() : PY_PRINT_SYS_PATH2_CMD());
 }
 
 /**
@@ -1961,29 +2040,33 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
 {
   char *str = NULL;
   int   i, max, found;
+  BOOL  use_cache = (opt.use_cache && smartlist_len(pi->modules) > 0);
 
   ASSERT (pi == g_pi);
 
   DEBUGF (1, "pi->variant: %d.\n", pi->variant);
-
-  /**\todo Move this to py_init()? */
 
   if (pi->is_embeddable)
   {
     if (reinit && !py_init_embedding(pi))
        return (0);
 
-    str = call_python_func (pi, PY_PRINT_SYS_PATH_DIRECT(), __LINE__);
-    if (!str)
-       return (0);
+    /* We have this from the file-cache.
+     */
+    if (!use_cache)
+    {
+      str = call_python_func (pi, PY_PRINT_SYS_PATH_DIRECT(), __LINE__);
+      if (!str)
+         return (0);
 
-    build_sys_path (str, -1);
-    FREE (str);
+      build_sys_path (str, -1);
+      FREE (str);
+    }
   }
-  else
+  else if (!use_cache)
+  {
     get_sys_path (pi);
-
-  /* end of todo */
+  }
 
   found = 0;
   max = smartlist_len (pi->sys_path);
@@ -2004,12 +2087,15 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
                            TRUE, "sys.path[]", HKEY_PYTHON_PATH, FALSE);
     found += rc;
 
-#if 0
+#if 1
     /* If there was a hit for `opt.file_spec` along the `sys.path[]`, this could also
      * be a hit for a matching module.
      */
     if (rc >= 1 && opt.verbose)
-       py_print_modinfo (opt.file_spec);
+    {
+      C_printf ("  ~2Getting module-info matching ~6%s~0\n", opt.file_spec);
+      py_print_modinfo (opt.file_spec, TRUE);
+    }
 #endif
   }
   return (found);
@@ -2143,9 +2229,9 @@ static struct python_info *add_python (const struct python_info *pi, const char 
 
 /**
  * For each directory in the `%PATH`, try to match a Python from the
- * ones in \ref all_py_programs[].
+ * ones in `all_py_programs[]`.
  *
- * If it's found in the *ignore-list* (by `cfg_ignore_lookup()`) do not add it.<br>
+ * If it's found in the ignore-list (by `cfg_ignore_lookup()`) do not add it.<br>
  * Figure out it's version and .DLL-name (if it's embeddable).
  */
 static int match_python_exe (const char *dir)
@@ -2176,17 +2262,17 @@ static int match_python_exe (const char *dir)
 
   while ((de = readdir2(dp)) != NULL)
   {
-    const struct python_info *pi;
-    struct python_info       *pi2;
+    const struct python_info *all_pi;
+    struct python_info       *pi;
 
     if ((de->d_attrib & FILE_ATTRIBUTE_DIRECTORY) ||
         (de->d_attrib & FILE_ATTRIBUTE_DEVICE))
       continue;
 
     base = basename (de->d_name);
-    for (i = 0, pi = all_py_programs; i < DIM(all_py_programs); pi++, i++)
+    for (i = 0, all_pi = all_py_programs; i < DIM(all_py_programs); all_pi++, i++)
     {
-      if (stricmp(base,pi->program) != 0)
+      if (stricmp(base, all_pi->program) != 0)
          continue;
 
       if (cfg_ignore_lookup("[Python]",de->d_name))
@@ -2194,20 +2280,20 @@ static int match_python_exe (const char *dir)
 
       found++;
       DEBUGF (1, "de->d_name: %s matches: '%s', variant: %d\n",
-              de->d_name, pi->program, pi->variant);
+              de->d_name, all_pi->program, all_pi->variant);
 
-      pi2 = add_python (pi, de->d_name);
+      pi = add_python (all_pi, de->d_name);
 
       /* First Python found is default.
        */
       if (found == 1)
-         pi2->is_default = TRUE;
+         pi->is_default = TRUE;
 
-      smartlist_add (py_programs, pi2);
+      smartlist_add (py_programs, pi);
 
-      /* If we specified `envtool -V`, just show the default Python found.
+      /* If we specified `envtool -V`, just show the first Python found.
        */
-      if (opt.do_version == 1)
+      if (opt.do_version == 1 && !opt.use_cache)
          rc = 0;
 
       /* If we found all Pythons we can handle, there is no point searching
@@ -2224,15 +2310,209 @@ static int match_python_exe (const char *dir)
 }
 
 /**
+ * Build up the `pi->modules` list from the file-cache.
+ */
+static int get_modules_from_cache (struct python_info *pi)
+{
+  int i = 0;
+  int dups = 0;
+
+  if (!opt.use_cache)
+     return (0);
+
+  while (1)
+  {
+    struct python_module m;
+    char   format [50];
+    char  *mod_name, *mod_version, *location, *meta_path;
+    int    rc, is_zip;
+
+    snprintf (format, sizeof(format), "python_modules%d_%d = %%s,%%s,%%d,%%s,%%s", pi->py_index, i);
+    rc = cache_getf (SECTION_PYTHON, format, &mod_name, &mod_version, &is_zip, &location, &meta_path);
+    DEBUGF (2, "rc: %d.\n", rc);
+
+    if (rc < 5)
+       break;
+
+    m.is_zip    = is_zip;
+    m.is_actual = TRUE;
+    _strlcpy (m.name, mod_name, sizeof(m.name));
+    _strlcpy (m.version, mod_version, sizeof(m.version));
+    _strlcpy (m.location, location, sizeof(m.location));
+    _strlcpy (m.meta_path, meta_path, sizeof(m.meta_path));
+    if (!py_add_module(pi, &m))
+       dups++;
+    i++;
+  }
+  return (i - dups);
+}
+
+/**
+ * Try to get all Python information from the cache.
+ */
+static BOOL get_pythons_from_cache (void)
+{
+  struct python_info *pi;
+  int    i, j, found;
+
+  if (!opt.use_cache)
+     return (FALSE);
+
+  i = found = 0;
+
+  while (1)
+  {
+    char   format [50];
+    char  *py_prog, *py_exe, *py_dll, *version, *user_site;
+    char  *base;
+    int    rc1, rc2, variant, is_default, is_embeddable, bitness, num_modules;
+
+    /* This MUST match the format used in `cache_putf()`.
+     */
+    snprintf (format, sizeof(format), "pythons_on_path%d = %%s,%%s,%%s,%%d,%%d,%%d,%%d,%%d,%%s,%%s", i);
+
+    rc1 = cache_getf (SECTION_PYTHON, format,
+                      &py_prog, &py_exe, &py_dll, &variant, &is_default, &num_modules,
+                      &is_embeddable, &bitness, &version, &user_site);
+    if (rc1 != 10)
+       break;
+
+    DEBUGF (1, "rc1: %d\n     py_prog: '%s', py_exe: '%s', py_dll: '%s', variant: %d, "
+               "is_default: %d, num_modules: %d, is_embeddable: %d, bitness: %d, version: '%s', user_site: '%s'.\n",
+            rc1, py_prog, py_exe, py_dll, variant, is_default, num_modules, is_embeddable, bitness, version, user_site);
+
+    found++;
+
+    pi = CALLOC (sizeof(*pi), 1);
+    rc2 = sscanf (version, "(%d.%d.%d)", &pi->ver_major, &pi->ver_minor, &pi->ver_micro);
+    DEBUGF (1, "rc2: %d. ver: %d.%d.%d\n", rc2, pi->ver_major, pi->ver_minor, pi->ver_micro);
+
+    base = basename (py_exe);
+    _strlcpy (pi->exe_dir, py_exe, base - py_exe);
+    _strlcpy (pi->program, py_prog, sizeof(pi->program));
+    pi->exe_name       = STRDUP (py_exe);
+    pi->dll_name       = STRDUP (py_dll);
+    pi->user_site_path = STRDUP (user_site);
+    pi->variant        = variant;
+    pi->is_default     = is_default;
+    pi->is_embeddable  = is_embeddable;
+    pi->bitness        = (bitness == 0) ? bit_unknown : (bitness == 32 ? bit_32 : bit_64);
+    pi->sys_path       = smartlist_new();
+
+    set_python_home (pi);
+    set_python_prog (pi);
+
+    if (pi->is_embeddable)
+    {
+      pi->bitness_ok = TRUE;  /* assume yes */
+      check_bitness (pi, NULL);
+    }
+
+    smartlist_add (py_programs, pi);
+
+    /* Get the 'sys.path[]' list for this Python.
+     */
+    j = 0;
+    while (1)
+    {
+      struct python_path *pp;
+      int    exist = 0, is_dir = 0, is_zip = 0;
+      char  *py_dir = NULL;
+
+      snprintf (format, sizeof(format), "python_path%d_%d = %%d,%%d,%%d,%%s", i, j);
+      rc1 = cache_getf (SECTION_PYTHON, format, &exist, &is_dir, &is_zip, &py_dir);
+      if (rc1 != 4)
+         break;
+
+      pp = MALLOC (sizeof(*pp));
+      pp->exist  = exist;
+      pp->is_dir = is_dir;
+      pp->is_zip = is_zip;
+      _strlcpy (pp->dir, py_dir, sizeof(pp->dir));
+      smartlist_add (pi->sys_path, pp);
+      j++;
+    }
+    i++;    /* Get the next cached 'pythons_on_path' */
+  }
+  return (found > 0);
+}
+
+/*
+ * Write all collected information for a single Python back to the file-cache.
+ */
+static void write_to_cache (const struct python_info *pi)
+{
+  int  i, bitness, max;
+  char version [30];
+
+  if (!opt.use_cache)
+     return;
+
+  snprintf (version, sizeof(version), "(%d.%d.%d)", pi->ver_major, pi->ver_minor, pi->ver_micro);
+
+  switch (pi->bitness)
+  {
+    case bit_32:
+         bitness = 32;
+         break;
+    case bit_64:
+         bitness = 64;
+         break;
+    default:
+         bitness = 0;
+         break;
+  }
+
+  max = pi->modules ? smartlist_len (pi->modules) : 0;
+
+  cache_putf (SECTION_PYTHON, "pythons_on_path%d = %s,%s,%s,%d,%d,%d,%d,%d,%s,%s",
+              pi->py_index, pi->program, pi->exe_name, pi->dll_name, pi->variant,
+              pi->is_default, max, pi->is_embeddable, bitness,
+              version, pi->user_site_path);
+
+  for (i = 0; i < max; i++)
+  {
+    const struct python_module *m = smartlist_get (pi->modules, i);
+    const char  *meta_path = "-";
+
+    if (m->meta_path[0] != '-')
+    {
+      if (m->is_zip || m->is_actual)
+           meta_path = m->meta_path;
+      else meta_path = py_filename (m->meta_path);
+    }
+    cache_putf (SECTION_PYTHON, "python_modules%d_%d = %s,%s,%d,%s,%s",
+                pi->py_index, i, m->name, m->version, m->is_zip, m->location, meta_path);
+  }
+
+  max = smartlist_len (pi->sys_path);
+  if (max == 0)
+  {
+    DEBUGF (2, "No cached sys_path[] for %s.\n", pi->exe_name);
+    g_pi = (struct python_info*) pi;
+    get_sys_path (pi);
+  }
+
+  max = smartlist_len (pi->sys_path);
+  for (i = 0; i < max; i++)
+  {
+    const struct python_path *pp = smartlist_get (pi->sys_path, i);
+
+    cache_putf (SECTION_PYTHON, "python_path%d_%d = %d,%d,%d,%s",
+                pi->py_index, i, pp->exist, pp->is_dir, pp->is_zip, pp->dir);
+  }
+}
+
+/**
  * Search all directories on `%PATH` for matches to `all_py_programs::program`.
  */
 static void enum_pythons_on_path (void)
 {
+  char *dir, *tok_end, path_sep[2] = ";";
   char *path = getenv_expand ("PATH");
-  char *dir, path_sep[2] = ";";
-  char *tok_end;
 
-  for (dir = _strtok_r(path,path_sep,&tok_end); dir; dir = _strtok_r(NULL,path_sep,&tok_end))
+  for (dir = _strtok_r(path, path_sep, &tok_end); dir;
+       dir = _strtok_r(NULL, path_sep, &tok_end))
   {
     slashify2 (dir, dir, DIR_SEP);
     if (!match_python_exe(dir))
@@ -2256,8 +2536,8 @@ static void py_test_internal (struct python_info *pi)
   if (reinit && pi->is_embeddable && !test_python_funcs(pi,reinit))
      C_puts ("Embedding failed.");
 
-  C_printf ("~6List of modules for %s:~0\n", pi->exe_name);
-  py_print_modinfo ("*");
+  C_printf ("~6List of modules for %s:~0\n", py_filename(pi->exe_name));
+  py_print_modinfo ("*", TRUE);
   C_putc ('\n');
 }
 
@@ -2280,7 +2560,7 @@ int py_test (void)
               py_variant_name(pi->variant),
               pi->is_default    ? " ~6(Default)~0," : "",
               pi->is_embeddable ? ""                : "not ",
-              pi->exe_name);
+              py_filename(pi->exe_name));
     py_test_internal (pi);
   }
 
@@ -2384,15 +2664,11 @@ void py_searchpaths (void)
 
     if (pi->exe_name && opt.do_version >= 3)
     {
-      int save = opt.cache_ver_level;
-
-      opt.cache_ver_level = 3;
       print_home_path (pi, 12);
       print_user_site_path (pi, 12);
       g_pi = pi;
       get_sys_path (pi);
       print_sys_path (pi, 12);
-      opt.cache_ver_level = save;
     }
   }
 
@@ -2536,8 +2812,10 @@ void enum_python_in_registry (const char *key_name)
 
 /**
  * Main initialiser function for this module:
- *  \li Find the details of all supported Pythons in `all_py_programs`.
- *  \li Walk the `%PATH` (and Registry; not yet) to find this information.
+ *  \li If `opt.use_cache == TRUE` get previous information from file-cache.
+ *  \li If nothing found from cache:
+ *    \li Find the details of all supported Pythons in `all_py_programs`.
+ *    \li Walk the `%PATH` (and Registry; not yet) to find this information.
  *  \li Add each Python found to the `py_programs` smartlist as they are found.
  *
  * When the above is done, loop over all wanted Pythons
@@ -2563,7 +2841,8 @@ void py_init (void)
 
   py_programs = smartlist_new();
 
-  enum_pythons_on_path();
+  if (!get_pythons_from_cache())
+     enum_pythons_on_path();
 
 #if 0  /** \todo */
   enum_python_in_registry ("Software\\Python\\PythonCore");
@@ -2573,6 +2852,7 @@ void py_init (void)
           "py_which: %d/%s\n\n", py_which, py_variant_name(py_which));
 
   max = smartlist_len (py_programs);
+
   for (i = 0; i < max; i++)
   {
     struct python_info *pi = smartlist_get (py_programs, i);
@@ -2580,6 +2860,8 @@ void py_init (void)
     char  *num_mod;
     char   mod_buf [20];
     char   version [20];
+
+    pi->py_index = i;
 
     len = (int) strlen (pi->program);
     if (len > longest_py_program)
@@ -2590,10 +2872,18 @@ void py_init (void)
     if (len > longest_py_version)
        longest_py_version = len;
 
-    if (pi->is_default || py_which == pi->variant || py_which == ALL_PYTHONS)
+    pi->modules = smartlist_new();
+
+    if (get_modules_from_cache(pi) > 0)
     {
-      pi->modules = smartlist_new();
-      num_mod = _itoa (py_get_module_info(pi), mod_buf, 10);
+      len = smartlist_len (pi->modules);
+      num_mod = _itoa (len, mod_buf, 10);
+    }
+    else if (opt.use_cache || pi->is_default || py_which == pi->variant || py_which == ALL_PYTHONS)
+    {
+      py_get_module_info (pi);
+      len = smartlist_len (pi->modules);
+      num_mod = _itoa (len, mod_buf, 10);
     }
     else
       num_mod = "<N/A>";
@@ -2608,7 +2898,10 @@ void py_init (void)
             indent+longest_py_program, "", pi->user_site_path ? pi->user_site_path : "<None>",
             indent+longest_py_program, "", py_variant_name(pi->variant), pi->is_default ? " (Default)" : "",
             indent+longest_py_program, "", num_mod);
+
+    write_to_cache (pi);
   }
+
   DEBUGF (1, "py_init() finished\n"
           "------------------------------------------------------------------\n");
   global_indent = longest_py_version + longest_py_program;
@@ -2618,7 +2911,7 @@ void py_init (void)
  * Make an `arg_vector` suitable for `PySys_SetArgvEx()`.
  *
  * \param[in] av   the `arg_vector` to initialise.
- * \param[in] argv the C-arguments to fill info `av`.
+ * \param[in] argv the C-arguments to fill into `av`.
  * \param[in] wide TRUE if the `av->wide[]` array should be created.
  *                 FALSE if the `av->ascii[]` array should be created.
  */
@@ -2711,7 +3004,7 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
   const char *prog0, *fmt;
   char       *str, *prog;
   size_t      size;
-  arg_vector  av;
+  arg_vector  av = { 0, NULL, NULL };   /* Fill in to shutup warnings from gcc */
 
   C_printf ("Executing ~6%s~0 using ~6%s~0: ", py_argv[0], pi->dll_name);
 

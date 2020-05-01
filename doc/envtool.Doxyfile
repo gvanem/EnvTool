@@ -770,6 +770,7 @@ INPUT = main_page.dox           \
         ../src/auth.c           \
         ../src/envtool.c        \
         ../src/envtool_py.c     \
+        ../src/cache.c          \
         ../src/cfg_file.c       \
         ../src/color.c          \
         ../src/Everything.c     \
@@ -791,6 +792,7 @@ INPUT = main_page.dox           \
         ../src/win_glob.c       \
         ../src/win_ver.c        \
         ../src/auth.h           \
+        ../src/cache.h          \
         ../src/color.h          \
         ../src/description.h    \
         ../src/dirlist.h        \

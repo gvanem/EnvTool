@@ -42,6 +42,7 @@
 #include "ignore.h"
 #include "envtool.h"
 #include "envtool_py.h"
+#include "cache.h"
 #include "dirlist.h"
 #include "sort.h"
 #include "vcpkg.h"
@@ -138,9 +139,6 @@ static char *user_env_inc    = NULL;
 
 static char  current_dir [_MAX_PATH];
 
-static char *vcache_fname = NULL;
-static BOOL  use_cache = FALSE;
-
 static regex_t    re_hnd;         /* regex handle/state */
 static regmatch_t re_matches[3];  /* regex sub-expressions */
 static int        re_err;         /* last regex error-code */
@@ -177,9 +175,8 @@ static int   do_check (void);
 static void  search_and_add_all_cc (BOOL print_info, BOOL print_lib_path);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
-static int   get_pkg_config_info (char **exe_p, struct ver_info *ver);
-static int   get_vcpkg_info (char **exe_p, struct ver_info *ver);
-static int   get_cmake_info (char **exe_p, struct ver_info *ver);
+static BOOL  get_pkg_config_info (char **exe, struct ver_info *ver);
+static BOOL  get_cmake_info (char **exe, struct ver_info *ver);
 static int   get_pkg_info (const char *pc_file, const char *filler);
 
 /**
@@ -333,6 +330,7 @@ static void show_ext_versions (void)
   char           *pkg_config_exe = NULL;
   char           *vcpkg_exe      = NULL;
   char           *cmake_exe      = NULL;
+  char            slash = (opt.show_unix_paths ? '/' : '\\');
   struct ver_info py_ver, cmake_ver, pkg_config_ver, vcpkg_ver;
 
   memset (&found, '\0', sizeof(found));
@@ -352,7 +350,6 @@ static void show_ext_versions (void)
 
   if (py_get_info(&py_exe, NULL, &py_ver))
   {
-    slashify2 (py_exe, py_exe, opt.show_unix_paths ? '/' : '\\');
     len[1] = snprintf (found[1], FOUND_SZ, found_fmt[1], py_ver.val_1, py_ver.val_2, py_ver.val_3);
     pad_len = len[1];
   }
@@ -364,7 +361,7 @@ static void show_ext_versions (void)
        pad_len = len[2];
   }
 
-  if (get_vcpkg_info(&vcpkg_exe, &vcpkg_ver))
+  if (vcpkg_get_info(&vcpkg_exe, &vcpkg_ver))
   {
     len[3] = snprintf (found[3], FOUND_SZ, found_fmt[3], vcpkg_ver.val_1, vcpkg_ver.val_2, vcpkg_ver.val_3);
     if (len[3] > pad_len)
@@ -372,15 +369,15 @@ static void show_ext_versions (void)
   }
 
   if (cmake_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[0], cmake_exe);
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[0], slashify(cmake_exe, slash));
   else C_printf (not_found_fmt[0]);
 
   if (py_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[1], py_exe);
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[1], slashify(py_exe, slash));
   else C_printf (not_found_fmt[1]);
 
   if (pkg_config_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[2], pkg_config_exe);
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[2], slashify(pkg_config_exe, slash));
   else C_printf (not_found_fmt[2]);
 
   if (vcpkg_exe)
@@ -388,7 +385,7 @@ static void show_ext_versions (void)
     unsigned num1 = vcpkg_get_num_installed();
     unsigned num2 = vcpkg_get_num_CONTROLS();
 
-    C_printf ("%-*s -> ~6%s~0", pad_len, found[3], vcpkg_exe);
+    C_printf ("%-*s -> ~6%s~0", pad_len, found[3], slashify(vcpkg_exe, slash));
     if (num1 >= 1)
          C_printf (" (%u packages installed, %u packages available).\n", num1, num2);
     else C_printf (" (%s).\n", vcpkg_last_error());
@@ -403,77 +400,15 @@ static void show_ext_versions (void)
 }
 
 /**
- * Hook-functions for color.c functions.
- * Used to dump version-information to file-cache.
- */
-static BOOL  saw_newline;
-static FILE *fcache;
-
-static void write_hook (const char *buf)
-{
-  size_t len = strlen (buf);
-
-  if (len >= 1)
-  {
-    /** Put `opt.cache_ver_level` only on lines after `[\r\n]` was seen.
-     */
-    if (saw_newline)
-         fprintf (fcache, "%d:%s", opt.cache_ver_level, buf);
-    else fputs (buf, fcache);
-    saw_newline = (buf[len-1] == '\r' || buf[len-1] == '\n');
-  }
-}
-
-static void read_hook (smartlist_t *sl, const char *buf)
-{
-  int vlevel = (int)buf[0];
-
-  if (isdigit(vlevel) && buf[1] == ':')
-  {
-    if (opt.do_version >= vlevel - '0')
-       C_puts (buf+2);
-  }
-  else
-    C_puts (buf);
-  ARGSUSED (sl);
-}
-
-/**
  * Handler for `envtool -V..`:
  * + Show some basic version information:    option `-V`.
  * + Show more detailed version information: option `-VV`.
  */
 static int show_version (void)
 {
-  HWND         wnd;
-  BOOL         wow64 = is_wow64_active();
-  smartlist_t *vcache = NULL;
+  HWND wnd;
+  BOOL wow64 = is_wow64_active();
 
-  if (use_cache)
-  {
-    if (FILE_EXISTS(vcache_fname))
-    {
-      /* If file-cache exist, read from it and print it.
-       */
-      vcache = smartlist_read_file (vcache_fname, read_hook);
-      goto quit;
-    }
-
-    /* Otherwise, create the cache's content
-     */
- // opt.do_version = 3;
-    fcache = fopen (vcache_fname, "w+t");
-    if (fcache)
-    {
-      /* Initialised to TRUE so that the first line written gets
-       * a `opt.cache_ver_level` prefix.
-       */
-      saw_newline = TRUE;
-      C_write_hook = write_hook;
-    }
-  }
-
-  opt.cache_ver_level = 1;
   C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.\n  Hosted at: ~6%s~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
             wow64 ? ", ~1WOW64" : "", AUTHOR_STR, GITHUB_STR);
@@ -498,14 +433,11 @@ static int show_version (void)
        C_printf ("\r                             \r");
   else C_putc ('\n');
 
-  if (!opt.under_appveyor)
-     show_ext_versions();
+  show_ext_versions();
 
   if (opt.do_version >= 2)
   {
     unsigned num;
-
-    opt.cache_ver_level = 2;
 
     C_printf ("  OS-version: %s (%s bits).\n", os_full_version(), os_bits());
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
@@ -526,17 +458,6 @@ static int show_version (void)
     num = vcpkg_list_installed();
     DEBUGF (2, "vcpkg_list_installed(): %u.\n", num);
   }
-
-  if (opt.under_appveyor)
-     show_ext_versions();
-
-quit:
-  if (vcache)
-     smartlist_free (vcache);
-  if (fcache)
-     fclose (fcache);
-  fcache = NULL;
-  C_write_hook = NULL;
   return (0);
 }
 
@@ -621,7 +542,8 @@ static int show_help (void)
           "    ~6--no-cwd~0       don't add current directory to search-lists.\n"
           "    ~6-c~0             be case-sensitive.\n"
           "    ~6-d~0, ~6--debug~0    set debug level (level 2, ~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
-          "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n");
+          "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n"
+          "    ~6-k~0, ~6--keep~0     keep temporary files.\n");
 
   C_printf ("    ~6-r~0, ~6--regex~0    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
             "    ~6-s~0, ~6--size~0     show size of files or directories found.\n"
@@ -3002,74 +2924,69 @@ static int do_check_manpath (void)
 /**
  * Find the version and location `pkg-config.exe` (on `PATH`).
  */
-static int pkg_config_major, pkg_config_minor;
+static struct ver_info pkgconfig_ver;
+static char           *pkgconfig_exe = NULL;
 
 static int find_pkg_config_version_cb (char *buf, int index)
 {
+  struct ver_info ver = { 0,0,0,0 };
+
   ARGSUSED (index);
-  if (sscanf (buf, "%d.%d", &pkg_config_major, &pkg_config_minor) == 2)
-     return (1);
-  return (0);
-}
-
-static int get_pkg_config_info (char **exe_p, struct ver_info *ver)
-{
-  char  exe_copy [_MAX_PATH];
-  char *exe;
-
-  *exe_p = NULL;
-  pkg_config_major = pkg_config_minor = -1;
-  exe = searchpath ("pkg-config.exe", "PATH");
-  if (exe == NULL)
-     return (0);
-
-  slashify2 (exe_copy, exe, '\\');
-
-  if (popen_runf(find_pkg_config_version_cb, "\"%s\" --version", exe_copy) > 0)
+  if (sscanf(buf, "%d.%d", &ver.val_1, &ver.val_2) == 2)
   {
-    ver->val_1 = pkg_config_major;
-    ver->val_2 = pkg_config_minor;
-    *exe_p = STRDUP (exe);
+    memcpy (&pkgconfig_ver, &ver, sizeof(pkgconfig_ver));
     return (1);
   }
   return (0);
 }
 
-/**
- * Find the version and location `vcpkg.exe` (on `PATH`).
- */
-static int vcpkg_major, vcpkg_minor, vcpkg_micro;
-
-static int find_vcpkg_version_cb (char *buf, int index)
+static BOOL get_pkg_config_info (char **exe, struct ver_info *ver)
 {
-  ARGSUSED (index);
-  if (sscanf(buf, "Vcpkg package management program version %d.%d.%d", &vcpkg_major, &vcpkg_minor, &vcpkg_micro) >= 2)
-     return (1);
-  return (0);
-}
+  static char exe_copy [_MAX_PATH];
 
-static int get_vcpkg_info (char **exe_p, struct ver_info *ver)
-{
-  char  exe_copy [_MAX_PATH];
-  char *exe;
+  *exe = NULL;
+  *ver = pkgconfig_ver;
 
-  *exe_p = NULL;
-  vcpkg_major = vcpkg_minor = vcpkg_micro = -1;
-  exe = searchpath ("vcpkg.exe", "PATH");
-  if (exe == NULL)
-     return (0);
-
-  slashify2 (exe_copy, exe, '\\');
-
-  if (popen_runf(find_vcpkg_version_cb, "\"%s\" version", exe_copy) > 0)
+  /* We have already done this
+   */
+  if (pkgconfig_exe && VALID_VER(pkgconfig_ver))
   {
-    ver->val_1 = vcpkg_major;
-    ver->val_2 = vcpkg_minor;
-    ver->val_3 = vcpkg_micro;
-    *exe_p = STRDUP (exe);
-    return (1);
+    *exe = STRDUP (pkgconfig_exe);
+    return (TRUE);
   }
-  return (0);
+
+  DEBUGF (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+
+  cache_getf (SECTION_PKGCONFIG, "pkgconfig_exe = %s", &pkgconfig_exe);
+  cache_getf (SECTION_PKGCONFIG, "pkgconfig_version = %d,%d", &pkgconfig_ver.val_1, &pkgconfig_ver.val_2);
+
+  if (pkgconfig_exe && !FILE_EXISTS(pkgconfig_exe))
+  {
+    cache_del (SECTION_PKGCONFIG, "pkgconfig_version");
+    cache_del (SECTION_PKGCONFIG, "pkgconfig_exe");
+    memset (&pkgconfig_ver, '\0', sizeof(pkgconfig_ver));
+    pkgconfig_exe = NULL;
+    return get_pkg_config_info (exe, ver);
+  }
+
+  if (!pkgconfig_exe)
+     pkgconfig_exe = searchpath ("pkg-config.exe", "PATH");
+
+  if (!pkgconfig_exe)
+     return (FALSE);
+
+  pkgconfig_exe = slashify2 (exe_copy, pkgconfig_exe, '\\');
+  *exe = STRDUP (pkgconfig_exe);
+
+  cache_putf (SECTION_PKGCONFIG, "pkgconfig_exe = %s", pkgconfig_exe);
+
+  if (!VALID_VER(pkgconfig_ver) && popen_runf(find_pkg_config_version_cb, "\"%s\" --version", pkgconfig_exe) > 0)
+     cache_putf (SECTION_PKGCONFIG, "pkgconfig_version = %d,%d", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
+
+  *ver = pkgconfig_ver;
+  DEBUGF (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+
+  return (pkgconfig_exe && VALID_VER(pkgconfig_ver));
 }
 
 /**
@@ -3184,105 +3101,111 @@ static int do_check_vcpkg (void)
  * E.g:
  * \code
  *   cmake.exe     -> f:\MinGW32\bin\CMake\bin\cmake.exe.
- *   built-in path -> f:\MinGW32\bin\CMake\share\cmake-X.Y\Modules
+ *   built-in path -> f:\MinGW32\bin\CMake\share\cmake-{major_ver}.{minor_ver}\Modules
  * \endcode
  */
-static int cmake_major, cmake_minor, cmake_micro;
+static struct ver_info cmake_ver;
+static char           *cmake_exe = NULL;
 
 static int find_cmake_version_cb (char *buf, int index)
 {
-  static char prefix[] = "cmake version ";
+  static char     prefix[] = "cmake version ";
+  struct ver_info ver = { 0,0,0,0 };
+  char           *p = buf + sizeof(prefix) - 1;
 
-  if (!strncmp(buf,prefix,sizeof(prefix)-1) && strlen(buf) >= sizeof(prefix))
+  if (str_startswith(buf, prefix) &&
+      sscanf(p, "%d.%d.%d", &ver.val_1, &ver.val_2, &ver.val_3) >= 2)
   {
-    char *p = buf + sizeof(prefix) - 1;
-
-    sscanf (p, "%d.%d.%d", &cmake_major, &cmake_minor, &cmake_micro);
+    memcpy (&cmake_ver, &ver, sizeof(cmake_ver));
     return (1);
   }
   ARGSUSED (index);
   return (0);
 }
 
-static int get_cmake_info (char **exe_p, struct ver_info *ver)
+static BOOL get_cmake_info (char **exe, struct ver_info *ver)
 {
-  char  exe_copy [_MAX_PATH];
-  char *exe;
+  static char exe_copy [_MAX_PATH];
 
-  *exe_p = NULL;
-  cmake_major = cmake_minor = cmake_micro = -1;
+  *ver = cmake_ver;
+  *exe = NULL;
 
-  exe = searchpath ("cmake.exe", "PATH");
-  if (exe == NULL)
-     return (0);
-
-  slashify2 (exe_copy, exe, '\\');
-
-  if (popen_runf(find_cmake_version_cb, "\"%s\" -version", exe_copy) > 0)
+  /* We have already done this
+   */
+  if (cmake_exe && VALID_VER(cmake_ver))
   {
-    ver->val_1 = cmake_major;
-    ver->val_2 = cmake_minor;
-    ver->val_3 = cmake_micro;
-    ver->val_4 = 0;
-    *exe_p = STRDUP (exe);
-    return (1);
+    *exe = STRDUP (cmake_exe);
+    return (TRUE);
   }
-  return (0);
+
+  DEBUGF (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+
+  cache_getf (SECTION_CMAKE, "cmake_exe = %s", &cmake_exe);
+  cache_getf (SECTION_CMAKE, "cmake_version = %d,%d,%d", &cmake_ver.val_1, &cmake_ver.val_2, &cmake_ver.val_3);
+
+  if (cmake_exe && !FILE_EXISTS(cmake_exe))
+  {
+    cache_del (SECTION_CMAKE, "cmake_exe");
+    cache_del (SECTION_CMAKE, "cmake_version");
+    memset (&cmake_ver, '\0', sizeof(cmake_ver));
+    cmake_exe = NULL;
+    return get_cmake_info (exe, ver);
+  }
+
+  if (!cmake_exe)
+     cmake_exe = searchpath ("cmake.exe", "PATH");
+
+  if (!cmake_exe)
+     return (FALSE);
+
+  cmake_exe = slashify2 (exe_copy, cmake_exe, '\\');
+  *exe = STRDUP (cmake_exe);
+
+  cache_putf (SECTION_CMAKE, "cmake_exe = %s", cmake_exe);
+
+  if (!VALID_VER(cmake_ver) && popen_runf(find_cmake_version_cb, "\"%s\" -version", cmake_exe) > 0)
+     cache_putf (SECTION_CMAKE, "cmake_version = %d,%d,%d", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
+
+  *ver = cmake_ver;
+  DEBUGF (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+  return (cmake_exe && VALID_VER(cmake_ver));
 }
 
 static int do_check_cmake (void)
 {
-  const char *cmake_bin = searchpath ("cmake.exe", "PATH");
-  const char *env_name = "CMAKE_MODULE_PATH";
-  int         found = 0;
-  BOOL        check_env = TRUE;
+  struct ver_info ver;
+  char           *bin;
+  const char     *env_name = "CMAKE_MODULE_PATH";
+  int             found = 0;
+  BOOL            check_env = TRUE;
 
-  cmake_major = cmake_minor = cmake_micro = -1;
-
-  if (!getenv(env_name))
-  {
-    WARN ("Env-var %s not defined.\n", env_name);
-    check_env = FALSE;
-  }
-
-  if (cmake_bin)
-  {
-    char *cmake_root = dirname (cmake_bin);
-    char  cmake_copy [_MAX_PATH];
-
-    DEBUGF (3, "cmake -> '%s', cmake_root: '%s'\n", cmake_bin, cmake_root);
-    slashify2 (cmake_copy, cmake_bin, '\\');
-
-    if (popen_runf(find_cmake_version_cb, "\"%s\" -version", cmake_copy) > 0)
-    {
-      char dir [_MAX_PATH];
-
-      snprintf (dir, sizeof(dir), "%s\\..\\share\\cmake-%d.%d\\Modules",
-                cmake_root, cmake_major, cmake_minor);
-      _fix_path (dir, dir);
-
-      DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
-              cmake_major, cmake_minor, cmake_micro, dir);
-
-      set_report_header ("Matches among built-in Cmake modules:\n");
-      found = process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, NULL, FALSE);
-    }
-    else
-      WARN ("Calling '%s' failed.\n", cmake_bin);
-
-    FREE (cmake_root);
-  }
-  else
+  if (!get_cmake_info(&bin, &ver))
   {
     WARN ("cmake.exe not found on PATH.\n");
     if (check_env)
        WARN (" Checking %%%s anyway.\n", env_name);
   }
+  else
+  {
+    char  dir [_MAX_PATH];
+    char *root = dirname (bin);
+
+    snprintf (dir, sizeof(dir), "%s\\..\\share\\cmake-%d.%d\\Modules", root, ver.val_1, ver.val_2);
+    _fix_path (dir, dir);
+
+    DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
+            ver.val_1, ver.val_2, ver.val_3, dir);
+
+    set_report_header ("Matches among built-in Cmake modules:\n");
+    found = process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, NULL, FALSE);
+    FREE (bin);
+    FREE (root);
+  }
 
   if (check_env)
   {
     set_report_header ("Matches in %%%s:\n", env_name);
-    found += do_check_env ("CMAKE_MODULE_PATH", TRUE);
+    found += do_check_env (env_name, TRUE);
   }
   set_report_header (NULL);
   return (found);
@@ -3297,7 +3220,7 @@ static int do_check_cmake (void)
 typedef enum compiler_type {
              CC_UNKNOWN = 0, /**< Unknown compiler (not initialised value) */
              CC_GNU_GCC,     /**< Some sort of (prefixed) `*gcc.exe`. */
-             CC_GNU_GPP,     /**< Some sort of (prefixed) `*g++.exe`. */
+             CC_GNU_GXX,     /**< Some sort of (prefixed) `*g++.exe`. */
              CC_MSVC,        /**< A MSVC compiler */
              CC_CLANG_CL,    /**< A clang/clang-cl compiler */
              CC_BORLAND,     /**< A Borland / Embarcadero compiler */
@@ -3375,9 +3298,9 @@ static void compiler_check_ignore (compiler_info *cc)
   else if (cc->type == CC_GNU_GCC && opt.no_gcc)
      ignore = TRUE;
 
-  /* "envtool --no-g++ .." given and this `cc->type == CC_GNU_GPP`.
+  /* "envtool --no-g++ .." given and this `cc->type == CC_GNU_GXX`.
    */
-  else if (cc->type == CC_GNU_GPP && opt.no_gpp)
+  else if (cc->type == CC_GNU_GXX && opt.no_gpp)
      ignore = TRUE;
 
   /* "envtool --no-watcom .." given and this `cc->type == CC_WATCOM`.
@@ -3407,6 +3330,147 @@ static void compiler_check_ignore (compiler_info *cc)
           cc->short_name, cc->full_name ? cc->full_name : "<not found>", ignore);
 
   cc->ignore = ignore;
+}
+
+/**
+ * Add a compiler to the `all_cc` smartlist.
+ */
+static void add_compiler (const compiler_info *_cc)
+{
+  compiler_info *cc = MALLOC (sizeof(*cc));
+
+  *cc = *_cc;
+
+  if (cc->type != CC_GNU_GCC && cc->type != CC_GNU_GXX)
+     cc->no_prefix = FALSE;
+
+  cc->short_name = STRDUP (_cc->short_name);
+
+  if (_cc->full_name && _cc->full_name[0] != '-')
+       cc->full_name = STRDUP (_cc->full_name);
+  else cc->full_name = NULL;
+  smartlist_add (all_cc, cc);
+}
+
+/**
+ * Cache functions for compilers.
+ * Parses the cache keywords `compiler_exe_X`, `compiler_inc_X_Y` and `compiler_lib_X_Y`.
+ */
+static int get_all_cc_from_cache (void)
+{
+  int i = 0, found = 0;
+
+  if (!opt.use_cache)
+     return (0);
+
+  while (1)
+  {
+    compiler_info cc;
+    char format [50];
+
+    snprintf (format, sizeof(format), "compiler_exe_%d_%d = %%d,%%d,%%d,%%s,%%s", i);
+    if (cache_getf (SECTION_COMPILER, format,
+                    &cc.type, &cc.ignore, &cc.no_prefix, &cc.short_name, &cc.full_name) != 5)
+       break;
+    add_compiler (&cc);
+    found++;
+    i++;
+  }
+  DEBUGF (1, "Found %d cached compilers.\n", found);
+  return (found);
+}
+
+static void put_all_cc_to_cache (void)
+{
+  int i, max;
+
+  if (!opt.use_cache)
+     return;
+
+  max = smartlist_len (all_cc);
+  for (i = 0; i < max; i++)
+  {
+    const compiler_info *cc = smartlist_get (all_cc, i);
+    char  format [50];
+
+    snprintf (format, sizeof(format), "compiler_exe_%d = %%d,%%d,%%d,%%s,%%s", i);
+    cache_putf (SECTION_COMPILER, format, cc->type, cc->ignore, cc->no_prefix,
+                cc->short_name, cc->full_name ? cc->full_name : "-");
+  }
+}
+
+static int get_inc_dirs_from_cache (const compiler_info *cc)
+{
+  char format [50], *inc_dir;
+  int  i = 0, found = 0;
+
+  if (!opt.use_cache)
+     return (0);
+
+  while (1)
+  {
+    snprintf (format, sizeof(format), "compiler_inc_%d_%d = %%s", cc->type, i);
+    if (cache_getf(SECTION_COMPILER, format, &inc_dir) != 1)
+       break;
+    add_to_dir_array (inc_dir, FALSE, __LINE__);
+    found++;
+    i++;
+  }
+  DEBUGF (1, "Found %d cached inc-dirs for '%s'.\n", found, cc->short_name);
+  return (found);
+}
+
+static int get_lib_dirs_from_cache (const compiler_info *cc)
+{
+  char format [50], *lib_dir;
+  int  i = 0, found = 0;
+
+  if (!opt.use_cache)
+     return (0);
+
+  while (1)
+  {
+    snprintf (format, sizeof(format), "compiler_lib_%d_%d = %%s", cc->type, i);
+    if (cache_getf(SECTION_COMPILER, format, &lib_dir) != 1)
+       break;
+    add_to_dir_array (lib_dir, FALSE, __LINE__);
+    found++;
+    i++;
+  }
+  DEBUGF (1, "Found %d cached lib-dirs for '%s'.\n", found, cc->short_name);
+  return (found);
+}
+
+static int put_inc_dirs_to_cache (const compiler_info *cc)
+{
+  int i, len = smartlist_len (dir_array);
+
+  if (!opt.use_cache)
+     return (len);
+
+  for (i = 0; i < len; i++)
+  {
+    const struct directory_array *d = smartlist_get (dir_array, i);
+
+    cache_putf (SECTION_COMPILER, "compiler_inc_%d_%d = %s", cc->type, i, d->dir);
+  }
+  return (len);
+}
+
+static int put_lib_dirs_to_cache (const compiler_info *cc)
+{
+  int i, len = smartlist_len (dir_array);
+
+  if (!opt.use_cache)
+     return (len);
+
+  for (i = 0; i < len; i++)
+  {
+    const struct directory_array *d = smartlist_get (dir_array, i);
+
+    cache_putf (SECTION_COMPILER, "compiler_lib_%d_%d = %s", cc->type, i, d->dir);
+  }
+  return (len);
 }
 
 /**
@@ -3641,7 +3705,7 @@ static void gnu_add_gpp_path (void)
 static int setup_gcc_includes (const compiler_info *cc)
 {
   const char *gcc = cc->full_name;
-  int   found;
+  int   found = 0;
 
   if (!gcc)
   {
@@ -3659,16 +3723,21 @@ static int setup_gcc_includes (const compiler_info *cc)
 
   setup_cygwin_root (cc);
 
-  found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
+  found = get_inc_dirs_from_cache (cc);
+
+  if (found == 0)
+     found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
+
   if (found > 0)
   {
     DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
-    if (cc->type == CC_GNU_GPP)
+    if (cc->type == CC_GNU_GXX)
        gnu_add_gpp_path();
   }
   else
     gnu_popen_warn (gcc, found);
-  return (found);
+
+  return put_inc_dirs_to_cache (cc);
 }
 
 static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
@@ -3701,7 +3770,10 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
 
   setup_cygwin_root (cc);
 
-  found = popen_runf (find_library_path_cb, GCC_DUMP_FMT, gcc, m_cpu);
+  found = get_lib_dirs_from_cache (cc);
+
+  if (found == 0)
+     found = popen_runf (find_library_path_cb, GCC_DUMP_FMT, gcc, m_cpu);
   if (found <= 0)
   {
     if (warn)
@@ -3730,7 +3802,8 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
   duplicates = make_unique_dir_array ("library paths");
   if (duplicates > 0)
      DEBUGF (1, "found %d duplicates in library paths for %s.\n", duplicates, gcc);
-  return (found);
+
+  return put_lib_dirs_to_cache (cc);
 }
 
 /**
@@ -3765,35 +3838,26 @@ static int process_gcc_dirs (const char *gcc, int *num_dirs)
  */
 static void add_gnu_compilers (void)
 {
-  char   short_name[30];
   size_t i;
 
   for (i = 0; i < DIM(gnu_prefixes); i++)
   {
-    compiler_info *gcc = CALLOC (sizeof(*gcc), 1);
-    compiler_info *gpp = CALLOC (sizeof(*gpp), 1);
+    compiler_info cc;
+    char short_name[30];
 
     snprintf (short_name, sizeof(short_name)-1, "%sgcc.exe", gnu_prefixes[i]);
-    gcc->short_name = STRDUP (short_name);
-    gcc->no_prefix  = (i > 0 && opt.gcc_no_prefixed);
+    cc.no_prefix  = (i > 0 && opt.gcc_no_prefixed);
+    cc.type       = CC_GNU_GCC;
+    cc.short_name = short_name;
+    cc.full_name  = searchpath (short_name, "PATH");
+    add_compiler (&cc);
 
     snprintf (short_name, sizeof(short_name)-1, "%sg++.exe", gnu_prefixes[i]);
-    gpp->short_name = STRDUP (short_name);
-    gpp->no_prefix  = (i > 0 && opt.gcc_no_prefixed);
-
-    gcc->type = CC_GNU_GCC;
-    gpp->type = CC_GNU_GPP;
-
-    gcc->full_name = searchpath (gcc->short_name, "PATH");
-    if (gcc->full_name)
-       gcc->full_name = STRDUP (gcc->full_name);
-
-    gpp->full_name = searchpath (gpp->short_name, "PATH");
-    if (gpp->full_name)
-       gpp->full_name = STRDUP (gpp->full_name);
-
-    smartlist_add (all_cc, gcc);
-    smartlist_add (all_cc, gpp);
+    cc.no_prefix  = (i > 0 && opt.gcc_no_prefixed);
+    cc.type       = CC_GNU_GXX;
+    cc.short_name = short_name;
+    cc.full_name  = searchpath (short_name, "PATH");
+    add_compiler (&cc);
   }
 }
 
@@ -3805,15 +3869,12 @@ static void add_gnu_compilers (void)
  */
 static void add_msvc_compilers (void)
 {
-  compiler_info *cl = CALLOC (sizeof(*cl), 1);
-  const char    *full_name;
+  compiler_info cl;
 
-  cl->type       = CC_MSVC;
-  cl->short_name = STRDUP ("cl.exe");
-  full_name      = searchpath (cl->short_name, "PATH");
-  if (full_name)
-      cl->full_name = STRDUP (full_name);
-  smartlist_add (all_cc, cl);
+  cl.type       = CC_MSVC;
+  cl.short_name = "cl.exe";
+  cl.full_name  = searchpath (cl.short_name, "PATH");
+  add_compiler (&cl);
 }
 
 /**
@@ -3821,32 +3882,16 @@ static void add_msvc_compilers (void)
  */
 static void add_clang_cl_compilers (void)
 {
-  static const char *clang[] = {
-                    "clang.exe",
-                    "clang-cl.exe"
-                  };
-  int i, num_ignore = 0;
+  compiler_info clang;
 
-  for (i = 0; i < DIM(clang); i++)
-  {
-    compiler_info *cl = CALLOC (sizeof(*cl), 1);
-    const char    *full_name;
+  clang.type       = CC_CLANG_CL;
+  clang.short_name = "clang.exe";
+  clang.full_name  = searchpath (clang.short_name, "PATH");
+  add_compiler (&clang);
 
-    cl->type       = CC_CLANG_CL;
-    cl->short_name = STRDUP (clang[i]);
-    full_name      = searchpath (cl->short_name, "PATH");
-    if (full_name)
-        cl->full_name = STRDUP (full_name);
-
-    if (cfg_ignore_lookup("[Compiler]", clang[i]))
-    {
-      cl->ignore = TRUE;
-      num_ignore++;
-    }
-    smartlist_add (all_cc, cl);
-  }
-  if (num_ignore == i)
-     ignore_all_clang = TRUE;
+  clang.short_name = "clang-cl.exe";
+  clang.full_name  = searchpath (clang.short_name, "PATH");
+  add_compiler (&clang);
 }
 
 /**
@@ -3854,24 +3899,16 @@ static void add_clang_cl_compilers (void)
  */
 static void add_borland_compilers (void)
 {
-  static const char *borland[] = {
-                    "bcc32.exe",
-                    "bcc32c.exe"
-                  };
-  int i;
+  compiler_info bcc;
 
-  for (i = 0; i < DIM(borland); i++)
-  {
-    compiler_info *bcc = CALLOC (sizeof(*bcc), 1);
-    const char    *full_name;
+  bcc.type       = CC_BORLAND;
+  bcc.short_name = "bcc32.exe";
+  bcc.full_name  = searchpath (bcc.short_name, "PATH");
+  add_compiler (&bcc);
 
-    bcc->type       = CC_BORLAND;
-    bcc->short_name = STRDUP (borland[i]);
-    full_name       = searchpath (bcc->short_name, "PATH");
-    if (full_name)
-       bcc->full_name = STRDUP (full_name);
-    smartlist_add (all_cc, bcc);
-  }
+  bcc.short_name = "bcc32c.exe";
+  bcc.full_name  = searchpath (bcc.short_name, "PATH");
+  add_compiler (&bcc);
 }
 
 /**
@@ -3902,15 +3939,12 @@ static void add_watcom_compilers (void)
 
   for (i = 0; i < DIM(wcc); i++)
   {
-    compiler_info *wc = CALLOC (sizeof(*wc), 1);
-    const char    *full_name;
+    compiler_info wc;
 
-    wc->type       = CC_WATCOM;
-    wc->short_name = STRDUP (wcc[i]);
-    full_name      = searchpath (wc->short_name, "PATH");
-    if (full_name)
-       wc->full_name = STRDUP (full_name);
-    smartlist_add (all_cc, wc);
+    wc.type       = CC_WATCOM;
+    wc.short_name = (char*) wcc[i];
+    wc.full_name  = searchpath (wc.short_name, "PATH");
+    add_compiler (&wc);
   }
 }
 
@@ -4024,7 +4058,7 @@ static int print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
   if (!cc->full_name || cc->ignore || !print_lib_path)
      return (rc);
 
-  is_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GPP);
+  is_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GXX);
   if (is_gnu && setup_gcc_library_path(cc,FALSE) > 0)
   {
     char *env = getenv_expand ("LIBRARY_PATH");
@@ -4060,6 +4094,29 @@ static BOOL ignore_all_gnus (compiler_type type)
 }
 
 /**
+ * Return TRUE if we shall ignore all clang compilers
+ * (can only be 2).
+ */
+static BOOL ignore_all_clangs (compiler_type type)
+{
+  int i, num_clang = 0, clang_ignore = 0;
+  int max = smartlist_len (all_cc);
+
+  for (i = 0; i < max; i++)
+  {
+    const compiler_info *cc = smartlist_get (all_cc, i);
+
+    if (cc->type != type)
+       continue;
+
+     num_clang++;
+     if (cc->ignore)
+        clang_ignore++;
+  }
+  return (clang_ignore >= num_clang);
+}
+
+/**
  * In `--lib` or `--inc` mode, search the `PATH` for all supported compilers.
  *
  * \param[in] print_info      If called from `show_version()`, print additional
@@ -4071,24 +4128,25 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
 {
   struct compiler_info *cc;
   BOOL   at_least_one_gnu = FALSE;
-  int    i, max, ignored, num_gxx, save = opt.cache_ver_level;
+  int    i, max, ignored, num_gxx;
   int    save_u;
 
   ASSERT (all_cc == NULL);
   all_cc = smartlist_new();
 
-  if (print_info && print_lib_path)
-     opt.cache_ver_level = 3;
-
   save_u = opt.show_unix_paths;
   if (!print_info)
      opt.show_unix_paths = 0;
 
-  add_gnu_compilers();
-  add_msvc_compilers();
-  add_clang_cl_compilers();
-  add_borland_compilers();
-  add_watcom_compilers();
+  max = get_all_cc_from_cache();
+  if (max == 0)
+  {
+    add_gnu_compilers();
+    add_msvc_compilers();
+    add_clang_cl_compilers();
+    add_borland_compilers();
+    add_watcom_compilers();
+  }
 
   opt.show_unix_paths = save_u;
 
@@ -4098,10 +4156,13 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
 
   longest_cc = get_longest_short_name();
 
-  ignore_all_gcc = ignore_all_gnus (CC_GNU_GCC);
-  ignore_all_gpp = ignore_all_gnus (CC_GNU_GPP);
+  ignore_all_gcc   = ignore_all_gnus (CC_GNU_GCC);
+  ignore_all_gpp   = ignore_all_gnus (CC_GNU_GXX);
+  ignore_all_clang = ignore_all_clangs (CC_CLANG_CL);
 
   DEBUGF (1, "ignore_all_gcc: %d, ignore_all_gpp: %d.\n", ignore_all_gcc, ignore_all_gpp);
+
+  put_all_cc_to_cache();
 
   if (!print_info)
      return;
@@ -4117,15 +4178,13 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
     else num_gxx += print_compiler_info (cc, print_lib_path);
 
     if (!at_least_one_gnu)
-       at_least_one_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GPP);
+       at_least_one_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GXX);
   }
 
   /* Print the footnote only if at least 1 'gcc*' / 'g++*' was actually found on PATH.
    */
   if (print_lib_path && at_least_one_gnu && num_gxx > 0)
      C_puts ("    ~3(1)~0: internal GCC library paths.\n");
-
-  opt.cache_ver_level = save;
 
   if (ignored == 0)
      return;
@@ -4182,7 +4241,7 @@ static int do_check_gcc_includes (void)
 static int do_check_gpp_includes (void)
 {
   int num_dirs;
-  int found = check_gnu_includes (CC_GNU_GPP, &num_dirs);
+  int found = check_gnu_includes (CC_GNU_GXX, &num_dirs);
 
   if (num_dirs == 0 && !ignore_all_gpp)  /* Impossible unless we ignore all `*g++.exe` */
      WARN ("No g++.exe programs returned any include paths.\n");
@@ -4203,7 +4262,7 @@ static int do_check_gcc_library_paths (void)
   for (i = 0; i < max; i++)
   {
     cc     = smartlist_get (all_cc, i);
-    is_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GPP);
+    is_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GXX);
     if (is_gnu && !cc->ignore && setup_gcc_library_path(cc,TRUE) > 0)
     {
       gcc = cc->short_name;
@@ -4253,21 +4312,25 @@ static void clang_popen_warn (const compiler_info *cc, int rc)
 
 static int setup_clang_includes (const compiler_info *cc)
 {
-  int found;
+  int found = 0;
 
   free_dir_array();
 
-  /* We want the output of stderr only. But that seems impossible on CMD/4NT.
-   * Hence redirect stderr + stdout into the same pipe for us to read.
-   * Also assume that the `*gcc` is on PATH.
-   */
-  found_search_line = FALSE;
+  found = get_inc_dirs_from_cache (cc);
+  if (found == 0)
+  {
+    /* We want the output of stderr only. But that seems impossible on CMD/4NT.
+     * Hence redirect stderr + stdout into the same pipe for us to read.
+     * Also assume that the `*gcc` is on PATH.
+     */
+    found_search_line = FALSE;
 
-  found = popen_runf (find_include_path_cb, CLANG_DUMP_FMT, cc->full_name);
-  if (found > 0)
-       DEBUGF (1, "found %d include paths for %s.\n", found, cc->full_name);
-  else clang_popen_warn (cc, found);
-  return (found);
+    found = popen_runf (find_include_path_cb, CLANG_DUMP_FMT, cc->full_name);
+    if (found > 0)
+         DEBUGF (1, "found %d include paths for %s.\n", found, cc->full_name);
+    else clang_popen_warn (cc, found);
+  }
+  return put_inc_dirs_to_cache (cc);
 }
 
 static int find_clang_library_path_cb (char *buf, int index)
@@ -4317,11 +4380,15 @@ static int setup_clang_library_path (const compiler_info *cc)
    */
   found_search_line = FALSE;
 
-  found = popen_runf (find_clang_library_path_cb, "%s -print-search-dirs", cc->full_name);
+  found = get_lib_dirs_from_cache (cc);
+
+  if (found == 0)
+     found = popen_runf (find_clang_library_path_cb, "%s -print-search-dirs", cc->full_name);
   if (found > 0)
        DEBUGF (1, "found %d library paths for %s.\n", found, cc->full_name);
   else clang_popen_warn (cc, found);
-  return (found);
+
+  return put_lib_dirs_to_cache (cc);
 }
 
 /**
@@ -4757,6 +4824,7 @@ static const struct option long_options[] = {
            { "sort",        required_argument, NULL, 0 },
            { "vcpkg",       optional_argument, NULL, 0 },    /* 39 */
            { "descr",       no_argument,       NULL, 0 },
+           { "keep",        no_argument,       NULL, 0 },    /* 41 */
            { NULL,          no_argument,       NULL, 0 }
          };
 
@@ -4801,7 +4869,8 @@ static int *values_tab[] = {
             &opt.no_cwd,              /* 37 */
             (int*)1,                  /* Since option '-S' is handled specially. This address is not used. */
             &opt.do_vcpkg,            /* 39 */
-            &opt.show_descr
+            &opt.show_descr,
+            &opt.keep_temp            /* 41 */
           };
 
 /**
@@ -5157,7 +5226,6 @@ static void MS_CDECL cleanup (void)
   FREE (user_env_path);
   FREE (user_env_lib);
   FREE (user_env_inc);
-  FREE (vcache_fname);
   FREE (opt.file_spec);
 
   free_all_compilers();
@@ -5181,6 +5249,7 @@ static void MS_CDECL cleanup (void)
 
   vcpkg_exit();
   file_descr_exit();
+  cache_exit();
   exit_misc();
 
   if (halt_flag == 0 && opt.debug > 0)
@@ -5270,7 +5339,6 @@ static void init_all (const char **argv)
   opt.conv_cygdrive = 1;
 #endif
 
-  vcache_fname = getenv_expand ("%TEMP%\\envtool.cache");
   file_descr_init();
 
   current_dir[0] = '.';
@@ -5334,6 +5402,11 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
     DEBUGF (2, "%s: Calling 'cfg_beep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
     cfg_beep_handler (key+5, value);
   }
+  else if (!strnicmp(key,"cache.",6))
+  {
+    DEBUGF (2, "%s: Calling 'cache_config (\"%s\", \"%s\")'.\n", section, key+6, value);
+    cache_config (key+6, value);
+  }
   else if (!strnicmp(key,"ETP.",4))
   {
     DEBUGF (2, "%s: Calling 'cfg_ETP_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
@@ -5374,6 +5447,9 @@ int MS_CDECL main (int argc, const char **argv)
                            NULL);
 
   cfg_ignore_dump();
+
+  if (opt.use_cache)
+     cache_init();
 
   check_sys_dirs();
 
@@ -5705,11 +5781,7 @@ static void check_shadow_files (smartlist_t *this_de_list,
 
   for (i = 0; i < max_i; i++)
   {
-    const char *this_file, *base;
-
-    this_de   = smartlist_get (this_de_list, i);
-    this_file = this_de->d_name;
-    base = basename (this_file);
+    this_de = smartlist_get (this_de_list, i);
 
     for (j = 0; j < max_j; j++)
     {

@@ -648,6 +648,13 @@ struct ver_info {
        unsigned val_4;   /**< Build (unused in envtool_py.c) */
      };
 
+/** \def VALID_VER
+ *  Check if ver was filled okay.
+ *  Accept programs with major-version == 0. Hence assume if `major+minor == 0`,
+ *  the version was not correctly set.
+ */
+#define VALID_VER(ver) (ver.val_1 + ver.val_2 > 0)
+
 /** \struct search_list
  *  A generic search-list type.
  */
