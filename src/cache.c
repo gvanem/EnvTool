@@ -251,6 +251,14 @@ static void cache_parse (FILE *f)
 }
 
 /**
+ * `_MSC_VER <= 1800` (Visual Studio 2012 or older) does not have `log2()`.
+ */
+#if defined(_MSC_VER) && (_MSC_VER <= 1800)
+  #define __M_LN2  0.69314718055994530942
+  #define log2(x)  (log(x) / __M_LN2)
+#endif
+
+/**
  * Print out a small cache report (if `opt.debug >= 1`).
  */
 static void cache_report (int num)
@@ -811,13 +819,15 @@ void cache_test (void)
   int   d_val30, d_val31, d_val32;
   char *s_val00, *s_val10, *s_val20, *s_val30;
 
+  cache_node *c;
+
   if (!cache.entries)
   {
     DEBUGF (0, "cache.entries == NULL!\n");
     return;
   }
 
-  cache_node *c = cache_bsearch (SECTION_VCPKG, "ports_node_0", NULL);
+  c = cache_bsearch (SECTION_VCPKG, "ports_node_0", NULL);
 
   DEBUGF (0, "c->value: '%s', comparisions: %lu\n", c ? c->value : "<None>", cache.bsearches_per_key);
 

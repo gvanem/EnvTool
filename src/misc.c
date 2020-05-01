@@ -3422,6 +3422,28 @@ void print_long_line (const char *line, size_t indent)
   C_putc ('\n');
 }
 
+/**
+ * `_MSC_VER <= 1800` (Visual Studio 2012 or older) is lacking `vsscanf()`.
+ * Create our own using `sscanf()`. <br>
+ * Scraped from:
+ *   https://stackoverflow.com/questions/2457331/replacement-for-vsscanf-on-msvc
+ *
+ * If using the Windows-Kit (`_VCRUNTIME_H` is defined) it should have a
+ * working `vsscanf()`. I'm not sure if using `_MSC_VER <= 1800` with the Windows-Kit is possible.
+ */
+#if (defined(_MSC_VER) && (_MSC_VER <= 1800) && !defined(_VCRUNTIME_H))
+int _vsscanf2 (const char *buf, const char *fmt, va_list args)
+{
+  void *a[5];  /* 5 args is enough here */
+  int   i;
+
+  for (i = 0; i < DIM(a); i++)
+     a[i] = va_arg (args, void*);
+  return sscanf (buf, fmt, a[0], a[1], a[2], a[3], a[4]);
+}
+#endif
+
+
 #if defined(NOT_USED_YET)
 /**
  * Create another console window for debugging.

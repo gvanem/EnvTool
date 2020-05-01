@@ -1263,29 +1263,6 @@ int do_check_evry_ept (const char *host)
   return (ctx.results_got - ctx.results_ignore);
 }
 
-/**
- * `_MSC_VER <= 1700` (Visual Studio 2012 or older) is lacking `vsscanf()`.
- * Create our own using `sscanf()`. <br>
- * Scraped from:
- *   https://stackoverflow.com/questions/2457331/replacement-for-vsscanf-on-msvc
- *
- * If using the Windows-Kit (`_VCRUNTIME_H` is defined) it should have a
- * working `vsscanf()`. I'm not sure if using `_MSC_VER <= 1700` with the Windows-Kit is possible. <br>
- * But if using `clang-cl`, test this function with it.
- */
-#if (defined(_MSC_VER) && (_MSC_VER <= 1800) && !defined(_VCRUNTIME_H)) || defined(__clang__)
-  static int _vsscanf2 (const char *buf, const char *fmt, va_list args)
-  {
-    void *a[5];  /* 5 args is enough here */
-    int   i;
-
-    for (i = 0; i < DIM(a); i++)
-       a[i] = va_arg (args, void*);
-    return sscanf (buf, fmt, a[0], a[1], a[2], a[3], a[4]);
-  }
-  #define vsscanf(buf, fmt, args) _vsscanf2 (buf, fmt, args)
-#endif
-
 static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...)
 {
   int     n;

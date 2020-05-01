@@ -616,6 +616,13 @@ extern const char *dump10 (const void *data_p, unsigned size);
 extern BOOL        get_module_filename_ex (HANDLE proc, char *filename);
 extern time_t      FILETIME_to_time_t (const FILETIME *ft);
 
+/* Fix for `_MSC_VER <= 1800` (Visual Studio 2012 or older) which is lacking `vsscanf()`.
+ */
+#if (defined(_MSC_VER) && (_MSC_VER <= 1800) && !defined(_VCRUNTIME_H))
+  int _vsscanf2 (const char *buf, const char *fmt, va_list args);
+  #define vsscanf(buf, fmt, args) _vsscanf2 (buf, fmt, args)
+#endif
+
 /* Windows security related functions for files/directories:
  */
 extern BOOL get_file_owner (const char *file, char **domain_name, char **account_name);

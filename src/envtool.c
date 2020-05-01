@@ -3368,7 +3368,7 @@ static int get_all_cc_from_cache (void)
     compiler_info cc;
     char format [50];
 
-    snprintf (format, sizeof(format), "compiler_exe_%d_%d = %%d,%%d,%%d,%%s,%%s", i);
+    snprintf (format, sizeof(format), "compiler_exe_%d = %%d,%%d,%%d,%%s,%%s", i);
     if (cache_getf (SECTION_COMPILER, format,
                     &cc.type, &cc.ignore, &cc.no_prefix, &cc.short_name, &cc.full_name) != 5)
        break;
