@@ -319,10 +319,10 @@ static void cache_free_node (void *_c)
 static void cache_write (void)
 {
   const cache_node *c;
-  FILE  *f;
-  time_t now;
-  int    last_section = -1;
-  int    i, max;
+  FILETIME ft_now;
+  FILE    *f;
+  int      last_section = -1;
+  int      i, max;
 
   if (!cache.entries || !cache.filename)
      return;
@@ -343,8 +343,9 @@ static void cache_write (void)
     return;
   }
 
-  now = time (NULL);
-  fprintf (f, "#\n%s %.24s.\n", CACHE_HEADER, ctime(&now));
+  GetSystemTimeAsFileTime (&ft_now);
+  fprintf (f, "#\n%s %s.\n", CACHE_HEADER, get_time_str_FILETIME(&ft_now));
+
   fprintf (f, "%s%d\n#", CACHE_HEADER_VER, CACHE_VERSION_NUM);
 
   max = smartlist_len (cache.entries);
