@@ -2654,11 +2654,8 @@ static int do_check_evry (void)
   {
     if (opt.use_regex)
          WARN ("Nothing matched your regexp \"%s\".\n"
-               "Are you sure it is correct? Try quoting it.\n",
-               opt.file_spec);
-    else WARN ("Nothing matched your search \"%s\".\n"
-               "Are you sure all NTFS disks are indexed by EveryThing? Try adding folders manually.\n",
-               opt.file_spec);
+               "Are you sure it is correct? Try quoting it.\n", opt.file_spec);
+    else WARN ("Nothing matched your search \"%s\".\n", opt.file_spec);
     return (0);
   }
 
@@ -3034,13 +3031,13 @@ static int do_check_pkg (void)
   {
     WARN ("Note: ");
     C_printf ("~6There seems to be several '%s' files in different %%%s directories.\n"
-              "      \"pkgconfig\" will only select the first.~0\n", opt.file_spec, env_name);
+              "      \"pkg-config\" will only select the first.~0\n", opt.file_spec, env_name);
   }
   return (found);
 }
 
 /**
- * Get and print more verbose details in a pkgconfig `.pc` file.
+ * Get and print more verbose details in a pkg-config `.pc` file.
  * Look for lines like:
  * ```
  *  Description: Python bindings for cairo
@@ -5139,6 +5136,9 @@ static void set_long_option (int o, const char *arg)
 
 /**
  * Parse the command-line.
+ *
+ * if there are several non-options, an `--evry` search must have `opt.evry_raw == TRUE` to
+ * pass the remaining cmd-line unchanged to `Everything_SetSearchA()`.
  */
 static void parse_cmdline (int _argc, const char **_argv)
 {
@@ -5888,6 +5888,51 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
   smartlist_free (shadows);
 }
 
+static void put_dirlist_to_cache (const char *env_var, smartlist_t *dirs)
+{
+  int i, max;
+
+  if (!opt.use_cache)
+     return;
+
+  max = smartlist_len (dirs);
+  for (i = 0; i < max; i++)
+  {
+    const struct directory_array *da = smartlist_get (dirs, i);
+    cache_putf (SECTION_ENV_DIR, "env_dir_%s_%d = %s", env_var, i, da->dir);
+  }
+}
+
+/**
+ * The opposite of the above; get the directories for `env_var` from cache.
+ * The `dir_array` smartlist is empty at this point.
+ *
+ * NB. Not used yet.
+ */
+static int get_dirlist_from_cache (const char *env_var)
+{
+  int i = 0, found = 0;
+
+  if (!opt.use_cache)
+     return (0);
+
+  while (1)
+  {
+    char dir [_MAX_PATH];
+    char format [50];
+
+    snprintf (format, sizeof(format), "env_dir_%s_%d = %%s", env_var, i);
+    if (cache_getf(SECTION_ENV_DIR, format, dir) != 1)
+       break;
+
+    add_to_dir_array (dir, str_equal(dir,current_dir), __LINE__);
+    found++;
+    i++;
+  }
+  DEBUGF (1, "Found %d cached 'env_dir_x'.\n", found);
+  return (found);
+}
+
 /**
  * Expand and check a single env-var for missing directories
  * and trailing/leading white space.
@@ -5915,11 +5960,19 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
   smartlist_t *list = NULL;
   int          i, errors, max = 0;
   int          save  = opt.conv_cygdrive;
-  char        *value = getenv_expand (env);
+  char        *value;
   const struct directory_array *arr;
 
   status[0] = '\0';
   *num = 0;
+
+#if 0
+  max = get_dirlist_from_cache (env);
+  if (max == 0)
+     value = getenv_expand (env);
+#else
+  value = getenv_expand (env);
+#endif
 
   if (value)
   {
@@ -6000,6 +6053,9 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
 #ifndef __CYGWIN__
   FREE (value);
 #endif
+
+  if (list)
+     put_dirlist_to_cache (env, list);
 
   if (opt.verbose && file_spec)
      shadow_report (list, file_spec);
@@ -6288,6 +6344,7 @@ static struct environ_fspec envs[] = {
                { "*.cmake", "CMAKE_MODULE_PATH"  },
                { NULL,      "CLASSPATH"          },  /* No support for these. But do it anyway. */
                { "*.go",    "GOPATH"             },
+            // { "*.pm",    "PERLLIBDIR"         },
                { NULL,      "FOO"                },  /* Check that non-existing env-vars are also checked */
                { NULL,      NULL                 },
     };

@@ -41,6 +41,7 @@ static const struct search_list sections[] = {
                   { SECTION_FIRST,     "[First-sec]" },
                   { SECTION_CMAKE,     "[Cmake]"     },
                   { SECTION_COMPILER,  "[Compiler]"  },
+                  { SECTION_ENV_DIR,   "[EnvDir]"    },
                   { SECTION_PKGCONFIG, "[Pkgconfig]" },
                   { SECTION_PYTHON,    "[Python]"    },
                   { SECTION_VCPKG,     "[VCPKG]"     },
@@ -219,7 +220,7 @@ static void cache_parse (FILE *f)
          continue;
       p[1] = '\0';
       section = list_lookup_value (buf, sections, DIM(sections));
-      if (section == UINT_MAX)
+      if (section == SECTION_FIRST || section >= SECTION_LAST)
       {
         DEBUGF (1, "No such section: '%s'.\n", buf);
         continue;
@@ -776,6 +777,7 @@ void cache_dump (void)
 {
   int i, max = cache.entries ? smartlist_len (cache.entries) : 0;
   int num_sections = 0, last_section = -1;
+  int max_sections = DIM(sections) - 2;  /* except SECTION_FIRST and SECTION_LAST */
 
   for (i = 0; i < max; i++)
   {
@@ -790,7 +792,7 @@ void cache_dump (void)
     last_section = c->section;
     DEBUGF (2, "'%-15s' -> '%-15s'.\n", c->key, c->value);
   }
-  if (num_sections != DIM(sections))
+  if (num_sections != max_sections)
      DEBUGF (2, "Founded cached data for only %d section(s).\n"
                 "Run 'envtool -VVV' to refresh the cache.\n",
              num_sections);

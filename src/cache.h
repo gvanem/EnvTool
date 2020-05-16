@@ -13,6 +13,7 @@ typedef enum CacheSections {
              SECTION_FIRST = 0,   /* Do not use this */
              SECTION_CMAKE,
              SECTION_COMPILER,
+             SECTION_ENV_DIR,
              SECTION_PKGCONFIG,
              SECTION_PYTHON,
              SECTION_VCPKG,
