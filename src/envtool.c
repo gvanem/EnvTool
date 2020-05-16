@@ -5862,8 +5862,9 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
       if (len > longest)
          longest = len;
     }
-
-    C_printf ("     ~5%d shadows:~0\n", max);
+    if (max > 1)
+         C_printf ("     ~5%d shadows:~0\n", max);
+    else C_printf ("     ~5%d shadow:~0\n", max);
     for (i = 0; i < max; i++)
     {
       const char *t1, *t2;
