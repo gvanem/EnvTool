@@ -304,11 +304,15 @@ void exit_misc (void)
  * If given a `fname` without any extension, open the `fname` and check if
  * there's a she-bang line on 1st line.
  *
- * Accepts `"#!/xx"` or `"#! /xx"`.
+ * Accepts `"#!/xx"` or `"#! /xx"` and even stuff like:
+ *  ```
+ *  #!f:\ProgramFiler\Python36\python3.EXE
+ *  ```
+ * that some packaging tools will generate.
  */
 const char *check_if_shebang (const char *fname)
 {
-  static char shebang [30];
+  static char shebang [_MAX_PATH];
   const char *ext = get_file_ext (fname);
   char  *p;
   FILE  *f;
@@ -331,7 +335,7 @@ const char *check_if_shebang (const char *fname)
     fclose (f);
   }
 
-  if (strncmp(shebang, "#!/", 3))
+  if (strncmp(shebang, "#!", 2))
      return (FALSE);
 
   /** If it's a Unix file with 2 "\r\r" in the `shebang[]` buffer,
