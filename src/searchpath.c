@@ -162,7 +162,7 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
       /* Relative file name: add `.\\`.
        */
       strcpy (found, ".\\");
-      strcat (found, file);
+      str_cat (found, _MAX_PATH, file);
     }
     last_pos = 0;
     goto was_found;
