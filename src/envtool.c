@@ -2995,6 +2995,42 @@ static BOOL get_pkg_config_info (char **exe, struct ver_info *ver)
   return (pkgconfig_exe && VALID_VER(pkgconfig_ver));
 }
 
+/*
+ * Get the `PKG_CONFIG_PATH` from Registry under: <br>
+ *   `HKEY_CURRENT_USER\Software\pkgconfig\PKG_CONFIG_PATH`  or
+ *   `HKEY_LOCAL_MACHINE\Software\pkgconfig\PKG_CONFIG_PATH`.
+ */
+#define PKG_CONFIG_REG_KEY "Software\\pkgconfig\\PKG_CONFIG_PATH"
+
+static smartlist_t *pkg_config_reg_keys (HKEY top_key)
+{
+  HKEY   key;
+  int    i = 0;
+  char   buf [16*1024];
+  DWORD  rc, buf_size = sizeof(buf);
+  REGSAM acc = reg_read_access();
+
+  rc  = RegOpenKeyEx (top_key, PKG_CONFIG_REG_KEY, 0, acc, &key);
+
+  DEBUGF (1, "  RegOpenKeyEx (%s\\%s, %s):\n                   %s\n",
+          reg_top_key_name(top_key), PKG_CONFIG_REG_KEY, reg_access_name(acc), win_strerror(rc));
+
+  if (rc != ERROR_SUCCESS)
+     return (NULL);
+
+  while (RegEnumValue(key, i++, buf, &buf_size, NULL, NULL, NULL, NULL) == ERROR_SUCCESS)
+  {
+    char  path [_MAX_PATH];
+    DWORD type, path_len = sizeof(path);
+
+    if (RegQueryValueEx(key, buf, NULL, &type, (BYTE*)path, &path_len) == ERROR_SUCCESS && type == REG_SZ)
+       add_to_dir_array (path, str_equal(path,current_dir), __LINE__);
+    buf_size = sizeof(buf);
+  }
+  RegCloseKey (key);
+  return (dir_array);
+}
+
 /**
  * Search and check along `%PKG_CONFIG_PATH%` for a
  * matching `<filespec>.pc` file.
@@ -3009,10 +3045,17 @@ static int do_check_pkg (void)
 
   orig_e = getenv_expand (env_name);
   list = orig_e ? split_env_var (env_name, orig_e) : NULL;
+
   if (!list)
   {
-    WARN ("Env-var %s not defined.\n", env_name);
-    return (0);
+    list = pkg_config_reg_keys (HKEY_CURRENT_USER);
+    if (!list)
+       list = pkg_config_reg_keys (HKEY_LOCAL_MACHINE);
+    if (!list)
+    {
+      WARN ("%s not defined in environment nor in the Registry\n", env_name);
+      return (0);
+    }
   }
 
   set_report_header ("Matches in %%%s:\n", env_name);
