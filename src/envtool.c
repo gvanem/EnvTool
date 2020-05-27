@@ -1129,7 +1129,7 @@ static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, c
   *dest = '\0';
 
   if (key == HKEY_INC_LIB_FILE || key == HKEY_MAN_FILE ||
-      key == HKEY_EVERYTHING_ETP || key == HKEY_PKGCONFIG_FILE)
+      key == HKEY_EVERYTHING_ETP || key == HKEY_PKG_CONFIG_FILE)
      return (FALSE);
 
   if (!check_if_PE(file,&bits))
@@ -1386,7 +1386,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
     show_dir_size = FALSE;
     possible_PE_file = FALSE;
   }
-  else if (key == HKEY_PKGCONFIG_FILE)
+  else if (key == HKEY_PKG_CONFIG_FILE)
   {
     show_pc_files_only = TRUE;
     possible_PE_file = FALSE;
@@ -1589,7 +1589,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
     print_PE_file_details (filler);
   }
 
-  if (key == HKEY_PKGCONFIG_FILE && opt.verbose > 0)
+  if (key == HKEY_PKG_CONFIG_FILE && opt.verbose > 0)
      get_pkg_info (file, filler);
 
   C_putc ('\n');
@@ -3015,7 +3015,7 @@ static int do_check_pkg (void)
 
     DEBUGF (2, "Checking in dir '%s'\n", arr->dir);
     num = process_dir (arr->dir, 0, arr->exist, TRUE, arr->is_dir, arr->exp_ok,
-                       env_name, HKEY_PKGCONFIG_FILE, FALSE);
+                       env_name, HKEY_PKG_CONFIG_FILE, FALSE);
 
     if (arr->num_dup == 0 && prev_num > 0 && num > 0)
        do_warn = TRUE;

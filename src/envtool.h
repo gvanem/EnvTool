@@ -334,7 +334,7 @@ extern "C" {
 #define HKEY_EVERYTHING_ETP            (HKEY) 0x7FF3
 #define HKEY_MAN_FILE                  (HKEY) 0x7FF4
 #define HKEY_INC_LIB_FILE              (HKEY) 0x7FF5
-#define HKEY_PKGCONFIG_FILE            (HKEY) 0x7FF6
+#define HKEY_PKG_CONFIG_FILE           (HKEY) 0x7FF6
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
