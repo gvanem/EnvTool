@@ -5392,6 +5392,25 @@ static void cfg_ETP_handler (const char *key, const char *value)
 }
 
 /**
+ * The config-file handler for key/value pairs in the "[Shadow]" section.
+ */
+static void shadow_ignore_handler (const char *section, const char *key, const char *value)
+{
+  if (!stricmp(key,"dtime"))
+  {
+    char     *end;
+    ULONGLONG val = _strtoi64 (value, &end, 10);
+
+    if (end == value || *end != '\0' || val == _I64_MAX || val == _I64_MIN)
+         DEBUGF (1, "illegal dtime: '%s'\n", value);
+    else opt.shadow_dtime = 10000000ULL * val; /* to 100 nsec units */
+    DEBUGF (1, "opt.shadow_dtime: %0.Lf sec.\n", (long double)opt.shadow_dtime/1E7);
+  }
+  else
+    cfg_ignore_handler (section, key, value);
+}
+
+/**
  * The config-file parser for key/value pairs *not* in any section
  * (at the start of the `%APPDATA%/envtool.cfg` file).
  */
@@ -5443,7 +5462,7 @@ int MS_CDECL main (int argc, const char **argv)
                            "[PE-resources]", cfg_ignore_handler,
                            "[EveryThing]",   cfg_ignore_handler,
                            "[Login]",        auth_envtool_handler,
-                           "[Shadow]",       cfg_ignore_handler,
+                           "[Shadow]",       shadow_ignore_handler,
                            NULL);
 
   cfg_ignore_dump();
@@ -5705,8 +5724,8 @@ static smartlist_t *get_matching_files (const char *dir, const char *file_spec)
 /*
  * Check 2 files with the same `basename()`.
  *
- * If `this_de->d_name` is older than `prev_de->d_name`, then it's considered a
- * shadow of `prev_de->d_name`.
+ * If `this_de->d_name` is older than `prev_de->d_name` (by a configurable amount of time),
+ * then it's considered a shadow of `prev_de->d_name`.
  *
  * Ignore if the file or (it's basename) is listed as `ignore` in the `[Shadow]`
  * section of `~/envtool.cfg`.
@@ -5717,7 +5736,7 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
 {
   const char *this_base = basename (this_de->d_name);
   const char *prev_base = basename (prev_de->d_name);
-  ULONGLONG   this_ft, prev_ft;
+  ULONGLONG   this_ft, prev_ft, diff;
 
   if (stricmp(this_base, prev_base))
      return (FALSE);
@@ -5732,8 +5751,9 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
 
   this_ft = (((ULONGLONG)this_de->d_time_write.dwHighDateTime) << 32) + this_de->d_time_write.dwLowDateTime;
   prev_ft = (((ULONGLONG)prev_de->d_time_write.dwHighDateTime) << 32) + prev_de->d_time_write.dwLowDateTime;
+  diff = prev_ft - this_ft;
 
-  if (this_ft && this_ft < prev_ft)
+  if (this_ft && this_ft < prev_ft && diff > opt.shadow_dtime)
   {
     DEBUGF (1, "Write-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
     *newest = prev_de->d_time_write;
@@ -5744,8 +5764,9 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
 #if 0
   this_ft = (((ULONGLONG)this_de->d_time_create.dwHighDateTime) << 32) + this_de->d_time_create.dwLowDateTime;
   prev_ft = (((ULONGLONG)prev_de->d_time_create.dwHighDateTime) << 32) + prev_de->d_time_create.dwLowDateTime;
+  diff = prev_ft - this_ft;
 
-  if (this_ft && this_ft < prev_ft)
+  if (this_ft && this_ft < prev_ft && diff > opt.shadow_dtime)
   {
     DEBUGF (1, "Creation-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
     *newest = prev_de->d_time_create;

@@ -441,6 +441,7 @@ struct prog_options {
        beep_info       beep;
        command_line    cmd_line;
        void           *cfg_file;          /**< The config-file structure returned by `cfg_init()`. */
+       ULONGLONG       shadow_dtime;      /**< The files delta-time to ignore in `is_shadow_candidate()`. */
      };
 
 extern struct prog_options opt;
