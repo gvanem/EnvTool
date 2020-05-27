@@ -1354,7 +1354,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   BUF_INIT (&fmt_buf_ver_info, 100, 0);
   BUF_INIT (&fmt_buf_trust_info, 100, 0);
 
-#if 1
+#if defined(__clang__) || defined(__GNUC__) || (defined(_MSC_VER) && _MSC_VER >= 1900)
   if (key == HKEY_PKG_CONFIG_FILE)
   {
     struct report r = { .file        = file,
