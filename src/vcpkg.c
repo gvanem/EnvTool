@@ -1476,11 +1476,7 @@ static unsigned get_all_available (const smartlist_t *dirs, BOOL from_cache)
 
   num_ports_list = smartlist_len (ports_list);
   if (num_ports_list == 0)
-  {
-    _strlcpy (last_err_str, "No ~6VCPKG~0 packages found", sizeof(last_err_str));
-    if (from_cache)
-       strcat (last_err_str, " in cache");
-  }
+     snprintf (last_err_str, sizeof(last_err_str), "No ~6VCPKG~0 packages found%s", from_cache ? " in cache" : "");
   return (num_ports_list);
 }
 
@@ -1941,10 +1937,12 @@ void vcpkg_init (void)
   }
 #endif
 
-  if (!ports_dirs) /* If not from cache, build a dirlist using readdir() */
+  /* If not from cache, build a dirlist using readdir()
+   */
+  if (!ports_dirs || smartlist_len(ports_dirs) == 0)
      ports_dirs = build_dir_list ("ports");
 
-  if (!packages_dirs)
+  if (!packages_dirs || smartlist_len(packages_dirs) == 0)
      packages_dirs = build_dir_list ("packages");
 
   get_all_available (ports_dirs, num_cached_ports_dirs > 0);
