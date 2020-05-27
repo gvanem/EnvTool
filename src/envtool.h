@@ -695,6 +695,7 @@ extern int         check_if_gzip (const char *fname);
 extern BOOL        check_if_cwd_in_search_path (const char *program);
 extern const char *get_gzip_link (const char *file);
 extern const char *get_man_link (const char *file);
+extern const char *get_sym_link (const char *file);
 extern int         check_if_PE (const char *fname, enum Bitness *bits);
 extern int         verify_PE_checksum (const char *fname);
 extern BOOL        is_wow64_active (void);

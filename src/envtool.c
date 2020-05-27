@@ -2920,6 +2920,9 @@ static int do_check_manpath (void)
 
 /**
  * Find the version and location `pkg-config.exe` (on `PATH`).
+ *
+ * In case Cygwin is installed and a `<CYGWIN_ROOT>/bin/pkg-config` is on PATH, check
+ * if it's symlinked to a `<CYGWIN_ROOT>/bin/pkgconf.exe` program.
  */
 static struct ver_info pkgconfig_ver;
 static char           *pkgconfig_exe = NULL;
@@ -2967,7 +2970,13 @@ static BOOL get_pkg_config_info (char **exe, struct ver_info *ver)
   }
 
   if (!pkgconfig_exe)
-     pkgconfig_exe = searchpath ("pkg-config.exe", "PATH");
+  {
+    const char *cyg_exe = searchpath ("pkg-config", "PATH");
+
+    if (cyg_exe)
+         pkgconfig_exe = (char*) get_sym_link (cyg_exe);
+    else pkgconfig_exe = searchpath ("pkg-config.exe", "PATH");
+  }
 
   if (!pkgconfig_exe)
      return (FALSE);

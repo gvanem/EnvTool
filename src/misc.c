@@ -524,6 +524,42 @@ const char *get_man_link (const char *file)
   return (NULL);
 }
 
+/**
+ * Open a file and check if first line contains a
+ * `!<symlink>real-file-name`. This is typical for several CygWin programs.
+ *
+ * Return result as `<dir_name>/real-file-name`. Which is just an
+ * assumption; the `real-file-name` can be anywhere on `%MANPATH%`.
+ */
+const char *get_sym_link (const char *file)
+{
+  char  buf [_MAX_PATH];
+  FILE *f = fopen (file, "r");
+
+  if (!f)
+     return (NULL);
+
+  memset (buf, '\0', sizeof(buf));
+  if (fread(&buf,1,sizeof(buf),f) > 0 && !strncmp(buf,"!<symlink>",10))
+  {
+    static char fqfn_name [_MAX_PATH];
+    char       *dir_name = dirname (file);
+    const char *base = basename (str_strip_nl(buf+10));
+
+    fclose (f);
+    DEBUG_NL (1);
+    snprintf (fqfn_name, sizeof(fqfn_name), "%s%c%s", dir_name, DIR_SEP, base);
+    DEBUGF (0, "get_sym_link: \"%s\"\n", fqfn_name);
+    FREE (dir_name);
+    if (opt.show_unix_paths)
+       return slashify2 (fqfn_name, fqfn_name, '/');
+    return (fqfn_name);
+  }
+
+  fclose (f);
+  return (NULL);
+}
+
 BOOL check_if_cwd_in_search_path (const char *program)
 {
   if (!p_NeedCurrentDirectoryForExePathA)
@@ -722,7 +758,7 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
  * lost their quotes ("). Therefore we must add these here by
  * creating a proper quoted 'content:\"xx yy\"' string.
  *
- * Called before to `Everything_SetSearch()` and in `state_send_query()`.
+ * Called before call to `Everything_SetSearch()` and in `state_send_query()`.
  *
  * \todo Do this for other EveryThing functions that accept spaces.
  */
