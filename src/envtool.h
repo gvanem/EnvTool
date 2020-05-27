@@ -455,6 +455,7 @@ extern volatile int halt_flag;
 extern char sys_dir        [_MAX_PATH];
 extern char sys_native_dir [_MAX_PATH];
 extern char sys_wow64_dir  [_MAX_PATH];
+extern char current_dir    [_MAX_PATH];
 extern int  path_separator;
 
 extern void incr_total_size (UINT64 size);
@@ -474,7 +475,7 @@ extern smartlist_t *split_env_var (const char *env_name, const char *value);
  * \struct directory_array
  */
 struct directory_array {
-       char        *dir;         /**< FQDN of this entry */
+       char        *dir;         /**< FQFN of this entry */
        char        *cyg_dir;     /**< The Cygwin POSIX form of the above */
        int          exist;       /**< does it exist? */
        int          is_native;   /**< and is it a native dir; like `%WinDir\sysnative` */
@@ -483,7 +484,8 @@ struct directory_array {
        int          exp_ok;      /**< `expand_env_var()` returned with no `%`? */
        int          num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
        BOOL         check_empty; /**< check if it contains at least 1 file? */
-       unsigned     line;        /**< Debug: at what line was `add_to_dir_array()` called */
+       const char  *file;        /**< Debug: in what file was `dir_array_add()` called */
+       unsigned     line;        /**< Debug: at what line was `dir_array_add()` called */
        smartlist_t *dirent2;     /**< List of `struct dirent2` for this directory; used in `check_shadow_files()` only */
      };
 
@@ -491,17 +493,30 @@ struct directory_array {
  * \struct registry_array
  */
 struct registry_array {
-       char   *fname;        /**< basename of this entry. I.e. the name of the enumerated key. */
-       char   *real_fname;   /**< normally the same as above unless aliased. E.g. "winzip.exe -> "winzip32.exe" */
-       char   *path;         /**< path of this entry */
-       int     exist;        /**< does it exist? */
-       time_t  mtime;        /**< file modification time */
-       UINT64  fsize;        /**< file size */
-       HKEY    key;
+       char       *fname;        /**< basename of this entry. I.e. the name of the enumerated key. */
+       char       *real_fname;   /**< normally the same as above unless aliased. E.g. "winzip.exe -> "winzip32.exe" */
+       char       *path;         /**< path of this entry */
+       int         exist;        /**< does it exist? */
+       time_t      mtime;        /**< file modification time */
+       UINT64      fsize;        /**< file size */
+       HKEY        key;          /**< The `top_key` used in `RegOpenKeyEx()` */
+       const char *file;         /**< Debug: in what file was `reg_array_add()` called */
+       unsigned    line;         /**< Debug: at what line was `reg_array_add()` called */
      };
 
-extern void free_reg_array (void);
-extern void free_dir_array (void);
+/**
+ * Interface functions for the `dir_array` and `reg_array` smartlists in envtool.c.
+ */
+extern smartlist_t *dir_array_head (void);
+extern void         dir_array_free (void);
+extern void         dir_array_add (const char *dir, int is_cwd, const char *file, unsigned line);
+
+extern smartlist_t *reg_array_head (void);
+extern void         reg_array_free (void);
+extern void         reg_array_add (HKEY key, const char *fname, const char *fqfn, const char *file, unsigned line);
+
+#define DIR_ARRAY_ADD(dir, is_cwd)      dir_array_add (dir, is_cwd, __FILE__, __LINE__)
+#define REG_ARRAY_ADD(key, fname, fqfn) reg_array_add (key, fname, fqfn, __FILE__, __LINE__)
 
 /**
  * \struct shadow_entry

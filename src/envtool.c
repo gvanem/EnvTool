@@ -46,6 +46,8 @@
 #include "dirlist.h"
 #include "sort.h"
 #include "vcpkg.h"
+#include "report.h"
+#include "pkg-config.h"
 #include "get_file_assoc.h"
 #include "cfg_file.h"
 #include "tests.h"
@@ -119,6 +121,7 @@ static smartlist_t *reg_array;
 char   sys_dir        [_MAX_PATH];  /**< E.g. `"c:\Windows\System32"` */
 char   sys_native_dir [_MAX_PATH];  /**< E.g. `"c:\Windows\sysnative"`. Not for WIN64 */
 char   sys_wow64_dir  [_MAX_PATH];  /**< E.g. `"c:\Windows\SysWOW64"`. Not for WIN64 */
+char   current_dir    [_MAX_PATH];
 int    path_separator = ';';
 
 static UINT64   total_size = 0;
@@ -136,8 +139,6 @@ static char *system_env_inc  = NULL;
 static char *user_env_path   = NULL;
 static char *user_env_lib    = NULL;
 static char *user_env_inc    = NULL;
-
-static char  current_dir [_MAX_PATH];
 
 static regex_t    re_hnd;         /* regex handle/state */
 static regmatch_t re_matches[3];  /* regex sub-expressions */
@@ -175,9 +176,7 @@ static int   do_check (void);
 static void  search_and_add_all_cc (BOOL print_info, BOOL print_lib_path);
 static void  print_build_cflags (void);
 static void  print_build_ldflags (void);
-static BOOL  get_pkg_config_info (char **exe, struct ver_info *ver);
-static BOOL  get_cmake_info (char **exe, struct ver_info *ver);
-static int   get_pkg_info (const char *pc_file, const char *filler);
+static BOOL  cmake_get_info (char **exe, struct ver_info *ver);
 
 /**
  * \todo Add support for *kpathsea*-like path searches (which some TeX programs uses). <br>
@@ -341,7 +340,7 @@ static void show_ext_versions (void)
 
   pad_len = sizeof("  pkg-config 9.99 detected");
 
-  if (get_cmake_info(&cmake_exe, &cmake_ver))
+  if (cmake_get_info(&cmake_exe, &cmake_ver))
   {
     len[0] = snprintf (found[0], FOUND_SZ, found_fmt[0], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
     if (len[0] > pad_len)
@@ -354,7 +353,7 @@ static void show_ext_versions (void)
     pad_len = len[1];
   }
 
-  if (get_pkg_config_info(&pkg_config_exe, &pkg_config_ver))
+  if (pkg_config_get_info(&pkg_config_exe, &pkg_config_ver))
   {
     len[2] = snprintf (found[2], FOUND_SZ, found_fmt[2], pkg_config_ver.val_1, pkg_config_ver.val_2);
     if (len[2] > pad_len)
@@ -377,8 +376,16 @@ static void show_ext_versions (void)
   else C_printf (not_found_fmt[1]);
 
   if (pkg_config_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[2], slashify(pkg_config_exe, slash));
-  else C_printf (not_found_fmt[2]);
+  {
+    unsigned num = pkg_config_get_num_installed();
+
+    C_printf ("%-*s -> ~6%s~0", pad_len, found[2], slashify(pkg_config_exe, slash));
+    if (num >= 1)
+       C_printf (" (%u packages installed).", num);
+    C_putc ('\n');
+  }
+  else
+   C_printf (not_found_fmt[2]);
 
   if (vcpkg_exe)
   {
@@ -619,18 +626,24 @@ static int show_help (void)
   return (0);
 }
 
+smartlist_t *dir_array_head (void)
+{
+  return (dir_array);
+}
+
 /**
  * Add the `dir` to the `dir_array` smartlist.
  * `is_cwd` == 1 if `dir` == current working directory.
  *
  * \param[in] dir     the directory to add to the smartlist.
  * \param[in] is_cwd  TRUE if `dir` is the current working directory.
- * \param[in] line    at what line was `add_to_dir_array()` called.
+ * \param[in] file    in what file was `dir_array_add()` called.
+ * \param[in] line    at what line was `dir_array_add()` called.
 
  * Since this function could be called with a `dir` from `expand_env_var()`,
  * we check here if it returned with no `%`.
  */
-void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
+void dir_array_add (const char *dir, int is_cwd, const char *file, unsigned line)
 {
   struct directory_array *d = CALLOC (1, sizeof(*d));
   struct stat st;
@@ -647,6 +660,7 @@ void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
   d->exist   = exp_ok && exists;
   d->is_dir  = is_dir;
   d->is_cwd  = is_cwd;
+  d->file    = file;
   d->line    = line;
 
   /* Can we have >1 native dirs?
@@ -708,7 +722,7 @@ void add_to_dir_array (const char *dir, int is_cwd, unsigned line)
   }
 }
 
-static int dump_dir_array (const char *where, const char *note)
+static int dir_array_dump (const char *where, const char *note)
 {
   int i, max;
 
@@ -752,7 +766,7 @@ static int dir_array_compare (const void **_a, const void **_b)
  *
  * \param[in] _r  The item in the `reg_array` smartlist to free.
  */
-static void reg_array_free (void *_r)
+static void _reg_array_free (void *_r)
 {
   struct registry_array *r = (struct registry_array*) _r;
 
@@ -767,7 +781,7 @@ static void reg_array_free (void *_r)
  *
  * \param[in] _d  The item in the `reg_array` smartlist to free.
  */
-static void dir_array_free (void *_d)
+static void _dir_array_free (void *_d)
 {
   struct directory_array *d = (struct directory_array*) _d;
   int    i, max = d->dirent2 ? smartlist_len (d->dirent2) : 0;
@@ -798,13 +812,13 @@ static void dir_array_free (void *_d)
  *                    equals `"%NT_INCLUDE%"` for `do_check_watcom_includes()` or
  *                    `"library paths"` for `setup_gcc_library_path()`.
  */
-static int make_unique_dir_array (const char *where)
+static int dir_array_make_unique (const char *where)
 {
   int old_len, new_len;
 
-  old_len = dump_dir_array (where, ", non-unique");
-  smartlist_make_uniq (dir_array, dir_array_compare, dir_array_free);
-  new_len = dump_dir_array (where, ", unique");
+  old_len = dir_array_dump (where, ", non-unique");
+  smartlist_make_uniq (dir_array, dir_array_compare, _dir_array_free);
+  new_len = dir_array_dump (where, ", unique");
   return (old_len - new_len);    /* This should always be 0 or positive */
 }
 
@@ -812,36 +826,38 @@ static int make_unique_dir_array (const char *where)
  * Add elements to the `reg_array` smartlist:
  *  \param[in] key     the key the entry came from: `HKEY_CURRENT_USER` or `HKEY_LOCAL_MACHINE`.
  *  \param[in] fname   the result from `RegEnumKeyEx()`; name of each key.
- *  \param[in] fqdn    the result from `enum_sub_values()`. This value includes the full path.
+ *  \param[in] fqfn    the result from `enum_sub_values()`. The Fully Qualified File Name.
  *
- * Note: `basename (fqdn)` may NOT be equal to `fname` (aliasing). That's the reason
+ * Note: `basename (fqfn)` may NOT be equal to `fname` (aliasing). That's the reason
  *       we store `real_fname` too.
  */
-static void add_to_reg_array (HKEY key, const char *fname, const char *fqdn)
+void reg_array_add (HKEY key, const char *fname, const char *fqfn, const char *file, unsigned line)
 {
   struct registry_array *reg;
   struct stat  st;
   const  char *base;
   int    rc;
 
-  base = basename (fqdn);
-  if (base == fqdn)
+  base = basename (fqfn);
+  if (base == fqfn)
   {
-    DEBUGF (1, "fqdn (%s) contains no '\\' or '/'\n", fqdn);
+    DEBUGF (1, "fqfn (%s) contains no '\\' or '/'\n", fqfn);
     return;
   }
 
   reg = CALLOC (1, sizeof(*reg));
   smartlist_add (reg_array, reg);
 
-  rc = safe_stat (fqdn, &st, NULL);
+  rc = safe_stat (fqfn, &st, NULL);
   reg->mtime      = st.st_mtime;
   reg->fsize      = st.st_size;
   reg->fname      = STRDUP (fname);
   reg->real_fname = STRDUP (base);
-  reg->path       = dirname (fqdn);
-  reg->exist      = (rc == 0) && FILE_EXISTS (fqdn);
+  reg->path       = dirname (fqfn);
+  reg->exist      = (rc == 0) && FILE_EXISTS (fqfn);
   reg->key        = key;
+  reg->file       = file;
+  reg->line       = line;
   _fix_drive (reg->path);
 }
 
@@ -852,22 +868,22 @@ static int reg_array_compare (const void **_a, const void **_b)
 {
   const struct registry_array *a = *_a;
   const struct registry_array *b = *_b;
-  char  fqdn_a [_MAX_PATH];
-  char  fqdn_b [_MAX_PATH];
+  char  fqfn_a [_MAX_PATH];
+  char  fqfn_b [_MAX_PATH];
   char  slash = (opt.show_unix_paths ? '/' : '\\');
 
   if (!a->path || !a->real_fname || !b->path || !b->real_fname)
      return (0);
 
-  snprintf (fqdn_a, sizeof(fqdn_a), "%s%c%s", slashify(a->path, slash), slash, a->real_fname);
-  snprintf (fqdn_b, sizeof(fqdn_b), "%s%c%s", slashify(b->path, slash), slash, b->real_fname);
+  snprintf (fqfn_a, sizeof(fqfn_a), "%s%c%s", slashify(a->path, slash), slash, a->real_fname);
+  snprintf (fqfn_b, sizeof(fqfn_b), "%s%c%s", slashify(b->path, slash), slash, b->real_fname);
 
   if (opt.case_sensitive)
-       return strcmp (fqdn_a, fqdn_b);
-  else return stricmp (fqdn_a, fqdn_b);
+       return strcmp (fqfn_a, fqfn_b);
+  else return stricmp (fqfn_a, fqfn_b);
 }
 
-static void print_reg_array (const char *intro)
+static void reg_array_print (const char *intro)
 {
   const struct registry_array *reg;
   int   i, max, slash = (opt.show_unix_paths ? '/' : '\\');
@@ -878,32 +894,33 @@ static void print_reg_array (const char *intro)
   for (i = 0; i < max; i++)
   {
     reg = smartlist_get (reg_array, i);
-    DEBUGF (3, "%2d: FQDN: %s%c%s.\n", i, reg->path, slash, reg->real_fname);
+    DEBUGF (3, "%2d: FQFN: %s%c%s.\n", i, reg->path, slash, reg->real_fname);
   }
 }
 
-static void sort_reg_array (void)
+static void reg_array_sort (void)
 {
-  print_reg_array ("before smartlist_sort():\n");
+  reg_array_print ("before smartlist_sort():\n");
   smartlist_sort (reg_array, reg_array_compare);
-  print_reg_array ("after smartlist_sort():\n");
+  reg_array_print ("after smartlist_sort():\n");
 }
 
-void free_reg_array (void)
+void reg_array_free (void)
 {
-  smartlist_wipe (reg_array, reg_array_free);
+  smartlist_wipe (reg_array, _reg_array_free);
 }
 
-void free_dir_array (void)
+void dir_array_free (void)
 {
-  smartlist_wipe (dir_array, dir_array_free);
+  smartlist_wipe (dir_array, _dir_array_free);
 }
 
 /**
  * Parses an environment string and returns all components as an array of
  * `struct directory_array` pointing into the global `dir_array` smartlist.
+ *
  * This works since we handle only one env-var at a time. The `dir_array`
- * gets cleared in `free_dir_array()` first (in case it was used already).
+ * gets cleared in `dir_array_free()` first (in case it was used already).
  *
  * Add current working directory first if `opt.no_cwd` is FALSE.
  *
@@ -922,7 +939,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   }
 
   val = STRDUP (value);  /* Freed before we return */
-  free_dir_array();
+  dir_array_free();
 
   sep[0] = (char) path_separator;
   sep[1] = '\0';
@@ -941,7 +958,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   */
   i = 0;
   if (!opt.no_cwd && is_cwd)
-     add_to_dir_array (current_dir, 1, __LINE__);
+     DIR_ARRAY_ADD (current_dir, 1);
 
   max = INT_MAX;
 
@@ -1012,7 +1029,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
       tok = buf;
     }
 
-    add_to_dir_array (tok, str_equal(tok,current_dir), __LINE__);
+    DIR_ARRAY_ADD (tok, str_equal(tok,current_dir));
     tok = _strtok_r (NULL, sep, &_end);
   }
 
@@ -1337,6 +1354,25 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   BUF_INIT (&fmt_buf_ver_info, 100, 0);
   BUF_INIT (&fmt_buf_trust_info, 100, 0);
 
+#if 1
+  if (key == HKEY_PKG_CONFIG_FILE)
+  {
+    struct report r = { .file        = file,
+                        .mtime       = mtime,
+                        .fsize       = fsize,
+                        .is_dir      = is_dir,
+                        .is_junction = is_junction,
+                        .key         = key,
+                        .filler      = filler,
+                        .pre_action  = NULL,
+                        .post_action = NULL
+                      };
+    if (opt.verbose >= 1)
+       r.post_action = pkg_config_get_details2;
+    return report_file2 (&r);
+  }
+#endif
+
   if (key == HKEY_CURRENT_USER)
   {
     found_in_hkey_current_user++;
@@ -1590,7 +1626,7 @@ int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL
   }
 
   if (key == HKEY_PKG_CONFIG_FILE && opt.verbose > 0)
-     get_pkg_info (file, filler);
+     pkg_config_get_details (file, filler);
 
   C_putc ('\n');
 
@@ -1910,7 +1946,7 @@ static void build_reg_array_app_path (HKEY top_key)
   {
     char  sub_key [512];
     char  fname [512];
-    const char *fqdn;
+    const char *fqfn;
     DWORD size = sizeof(fname);
 
     rc = RegEnumKeyEx (key, num, fname, &size, NULL, NULL, NULL, NULL);
@@ -1921,13 +1957,13 @@ static void build_reg_array_app_path (HKEY top_key)
 
     snprintf (sub_key, sizeof(sub_key), "%s\\%s", REG_APP_PATH, fname);
 
-    if (enum_sub_values(top_key,sub_key,&fqdn))
-       add_to_reg_array (top_key, fname, fqdn);
+    if (enum_sub_values(top_key,sub_key,&fqfn))
+       REG_ARRAY_ADD (top_key, fname, fqfn);
   }
   if (key)
      RegCloseKey (key);
 
-  sort_reg_array();
+  reg_array_sort();
 }
 
 /**
@@ -2006,7 +2042,7 @@ static int do_check_env2 (HKEY key, const char *env, const char *value)
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
                           arr->is_dir, arr->exp_ok, env, key, FALSE);
   }
-  free_dir_array();
+  dir_array_free();
   return (found);
 }
 
@@ -2089,7 +2125,7 @@ static int report_registry (const char *reg_key)
       }
     }
   }
-  free_reg_array();
+  reg_array_free();
   return (found);
 }
 
@@ -2809,7 +2845,7 @@ static int do_check_env (const char *env_name, BOOL recursive)
                           arr->is_dir, arr->exp_ok, env_name, NULL,
                           recursive);
   }
-  free_dir_array();
+  dir_array_free();
   FREE (orig_e);
   return (found);
 }
@@ -2913,211 +2949,9 @@ static int do_check_manpath (void)
 
   opt.no_cwd   = save1;
   opt.man_mode = save2;
-  free_dir_array();
+  dir_array_free();
   FREE (orig_e);
   return (found);
-}
-
-/**
- * Find the version and location `pkg-config.exe` (on `PATH`).
- *
- * In case Cygwin is installed and a `<CYGWIN_ROOT>/bin/pkg-config` is on PATH, check
- * if it's symlinked to a `<CYGWIN_ROOT>/bin/pkgconf.exe` program.
- */
-static struct ver_info pkgconfig_ver;
-static char           *pkgconfig_exe = NULL;
-
-static int find_pkg_config_version_cb (char *buf, int index)
-{
-  struct ver_info ver = { 0,0,0,0 };
-
-  ARGSUSED (index);
-  if (sscanf(buf, "%d.%d", &ver.val_1, &ver.val_2) == 2)
-  {
-    memcpy (&pkgconfig_ver, &ver, sizeof(pkgconfig_ver));
-    return (1);
-  }
-  return (0);
-}
-
-static BOOL get_pkg_config_info (char **exe, struct ver_info *ver)
-{
-  static char exe_copy [_MAX_PATH];
-
-  *exe = NULL;
-  *ver = pkgconfig_ver;
-
-  /* We have already done this
-   */
-  if (pkgconfig_exe && VALID_VER(pkgconfig_ver))
-  {
-    *exe = STRDUP (pkgconfig_exe);
-    return (TRUE);
-  }
-
-  DEBUGF (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
-
-  cache_getf (SECTION_PKGCONFIG, "pkgconfig_exe = %s", &pkgconfig_exe);
-  cache_getf (SECTION_PKGCONFIG, "pkgconfig_version = %d,%d", &pkgconfig_ver.val_1, &pkgconfig_ver.val_2);
-
-  if (pkgconfig_exe && !FILE_EXISTS(pkgconfig_exe))
-  {
-    cache_del (SECTION_PKGCONFIG, "pkgconfig_version");
-    cache_del (SECTION_PKGCONFIG, "pkgconfig_exe");
-    memset (&pkgconfig_ver, '\0', sizeof(pkgconfig_ver));
-    pkgconfig_exe = NULL;
-    return get_pkg_config_info (exe, ver);
-  }
-
-  if (!pkgconfig_exe)
-  {
-    const char *cyg_exe = searchpath ("pkg-config", "PATH");
-
-    if (cyg_exe)
-         pkgconfig_exe = (char*) get_sym_link (cyg_exe);
-    else pkgconfig_exe = searchpath ("pkg-config.exe", "PATH");
-  }
-
-  if (!pkgconfig_exe)
-     return (FALSE);
-
-  pkgconfig_exe = slashify2 (exe_copy, pkgconfig_exe, '\\');
-  *exe = STRDUP (pkgconfig_exe);
-
-  cache_putf (SECTION_PKGCONFIG, "pkgconfig_exe = %s", pkgconfig_exe);
-
-  if (!VALID_VER(pkgconfig_ver) && popen_runf(find_pkg_config_version_cb, "\"%s\" --version", pkgconfig_exe) > 0)
-     cache_putf (SECTION_PKGCONFIG, "pkgconfig_version = %d,%d", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
-
-  *ver = pkgconfig_ver;
-  DEBUGF (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
-
-  return (pkgconfig_exe && VALID_VER(pkgconfig_ver));
-}
-
-/*
- * Get the `PKG_CONFIG_PATH` from Registry under: <br>
- *   `HKEY_CURRENT_USER\Software\pkgconfig\PKG_CONFIG_PATH`  or
- *   `HKEY_LOCAL_MACHINE\Software\pkgconfig\PKG_CONFIG_PATH`.
- */
-#define PKG_CONFIG_REG_KEY "Software\\pkgconfig\\PKG_CONFIG_PATH"
-
-static smartlist_t *pkg_config_reg_keys (HKEY top_key)
-{
-  HKEY   key;
-  int    i = 0;
-  char   buf [16*1024];
-  DWORD  rc, buf_size = sizeof(buf);
-  REGSAM acc = reg_read_access();
-
-  rc  = RegOpenKeyEx (top_key, PKG_CONFIG_REG_KEY, 0, acc, &key);
-
-  DEBUGF (1, "  RegOpenKeyEx (%s\\%s, %s):\n                   %s\n",
-          reg_top_key_name(top_key), PKG_CONFIG_REG_KEY, reg_access_name(acc), win_strerror(rc));
-
-  if (rc != ERROR_SUCCESS)
-     return (NULL);
-
-  while (RegEnumValue(key, i++, buf, &buf_size, NULL, NULL, NULL, NULL) == ERROR_SUCCESS)
-  {
-    char  path [_MAX_PATH];
-    DWORD type, path_len = sizeof(path);
-
-    if (RegQueryValueEx(key, buf, NULL, &type, (BYTE*)path, &path_len) == ERROR_SUCCESS && type == REG_SZ)
-       add_to_dir_array (path, str_equal(path,current_dir), __LINE__);
-    buf_size = sizeof(buf);
-  }
-  RegCloseKey (key);
-  return (dir_array);
-}
-
-/**
- * Search and check along `%PKG_CONFIG_PATH%` for a
- * matching `<filespec>.pc` file.
- */
-static int do_check_pkg (void)
-{
-  smartlist_t *list;
-  int          i, max, num, prev_num = 0, found = 0;
-  BOOL         do_warn = FALSE;
-  char        *orig_e;
-  static const char env_name[] = "PKG_CONFIG_PATH";
-
-  orig_e = getenv_expand (env_name);
-  list = orig_e ? split_env_var (env_name, orig_e) : NULL;
-
-  if (!list)
-  {
-    list = pkg_config_reg_keys (HKEY_CURRENT_USER);
-    if (!list)
-       list = pkg_config_reg_keys (HKEY_LOCAL_MACHINE);
-    if (!list)
-    {
-      WARN ("%s not defined in environment nor in the Registry\n", env_name);
-      return (0);
-    }
-  }
-
-  set_report_header ("Matches in %%%s:\n", env_name);
-
-  max = smartlist_len (list);
-  for (i = 0; i < max; i++)
-  {
-    const struct directory_array *arr = smartlist_get (list, i);
-
-    DEBUGF (2, "Checking in dir '%s'\n", arr->dir);
-    num = process_dir (arr->dir, 0, arr->exist, TRUE, arr->is_dir, arr->exp_ok,
-                       env_name, HKEY_PKG_CONFIG_FILE, FALSE);
-
-    if (arr->num_dup == 0 && prev_num > 0 && num > 0)
-       do_warn = TRUE;
-    if (prev_num == 0 && num > 0)
-       prev_num = num;
-    found += num;
-  }
-
-  free_dir_array();
-  FREE (orig_e);
-
-  if (do_warn && !opt.quiet)
-  {
-    WARN ("Note: ");
-    C_printf ("~6There seems to be several '%s' files in different %%%s directories.\n"
-              "      \"pkg-config\" will only select the first.~0\n", opt.file_spec, env_name);
-  }
-  return (found);
-}
-
-/**
- * Get and print more verbose details in a pkg-config `.pc` file.
- * Look for lines like:
- * ```
- *  Description: Python bindings for cairo
- *  Version: 1.8.10
- * ```
- *
- * and print this like `Python bindings for cairo (v1.8.10) `
- */
-static int get_pkg_info (const char *pc_file, const char *filler)
-{
-  FILE *f = fopen (pc_file, "rt");
-  char  buf [1000], *p;
-  char  descr [1000] = { "" };
-  char  version [50] = { "" };
-
-  if (!f)
-     return (0);
-
-  while (fgets(buf, sizeof(buf), f))
-  {
-    p = str_ltrim (buf);
-    sscanf (p, "Description: %999[^\r\n]", descr);
-    sscanf (p, "Version: %49s", version);
-  }
-  if (descr[0] && version[0])
-     C_printf ("\n%s%s (v%s)", filler, str_ltrim(descr), str_ltrim(version));
-  fclose (f);
-  return (1);
 }
 
 /**
@@ -3156,7 +2990,7 @@ static int do_check_vcpkg (void)
 static struct ver_info cmake_ver;
 static char           *cmake_exe = NULL;
 
-static int find_cmake_version_cb (char *buf, int index)
+static int cmake_version_cb (char *buf, int index)
 {
   static char     prefix[] = "cmake version ";
   struct ver_info ver = { 0,0,0,0 };
@@ -3172,7 +3006,7 @@ static int find_cmake_version_cb (char *buf, int index)
   return (0);
 }
 
-static BOOL get_cmake_info (char **exe, struct ver_info *ver)
+static BOOL cmake_get_info (char **exe, struct ver_info *ver)
 {
   static char exe_copy [_MAX_PATH];
 
@@ -3198,7 +3032,7 @@ static BOOL get_cmake_info (char **exe, struct ver_info *ver)
     cache_del (SECTION_CMAKE, "cmake_version");
     memset (&cmake_ver, '\0', sizeof(cmake_ver));
     cmake_exe = NULL;
-    return get_cmake_info (exe, ver);
+    return cmake_get_info (exe, ver);
   }
 
   if (!cmake_exe)
@@ -3212,7 +3046,7 @@ static BOOL get_cmake_info (char **exe, struct ver_info *ver)
 
   cache_putf (SECTION_CMAKE, "cmake_exe = %s", cmake_exe);
 
-  if (!VALID_VER(cmake_ver) && popen_runf(find_cmake_version_cb, "\"%s\" -version", cmake_exe) > 0)
+  if (!VALID_VER(cmake_ver) && popen_runf(cmake_version_cb, "\"%s\" -version", cmake_exe) > 0)
      cache_putf (SECTION_CMAKE, "cmake_version = %d,%d,%d", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
 
   *ver = cmake_ver;
@@ -3223,39 +3057,31 @@ static BOOL get_cmake_info (char **exe, struct ver_info *ver)
 static int do_check_cmake (void)
 {
   struct ver_info ver;
-  char           *bin;
+  char            modules_dir [_MAX_PATH];
+  char           *bin, *root;
   const char     *env_name = "CMAKE_MODULE_PATH";
-  int             found = 0;
-  BOOL            check_env = TRUE;
+  int             found;
 
-  if (!get_cmake_info(&bin, &ver))
+  if (!cmake_get_info(&bin, &ver))
   {
     WARN ("cmake.exe not found on PATH.\n");
-    if (check_env)
-       WARN (" Checking %%%s anyway.\n", env_name);
-  }
-  else
-  {
-    char  dir [_MAX_PATH];
-    char *root = dirname (bin);
-
-    snprintf (dir, sizeof(dir), "%s\\..\\share\\cmake-%d.%d\\Modules", root, ver.val_1, ver.val_2);
-    _fix_path (dir, dir);
-
-    DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
-            ver.val_1, ver.val_2, ver.val_3, dir);
-
-    set_report_header ("Matches among built-in Cmake modules:\n");
-    found = process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, NULL, FALSE);
-    FREE (bin);
-    FREE (root);
+    return (0);
   }
 
-  if (check_env)
-  {
-    set_report_header ("Matches in %%%s:\n", env_name);
-    found += do_check_env (env_name, TRUE);
-  }
+  root = dirname (bin);
+  snprintf (modules_dir, sizeof(modules_dir), "%s\\..\\share\\cmake-%d.%d\\Modules", root, ver.val_1, ver.val_2);
+  _fix_path (modules_dir, modules_dir);
+
+  DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
+          ver.val_1, ver.val_2, ver.val_3, modules_dir);
+
+  set_report_header ("Matches among built-in Cmake modules:\n");
+  found = process_dir (modules_dir, 0, TRUE, TRUE, 1, TRUE, env_name, NULL, FALSE);
+  FREE (bin);
+  FREE (root);
+
+  set_report_header ("Matches in %%%s:\n", env_name);
+  found += do_check_env (env_name, TRUE);
   set_report_header (NULL);
   return (found);
 }
@@ -3461,7 +3287,7 @@ static int get_inc_dirs_from_cache (const compiler_info *cc)
     snprintf (format, sizeof(format), "compiler_inc_%d_%d = %%s", cc->type, i);
     if (cache_getf(SECTION_COMPILER, format, &inc_dir) != 1)
        break;
-    add_to_dir_array (inc_dir, FALSE, __LINE__);
+    DIR_ARRAY_ADD (inc_dir, FALSE);
     found++;
     i++;
   }
@@ -3482,7 +3308,7 @@ static int get_lib_dirs_from_cache (const compiler_info *cc)
     snprintf (format, sizeof(format), "compiler_lib_%d_%d = %%s", cc->type, i);
     if (cache_getf(SECTION_COMPILER, format, &lib_dir) != 1)
        break;
-    add_to_dir_array (lib_dir, FALSE, __LINE__);
+    DIR_ARRAY_ADD (lib_dir, FALSE);
     found++;
     i++;
   }
@@ -3626,7 +3452,7 @@ static int find_include_path_cb (char *buf, int index)
         p = _fix_path (str_trim(buf), buf2);
     }
 
-    add_to_dir_array (p, !stricmp(current_dir,p), __LINE__);
+    DIR_ARRAY_ADD (p, !stricmp(current_dir,p));
     DEBUGF (3, "line: '%s'\n", p);
     return (1);
   }
@@ -3685,7 +3511,7 @@ static int find_library_path_cb (char *buf, int index)
            *end = '\0';
       }
     }
-    add_to_dir_array (rc, FALSE, __LINE__);
+    DIR_ARRAY_ADD (rc, FALSE);
     DEBUGF (3, "tok %d: '%s'\n", i, rc);
   }
   ARGSUSED (index);
@@ -3717,17 +3543,17 @@ static void gnu_add_gpp_path (void)
 {
   struct directory_array *d;
   int    i, j, max = smartlist_len (dir_array);
-  char   fqdn [_MAX_PATH];
+  char   fqfn [_MAX_PATH];
 
   for (i = 0; i < max; i++)
   {
     d = smartlist_get (dir_array, i);
-    snprintf (fqdn, sizeof(fqdn), "%s%c%s", d->dir, DIR_SEP, "c++");
-    if (is_directory(fqdn))
+    snprintf (fqfn, sizeof(fqfn), "%s%c%s", d->dir, DIR_SEP, "c++");
+    if (is_directory(fqfn))
     {
       /* This will be added at `dir_array[max+1]`.
        */
-      add_to_dir_array (fqdn, 0, __LINE__);
+      DIR_ARRAY_ADD (fqfn, 0);
 
 #if 0
       /* Insert the new `c++` directory at the `i`-th element.
@@ -3762,7 +3588,7 @@ static int setup_gcc_includes (const compiler_info *cc)
     return (0);
   }
 
-  free_dir_array();
+  dir_array_free();
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
    * Hence redirect stderr + stdout into the same pipe for us to read.
@@ -3800,7 +3626,7 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
     return (0);
   }
 
-  free_dir_array();
+  dir_array_free();
 
   /* Tell `*gcc.exe` to return 32 or 64-bot or both types of libs.
    * (assuming it supports the `-m32/-m64` switches.
@@ -3844,11 +3670,11 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
     int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, "/usr/lib/w32api", result, sizeof(result));
 
     if (rc == 0)
-       add_to_dir_array (result, FALSE, __LINE__);
+       DIR_ARRAY_ADD (result, FALSE);
   }
 #endif
 
-  duplicates = make_unique_dir_array ("library paths");
+  duplicates = dir_array_make_unique ("library paths");
   if (duplicates > 0)
      DEBUGF (1, "found %d duplicates in library paths for %s.\n", duplicates, gcc);
 
@@ -3874,7 +3700,7 @@ static int process_gcc_dirs (const char *gcc, int *num_dirs)
                           arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE, FALSE);
   }
   *num_dirs = max;
-  free_dir_array();
+  dir_array_free();
   return (found);
 }
 
@@ -4049,7 +3875,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
   copy[i] = NULL;
   DEBUGF (3, "Made a 'copy[]' of %d directories.\n", max);
 
-  free_dir_array();
+  dir_array_free();
 
   list = split_env_var (env_name, env_value);
   max  = list ? smartlist_len (list) : 0;
@@ -4079,7 +3905,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
 
   for (i = 0; copy[i]; i++)
       FREE (copy[i]);
-  free_dir_array();
+  dir_array_free();
 }
 
 /**
@@ -4343,7 +4169,7 @@ static int process_clang_dirs (const char *cc, int *num_dirs)
                           arr->is_dir, arr->exp_ok, cc, HKEY_INC_LIB_FILE, FALSE);
   }
   *num_dirs = max;
-  free_dir_array();
+  dir_array_free();
   return (found);
 }
 
@@ -4363,7 +4189,7 @@ static int setup_clang_includes (const compiler_info *cc)
 {
   int found = 0;
 
-  free_dir_array();
+  dir_array_free();
 
   found = get_inc_dirs_from_cache (cc);
   if (found == 0)
@@ -4408,10 +4234,10 @@ static int find_clang_library_path_cb (char *buf, int index)
     _fix_path (buf2, buf2);
 
     DEBUGF (2, "buf1: '%s'\n", buf1);
-    add_to_dir_array (buf1, FALSE, __LINE__);
+    DIR_ARRAY_ADD (buf1, FALSE);
 
     DEBUGF (2, "buf2: '%s'\n", buf2);
-    add_to_dir_array (buf2, FALSE, __LINE__);
+    DIR_ARRAY_ADD (buf2, FALSE);
   }
   ARGSUSED (index);
   return (2*i);
@@ -4421,7 +4247,7 @@ static int setup_clang_library_path (const compiler_info *cc)
 {
   int found;
 
-  free_dir_array();
+  dir_array_free();
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
    * Hence redirect stderr + stdout into the same pipe for us to read.
@@ -4534,7 +4360,7 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
   }
 
   if (!opt.no_cwd)
-     add_to_dir_array (current_dir, 1, __LINE__);
+     DIR_ARRAY_ADD (current_dir, 1);
 
   watcom_dir[0] = getenv_expand (dir0);
   watcom_dir[1] = getenv_expand (dir1);
@@ -4545,10 +4371,10 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
    */
   dir2_found = is_directory (watcom_dir[2]);
 
-  add_to_dir_array (watcom_dir[0], 0, __LINE__);
-  add_to_dir_array (watcom_dir[1], 0, __LINE__);
+  DIR_ARRAY_ADD (watcom_dir[0], 0);
+  DIR_ARRAY_ADD (watcom_dir[1], 0);
   if (dir2_found)
-     add_to_dir_array (watcom_dir[2], 0, __LINE__);
+     DIR_ARRAY_ADD (watcom_dir[2], 0);
 
   return (1);
 }
@@ -4596,7 +4422,7 @@ static int do_check_watcom_includes (void)
   /* The above adding of `"%NT_INCLUDE"` will probably create duplicate
    * entries. Remove them.
    */
-  make_unique_dir_array ("%NT_INCLUDE%");
+  dir_array_make_unique ("%NT_INCLUDE%");
 
   set_report_header ("Matches in %%NT_INCLUDE:\n");
 
@@ -4612,7 +4438,7 @@ static int do_check_watcom_includes (void)
 quit:
   opt.no_cwd = save;
   free_watcom_dirs();
-  free_dir_array();
+  dir_array_free();
   return (found);
 }
 
@@ -4641,9 +4467,9 @@ static int do_check_watcom_library_paths (void)
     found += process_dir (arr->dir, arr->num_dup, arr->exist, TRUE,
                           arr->is_dir, arr->exp_ok, "WATCOM", HKEY_INC_LIB_FILE, FALSE);
   }
-  dump_dir_array ("Watcom libs", "");
+  dir_array_dump ("Watcom libs", "");
   free_watcom_dirs();
-  free_dir_array();
+  dir_array_free();
   return (found);
 }
 
@@ -4680,7 +4506,7 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
 
     snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(isystem));
     DEBUGF (2, "dir: %s.\n", dir);
-    add_to_dir_array (dir, FALSE, __LINE__);
+    DIR_ARRAY_ADD (dir, FALSE);
   }
   else if (!strncmp(line,"-I",2))
   {
@@ -4715,7 +4541,7 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
 
     snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(Ldir));
     DEBUGF (2, "dir: %s.\n", dir);
-    add_to_dir_array (dir, FALSE, __LINE__);
+    DIR_ARRAY_ADD (dir, FALSE);
   }
   else if (!strncmp(line,"-L",2))
   {
@@ -4792,7 +4618,7 @@ static int do_check_borland_inc_lib (const char *inc_lib, const char *matches, b
                               arr->is_dir, arr->exp_ok, inc_lib,
                               HKEY_INC_LIB_FILE, FALSE);
       }
-      free_dir_array();
+      dir_array_free();
       FREE (bcc_root);
     }
   }
@@ -5267,7 +5093,7 @@ static void MS_CDECL cleanup (void)
 
   Everything_CleanUp();
 
-  free_dir_array();
+  dir_array_free();
 
   FREE (who_am_I);
 
@@ -5665,7 +5491,7 @@ int MS_CDECL main (int argc, const char **argv)
      found += do_check_manpath();
 
   if (opt.do_pkg)
-     found += do_check_pkg();
+     found += pkg_config_search (opt.file_spec);
 
   if (opt.do_vcpkg)
      found += do_check_vcpkg();
@@ -5999,7 +5825,7 @@ static int get_dirlist_from_cache (const char *env_var)
     if (cache_getf(SECTION_ENV_DIR, format, dir) != 1)
        break;
 
-    add_to_dir_array (dir, str_equal(dir,current_dir), __LINE__);
+    DIR_ARRAY_ADD (dir, str_equal(dir,current_dir));
     found++;
     i++;
   }
@@ -6134,7 +5960,7 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
   if (opt.verbose && file_spec)
      shadow_report (list, file_spec);
 
-  free_dir_array();
+  dir_array_free();
   opt.conv_cygdrive = save;
   path_separator = ';';
 }
@@ -6212,7 +6038,7 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
      C_puts ("~2OK~0, ");
 
   C_printf ("~6%2d~0 elements\n", max);
-  free_dir_array();
+  dir_array_free();
 }
 
 /**
@@ -6290,7 +6116,7 @@ static void check_app_paths (HKEY key)
      C_puts ("~5Error~0,          ");
 
   C_printf ("~6%2d~0 elements\n", max);
-  free_reg_array();
+  reg_array_free();
 }
 
 /**

@@ -25,6 +25,7 @@ OBJECTS = auth.obj           &
           getopt_long.obj    &
           ignore.obj         &
           misc.obj           &
+          pkg-config.obj     &
           regex.obj          &
           searchpath.obj     &
           show_ver.obj       &

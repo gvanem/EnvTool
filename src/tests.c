@@ -61,7 +61,7 @@ static void test_split_env (const char *env)
 
     C_putc ('\n');
   }
-  free_dir_array();
+  dir_array_free();
   FREE (value);
   C_printf ("  ~3%d elements~0\n\n", i);
 }
@@ -80,7 +80,7 @@ static void test_split_env_cygwin (const char *env)
   char        *value, *cyg_value;
   int          i, max, rc, needed, save = opt.conv_cygdrive;
 
-  free_dir_array();
+  dir_array_free();
 
   C_printf ("~3%s():~0 ", __FUNCTION__);
   C_printf (" testing 'split_env_var (\"%s\",\"%%%s\")':\n", env, env);
@@ -126,7 +126,7 @@ static void test_split_env_cygwin (const char *env)
     if (dir != arr->dir)
        free (dir);
   }
-  free_dir_array();
+  dir_array_free();
   FREE (value);
 
   path_separator = ';';
