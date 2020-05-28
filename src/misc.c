@@ -90,7 +90,7 @@ static HANDLE kernel32_hnd, userenv_hnd;
        };
 
   static struct mem_head *mem_list = NULL; /**< The linked list of our allocations */
-  static size_t mem_reallocs = 0;          /**< Number of realloc() */
+  static size_t mem_reallocs    = 0;       /**< Number of realloc() */
   static DWORD  mem_max         = 0;       /**< Max bytes allocated at one time */
   static DWORD  mem_allocated   = 0;       /**< Total bytes allocated */
   static DWORD  mem_deallocated = 0;       /**< Bytes deallocated */
@@ -117,7 +117,7 @@ static HANDLE kernel32_hnd, userenv_hnd;
 
   /**
    * \def IS_MARKER(m)
-   * Verify that the memory block `m` is valid;<br>
+   * Verify that the memory block `m` is valid; <br>
    * either marked as used (`MEM_MARKER`) or as freed (`MEM_FREED`).
    */
   #define IS_MARKER(m) ( ( (m)->marker == MEM_MARKER) || ( (m)->marker == MEM_FREED) )
@@ -830,6 +830,7 @@ static const char *sid_owner_cache (PSID sid)
  * \param[in,out] account_name_p  on input a caller-supplied `char **` pointer.
  *                                on output (if success), set to the account-name of the owner.
  *                                Must be free()'d by the caller if set to non-NULL here.
+ *
  * \param[out] sid_p              The `sid` for the `file` as obtained from `GetSecurityInfo()`.
  *                                The caller must use `LocalFree()` on `*sid_p` if non-NULL.
  *
@@ -1013,7 +1014,7 @@ BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name
  * \see https://superuser.com/questions/248315/list-of-hidden-virtual-windows-user-accounts/638376
  *
  * \code
- * c:\>powershell "get-wmiobject -class win32_account -namespace 'root\cimv2' | sort caption | format-table caption, __CLASS, FullName"
+ * c:\> powershell "get-wmiobject -class win32_account -namespace 'root\cimv2' | sort caption | format-table caption, __CLASS, FullName"
  *
  *  caption                                     __CLASS             FullName
  *  -------                                     -------             --------
@@ -1137,22 +1138,30 @@ REGSAM reg_read_access (void)
 
 const char *reg_type_name (DWORD type)
 {
-  return (type == REG_SZ               ? "REG_SZ" :
-          type == REG_MULTI_SZ         ? "REG_MULTI_SZ" :
-          type == REG_EXPAND_SZ        ? "REG_EXPAND_SZ" :
-          type == REG_LINK             ? "REG_LINK" :
-          type == REG_BINARY           ? "REG_BINARY" :
-          type == REG_DWORD            ? "REG_DWORD" :
-          type == REG_RESOURCE_LIST    ? "REG_RESOURCE_LIST" :
-          type == REG_DWORD_BIG_ENDIAN ? "REG_DWORD_BIG_ENDIAN" :
-          type == REG_QWORD            ? "REG_QWORD" : "?");
+  #define CHECK_TYPE(v) if (type == v) return (#v)
+
+  CHECK_TYPE (REG_SZ);
+  CHECK_TYPE (REG_MULTI_SZ);
+  CHECK_TYPE (REG_EXPAND_SZ);
+  CHECK_TYPE (REG_LINK);
+  CHECK_TYPE (REG_BINARY);
+  CHECK_TYPE (REG_DWORD);
+  CHECK_TYPE (REG_RESOURCE_LIST);
+  CHECK_TYPE (REG_DWORD_BIG_ENDIAN);
+  CHECK_TYPE (REG_QWORD);
+  return ("?");
 }
 
 const char *reg_top_key_name (HKEY key)
 {
-  return (key == HKEY_LOCAL_MACHINE ? "HKEY_LOCAL_MACHINE" :
-          key == HKEY_CURRENT_USER  ? "HKEY_CURRENT_USER" :
-          "?");
+  #define CHECK_KEY(v) if (key == v) return (#v)
+
+  CHECK_KEY (HKEY_LOCAL_MACHINE);
+  CHECK_KEY (HKEY_CURRENT_USER);
+  CHECK_KEY (HKEY_CLASSES_ROOT);
+  CHECK_KEY (HKEY_CURRENT_CONFIG);
+  CHECK_KEY (HKEY_USERS);
+  return ("?");
 }
 
 const char *reg_access_name (REGSAM acc)
@@ -2154,7 +2163,7 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
 /**
  * Get the allocation size of a file or directory.
  *
- * This uses cached information from the above `get_disk_cluster_size()`.<br>
+ * This uses cached information from the above `get_disk_cluster_size()`. <br>
  * Currently only works on local disks; `disk-type == DRIVE_FIXED`.
  * Otherwise it simply returns the `size`.
  *
@@ -3514,7 +3523,7 @@ const char *list_lookup_name (unsigned value, const struct search_list *list, in
     num--;
     list++;
   }
-  return _itoa (value,buf,10);
+  return _itoa (value, buf, 10);
 }
 
 /**
