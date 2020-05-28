@@ -460,13 +460,12 @@ extern int  path_separator;
 
 extern void incr_total_size (UINT64 size);
 
-extern void set_report_header (const char *fmt, ...);
+struct report;  /* In "report.h" */
 
-extern int  report_file (const char *file, time_t mtime, UINT64 fsize,
-                         BOOL is_dir, BOOL is_junction, HKEY key);
+extern int report_file (struct report *r);
 
-extern int  process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
-                         BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key, BOOL recursive);
+extern int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
+                        BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key, BOOL recursive);
 
 extern void         print_raw (const char *file, const char *before, const char *after);
 extern smartlist_t *split_env_var (const char *env_name, const char *value);
@@ -517,6 +516,12 @@ extern void         reg_array_add (HKEY key, const char *fname, const char *fqfn
 
 #define DIR_ARRAY_ADD(dir, is_cwd)      dir_array_add (dir, is_cwd, __FILE__, __LINE__)
 #define REG_ARRAY_ADD(key, fname, fqfn) reg_array_add (key, fname, fqfn, __FILE__, __LINE__)
+
+/**
+ * \def REG_APP_PATH
+ * The Registry key under `HKEY_CURRENT_USER` or `HKEY_LOCAL_MACHINE`.
+ */
+#define REG_APP_PATH    "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths"
 
 /**
  * \struct shadow_entry

@@ -55,8 +55,9 @@ RCFLAGS = $(RCFLAGS) -DWIN64
 
 OBJECTS = auth.obj envtool.obj envtool_py.obj cache.obj cfg_file.obj color.obj description.obj \
           dirlist.obj Everything.obj Everything_ETP.obj find_vstudio.obj get_file_assoc.obj \
-          getopt_long.obj ignore.obj misc.obj pkg-config.obj searchpath.obj show_ver.obj \
-          smartlist.obj sort.obj regex.obj tests.obj vcpkg.obj win_trust.obj win_ver.obj
+          getopt_long.obj ignore.obj misc.obj pkg-config.obj report.obj searchpath.obj \
+          show_ver.obj smartlist.obj sort.obj regex.obj tests.obj vcpkg.obj win_trust.obj \
+          win_ver.obj
 
 all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
 	copy /y envtool.exe ..
@@ -138,6 +139,7 @@ dirlist.obj:        dirlist.c envtool.h color.h dirlist.h getopt_long.h
 misc.obj:           misc.c envtool.h color.h
 pkg-config.obj:     pkg-config.c envtool.h getopt_long.h sort.h smartlist.h color.h report.h cache.h pkg-config.h
 regex.obj:          regex.c regex.h envtool.h
+report.obj:         report.c envtool.h getopt_long.h sort.h smartlist.h color.h pkg-config.h Everything_ETP.h ignore.h description.h report.h
 searchpath.obj:     searchpath.c envtool.h
 show_ver.obj:       show_ver.c envtool.h
 smartlist.obj:      smartlist.c smartlist.h envtool.h

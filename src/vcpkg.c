@@ -1392,7 +1392,7 @@ static void dump_nodes (void)
 
   /* Print a simple header.
    */
-  C_printf ("~6Num  ~2Package~0 / ~7Version\n");
+  C_printf ("~6Num  ~3Package~0 / ~6Version\n");
   C_puts (str_repeat('=', 100));
   C_putc ('\n');
 
@@ -1409,7 +1409,7 @@ static void dump_nodes (void)
     if (*version == '\0' || *version == ' ')
        version = "<unknown>";
 
-    C_printf ("~6%4d ~2%s~0 / ~7%s~0\n", ++num, node->package, version);
+    C_printf ("~7%4d ~3%s~0 / ~6%s~0\n", ++num, node->package, version);
     C_printf ("%s~6homepage:~0    %s\n", indent, node->homepage);
 
     node_dump_description (node);

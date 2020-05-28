@@ -4359,34 +4359,35 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
   return wchar_to_mbchar (result, result_size, print_name);
 }
 
+
+static char cc_info_buf[40];
+
 #if defined(__POCC__)
   const char *compiler_version (void)
   {
-    static char buf[40];
   #ifdef _DEBUG
     #define DBG_REL "debug"
   #else
     #define DBG_REL "release"
   #endif
 
-    snprintf (buf, sizeof(buf), "PellesC ver %d.%d, %s",
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "PellesC ver %d.%d, %s",
               __POCC__ / 100, __POCC__ % 100, DBG_REL);
-    return (buf);
+    return (cc_info_buf);
   }
 
 #elif defined(__clang__)
   const char *compiler_version (void)
   {
-    static char buf[40];
   #ifdef _DEBUG
     #define DBG_REL "debug"
   #else
     #define DBG_REL "release"
   #endif
 
-    snprintf (buf, sizeof(buf), "clang-cl %d.%d.%d, %s",
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "clang-cl %d.%d.%d, %s",
               __clang_major__, __clang_minor__, __clang_patchlevel__, DBG_REL);
-    return (buf);
+    return (cc_info_buf);
   }
 
 #elif defined(_MSC_VER)
@@ -4427,28 +4428,26 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
 
   const char *compiler_version (void)
   {
-    static char buf[40];
   #ifdef _DEBUG
     #define DBG_REL "debug"
   #else
     #define DBG_REL "release"
   #endif
 
-    snprintf (buf, sizeof(buf), "Visual-C %d.%02d%s, %s",
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "Visual-C %d.%02d%s, %s",
               _MSC_VER / 100, _MSC_VER % 100, msvc_get_micro_ver(), DBG_REL);
-    return (buf);
+    return (cc_info_buf);
   }
 
 #elif defined(__WATCOMC__)
   const char *compiler_version (void)
   {
-    static char buf[40];
   #if (__WATCOMC__ >= 1200)
-    snprintf (buf, sizeof(buf), "OpenWatcom %d.%d", (__WATCOMC__/100) - 11, (__WATCOMC__ % 100) / 10);
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "OpenWatcom %d.%d", (__WATCOMC__/100) - 11, (__WATCOMC__ % 100) / 10);
   #else
-    snprintf (buf, sizeof(buf), "Watcom C %d.%d", __WATCOMC__/100, __WATCOMC__ % 100);
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "Watcom C %d.%d", __WATCOMC__/100, __WATCOMC__ % 100);
   #endif
-    return (buf);
+    return (cc_info_buf);
   }
 
 #elif defined(__MINGW32__)
@@ -4461,34 +4460,32 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
    */
   const char *compiler_version (void)
   {
-    static char buf[40];
   #if defined(__MINGW64_VERSION_MAJOR)
-     snprintf (buf, sizeof(buf), "MinGW-w64 %d.%d (%s)",
-               __MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, __MINGW64_VERSION_STATE);
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "MinGW-w64 %d.%d (%s)",
+              __MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, __MINGW64_VERSION_STATE);
 
   /* mingw.org MinGW. MingW-RT-4+ defines '__MINGW_MAJOR_VERSION'
    */
   #elif defined(__MINGW_MAJOR_VERSION)
-    snprintf (buf, sizeof(buf), "MinGW %d.%d", __MINGW_MAJOR_VERSION, __MINGW_MINOR_VERSION);
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "MinGW %d.%d", __MINGW_MAJOR_VERSION, __MINGW_MINOR_VERSION);
   #else
-    snprintf (buf, sizeof(buf), "MinGW %d.%d", __MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "MinGW %d.%d", __MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
   #endif
-    return (buf);
+    return (cc_info_buf);
   }
 
 #elif defined(__CYGWIN__)
   const char *compiler_version (void)
   {
-    static char buf[40];
-    snprintf (buf, sizeof(buf), "CygWin %d.%d.%d", CYGWIN_VERSION_DLL_MAJOR/1000,
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "CygWin %d.%d.%d", CYGWIN_VERSION_DLL_MAJOR/1000,
               CYGWIN_VERSION_DLL_MAJOR % 1000, CYGWIN_VERSION_DLL_MINOR);
-    return (buf);
+    return (cc_info_buf);
   }
 
 #else
   const char *compiler_version (void)
   {
-    return (BUILDER);
+    return _strlcpy (cc_info_buf, BUILDER, sizeof(cc_info_buf));
   }
 #endif   /* _MSC_VER */
 

@@ -19,6 +19,7 @@
 #include "envtool.h"
 #include "envtool_py.h"
 #include "dirlist.h"
+#include "report.h"
 #include "cache.h"
 #include "get_file_assoc.h"
 
@@ -1599,7 +1600,8 @@ static BOOL check_bitness (struct python_info *pi, char **needed_bits)
  */
 static int report_zip_file (const char *zip_file, char *output)
 {
-  struct tm    tm;
+  struct tm     tm;
+  struct report r;
   const  char *space, *p, *file_within_zip;
   char   *q, report [1024];
   int    num;
@@ -1657,7 +1659,13 @@ static int report_zip_file (const char *zip_file, char *output)
   /** \todo incase `--pe-check` is specified and `report` file is a .pyd-file,
    *        we should save the .pyd to a `%TEMP`-file and examine it in `report_file()`.
    */
-  report_file (report, mtime, fsize, FALSE, FALSE, HKEY_PYTHON_EGG);
+  r.file        = report;
+  r.mtime       = mtime;
+  r.fsize       = fsize;
+  r.is_dir      = FALSE;
+  r.is_junction = FALSE;
+  r.key         = HKEY_PYTHON_EGG;
+  report_file (&r);
   return (1);
 }
 
@@ -2170,7 +2178,7 @@ int py_search (void)
   {
     BOOL reinit = (g_pi == pi) ? FALSE : TRUE; /* Need to call py_init_embedding() again? */
 
-    set_report_header ("Matches in \"%s\" sys.path[]:\n", pi->exe_name);
+    report_header_set ("Matches in \"%s\" sys.path[]:\n", pi->exe_name);
     g_pi = pi;
     found += py_search_internal (pi, reinit);
   }

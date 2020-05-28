@@ -197,7 +197,7 @@ int pkg_config_search (const char *search_spec)
     }
   }
 
-  set_report_header ("Matches in %%%s:\n", env_name);
+  report_header_set ("Matches in %%%s:\n", env_name);
 
   max = smartlist_len (list);
   for (i = 0; i < max; i++)

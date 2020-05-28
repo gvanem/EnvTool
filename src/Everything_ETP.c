@@ -126,6 +126,7 @@
 #include "color.h"
 #include "envtool.h"
 #include "auth.h"
+#include "report.h"
 #include "Everything_ETP.h"
 
 /**\def CONN_TIMEOUT
@@ -347,6 +348,7 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
      ctx->results_ignore++;
   else
   {
+    struct report r;
     static char prev_name [_MAX_PATH];
     char   full_name [_MAX_PATH];
 
@@ -354,7 +356,16 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
 
     if (!opt.dir_mode && prev_name[0] && str_equal(prev_name, full_name))
          ETP_num_evry_dups++;
-    else report_file (full_name, ctx->mtime, ctx->fsize, is_dir, FALSE, HKEY_EVERYTHING_ETP);
+    else
+    {
+      r.file = full_name;
+      r.mtime = ctx->mtime;
+      r.fsize = ctx->fsize;
+      r.is_dir = is_dir;
+      r.is_junction = FALSE;
+      r.key = HKEY_EVERYTHING_ETP;
+      report_file (&r);
+    }
     _strlcpy (prev_name, full_name, sizeof(prev_name));
   }
   ctx->mtime = 0;

@@ -80,12 +80,6 @@ BOOL have_sys_native_dir = FALSE;
 BOOL have_sys_wow64_dir  = FALSE;
 
 /**
- * \def REG_APP_PATH
- * The Registry key under `HKEY_CURRENT_USER` or `HKEY_LOCAL_MACHINE`.
- */
-#define REG_APP_PATH    "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths"
-
-/**
  * \def EVERYTHING_IPC_IS_DB_LOADED
  * \def EVERYTHING_IPC_IS_DB_BUSY
  *
@@ -124,14 +118,7 @@ char   sys_wow64_dir  [_MAX_PATH];  /**< E.g. `"c:\Windows\SysWOW64"`. Not for W
 char   current_dir    [_MAX_PATH];
 int    path_separator = ';';
 
-static UINT64   total_size = 0;
-static DWORD    num_version_ok = 0;
-static DWORD    num_verified = 0;
-static DWORD    num_evry_dups = 0;
-static DWORD    num_evry_ignored = 0;
-
 static char *who_am_I = (char*) "envtool";
-
 static char *system_env_path = NULL;
 static char *system_env_lib  = NULL;
 static char *system_env_inc  = NULL;
@@ -193,10 +180,6 @@ static BOOL  cmake_get_info (char **exe, struct ver_info *ver);
  *   + on date/time.
  *   + on filename.
  *   + on file-size.
- *
- * \todo Add `--locate` option (or in combination with `--evry` option?) to
- *       look into GNU's `locatedb` (`%LOCATE_PATH=/cygdrive/X/Cygwin32/locatedb`)
- *       information too.
  *
  * \todo Add a `--check` option for 64-bit Windows to check that all .DLLs in:<br>
  *           + `"%SystemRoot%\System32"` are 64-bit and
@@ -1037,27 +1020,6 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   return (dir_array);
 }
 
-/**
- * Report time and name of `file`.
- *
- * Also: if the match came from a
- * registry search, report which key had the match.
- */
-static int found_in_hkey_current_user = 0;
-static int found_in_hkey_current_user_env = 0;
-static int found_in_hkey_local_machine = 0;
-static int found_in_hkey_local_machine_sess_man = 0;
-static int found_in_python_egg = 0;
-static int found_in_default_env = 0;
-
-/**
-  Use this as an indication that the EveryThing database is not up-to-date with
- * the reality; files have been deleted after the database was last updated.
- * Unless we're running a 64-bit version of envtool and a file was found in
- * the `sys_native_dir[]` and we `have_sys_native_dir == 0`.
- */
-static int found_everything_db_dirty = 0;
-
 /*
 
  Improve dissection of .sys-files. E.g.:
@@ -1089,191 +1051,6 @@ show_ver.c(587): Unable to access file "f:\ProgramFiler\Disk\MiniTool-PartitionW
  */
 
 /**
- * Print the Resource-version details after any `wintrust_check()` results has
- * been printed. The details come from `get_PE_file_brief()` and `get_PE_version_info()`.
- * Which can be retrieved using `get_PE_version_info_buf()`.
- */
-static void print_PE_file_details (const char *filler)
-{
-  char *line, *ver_trace = get_PE_version_info_buf();
-  int   save, i;
-
-  if (!ver_trace)
-     return;
-
-  save = C_setraw (1);  /* In case version-info contains a "~" (SFN). */
-
-  for (i = 0, line = strtok(ver_trace,"\n"); line; line = strtok(NULL,"\n"), i++)
-  {
-    const char *colon  = strchr (line, ':');
-    size_t      indent = strlen (filler);
-
-    if (colon)
-    {
-      if (colon && colon[1] == ' ')
-      {
-        char   ignore [200];
-        size_t len = min (sizeof(ignore)-1, colon-line+1);
-
-        _strlcpy (ignore, line, len);
-        if (cfg_ignore_lookup("[PE-resources]",str_trim(ignore)))
-           continue;
-      }
-      indent += colon - line + 1;
-    }
-    if (i == 0)
-       C_putc ('\n');
-    C_puts (filler);
-    C_puts_long_line (line, indent+1);
-  }
-  C_setraw (save);
-  get_PE_version_info_free();
-}
-
-/**
- * With the "--pe" (and "--32" or "--64") option, check if a `file` is a PE-file.
- * If so, save the checksum, version-info, signing-status for later when
- * `report_file()` is ready to print this info.
- */
-static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, char *dest, size_t dest_size)
-{
-  struct ver_info ver;
-  enum Bitness    bits;
-  const char     *bitness;
-  BOOL            chksum_ok  = FALSE;
-  BOOL            version_ok = FALSE;
-
-  *dest = '\0';
-
-  if (key == HKEY_INC_LIB_FILE || key == HKEY_MAN_FILE ||
-      key == HKEY_EVERYTHING_ETP || key == HKEY_PKG_CONFIG_FILE)
-     return (FALSE);
-
-  if (!check_if_PE(file,&bits))
-     return (FALSE);
-
-  if (opt.only_32bit && bits != bit_32)
-     return (FALSE);
-
-  if (opt.only_64bit && bits != bit_64)
-     return (FALSE);
-
-  memset (&ver, 0, sizeof(ver));
-  chksum_ok  = verify_PE_checksum (file);
-  version_ok = get_PE_version_info (file, &ver);
-  if (version_ok)
-     num_version_ok++;
-
-  bitness = (bits == bit_32) ? "~232" :
-            (bits == bit_64) ? "~364" : "~5?";
-
-  /** Do not add a `\n` since `wintrust_check()` is called right after this function.
-   */
-  snprintf (dest, dest_size, "\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s~0",
-            filler, ver.val_1, ver.val_2, ver.val_3, ver.val_4,
-            bitness, chksum_ok ? "~2OK" : "~5fail");
-  return (TRUE);
-}
-
-/**
- * With the "--pe" (and "--32" or "--64") option, and if `file` is a PE-file
- * (verified in above function), do a check for any signatures.
- *
- * \todo
- *   If the PE has a SECURITY data-directory, try to extract it's raw data;
- *     \code
- *       const WIN_CERTIFICATE *cert = ..
- *       if (cert->wCertificateType == WIN_CERT_TYPE_PKCS_SIGNED_DATA ||
- *           cert->wCertificateType == WIN_CERT_TYPE_X509)
- *          use 'libssl_1.1.dll' and call 'PKCS7_verify()' on 'cert+1'
- *     \endcode
- *
- *    Refs:
- *      https://github.com/zed-0xff/pedump/blob/master/lib/pedump/security.rb
- *      http://pedump.me/1d82d1e52ca97759a6f90438e59e7dc7/#signature
- */
-static BOOL get_wintrust_info (const char *file, char *dest, size_t dest_size)
-{
-  char  *p = dest;
-  size_t left = dest_size;
-  DWORD  rc = wintrust_check (file, TRUE, FALSE);
-
-  *p = '\0';
-
-  switch (rc)
-  {
-    case ERROR_SUCCESS:
-         p    += snprintf (dest, left, " ~2(Verified");
-         left -= p - dest;
-         num_verified++;
-         break;
-    case TRUST_E_NOSIGNATURE:
-    case TRUST_E_SUBJECT_FORM_UNKNOWN:
-    case TRUST_E_PROVIDER_UNKNOWN:
-         p    += snprintf (dest, left, " ~5(Not signed");
-         left -= p - dest;
-         break;
-    case TRUST_E_SUBJECT_NOT_TRUSTED:
-         p    += snprintf (dest, left, " ~5(Not trusted");
-         left -= p - dest;
-         break;
-  }
-
-  if (wintrust_signer_subject)
-       snprintf (p, left, ", %s)~0.", wintrust_signer_subject);
-  else snprintf (p, left, ")~0.");
-
-  wintrust_cleanup();
-
-  switch (opt.signed_status)
-  {
-    case SIGN_CHECK_NONE:
-         return (FALSE);
-    case SIGN_CHECK_ALL:
-         return (TRUE);
-    case SIGN_CHECK_SIGNED:
-         if (rc == ERROR_SUCCESS)
-            return (TRUE);
-         return (FALSE);
-    case SIGN_CHECK_UNSIGNED:
-         if (rc != ERROR_SUCCESS)
-            return (TRUE);
-         return (FALSE);
-  }
-  return (FALSE);
-}
-
-/**
- * Return the indentation needed for the next `she-bang` or `man-file link`
- * to align up more nicely.
- * Not ideal since we don't know the length of all files we need to report.
- */
-static int get_trailing_indent (const char *file)
-{
-  static int longest_file_so_far = 0;
-  static int indent = 0;
-  int    len = (int) strlen (file);
-
-  if (longest_file_so_far == 0 || len > longest_file_so_far)
-     longest_file_so_far = len;
-
-  if (len <= longest_file_so_far)
-     indent = 1 + longest_file_so_far - len;
-
-  DEBUGF (2, "longest_file_so_far: %d, len: %d, indent: %d\n",
-          longest_file_so_far, len, indent);
-  return (indent);
-}
-
-/**
- * Increment total size for found files.
- */
-void incr_total_size (UINT64 size)
-{
-  total_size += size;
-}
-
-/**
  * In case a file or directory contains a `"~"`, switch to raw mode.
  */
 void print_raw (const char *file, const char *before, const char *after)
@@ -1287,435 +1064,6 @@ void print_raw (const char *file, const char *before, const char *after)
   C_setraw (raw);
   if (after)
      C_puts (after);
-}
-
-/**
- * Set the `report_header`.
- */
-static char report_header [_MAX_PATH+50];
-
-void set_report_header (const char *fmt, ...)
-{
-  va_list args;
-
-  va_start (args, fmt);
-  if (!fmt || !fmt[0])
-       report_header[0] = '\0';
-  else vsnprintf (report_header, sizeof(report_header), fmt, args);
-  va_end (args);
-}
-
-/**
- * Print the `report_header` once once for each `--mode`.
- */
-static void print_report_header (void)
-{
-  if (report_header[0])
-     C_printf ("~3%s~0", report_header);
-  report_header[0] = '\0';
-}
-
-/**
- * This is the main printer for a file/dir.
- * Prints any notes, time-stamp, size, file/dir name.
- * Also any she-bang statements, links for a gzipped man-page,
- * PE-information like resource version or trust information
- * and file-owner.
- *
- * \param[in] file         the file or directory to report.
- * \param[in] mtime        the modification time of the file or directory (-1 if unknown).
- * \param[in] fsize        the allocated size of the file or directory (-1 if unknown).
- * \param[in] is_dir       TRUE if the `file` is a directory.
- * \param[in] is_junction  TRUE if file (i.e. directory) was a reparse-point) not used yet.
- * \param[in] key          the (pseudo) key the search was a result of.
- */
-int report_file (const char *file, time_t mtime, UINT64 fsize, BOOL is_dir, BOOL is_junction, HKEY key)
-{
-  const char *note   = NULL;
-  const char *filler = "      ";
-  const char *description;
-  char        size [40] = "?";
-  int         len;
-  BOOL        have_it = TRUE;
-  BOOL        show_dir_size = TRUE;
-  BOOL        show_pc_files_only = FALSE;
-  BOOL        show_this_file = TRUE;
-  BOOL        possible_PE_file = TRUE;
-
-  FMT_buf     fmt_buf_time_size;
-  FMT_buf     fmt_buf_file_info;
-  FMT_buf     fmt_buf_owner_info;
-  FMT_buf     fmt_buf_ver_info;
-  FMT_buf     fmt_buf_trust_info;
-
-  BUF_INIT (&fmt_buf_time_size, 100, 0);
-  BUF_INIT (&fmt_buf_file_info, 100 + _MAX_PATH, 0);
-  BUF_INIT (&fmt_buf_owner_info, 100, 0);
-  BUF_INIT (&fmt_buf_ver_info, 100, 0);
-  BUF_INIT (&fmt_buf_trust_info, 100, 0);
-
-#if defined(__clang__) || defined(__GNUC__) || (defined(_MSC_VER) && _MSC_VER >= 1900)
-  if (key == HKEY_PKG_CONFIG_FILE)
-  {
-    struct report r = { .file        = file,
-                        .mtime       = mtime,
-                        .fsize       = fsize,
-                        .is_dir      = is_dir,
-                        .is_junction = is_junction,
-                        .key         = key,
-                        .filler      = filler,
-                        .pre_action  = NULL,
-                        .post_action = NULL
-                      };
-    if (opt.verbose >= 1)
-       r.post_action = pkg_config_get_details2;
-    return report_file2 (&r);
-  }
-#endif
-
-  if (key == HKEY_CURRENT_USER)
-  {
-    found_in_hkey_current_user++;
-    note = " (1)  ";
-  }
-  else if (key == HKEY_LOCAL_MACHINE)
-  {
-    found_in_hkey_local_machine++;
-    note = " (2)  ";
-  }
-  else if (key == HKEY_CURRENT_USER_ENV)
-  {
-    found_in_hkey_current_user_env++;
-    note = " (3)  ";
-  }
-  else if (key == HKEY_LOCAL_MACHINE_SESSION_MAN)
-  {
-    found_in_hkey_local_machine_sess_man++;
-    note = " (4)  ";
-  }
-  else if (key == HKEY_PYTHON_EGG)
-  {
-    found_in_python_egg++;
-    possible_PE_file = FALSE;
-    note = " (5)  ";
-  }
-  else if (key == HKEY_EVERYTHING)
-  {
-#if (IS_WIN64)
-    /*
-     * If e.g. a 32-bit EveryThing program is finding matches is "%WinDir\\System32",
-     * don't set `found_everything_db_dirty=1` when we don't `have_sys_native_dir`.
-     */
-    if (mtime == 0 &&
-        (!have_sys_native_dir || !strnicmp(file,sys_native_dir,strlen(sys_native_dir))))
-       have_it = FALSE;
-#endif
-
-    if (have_it && mtime == 0 && !(is_dir ^ opt.dir_mode))
-    {
-      found_everything_db_dirty = 1;
-      note = " (6)  ";
-    }
-  }
-  else if (key == HKEY_EVERYTHING_ETP)
-  {
-    show_dir_size = FALSE;
-    possible_PE_file = FALSE;
-  }
-  else if (key == HKEY_PKG_CONFIG_FILE)
-  {
-    show_pc_files_only = TRUE;
-    possible_PE_file = FALSE;
-  }
-  else
-  {
-    found_in_default_env++;
-  }
-
-  if (is_dir)
-     note = "<DIR> ";
-
-  if ((!is_dir && opt.dir_mode) || !have_it)
-  {
-    show_this_file = FALSE;
-    return (0);
-  }
-
-  if (show_pc_files_only)
-  {
-    const char *ext = get_file_ext (file);
-
-    if (stricmp(ext,"pc"))
-    {
-      show_this_file = FALSE;
-      return (0);
-    }
-  }
-
- /*
-  * Recursively get the size of files under directory matching `file`.
-  * For a Python search with 'opt.show_size' (i.e. 'envtool --py -s foo*'),
-  * report the size of the branch 'foo*' as 'opt.dir_mode' was specified.
-  *
-  * The ETP-server (key == HKEY_EVERYTHING_ETP) can not reliably report size
-  * of directories.
-  */
-  if (opt.show_size && show_dir_size && (opt.dir_mode || key == HKEY_PYTHON_PATH))
-  {
-    if (is_dir)
-       fsize = get_directory_size (file);
-    snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
-    incr_total_size (fsize);
-  }
-  else if (opt.show_size)
-  {
-    snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
-    if (fsize < (__int64)-1)
-    {
-      if (key == HKEY_EVERYTHING_ETP)
-           incr_total_size (fsize);
-      else incr_total_size (get_file_alloc_size (file, fsize));
-    }
-  }
-  else
-    size[0] = '\0';
-
-  print_report_header();
-
-  if (possible_PE_file && opt.PE_check)
-  {
-    static DWORD num_version_ok_last = 0;
-
-    show_this_file = get_PE_file_brief (file, filler, key, fmt_buf_ver_info.buffer_start, fmt_buf_ver_info.buffer_size);
-    if (show_this_file && opt.signed_status != SIGN_CHECK_NONE)
-    {
-      show_this_file = get_wintrust_info (file, fmt_buf_trust_info.buffer_start, fmt_buf_trust_info.buffer_size);
-      if (!show_this_file && num_version_ok_last < num_version_ok)
-         num_version_ok--;  /* Fix this counter for the  'final_report()' */
-    }
-    num_version_ok_last = num_version_ok;
-  }
-
-  buf_printf (&fmt_buf_time_size, "~3%s~0%s%s: ",
-              note ? note : filler, get_time_str(mtime), size);
-
-  /* The remote `file` from EveryThing is not something Windows knows
-   * about. Hence no point in trying to get the DomainName + AccountName
-   * for it.
-   */
-  if (opt.show_owner && key != HKEY_EVERYTHING_ETP)
-  {
-    char       *account_name;
-    const char *found_owner = NULL;
-    BOOL        inverse = FALSE;
-
-    if (get_file_owner(file, NULL, &account_name))
-    {
-      int i, max = smartlist_len (opt.owners);
-
-      /* Show only the file/directory if it matches (or not matches) one of the
-       * owners in `opt.owners`.
-       * With `opt.owners == "*"`, match all.
-       * With `opt.owners == "!*"`, match none.
-       *
-       * E.g. with:
-       *   envtool --man --owner=Admin*  pkcs7*
-       *   show only Man-pages matching "pkcs7*" and owners "Admin*":
-       *
-       *   envtool --man --owner=!Admin* pkcs7*
-       *   show only Man-pages matching "pkcs7*" and owners not matching "Admin*":
-       */
-      if (max > 0)
-         show_this_file = FALSE; /* Assume no, if there are >= 1 owner-patterns to check for */
-
-      for (i = 0; i < max; i++)
-      {
-        const char *owner = smartlist_get (opt.owners, i);
-
-        if (owner[0] == '!' && fnmatch(owner+1, account_name, FNM_FLAG_NOCASE) == FNM_NOMATCH)
-        {
-          inverse = TRUE;
-          found_owner = owner + 1;
-          show_this_file = TRUE;
-          break;
-        }
-        else if (fnmatch(owner, account_name, FNM_FLAG_NOCASE) == FNM_MATCH)
-        {
-          found_owner = owner;
-          show_this_file = TRUE;
-          break;
-        }
-      }
-    }
-
-    if (found_owner)
-    {
-      DEBUGF (2, "account_name (%s) %smatches owner (%s).\n", account_name, inverse ? "does not " : "", found_owner);
-      buf_printf (&fmt_buf_owner_info, "%-18s", str_shorten(account_name,18));
-    }
-    else
-    {
-      buf_printf (&fmt_buf_owner_info, "%-18s", "<None>");
-      DEBUGF (2, "account_name (%s) did not match any wanted owner(s) for file '%s'.\n",
-              account_name, basename(file));
-    }
-    FREE (account_name);
-  }
-
-  /* `slashify2()` will remove excessive `/` or `\\` anywhere in the name.
-   * Add a trailing slash to directories.
-   */
-  buf_printf (&fmt_buf_file_info, "%s%c", file, is_dir ? DIR_SEP: '\0');
-  slashify2 (fmt_buf_file_info.buffer_start, fmt_buf_file_info.buffer_start,
-             opt.show_unix_paths ? '/' : '\\');
-
-  if (!is_dir && key == HKEY_MAN_FILE)
-  {
-    const char *link = get_man_link (file);
-    const char *ext  = get_file_ext (file);
-
-#if 0
-    if (!link && !isdigit((int)*ext))
-       link = get_gzip_link (file);
-#else
-    ARGSUSED (ext);
-#endif
-
-    if (link)
-       buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(file), " ", link);
-  }
-  else if (!is_dir)
-  {
-    const char *shebang = check_if_shebang (file);
-
-    if (shebang)
-       buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(file), " ", shebang);
-  }
-
-  if (!show_this_file)
-  {
-    get_PE_version_info_free();
-    return (0);
-  }
-
-  len = C_puts (fmt_buf_time_size.buffer_start);
-  C_puts (fmt_buf_owner_info.buffer_start);
-
-  print_raw (fmt_buf_file_info.buffer_start, NULL, NULL);
-
-  if (opt.show_descr && (description = file_descr_get(file)) != NULL && *description)
-  {
-    int raw;
-
-    C_puts ("~6");
-    raw = C_setraw (1);
-
-    C_printf ("\n%*s", len-2, "");
-    C_puts_long_line (description, len-2);
-    C_setraw (raw);
-    C_puts ("~0");
-  }
-
-  /* All this must be printed on the next line
-   */
-  if (opt.PE_check && fmt_buf_ver_info.buffer_start[0])
-  {
-    C_printf ("%-60s", fmt_buf_ver_info.buffer_start);
-    C_puts (fmt_buf_trust_info.buffer_start);
-    print_PE_file_details (filler);
-  }
-
-  if (key == HKEY_PKG_CONFIG_FILE && opt.verbose > 0)
-     pkg_config_get_details (file, filler);
-
-  C_putc ('\n');
-
-  ARGSUSED (is_junction);
-  return (1);
-}
-
-static void final_report (int found)
-{
-  BOOL do_warn = FALSE;
-  char duplicates [50] = "";
-  char ignored [50] = "";
-
-  if ((found_in_hkey_current_user || found_in_hkey_current_user_env ||
-       found_in_hkey_local_machine || found_in_hkey_local_machine_sess_man) &&
-       found_in_default_env)
-  {
-    /* We should only warn if a match finds file(s) from different sources.
-     */
-    do_warn = opt.quiet ? FALSE : TRUE;
-
-    /* No need to warn if the total HKEY counts <= found_in_default_env.
-     * Since it would probably mean the file(s) were found in the same location.
-     */
-    if ((found_in_hkey_current_user + found_in_hkey_current_user_env +
-         found_in_hkey_local_machine + found_in_hkey_local_machine_sess_man) <= found_in_default_env)
-      do_warn = FALSE;
-  }
-
-  if (do_warn || found_in_python_egg)
-     C_putc ('\n');
-
-  if (found && found_in_hkey_current_user)
-     C_printf ("~3 (1): found in \"HKEY_CURRENT_USER\\%s\".~0\n", REG_APP_PATH);
-
-  if (found && found_in_hkey_local_machine)
-     C_printf ("~3 (2): found in \"HKEY_LOCAL_MACHINE\\%s\".~0\n", REG_APP_PATH);
-
-  if (found && found_in_hkey_current_user_env)
-     C_printf ("~3 (3): found in \"HKEY_CURRENT_USER\\%s\".~0\n", "Environment");
-
-  if (found && found_in_hkey_local_machine_sess_man)
-     C_printf ("~3 (4): found in \"HKEY_LOCAL_MACHINE\\%s\".~0\n",
-               "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment");
-
-  if (found && found_in_python_egg)
-     C_puts ("~3 (5): found in a .zip/.egg in 'sys.path[]'.~0\n");
-
-   if (found_everything_db_dirty)
-      C_puts ("~3 (6): EveryThing database is not up-to-date.~0\n");
-
-  if (do_warn)
-     C_printf ("\n"
-               "  ~5The search found matches outside the default environment (PATH etc.).\n"
-               "  Hence running an application from the Start-Button may result in different .EXE/.DLL\n"
-               "  to be loaded than from the command-line. Revise the above registry-keys.\n\n~0");
-
-  if (num_evry_dups)
-     snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)",
-               (unsigned long)num_evry_dups);
-  else if (ETP_num_evry_dups)
-     snprintf (duplicates, sizeof(duplicates), " (%lu duplicated)",
-               (unsigned long)ETP_num_evry_dups);
-
-  if (num_evry_ignored)
-     snprintf (ignored, sizeof(ignored), " (%lu ignored)",
-               (unsigned long)num_evry_ignored);
-
-  C_printf ("%s match%s found for \"%s\"%s%s.",
-            dword_str((DWORD)found), (found == 0 || found > 1) ? "es" : "", opt.file_spec, duplicates, ignored);
-
-  if (opt.show_size && total_size > 0)
-     C_printf (" Totalling %s (%s bytes). ",
-               str_trim((char*)get_file_size_str(total_size)), qword_str(total_size));
-
-  if (opt.evry_host)
-  {
-    if (opt.debug >= 1 && ETP_total_rcv)
-       C_printf ("\n%s bytes received from ETP-host(s).", dword_str(ETP_total_rcv));
-  }
-  else if (opt.PE_check)
-  {
-    C_printf (" %lu have PE-version info.", (unsigned long)num_version_ok);
-
-    if (opt.signed_status != SIGN_CHECK_NONE)
-       C_printf (" %lu %s verified.",
-                 (unsigned long)num_verified, plural_str(num_verified,"is","are"));
-  }
-  C_putc ('\n');
 }
 
 /**
@@ -2050,7 +1398,7 @@ static int scan_system_env (void)
 {
   int found = 0;
 
-  set_report_header ("Matches in HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment:\n");
+  report_header_set ("Matches in HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment:\n");
 
   scan_reg_environment (HKEY_LOCAL_MACHINE,
                         "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
@@ -2072,7 +1420,7 @@ static int scan_user_env (void)
 {
   int found = 0;
 
-  set_report_header ("Matches in HKCU\\Environment:\n");
+  report_header_set ("Matches in HKCU\\Environment:\n");
 
   scan_reg_environment (HKEY_CURRENT_USER, "Environment",
                         &user_env_path, &user_env_inc, &user_env_lib);
@@ -2119,8 +1467,16 @@ static int report_registry (const char *reg_key)
       match = fnmatch (opt.file_spec, arr->fname, fnmatch_case(0));
       if (match == FNM_MATCH)
       {
+        struct report r;
+
         snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
-        if (report_file(fqfn, arr->mtime, arr->fsize, FALSE, FALSE, arr->key))
+        r.file = fqfn;
+        r.mtime = arr->mtime;
+        r.fsize = arr->fsize;
+        r.is_dir = FALSE;
+        r.is_junction = FALSE;
+        r.key = arr->key;
+        if (report_file(&r))
            found++;
       }
     }
@@ -2133,11 +1489,11 @@ static int do_check_registry (void)
 {
   int found = 0;
 
-  set_report_header ("Matches in HKCU\\%s:\n", REG_APP_PATH);
+  report_header_set ("Matches in HKCU\\%s:\n", REG_APP_PATH);
   build_reg_array_app_path (HKEY_CURRENT_USER);
   found += report_registry (REG_APP_PATH);
 
-  set_report_header ("Matches in HKLM\\%s:\n", REG_APP_PATH);
+  report_header_set ("Matches in HKLM\\%s:\n", REG_APP_PATH);
   build_reg_array_app_path (HKEY_LOCAL_MACHINE);
   found += report_registry (REG_APP_PATH);
 
@@ -2281,7 +1637,15 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     {
       if (regex_match(fqfn) && safe_stat(fqfn, &st, NULL) == 0)
       {
-        if (report_file(fqfn, st.st_mtime, st.st_size, is_dir, is_junction, key))
+        struct report r;
+
+        r.file        = fqfn;
+        r.mtime       = st.st_mtime;
+        r.fsize       = st.st_size;
+        r.is_dir      = is_dir;
+        r.is_junction = is_junction;
+        r.key         = key;
+        if (report_file(&r))
         {
           found++;
        // regex_print (&re_hnd, re_matches, fqfn);
@@ -2331,7 +1695,15 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
 
     if (match == FNM_MATCH && safe_stat(file, &st, NULL) == 0)
     {
-      if (report_file(file, st.st_mtime, st.st_size, is_dir, is_junction, key))
+      struct report r;
+
+      r.file        = file;
+      r.mtime       = st.st_mtime;
+      r.fsize       = st.st_size;
+      r.is_dir      = is_dir;
+      r.is_junction = is_junction;
+      r.key         = key;
+      if (report_file(&r))
          found++;
     }
   }
@@ -2462,7 +1834,8 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  */
 static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL *is_shadow)
 {
-  struct stat st;
+  struct stat   st;
+  struct report r;
   BOOL        is_dir = FALSE;
   const char *file2;
   DWORD       attr;
@@ -2504,8 +1877,13 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
     }
   }
 
-  return report_file (file, mtime, is_dir ? (__int64)-1 : fsize,
-                      is_dir, FALSE, HKEY_EVERYTHING);
+  r.file        = file;
+  r.mtime       = mtime;
+  r.fsize       = is_dir ? (__int64)-1 : fsize;
+  r.is_dir      = is_dir;
+  r.is_junction = FALSE;
+  r.key         = HKEY_EVERYTHING;
+  return report_file (&r);
 }
 
 /**
@@ -2906,7 +2284,7 @@ static int do_check_manpath (void)
     return (0);
   }
 
-  set_report_header ("Matches in %%%s:\n", env_name);
+  report_header_set ("Matches in %%%s:\n", env_name);
 
   /* Man-files should have an extension. Hence do not report dotless files as a
    * match in process_dir().
@@ -2964,9 +2342,10 @@ static int do_check_vcpkg (void)
   unsigned num;
 
   if (vcpkg_get_only_installed())
-       set_report_header ("Matches for installed VCPKG packages:\n");
-  else set_report_header ("Matches for any available VCPKG package:\n");
-  print_report_header();
+       report_header_set ("Matches for installed VCPKG packages:\n");
+  else report_header_set ("Matches for any available VCPKG package:\n");
+
+  report_header_print();
 
   num = vcpkg_find (opt.file_spec);
 
@@ -3075,14 +2454,14 @@ static int do_check_cmake (void)
   DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
           ver.val_1, ver.val_2, ver.val_3, modules_dir);
 
-  set_report_header ("Matches among built-in Cmake modules:\n");
+  report_header_set ("Matches among built-in Cmake modules:\n");
   found = process_dir (modules_dir, 0, TRUE, TRUE, 1, TRUE, env_name, NULL, FALSE);
   FREE (bin);
   FREE (root);
 
-  set_report_header ("Matches in %%%s:\n", env_name);
+  report_header_set ("Matches in %%%s:\n", env_name);
   found += do_check_env (env_name, TRUE);
-  set_report_header (NULL);
+  report_header_set (NULL);
   return (found);
 }
 
@@ -4095,7 +3474,7 @@ static int check_gnu_includes (compiler_type type, int *num_dirs)
     if (cc->type == type && !cc->ignore && setup_gcc_includes(cc) > 0)
     {
       env = (cc->type == CC_GNU_GCC) ? "%C_INCLUDE_PATH%" : "%CPLUS_INCLUDE_PATH%";
-      set_report_header ("Matches in %s %s path:\n", cc->full_name, env);
+      report_header_set ("Matches in %s %s path:\n", cc->full_name, env);
       found += process_gcc_dirs (cc->short_name, num_dirs);
     }
     FREE (cygwin_root);
@@ -4141,7 +3520,7 @@ static int do_check_gcc_library_paths (void)
     if (is_gnu && !cc->ignore && setup_gcc_library_path(cc,TRUE) > 0)
     {
       gcc = cc->short_name;
-      set_report_header ("Matches in %s %%LIBRARY_PATH%% path:\n", cc->full_name);
+      report_header_set ("Matches in %s %%LIBRARY_PATH%% path:\n", cc->full_name);
       found += process_gcc_dirs (gcc, &num_dirs);
     }
     FREE (cygwin_root);
@@ -4282,7 +3661,7 @@ static int do_check_clang_includes (void)
         !stricmp("clang.exe",cc->short_name)   &&   /* Do it for clang.exe only */
         setup_clang_includes(cc) > 0)
     {
-      set_report_header ("Matches in %s %%INCLUDE%% path:\n", cc->full_name);
+      report_header_set ("Matches in %s %%INCLUDE%% path:\n", cc->full_name);
       found += process_clang_dirs (cc->short_name, &num_dirs);
     }
     FREE (cygwin_root);
@@ -4309,7 +3688,7 @@ static int do_check_clang_library_paths (void)
         !stricmp("clang.exe",cc->short_name)   &&   /* Do it for clang.exe only */
         setup_clang_library_path(cc) > 0)
     {
-      set_report_header ("Matches in %s %%LIB%% path:\n", cc->full_name);
+      report_header_set ("Matches in %s %%LIB%% path:\n", cc->full_name);
       found += process_clang_dirs (cc->short_name, &num_dirs);
     }
     FREE (cygwin_root);
@@ -4424,7 +3803,7 @@ static int do_check_watcom_includes (void)
    */
   dir_array_make_unique ("%NT_INCLUDE%");
 
-  set_report_header ("Matches in %%NT_INCLUDE:\n");
+  report_header_set ("Matches in %%NT_INCLUDE:\n");
 
   max = smartlist_len (dir_array);
   for (i = 0; i < max; i++)
@@ -4457,7 +3836,7 @@ static int do_check_watcom_library_paths (void)
   if (!setup_watcom_dirs("%WATCOM%\\lib386", "%WATCOM%\\lib386\\nt", "%WATCOM%\\lib386\\linux"))
      return (0);
 
-  set_report_header ("Matches in %%WATCOM libraries:\n");
+  report_header_set ("Matches in %%WATCOM libraries:\n");
 
   max = smartlist_len (dir_array);
   for (i = found = 0; i < max; i++)
@@ -4605,7 +3984,7 @@ static int do_check_borland_inc_lib (const char *inc_lib, const char *matches, b
 
     if (!cc->ignore && setup_borland_dirs(cc, parser))
     {
-      set_report_header (matches, cc->full_name);
+      report_header_set (matches, cc->full_name);
 
       max_j = smartlist_len (dir_array);
       for (j = 0; j < max_j; j++)
@@ -5281,8 +4660,8 @@ static void shadow_ignore_handler (const char *section, const char *key, const c
 
     if (end == value || *end != '\0' || val == _I64_MAX || val == _I64_MIN)
          DEBUGF (1, "illegal dtime: '%s'\n", value);
-    else opt.shadow_dtime = 10000000ULL * val; /* to 100 nsec units */
-    DEBUGF (1, "opt.shadow_dtime: %0.Lf sec.\n", (long double)opt.shadow_dtime/1E7);
+    else opt.shadow_dtime = 10000000ULL * val;        /* Convert to 100 nsec file-time units */
+    DEBUGF (1, "opt.shadow_dtime: %0.f sec.\n", (double)opt.shadow_dtime/1E7);
   }
   else
     cfg_ignore_handler (section, key, value);
@@ -5320,7 +4699,7 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
  *  + Check if `%WINDIR%\\sysnative` and/or `%WINDIR%\\SysWOW64` exists.
  *  + Install signal-handlers for `SIGINT` and `SIGILL`.
  *  + Call the appropriate functions based on command-line options.
- *  + Finally call `final_report()` to report findings.
+ *  + Finally call `report_final()` to report findings.
  */
 int MS_CDECL main (int argc, const char **argv)
 {
@@ -5441,13 +4820,13 @@ int MS_CDECL main (int argc, const char **argv)
     if (!opt.no_app_path)
        found += do_check_registry();
 
-    set_report_header ("Matches in %%PATH:\n");
+    report_header_set ("Matches in %%PATH:\n");
     found += do_check_env ("PATH", FALSE);
   }
 
   if (opt.do_lib)
   {
-    set_report_header ("Matches in %%LIB:\n");
+    report_header_set ("Matches in %%LIB:\n");
     found += do_check_env ("LIB", FALSE);
 
     if (!opt.no_watcom)
@@ -5465,7 +4844,7 @@ int MS_CDECL main (int argc, const char **argv)
 
   if (opt.do_include)
   {
-    set_report_header ("Matches in %%INCLUDE:\n");
+    report_header_set ("Matches in %%INCLUDE:\n");
     found += do_check_env ("INCLUDE", FALSE);
 
     if (!opt.no_watcom)
@@ -5515,19 +4894,19 @@ int MS_CDECL main (int argc, const char **argv)
     {
       const char *host = smartlist_get (opt.evry_host, i);
 
-      set_report_header ("Matches from %s:\n", host);
+      report_header_set ("Matches from %s:\n", host);
       found += do_check_evry_ept (host);
     }
     if (max  == 0)
     {
-      set_report_header ("Matches from EveryThing:\n");
+      report_header_set ("Matches from EveryThing:\n");
       found += do_check_evry();
     }
   }
 
   ARGSUSED (argc);
 
-  final_report (found);
+  report_final (found);
   return (found ? 0 : 1);
 }
 
