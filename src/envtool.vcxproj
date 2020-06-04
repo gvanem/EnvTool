@@ -176,7 +176,6 @@
     <ClInclude Include="pkg-config.h" />
     <ClInclude Include="regex.h" />
     <ClInclude Include="report.h" />
-    <ClInclude Include="report.h" />
     <ClInclude Include="smartlist.h" />
     <ClInclude Include="sort.h" />
     <ClInclude Include="tests.h" />
