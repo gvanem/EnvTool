@@ -344,6 +344,7 @@ extern "C" {
  *  This signed-status is obtained by `wintrust_check()`.
  */
 typedef enum SignStatus {
+
         /** Do not report signed status of any PE-files. <br>
          * I.e. option `"--signed[=0|1]"` was not used.
          */
@@ -367,6 +368,7 @@ typedef enum SignStatus {
 
 #include "sort.h"
 #include "smartlist.h"
+#include "report.h"
 
 typedef struct beep_info {
         BOOL      enable;
@@ -459,8 +461,6 @@ extern char current_dir    [_MAX_PATH];
 extern int  path_separator;
 
 extern void incr_total_size (UINT64 size);
-
-struct report;  /* In "report.h" */
 
 extern int report_file (struct report *r);
 
@@ -740,7 +740,7 @@ extern void   get_PE_version_info_free (void);
  *  Used by buf_printf(), buf_puts() and buf_putc().
  */
 typedef struct FMT_buf {
-        char   *buffer;        /**< the `alloca()` buffer */
+        char   *buffer;        /**< the `alloca()` (or `malloc()`) buffer */
         char   *buffer_start;  /**< as above + 4 bytes (past the marker) */
         char   *buffer_pos;    /**< current position in the buffer */
         size_t  buffer_size;   /**< number of bytes allocated in the buffer */
@@ -776,7 +776,6 @@ typedef struct FMT_buf {
         _buf->buffer_size   = size;                               \
         _buf->buffer_left   = size;                               \
         _buf->buffer_pos[0] = '\0';                               \
-     /* memset (_buf->buffer_pos, '\0', size); */                 \
       } while (0)
 
 #define BUF_EXIT(fmt_buf) do {   \
