@@ -1470,12 +1470,12 @@ static int report_registry (const char *reg_key)
         struct report r;
 
         snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
-        r.file = fqfn;
-        r.mtime = arr->mtime;
-        r.fsize = arr->fsize;
-        r.is_dir = FALSE;
+        r.file        = fqfn;
+        r.mtime       = arr->mtime;
+        r.fsize       = arr->fsize;
+        r.is_dir      = FALSE;
         r.is_junction = FALSE;
-        r.key = arr->key;
+        r.key         = arr->key;
         if (report_file(&r))
            found++;
       }
@@ -1617,18 +1617,18 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   do
   {
     struct stat   st;
-    char  *base, *file;
+    char  *base, *file = ff_data.cFileName;
     int    match, len;
     BOOL   is_junction;
-    BOOL   ignore = /* opt.use_regex && */
-                    ((ff_data.cFileName[0] == '.' && ff_data.cFileName[1] == '\0') ||
-                    !strcmp(ff_data.cFileName,".."));
+    BOOL   ignore = ((file[0] == '.' && file[1] == '\0') ||                   /* current dir entry */
+                     (file[0] == '.' && file[1] == '.' && file[2] == '\0'));  /* parent dir entry */
+
     if (ignore)
        continue;
 
     len  = snprintf (fqfn, sizeof(fqfn), "%s%c", path, DIR_SEP);
     base = fqfn + len;
-    snprintf (base, sizeof(fqfn)-len, "%s%s", subdir ? subdir : "", ff_data.cFileName);
+    snprintf (base, sizeof(fqfn)-len, "%s%s", subdir ? subdir : "", file);
 
     is_dir      = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
     is_junction = ((ff_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0);
@@ -1863,7 +1863,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
 
   if (st.st_mtime == 0)
   {
-    /* If EveryThing older than 1.4.1 was used, these are not set.
+    /* If EveryThing prior to ver 1.4.1 is used, these are not set.
      */
     if (mtime == 0)
     {
@@ -2109,7 +2109,7 @@ static int do_check_evry (void)
       break;
     }
 
-    ignore = cfg_ignore_lookup("[EveryThing]",file);
+    ignore = cfg_ignore_lookup ("[EveryThing]", file);
     DEBUGF (3, "cfg_ignore_lookup(\"[EveryThing]\", \"%s\") -> %d\n", file, ignore);
     if (ignore)
     {
@@ -2123,7 +2123,7 @@ static int do_check_evry (void)
     {
       FILETIME ft;
 
-      if (Everything_GetResultDateModified(i,&ft))
+      if (Everything_GetResultDateModified(i, &ft))
       {
         response_flags |= EVERYTHING_REQUEST_DATE_MODIFIED;
         mtime = FILETIME_to_time_t (&ft);
@@ -4456,6 +4456,15 @@ static int eval_options (void)
   if (opt.no_colours)
      C_use_colours = C_use_ansi_colours = 0;
 
+  if (opt.evry_host)
+  {
+    if (opt.signed_status != SIGN_CHECK_NONE)
+       WARN ("Option '--sign' is not supported for a remote search.\n");
+    if (opt.PE_check)
+       WARN ("Option '--pe' is not supported for a remote search.\n");
+    if (opt.show_owner)
+       WARN ("Option '--owner' is not supported for a remote search.\n");
+  }
   return (1);
 }
 
