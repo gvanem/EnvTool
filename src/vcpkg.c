@@ -2026,7 +2026,7 @@ unsigned vcpkg_get_num_CONTROLS (void)
 
   num_CONTROLS = vcpkg_get_num (TRUE);
   if (num_CONTROLS == 0)
-     _strlcpy (last_err_str, "No CONTROL files for VCPKG found.", sizeof(last_err_str));
+     _strlcpy (last_err_str, "No CONTROL files for VCPKG found", sizeof(last_err_str));
   return (num_CONTROLS);
 }
 
@@ -2042,7 +2042,7 @@ unsigned vcpkg_get_num_portfile (void)
 
   num_portfiles = vcpkg_get_num (FALSE);
   if (num_portfiles == 0)
-     _strlcpy (last_err_str, "No portfiles for VCPKG found.", sizeof(last_err_str));
+     _strlcpy (last_err_str, "No portfiles for VCPKG found", sizeof(last_err_str));
   return (num_portfiles);
 }
 
