@@ -2249,6 +2249,8 @@ void EVERYTHINGAPI Everything_Reset(void)
 void EVERYTHINGAPI Everything_CleanUp(void)
 {
     Everything_Reset();
+    DeleteCriticalSection(&_Everything_cs);
+   _Everything_Initialized = 0;
 }
 
 static void *_Everything_Alloc(DWORD size)
