@@ -355,15 +355,15 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
     snprintf (full_name, sizeof(full_name), "%s%c%s", ctx->path, DIR_SEP, name);
 
     if (!opt.dir_mode && prev_name[0] && str_equal(prev_name, full_name))
-         ETP_num_evry_dups++;
+       ETP_num_evry_dups++;
     else
     {
-      r.file = full_name;
-      r.mtime = ctx->mtime;
-      r.fsize = ctx->fsize;
-      r.is_dir = is_dir;
+      r.file        = full_name;
+      r.mtime       = ctx->mtime;
+      r.fsize       = ctx->fsize;
+      r.is_dir      = is_dir;
       r.is_junction = FALSE;
-      r.key = HKEY_EVERYTHING_ETP;
+      r.key         = HKEY_EVERYTHING_ETP;
       report_file (&r);
     }
     _strlcpy (prev_name, full_name, sizeof(prev_name));
