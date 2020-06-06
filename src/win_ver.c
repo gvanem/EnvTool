@@ -293,52 +293,26 @@ const char *os_bits (void)
 
 static const char *get_registry_value (const char *wanted_value, DWORD wanted_type)
 {
-  HKEY   key = NULL;
-  DWORD  num,  rc;
-  BOOL   found = FALSE;
   static char ret_buf [100];
+  DWORD  rc, value, type = 0;
+  DWORD  buf_size = sizeof(ret_buf);
 
-  rc = RegOpenKeyEx (HKEY_LOCAL_MACHINE, CURRENT_VER_KEY, 0, KEY_READ, &key);
+  rc = RegGetValue (HKEY_LOCAL_MACHINE, CURRENT_VER_KEY, wanted_value, RRF_RT_ANY,
+                    &type, (void*)&ret_buf, &buf_size);
 
-  DEBUGF (2, "RegOpenKeyEx (HKLM\\%s): %s\n", CURRENT_VER_KEY, win_strerror(rc));
+  DEBUGF (1, "  RegGetValue (%s\\%s\\%s, %s), type: %s.\n",
+          reg_top_key_name(HKEY_LOCAL_MACHINE), CURRENT_VER_KEY, wanted_value,
+          win_strerror(rc), reg_type_name(type));
 
-  for (num = 0; rc == ERROR_SUCCESS; num++)
+  if (rc != ERROR_SUCCESS || type != wanted_type)
+     return (NULL);
+
+  if (type == REG_DWORD)
   {
-    char  value [512] = "\0";
-    char  data [512]  = "\0";
-    DWORD value_size  = sizeof(value);
-    DWORD data_size   = sizeof(data);
-    DWORD type        = REG_NONE;
-
-    rc = RegEnumValue (key, num, value, &value_size, NULL, &type, (BYTE*)&data, &data_size);
-    if (rc == ERROR_NO_MORE_ITEMS)
-       break;
-
-    switch (type)
-    {
-      case REG_SZ:
-           DEBUGF (2, "  num %lu: %s = %s (REG_SZ).\n", (u_long)num, value, data);
-           break;
-      case REG_DWORD:
-           DEBUGF (2, "  num %lu: %s = %lu (REG_DWORD).\n", (u_long)num, value, *(u_long*)&data[0]);
-           break;
-      default:
-           DEBUGF (2, "  num %lu: %s = ? (%s).\n", (u_long)num, value, reg_type_name(type));
-           break;
-    }
-    if (type == wanted_type && !stricmp(wanted_value,value))
-    {
-      if (type != REG_SZ)
-           _itoa (*(u_long*)&data[0], ret_buf, 10);
-      else _strlcpy (ret_buf, data, sizeof(ret_buf));
-      found = TRUE;
-      break;
-    }
+    value = *(DWORD*)&ret_buf;
+    _itoa (value, ret_buf, 10);
   }
-
-  if (key)
-     RegCloseKey (key);
-  return (found ? ret_buf : NULL);
+  return (ret_buf);
 }
 
 const char *os_release_id (void)
