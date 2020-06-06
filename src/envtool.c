@@ -445,6 +445,9 @@ static int show_version (void)
     C_printf ("\n  Pythons on ~3PATH~0:");
     py_searchpaths();
 
+    num = pkg_config_list_installed();
+    DEBUGF (2, "pkg_config_list_installed(): %u.\n", num);
+
     num = vcpkg_list_installed();
     DEBUGF (2, "vcpkg_list_installed(): %u.\n", num);
   }
@@ -805,6 +808,11 @@ static int dir_array_make_unique (const char *where)
   return (old_len - new_len);    /* This should always be 0 or positive */
 }
 
+smartlist_t *reg_array_head (void)
+{
+  return (reg_array);
+}
+
 /**
  * Add elements to the `reg_array` smartlist:
  *  \param[in] key     the key the entry came from: `HKEY_CURRENT_USER` or `HKEY_LOCAL_MACHINE`.
@@ -897,6 +905,7 @@ void dir_array_free (void)
 {
   smartlist_wipe (dir_array, _dir_array_free);
 }
+
 
 /**
  * Parses an environment string and returns all components as an array of
@@ -2614,9 +2623,6 @@ static int get_all_cc_from_cache (void)
 {
   int i = 0, found = 0;
 
-  if (!opt.use_cache)
-     return (0);
-
   while (1)
   {
     compiler_info cc;
@@ -2636,12 +2642,8 @@ static int get_all_cc_from_cache (void)
 
 static void put_all_cc_to_cache (void)
 {
-  int i, max;
+  int i, max = smartlist_len (all_cc);
 
-  if (!opt.use_cache)
-     return;
-
-  max = smartlist_len (all_cc);
   for (i = 0; i < max; i++)
   {
     const compiler_info *cc = smartlist_get (all_cc, i);
@@ -2657,9 +2659,6 @@ static int get_inc_dirs_from_cache (const compiler_info *cc)
 {
   char format [50], *inc_dir;
   int  i = 0, found = 0;
-
-  if (!opt.use_cache)
-     return (0);
 
   while (1)
   {
@@ -2679,9 +2678,6 @@ static int get_lib_dirs_from_cache (const compiler_info *cc)
   char format [50], *lib_dir;
   int  i = 0, found = 0;
 
-  if (!opt.use_cache)
-     return (0);
-
   while (1)
   {
     snprintf (format, sizeof(format), "compiler_lib_%d_%d = %%s", cc->type, i);
@@ -2697,34 +2693,28 @@ static int get_lib_dirs_from_cache (const compiler_info *cc)
 
 static int put_inc_dirs_to_cache (const compiler_info *cc)
 {
-  int i, len = smartlist_len (dir_array);
+  int i, max = smartlist_len (dir_array);
 
-  if (!opt.use_cache)
-     return (len);
-
-  for (i = 0; i < len; i++)
+  for (i = 0; i < max; i++)
   {
     const struct directory_array *d = smartlist_get (dir_array, i);
 
     cache_putf (SECTION_COMPILER, "compiler_inc_%d_%d = %s", cc->type, i, d->dir);
   }
-  return (len);
+  return (max);
 }
 
 static int put_lib_dirs_to_cache (const compiler_info *cc)
 {
-  int i, len = smartlist_len (dir_array);
+  int i, max = smartlist_len (dir_array);
 
-  if (!opt.use_cache)
-     return (len);
-
-  for (i = 0; i < len; i++)
+  for (i = 0; i < max; i++)
   {
     const struct directory_array *d = smartlist_get (dir_array, i);
 
     cache_putf (SECTION_COMPILER, "compiler_lib_%d_%d = %s", cc->type, i, d->dir);
   }
-  return (len);
+  return (max);
 }
 
 /**
@@ -4514,6 +4504,7 @@ static void MS_CDECL cleanup (void)
   cfg_exit (opt.cfg_file);
 
   vcpkg_exit();
+  pkg_config_exit();
   file_descr_exit();
   cache_exit();
   exit_misc();
@@ -5178,15 +5169,12 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
 
 static void put_dirlist_to_cache (const char *env_var, smartlist_t *dirs)
 {
-  int i, max;
+  const struct directory_array *da;
+  int   i, max = smartlist_len (dirs);
 
-  if (!opt.use_cache)
-     return;
-
-  max = smartlist_len (dirs);
   for (i = 0; i < max; i++)
   {
-    const struct directory_array *da = smartlist_get (dirs, i);
+    da = smartlist_get (dirs, i);
     cache_putf (SECTION_ENV_DIR, "env_dir_%s_%d = %s", env_var, i, da->dir);
   }
 }
@@ -5199,10 +5187,7 @@ static void put_dirlist_to_cache (const char *env_var, smartlist_t *dirs)
  */
 static int get_dirlist_from_cache (const char *env_var)
 {
-  int i = 0, found = 0;
-
-  if (!opt.use_cache)
-     return (0);
+  int i = 0;
 
   while (1)
   {
@@ -5214,11 +5199,10 @@ static int get_dirlist_from_cache (const char *env_var)
        break;
 
     DIR_ARRAY_ADD (dir, str_equal(dir,current_dir));
-    found++;
     i++;
   }
-  DEBUGF (1, "Found %d cached 'env_dir_x'.\n", found);
-  return (found);
+  DEBUGF (1, "Found %d cached 'env_dir_x'.\n", i);
+  return (i);
 }
 
 /**
