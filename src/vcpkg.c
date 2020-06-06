@@ -434,7 +434,7 @@ static BOOL sub_package_found (const char *package)
  * ```
  *   3fd:                  C++ Framework For Fast Development
  *   version:              2.6.2
- *   dependants:           boost-lockfree (windows), boost-regex (windows), poco (windows), sqlite3, rapidxml
+ *   dependencies:         boost-lockfree (windows), boost-regex (windows), poco (windows), sqlite3, rapidxml
  *     boost-lockfree:
  *       boost-align
  *         boost-assert
@@ -652,7 +652,7 @@ static int print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
   }
   else
   {
-    buf_printf (fmt_buf, "  %-*s", indent, "dependants:");
+    buf_printf (fmt_buf, "  %-*s", indent, "dependencies:");
     if (!node->deps)
     {
       buf_puts (fmt_buf, "<none>\n");
@@ -1253,7 +1253,7 @@ static const vcpkg_package *get_install_info (int *index_p, const char *package)
  */
 static void node_dump_description (const port_node *node)
 {
-  int len  = C_puts ("     ~6description:~0 ") - 2;
+  int len  = C_puts ("     ~6description:~0  ") - 2;
   int save = C_setraw (1);
 
   if (node->description)
@@ -1280,7 +1280,7 @@ static void node_dump_description (const port_node *node)
 static void node_dump_deps (const port_node *node, size_t width)
 {
   int i, max = node->deps ? smartlist_len (node->deps) : 0;
-  int len, len0 = C_puts ("     ~6dependants:~0  ") - 2;
+  int len, len0 = C_puts ("     ~6dependencies:~0 ") - 2;
 
   len = len0;
   for (i = 0; i < max; i++)
@@ -1319,7 +1319,7 @@ static void node_dump_deps (const port_node *node, size_t width)
 static void node_dump_features (const port_node *node, size_t width)
 {
   int i, max = node->features ? smartlist_len (node->features) : 0;
-  int len, len0 = C_puts ("     ~6features:~0    ") - 2;
+  int len, len0 = C_puts ("     ~6features:~0     ") - 2;
 
   len = len0;
   for (i = 0; i < max; i++)
@@ -1373,8 +1373,8 @@ static void pkg_dump_file_info (const vcpkg_package *pkg, const char *indent)
   const char *dir = get_installed_dir (pkg);
   unsigned    num = smartlist_len (pkg->install_info);
 
-  C_printf ("%s~6installed:   YES~0\n", indent);
-  C_printf ("%s~6location:    %s~0, %u files", indent, dir, num);
+  C_printf ("%s~6installed:    YES~0\n", indent);
+  C_printf ("%s~6location:     %s~0, %u files", indent, dir, num);
 
   if (opt.show_size)
      C_printf (", %s", get_package_files_size(pkg));
@@ -1410,7 +1410,7 @@ static void dump_nodes (void)
        version = "<unknown>";
 
     C_printf ("~7%4d ~3%s~0 / ~6%s~0\n", ++num, node->package, version);
-    C_printf ("%s~6homepage:~0    %s\n", indent, node->homepage);
+    C_printf ("%s~6homepage:~0     %s\n", indent, node->homepage);
 
     node_dump_description (node);
     node_dump_deps (node, width);
@@ -1419,7 +1419,7 @@ static void dump_nodes (void)
     pkg = get_install_info (&zero, node->package);
     if (pkg)
          pkg_dump_file_info (pkg, indent);
-    else C_printf ("%s~6installed:   NO~0\n\n", indent);
+    else C_printf ("%s~6installed:    NO~0\n\n", indent);
   }
 }
 
@@ -1906,34 +1906,31 @@ void vcpkg_init (void)
   num_cached_packages_dirs = get_packages_dirs_from_cache();
 
 #else
-  if (opt.use_cache)
+  i = 0;
+  while (1)
   {
-    i = 0;
-    while (1)
-    {
-      snprintf (format, sizeof(format), "port_dir_%d = %%s", i);
-      if (cache_getf(SECTION_VCPKG, format, &dir) != 1)
-         break;
+    snprintf (format, sizeof(format), "port_dir_%d = %%s", i);
+    if (cache_getf(SECTION_VCPKG, format, &dir) != 1)
+       break;
 
-      if (i == 0)
-         ports_dirs = smartlist_new();
-      smartlist_add (ports_dirs, STRDUP(dir));
-      i++;
-    }
-    num_cached_ports_dirs = i;
+    if (i == 0)
+       ports_dirs = smartlist_new();
+    smartlist_add (ports_dirs, STRDUP(dir));
+    i++;
+  }
+  num_cached_ports_dirs = i;
 
-    i = 0;
-    while (1)
-    {
-      snprintf (format, sizeof(format), "packages_dir_%d = %%s", i);
-      if (cache_getf(SECTION_VCPKG, format, &dir) != 1)
-         break;
+  i = 0;
+  while (1)
+  {
+    snprintf (format, sizeof(format), "packages_dir_%d = %%s", i);
+    if (cache_getf(SECTION_VCPKG, format, &dir) != 1)
+       break;
 
-      if (i == 0)
-         packages_dirs = smartlist_new();
-      smartlist_add (packages_dirs, STRDUP(dir));
-      i++;
-    }
+    if (i == 0)
+       packages_dirs = smartlist_new();
+    smartlist_add (packages_dirs, STRDUP(dir));
+    i++;
   }
 #endif
 
