@@ -763,7 +763,8 @@ static void py_exit_embedding (struct python_info *pi)
       DEBUGF (4, "Calling Py_Finalize().\n");
       (*Py_Finalize)();
     }
-    CloseHandle (pi->dll_hnd);
+    if (!IsDebuggerPresent())
+       CloseHandle (pi->dll_hnd);
   }
   pi->dll_hnd = INVALID_HANDLE_VALUE;
 }
