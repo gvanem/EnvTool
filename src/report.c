@@ -46,7 +46,7 @@ static int found_everything_db_dirty = 0;
  */
 static BOOL get_wintrust_info (const char *file, char *dest, size_t dest_size);
 static int  get_trailing_indent (const char *file);
-static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, char *dest, size_t dest_size);
+static BOOL get_PE_file_brief (const struct report *r, char *dest, size_t dest_size);
 static void print_PE_file_details (const char *filler);
 
 /**
@@ -71,7 +71,6 @@ void incr_total_size (UINT64 size)
 int report_file (struct report *r)
 {
   const char *note   = NULL;
-  const char *filler = "      ";
   const char *description;
   char        size [40] = "?";
   int         len;
@@ -94,10 +93,12 @@ int report_file (struct report *r)
   BUF_INIT (&fmt_buf_ver_info, 100, 0);
   BUF_INIT (&fmt_buf_trust_info, 100, 0);
 
+  r->filler = "      ";
+
 #if defined(__clang__) || defined(__GNUC__) || (defined(_MSC_VER) && _MSC_VER >= 1900)
-  if (r->key == HKEY_PKG_CONFIG_FILE)
+  if (r->key == HKEY_PKG_CONFIG_FILE && 0)
   {
-    r->filler = filler;
+    r->pre_action = r->post_action = NULL;
     if (opt.verbose >= 1)
        r->post_action = pkg_config_get_details2;
     return report_file2 (r);
@@ -188,7 +189,7 @@ int report_file (struct report *r)
   * For a Python search with 'opt.show_size' (i.e. 'envtool --py -s foo*'),
   * report the size of the branch 'foo*' as 'opt.dir_mode' was specified.
   *
-  * The ETP-server (key == HKEY_EVERYTHING_ETP) can not reliably report size
+  * The ETP-server (r->key == HKEY_EVERYTHING_ETP) can not reliably report size
   * of directories.
   */
   if (opt.show_size && show_dir_size && (opt.dir_mode || r->key == HKEY_PYTHON_PATH))
@@ -218,7 +219,7 @@ int report_file (struct report *r)
   {
     static DWORD num_version_ok_last = 0;
 
-    show_this_file = get_PE_file_brief (r->file, filler, r->key, fmt_buf_ver_info.buffer_start, fmt_buf_ver_info.buffer_size);
+    show_this_file = get_PE_file_brief (r, fmt_buf_ver_info.buffer_start, fmt_buf_ver_info.buffer_size);
     if (show_this_file && opt.signed_status != SIGN_CHECK_NONE)
     {
       show_this_file = get_wintrust_info (r->file, fmt_buf_trust_info.buffer_start, fmt_buf_trust_info.buffer_size);
@@ -229,7 +230,7 @@ int report_file (struct report *r)
   }
 
   buf_printf (&fmt_buf_time_size, "~3%s~0%s%s: ",
-              note ? note : filler, get_time_str(r->mtime), size);
+              note ? note : r->filler, get_time_str(r->mtime), size);
 
   /* The remote `file` from EveryThing is not something Windows knows
    * about. Hence no point in trying to get the DomainName + AccountName
@@ -354,11 +355,11 @@ int report_file (struct report *r)
   {
     C_printf ("%-60s", fmt_buf_ver_info.buffer_start);
     C_puts (fmt_buf_trust_info.buffer_start);
-    print_PE_file_details (filler);
+    print_PE_file_details (r->filler);
   }
 
   if (r->key == HKEY_PKG_CONFIG_FILE && opt.verbose > 0)
-     pkg_config_get_details (r->file, filler);
+     pkg_config_get_details (r->file, r->filler);
 
   C_putc ('\n');
   return (1);
@@ -437,7 +438,6 @@ static int get_trailing_indent (const char *file)
   return (indent);
 }
 
-
 /**
  * Print the Resource-version details after any `wintrust_check()` results has
  * been printed. The details come from `get_PE_file_brief()` and `get_PE_version_info()`.
@@ -480,13 +480,12 @@ static void print_PE_file_details (const char *filler)
   get_PE_version_info_free();
 }
 
-
 /**
  * With the "--pe" (and "--32" or "--64") option, check if a `file` is a PE-file.
  * If so, save the checksum, version-info, signing-status for later when
  * `report_file()` is ready to print this info.
  */
-static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, char *dest, size_t dest_size)
+static BOOL get_PE_file_brief (const struct report *r, char *dest, size_t dest_size)
 {
   struct ver_info ver;
   enum Bitness    bits;
@@ -496,11 +495,11 @@ static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, c
 
   *dest = '\0';
 
-  if (key == HKEY_INC_LIB_FILE || key == HKEY_MAN_FILE ||
-      key == HKEY_EVERYTHING_ETP || key == HKEY_PKG_CONFIG_FILE)
+  if (r->key == HKEY_INC_LIB_FILE || r->key == HKEY_MAN_FILE ||
+      r->key == HKEY_EVERYTHING_ETP || r->key == HKEY_PKG_CONFIG_FILE)
      return (FALSE);
 
-  if (!check_if_PE(file,&bits))
+  if (!check_if_PE(r->file,&bits))
      return (FALSE);
 
   if (opt.only_32bit && bits != bit_32)
@@ -510,8 +509,8 @@ static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, c
      return (FALSE);
 
   memset (&ver, 0, sizeof(ver));
-  chksum_ok  = verify_PE_checksum (file);
-  version_ok = get_PE_version_info (file, &ver);
+  chksum_ok  = verify_PE_checksum (r->file);
+  version_ok = get_PE_version_info (r->file, &ver);
   if (version_ok)
      num_version_ok++;
 
@@ -521,7 +520,7 @@ static BOOL get_PE_file_brief (const char *file, const char *filler, HKEY key, c
   /** Do not add a `\n` since `wintrust_check()` is called right after this function.
    */
   snprintf (dest, dest_size, "\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s~0",
-            filler, ver.val_1, ver.val_2, ver.val_3, ver.val_4,
+            r->filler, ver.val_1, ver.val_2, ver.val_3, ver.val_4,
             bitness, chksum_ok ? "~2OK" : "~5fail");
   return (TRUE);
 }
