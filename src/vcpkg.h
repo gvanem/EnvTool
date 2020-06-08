@@ -1,4 +1,5 @@
 /** \file vcpkg.h
+ *  \ingroup Misc
  */
 #ifndef _VCPKG_H
 #define _VCPKG_H

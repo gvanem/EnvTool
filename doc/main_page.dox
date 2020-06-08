@@ -55,10 +55,13 @@
  *     \li getopt_long.c, getopt_long.h
  *     \li ignore.c, ignore.h
  *     \li misc.c, misc.h
+ *     \li pkg-config.c, vcpkg.h
  *     \li regex.c, regex.h
+ *     \li report.c, report.h
  *     \li searchpath.c
  *     \li show_ver.c
  *     \li smartlist.c, smartlist.h
+ *     \li vcpkg.c, vcpkg.h
  *     \li win_trust.c, win_trust.h
  *     \li win_sqlite3.c
  *     \li win_ver.c

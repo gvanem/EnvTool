@@ -781,7 +781,9 @@ INPUT = main_page.dox           \
         ../src/getopt_long.c    \
         ../src/ignore.c         \
         ../src/misc.c           \
+        ../src/pkg-config.c     \
         ../src/regex.c          \
+        ../src/report.c         \
         ../src/searchpath.c     \
         ../src/show_ver.c       \
         ../src/smartlist.c      \
@@ -804,7 +806,9 @@ INPUT = main_page.dox           \
         ../src/get_file_assoc.h \
         ../src/getopt_long.h    \
         ../src/ignore.h         \
+        ../src/pkg-config.h     \
         ../src/regex.h          \
+        ../src/report.h         \
         ../src/smartlist.h      \
         ../src/sort.h           \
         ../src/vcpkg.h          \
