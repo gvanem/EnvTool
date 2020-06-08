@@ -1314,7 +1314,7 @@ static void build_reg_array_app_path (HKEY top_key)
 
     snprintf (sub_key, sizeof(sub_key), "%s\\%s", REG_APP_PATH, fname);
 
-    if (enum_sub_values(top_key,sub_key,&fqfn))
+    if (enum_sub_values(top_key, sub_key, &fqfn))
        REG_ARRAY_ADD (top_key, fname, fqfn);
   }
   if (key)
@@ -4567,7 +4567,7 @@ static void MS_CDECL halt (int sig)
 /**
  * The main initialiser.
  */
-static void init_all (const char **argv)
+static void init_all (const char *argv0)
 {
   char buf [_MAX_PATH];
 
@@ -4581,7 +4581,7 @@ static void init_all (const char **argv)
 
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
-  else who_am_I = STRDUP (argv[0]);
+  else who_am_I = STRDUP (argv0);
 
   program_name = who_am_I;
 
@@ -4705,7 +4705,7 @@ int MS_CDECL main (int argc, const char **argv)
 {
   int found = 0;
 
-  init_all (argv);
+  init_all (argv[0]);
 
   parse_cmdline (argc, argv);
   if (!eval_options())
