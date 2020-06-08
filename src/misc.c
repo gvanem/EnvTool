@@ -549,7 +549,7 @@ const char *get_sym_link (const char *file)
     fclose (f);
     DEBUG_NL (1);
     snprintf (fqfn_name, sizeof(fqfn_name), "%s%c%s", dir_name, DIR_SEP, base);
-    DEBUGF (0, "get_sym_link: \"%s\"\n", fqfn_name);
+    DEBUGF (1, "get_sym_link: \"%s\"\n", fqfn_name);
     FREE (dir_name);
     if (opt.show_unix_paths)
        return slashify2 (fqfn_name, fqfn_name, '/');
