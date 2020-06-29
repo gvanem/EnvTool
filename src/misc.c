@@ -4157,7 +4157,52 @@ UINT64 filelength (int fd)
   }
   return (0ULL);
 }
-#endif
+
+/**
+ * Return TRUE is key-press is a "normal" key-press.
+ * Not a `Shift-`, `Ctrl-` or an `Alt-` combination.
+ */
+static BOOL is_real_key (const INPUT_RECORD *k)
+{
+  if (k->EventType != KEY_EVENT || !k->Event.KeyEvent.bKeyDown)
+     return (FALSE);
+
+  if (k->Event.KeyEvent.wVirtualKeyCode == VK_SHIFT   ||
+      k->Event.KeyEvent.wVirtualKeyCode == VK_CONTROL ||
+      k->Event.KeyEvent.wVirtualKeyCode == VK_MENU)   /* Alt */
+     return (FALSE);
+  return (TRUE);
+}
+
+/**
+ * CygWin doesn't even have <conio.h>. Let alone a simple kbhit().
+ */
+int kbhit (void)
+{
+  INPUT_RECORD r;
+  DWORD  num;
+  static HANDLE stdin_hnd = NULL;
+
+  if (stdin_hnd == NULL)
+     stdin_hnd = GetStdHandle (STD_INPUT_HANDLE);
+
+  if (stdin_hnd == INVALID_HANDLE_VALUE)
+     return (0);
+
+  while (1)
+  {
+    PeekConsoleInput (stdin_hnd, &r, 1, &num);
+    if (num == 0)
+       break;
+    if (is_real_key(&r))
+       break;
+    /* flush out mouse, window, and key up events
+     */
+    ReadConsoleInput (stdin_hnd, &r, 1, &num);
+  }
+  return (num);
+}
+#endif  /* __CYGWIN__ */
 
 /**
  * Functions for getting at Reparse Points (Junctions and Symlinks).

@@ -372,10 +372,15 @@ static void show_ext_versions (void)
 
   if (vcpkg_exe)
   {
-    unsigned num1 = vcpkg_get_num_installed();
-    unsigned num2 = vcpkg_get_num_CONTROLS();
+    unsigned num1, num2;
 
-    C_printf ("%-*s -> ~6%s~0", pad_len, found[3], slashify(vcpkg_exe, slash));
+    C_puts ("  Checking vcpkg packages ...");
+    C_flush();
+
+    num1 = vcpkg_get_num_installed();
+    num2 = vcpkg_get_num_CONTROLS();
+
+    C_printf ("\r%-*s -> ~6%s~0", pad_len, found[3], slashify(vcpkg_exe, slash));
     if (num1 >= 1)
          C_printf (" (%u packages installed, %u packages available).\n", num1, num2);
     else C_printf (" (%s).\n", vcpkg_last_error());
@@ -1896,20 +1901,46 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
 }
 
 /**
- * Check if EveryThing database is loaded and not busy indexing itself.
+ * Check if EveryThing database is loaded.
  */
-static BOOL evry_IsDBLoaded (HWND wnd)
+static BOOL evry_is_db_loaded (HWND wnd)
 {
-  int loaded = 0;
-  int busy = 0;
+  BOOL loaded = (BOOL) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_LOADED, 0);
 
-  if (wnd)
+  DEBUGF (1, "wnd: %p, loaded: %d.\n", wnd, loaded);
+  return (loaded);
+}
+
+/**
+ * Check if EveryThing is busy indexing it's database.
+ */
+static BOOL evry_is_busy (HWND wnd)
+{
+  BOOL busy = (BOOL) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_BUSY, 0);
+
+  DEBUGF (1, "wnd: %p, busy: %d.\n", wnd, busy);
+  return (busy);
+}
+
+/**
+ * If EveryThing is busy indexing itself, wait for maximum `sec` before returning.
+ * Or return FALSE if user pressed a key first.
+ */
+static BOOL evry_busy_wait (HWND wnd, UINT sec)
+{
+  BOOL busy = evry_is_busy (wnd);
+
+  C_flush();
+  if (kbhit())
+     return (FALSE);
+
+  if (busy && sec > 1)
   {
-    loaded = (int) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_LOADED, 0);
-    busy   = (int) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_BUSY, 0);
+    Sleep (1000);
+    C_puts ("~5.~0");
+    return evry_busy_wait (wnd, --sec);
   }
-  DEBUGF (1, "wnd: %p, loaded: %d, busy: %d.\n", wnd, loaded, busy);
-  return (loaded && !busy);
+  return (!busy);
 }
 
 /**
@@ -2060,10 +2091,26 @@ static int do_check_evry (void)
     WARN ("Everything IPC service is not running.\n");
     return (0);
   }
-  if (!evry_IsDBLoaded(wnd))
+
+  if (!evry_is_db_loaded(wnd))
   {
-    WARN ("Everything is busy loading it's database.\n");
+    WARN ("Everything database is not loaded.\n");
     return (0);
+  }
+
+  if (evry_is_busy(wnd))
+  {
+    if (wnd && opt.evry_busy_wait)
+    {
+      WARN ("Everything is busy loading it's database. Waiting %u sec.", opt.evry_busy_wait);
+      if (!evry_busy_wait(wnd, opt.evry_busy_wait))
+         return (0);
+    }
+    else
+    {
+      WARN ("Everything is busy loading it's database.\n");
+      return (0);
+    }
   }
 
   num = Everything_GetNumResults();
@@ -4578,6 +4625,7 @@ static void init_all (const char *argv0)
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu = C_conemu_detected();
   opt.under_appveyor = (stricmp(get_user_name(),"APPVYR-WIN\\appveyor") == 0);
+  opt.evry_busy_wait = 2;
 
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
@@ -4691,6 +4739,16 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
 }
 
 /**
+ * The config-file handler for key/value pairs in the "[Everything]" section.
+ */
+static void evry_cfg_handler (const char *section, const char *key, const char *value)
+{
+  if (!stricmp(key,"busy_wait"))
+       opt.evry_busy_wait = atoi (value);
+  else cfg_ignore_handler (section, key, value);
+}
+
+/**
  * Our main entry point.
  *  + Initialise program.
  *  + Parse the command line.
@@ -4717,7 +4775,7 @@ int MS_CDECL main (int argc, const char **argv)
                            "[Registry]",     cfg_ignore_handler,
                            "[Python]",       cfg_ignore_handler,
                            "[PE-resources]", cfg_ignore_handler,
-                           "[EveryThing]",   cfg_ignore_handler,
+                           "[EveryThing]",   evry_cfg_handler,
                            "[Login]",        auth_envtool_handler,
                            "[Shadow]",       shadow_ignore_handler,
                            NULL);

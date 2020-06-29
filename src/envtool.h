@@ -124,8 +124,10 @@
 
   extern char  *_itoa (int value, char *buf, int radix);
   extern UINT64 filelength (int fd);
+  extern int    kbhit (void);
 
 #else
+  #include <conio.h>
   #include <direct.h>
   #define  stat     _stati64
   #define  DEV_NULL "NUL"
@@ -438,6 +440,7 @@ struct prog_options {
        int             under_appveyor;    /**< TRUE if running under AppVeyor */
        enum SortMethod sort_methods[10];  /**< the specified sort methods */
        BOOL            evry_raw;          /**< use raw non-regex searches */
+       UINT            evry_busy_wait;    /**< max number of seconds to wait for a busy EveryThing */
        smartlist_t    *evry_host;
        char           *file_spec;
        beep_info       beep;
