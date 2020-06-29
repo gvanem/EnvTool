@@ -139,7 +139,7 @@ Or to find only `foo*.bar` files under directory-branch(es) `misc`, you can do:
 envtool.exe --evry -r "misc\\.*\\foo.*\.bar"
 ```
 
-Or how much space is *wasted* in your Python cach-files. This would tell you quickly:
+Or how much space is *wasted* in your Python cache-files. This would tell you quickly:
 ```
   envtool.exe --evry -sD __pycache__*
   ...
@@ -176,15 +176,13 @@ The inverse `envtool.exe --path --owner=!Admin*` is also possible; showing files
 
 **E.g. 10**: `envtool --check -v` does a shadow check for file-spec in these
   environment variables:<br>
-	`PATH`, `LIB`, `LIBRARY_PATH`,`INCLUDE`, `C_INCLUDE_PATH`,
-  `CPLUS_INCLUDE_PATH`, `MANPATH`,<br>
-	`PKG_CONFIG_PATH`, `PYTHONPATH`,`CMAKE_MODULE_PATH`, `CLASSPATH` and `GOPATH`.
+   `PATH`, `LIB`, `LIBRARY_PATH`,`INCLUDE`, `C_INCLUDE_PATH`,
+   `CPLUS_INCLUDE_PATH`, `MANPATH`,<br>
+   `PKG_CONFIG_PATH`, `PYTHONPATH`,`CMAKE_MODULE_PATH`, `CLASSPATH` and `GOPATH`.
 
-For all directories in an env-var, build lists of files
-  matching a 'file_spec' and do a shadow check of files
-  in all directories after each directory. This is to show
-  possibly newer files (in "later" directories) that should
-  be used instead.
+For all directories in an env-var, build lists of files matching a `file_spec` and do a shadow check of files
+in all directories after each directory. This is to show possibly newer files (in "later" directories) that
+should be used instead.
 
   E.g. with a `PATH=c:\ProgramFiler\Python27;c:\CygWin32\bin`
   and these files:
@@ -194,9 +192,8 @@ For all directories in an env-var, build lists of files
   ```
 
   then the oldest `python.exe` shadows the newest `python.exe`.
-  Situation such as thise can be tricky to diagnose,<br>
-	but won't always hurt.If you get many *shadow reports*, edit
-	`%APPDATA%\envtool.cfg` like this:
+  Situation such as thise can be tricky to diagnose, <br>
+  but won't always hurt. If you get too many *shadow reports*, edit `%APPDATA%\envtool.cfg` like this:
 ```
 [Shadow]
  ignore = f:\ProgramFiler\RKsupport\*.exe # ignore all .EXEs here
@@ -301,9 +298,8 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
           envtool --evry Makefile.am content:pod2man        - find Makefile.am with pod2man commands.
           envtool --evry M*.mp3 artist:Madonna "year:<2002" - find all Madonna M*.mp3 titles issued prior to 2002.
 
-   1.3: Enhanced "envtool --check -v" to look for shadowed files
-	      in important environment variables like PATH, INCLUDE and LIB.
-				See E.g. 10. above.
+   1.3: Enhanced "envtool --check -v" to look for shadowed files in important environment variables
+        like PATH, INCLUDE and LIB. See E.g. 10. above.
 ```
 
 PS. This file is written with the aid of the **[Atom](https://atom.io/)**
