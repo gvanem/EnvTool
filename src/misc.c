@@ -4704,6 +4704,10 @@ typedef struct CORE_TEMP_SHARED_DATA {
 
 typedef BOOL (WINAPI *func_GetCoreTempInfo) (CORE_TEMP_SHARED_DATA *pData);
 
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32  0x00000800
+#endif
+
 static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *indent)
 {
   func_GetCoreTempInfo p_GetCoreTempInfoAlt;
