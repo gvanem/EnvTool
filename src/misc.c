@@ -267,7 +267,7 @@ void init_misc (void)
                          GetProcAddress (kernel32_hnd, "IsWow64Process");
 
     p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)
-                                           GetProcAddress (kernel32_hnd, "NeedCurrentDirectoryForExePathA");
+                                          GetProcAddress (kernel32_hnd, "NeedCurrentDirectoryForExePathA");
   }
 
   if (userenv_hnd)
@@ -4675,4 +4675,109 @@ int is_cygwin_tty (int fd)
 no_tty:
   errno = EINVAL;
   return (0);
+}
+
+/*
+ * A rewritten "CPU Temperature Monitor" from:
+ *    https://www.alcpu.com/CoreTemp/developers.html and
+ *    https://www.alcpu.com/CoreTemp/main_data/CoreTempSDK.zip
+ *
+ * The following peice of code demonstrates how you could load the DLL dynamically at run time
+ * This sample demonstrates the use of a function to retrieve the data from the DLL rather than
+ * a proxy class like in the sample above, this can be used by C users or other languages.
+ */
+typedef struct CORE_TEMP_SHARED_DATA {
+        unsigned int    uiLoad [256];
+        unsigned int    uiTjMax [128];
+        unsigned int    uiCoreCnt;
+        unsigned int    uiCPUCnt;
+        float           fTemp [256];
+        float           fVID;
+        float           fCPUSpeed;
+        float           fFSBSpeed;
+        float           fMultipier;
+        char            sCPUName [100];
+        unsigned char   ucFahrenheit;
+        unsigned char   ucDeltaToTjMax;
+      } CORE_TEMP_SHARED_DATA;
+
+typedef BOOL (WINAPI *func_GetCoreTempInfo) (CORE_TEMP_SHARED_DATA *pData);
+
+static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *indent)
+{
+  func_GetCoreTempInfo p_GetCoreTempInfoAlt;
+  HMODULE ct_dll;
+  ULONG   index;
+  UINT    i, j;
+  DWORD   last_error = 0UL;
+  char    temp_type;
+
+#ifdef _WIN64
+  ct_dll = LoadLibrary ("GetCoreTempInfo64.dll");
+#else
+  ct_dll = LoadLibraryEx ("GetCoreTempInfo.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+#endif
+
+  if (!ct_dll)
+  {
+    DEBUGF (1, "\nError: Failed to load \"GetCoreTempInfo.dll\": %s\n", win_strerror(GetLastError()));
+    return (FALSE);
+  }
+
+  p_GetCoreTempInfoAlt = (func_GetCoreTempInfo) GetProcAddress (ct_dll, "fnGetCoreTempInfoAlt");
+  if (!p_GetCoreTempInfoAlt)
+  {
+    DEBUGF (1, "\nError: The function \"fnGetCoreTempInfo\" in \"GetCoreTempInfo.dll\" could not be found.\n");
+    FreeLibrary (ct_dll);
+    return (FALSE);
+  }
+
+  if (!(*p_GetCoreTempInfoAlt)(ct_data))
+  {
+    last_error = GetLastError();
+    C_printf ("Error: \"Core Temp\" is not running or shared memory could not be read.\n");
+    FreeLibrary (ct_dll);
+    return (FALSE);
+  }
+
+  temp_type = ct_data->ucFahrenheit ? 'F' : 'C';
+
+  /* This hshould be the 1st "normal" line of output; no indenting
+   */
+  C_printf ("~6CPU Name:~0  %s\n"
+            "%s~6CPU Speed:~0 %.2fMHz (%.2f x %.2f)\n",
+            ct_data->sCPUName, indent,
+            (double)ct_data->fCPUSpeed, (double)ct_data->fFSBSpeed, (double)ct_data->fMultipier);
+
+  C_printf ("%s~6CPU VID~0:   %.4fv, physical CPUs: ~6%d~0, cores per CPU: ~6%d~0\n",
+            indent, (double)ct_data->fVID, ct_data->uiCPUCnt, ct_data->uiCoreCnt);
+
+  for (i = 0; i < ct_data->uiCPUCnt; i++)
+  {
+    C_printf ("%s~6CPU #%d~0, Tj.max: ~6%d%c~0:\n", indent, i, ct_data->uiTjMax[i], temp_type);
+    for (j = 0; j < ct_data->uiCoreCnt; j++)
+    {
+      index = j + (i * ct_data->uiCoreCnt);
+      if (ct_data->ucDeltaToTjMax)
+           C_printf ("%s  ~6Core #%lu~0: %.2f%c to Tj.max, %2d%% load\n",
+                     indent, index, (double)ct_data->fTemp[index], temp_type, ct_data->uiLoad[index]);
+      else C_printf ("%s  ~6Core #%lu~0: %.2f%c, %2d%% load\n",
+                     indent, index, (double)ct_data->fTemp[index], temp_type, ct_data->uiLoad[index]);
+    }
+  }
+  FreeLibrary (ct_dll);
+  return (TRUE);
+}
+
+void print_core_temp_info (void)
+{
+  CORE_TEMP_SHARED_DATA *ct_data = CALLOC (sizeof(*ct_data), 1);
+
+  if (ct_data)
+  {
+    get_core_temp_info (ct_data, "              ");
+    FREE (ct_data);
+  }
+  else
+    C_putc ('\n');
 }
