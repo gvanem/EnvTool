@@ -5646,7 +5646,7 @@ static void do_check_user_sys_env (void)
   {
     env = smartlist_get (list, i);
     val = strchr (env, '\0') + 1;
-    compare_user_sys_env (env, val, 2 + longest_env);
+    compare_user_sys_env (env, val, (int)(2 + longest_env));
   }
   smartlist_free_all (list);
 }

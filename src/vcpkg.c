@@ -1181,7 +1181,7 @@ static void put_dependants_to_cache (int port_num, const port_node *node)
     const struct vcpkg_package *dep = smartlist_get (node->deps, i);
 
     p += snprintf (p, left, "%s,", dep->package);
-    left = end - p;
+    left = (int) (end - p);
   }
   if (p > value && p[-1] == ',')
      p[-1] = '\0';
@@ -1204,7 +1204,7 @@ static void put_features_to_cache (int port_num, const port_node *node)
     const char *feature = smartlist_get (node->features, i);
 
     p += snprintf (p, left, "%s,", feature);
-    left = end - p;
+    left = (int) (end - p);
   }
   if (p > value && p[-1] == ',')
      p[-1] = '\0';

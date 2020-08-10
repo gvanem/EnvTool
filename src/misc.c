@@ -4678,11 +4678,12 @@ no_tty:
 }
 
 /*
- * A rewritten "CPU Temperature Monitor" from:
- *    https://www.alcpu.com/CoreTemp/developers.html and
- *    https://www.alcpu.com/CoreTemp/main_data/CoreTempSDK.zip
+ * A rewritten "CPU Temperature Monitor" sample from:
+ *   https://www.alcpu.com/CoreTemp/developers.html
+ * and
+ *   https://www.alcpu.com/CoreTemp/main_data/CoreTempSDK.zip
  *
- * The following peice of code demonstrates how you could load the DLL dynamically at run time
+ * The following piece of code demonstrates how you could load the DLL dynamically at run time
  * This sample demonstrates the use of a function to retrieve the data from the DLL rather than
  * a proxy class like in the sample above, this can be used by C users or other languages.
  */
@@ -4706,17 +4707,11 @@ typedef BOOL (WINAPI *func_GetCoreTempInfo) (CORE_TEMP_SHARED_DATA *pData);
 static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *indent)
 {
   func_GetCoreTempInfo p_GetCoreTempInfoAlt;
-  HMODULE ct_dll;
   ULONG   index;
   UINT    i, j;
   DWORD   last_error = 0UL;
   char    temp_type;
-
-#ifdef _WIN64
-  ct_dll = LoadLibrary ("GetCoreTempInfo64.dll");
-#else
-  ct_dll = LoadLibraryEx ("GetCoreTempInfo.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
-#endif
+  HMODULE ct_dll = LoadLibraryEx ("GetCoreTempInfo.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 
   if (!ct_dll)
   {
