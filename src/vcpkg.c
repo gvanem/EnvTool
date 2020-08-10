@@ -19,7 +19,7 @@
  * \def BUF_INIT_SIZE
  * The size of the `malloc()` buffer used in the `BUF_INIT()` macro.
  */
-#define BUF_INIT_SIZE 200000
+#define BUF_INIT_SIZE 500000
 
 /** From Windows-Kit's <ctype.h> comment:
  *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
