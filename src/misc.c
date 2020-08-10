@@ -4719,7 +4719,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
 
   if (!ct_dll)
   {
-    DEBUGF (1, "\nError: Failed to load \"GetCoreTempInfo.dll\": %s\n", win_strerror(GetLastError()));
+    C_printf ("\"GetCoreTempInfo.dll\" is not installed.\n");
     return (FALSE);
   }
 
@@ -4734,7 +4734,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   if (!(*p_GetCoreTempInfoAlt)(ct_data))
   {
     last_error = GetLastError();
-    C_printf ("Error: \"Core Temp\" is not running or shared memory could not be read.\n");
+    C_printf ("\"Core Temp\" is not running or shared memory could not be read.\n");
     FreeLibrary (ct_dll);
     return (FALSE);
   }
