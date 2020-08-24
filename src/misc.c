@@ -4678,7 +4678,7 @@ no_tty:
 }
 
 /*
- * A rewritten "CPU Temperature Monitor" sample from:
+ * A "CPU Temperature Monitor" sample rewritten from:
  *   https://www.alcpu.com/CoreTemp/developers.html
  * and
  *   https://www.alcpu.com/CoreTemp/main_data/CoreTempSDK.zip
@@ -4688,18 +4688,18 @@ no_tty:
  * a proxy class like in the sample above, this can be used by C users or other languages.
  */
 typedef struct CORE_TEMP_SHARED_DATA {
-        unsigned int    uiLoad [256];
-        unsigned int    uiTjMax [128];
-        unsigned int    uiCoreCnt;
-        unsigned int    uiCPUCnt;
-        float           fTemp [256];
-        float           fVID;
-        float           fCPUSpeed;
-        float           fFSBSpeed;
-        float           fMultipier;
-        char            sCPUName [100];
-        unsigned char   ucFahrenheit;
-        unsigned char   ucDeltaToTjMax;
+        unsigned int   uiLoad [256];
+        unsigned int   uiTjMax [128];
+        unsigned int   uiCoreCnt;
+        unsigned int   uiCPUCnt;
+        float          fTemp [256];
+        float          fVID;
+        float          fCPUSpeed;
+        float          fFSBSpeed;
+        float          fMultipier;
+        char           sCPUName [100];
+        unsigned char  ucFahrenheit;
+        unsigned char  ucDeltaToTjMax;
       } CORE_TEMP_SHARED_DATA;
 
 typedef BOOL (WINAPI *func_GetCoreTempInfo) (CORE_TEMP_SHARED_DATA *pData);
@@ -4731,6 +4731,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
     return (FALSE);
   }
 
+  memset (ct_data, '\0', sizeof(*ct_data));
   if (!(*p_GetCoreTempInfoAlt)(ct_data))
   {
     last_error = GetLastError();
@@ -4741,7 +4742,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
 
   temp_type = ct_data->ucFahrenheit ? 'F' : 'C';
 
-  /* This hshould be the 1st "normal" line of output; no indenting
+  /* This should be the 1st "normal" line of output; no indenting
    */
   C_printf ("~6CPU Name:~0  %s\n"
             "%s~6CPU Speed:~0 %.2fMHz (%.2f x %.2f)\n",
@@ -4768,15 +4769,26 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   return (TRUE);
 }
 
-void print_core_temp_info (void)
+BOOL print_core_temp_info (void)
 {
-  CORE_TEMP_SHARED_DATA *ct_data = CALLOC (sizeof(*ct_data), 1);
+  CORE_TEMP_SHARED_DATA ct_data;
 
-  if (ct_data)
+ /* Try to open the 'Core Temp' mutex
+  */
+  HANDLE ev = CreateEvent (NULL, FALSE, FALSE, "Local\\PowerInfoMutex");
+  BOOL   is_running = (ev == NULL && GetLastError() == ERROR_INVALID_HANDLE);
+
+  if (is_running)
   {
-    get_core_temp_info (ct_data, "              ");
-    FREE (ct_data);
+    /* From:
+     *   https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventa
+     *
+     * If lpName matches the name of another kind of object in the same namespace (such as an existing
+     * semaphore, mutex, waitable timer, job, or file-mapping object), the function fails and the GetLastError
+     * function returns ERROR_INVALID_HANDLE. This occurs because these objects share the same namespace.
+     */
+    return get_core_temp_info (&ct_data, "              ");
   }
-  else
-    C_putc ('\n');
+  C_printf ("\"Core Temp\" is not running.\n");
+  return (FALSE);
 }
