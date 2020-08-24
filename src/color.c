@@ -182,7 +182,7 @@ static char colour_map_ansi [DIM(colour_map)] [20];
 static const char *wincon_to_ansi (WORD col);
 
 /**
- * Returns 1 if detected running under the ConEmu program.
+ * Returns 1 if running under the ConEmu program.
  */
 int C_conemu_detected (void)
 {
@@ -200,6 +200,44 @@ int C_conemu_detected (void)
     return (TRUE);
   }
   return (FALSE);
+}
+
+/**
+ * Return TRUE if *Virtual Terminal Processing* is enabled.
+ * Needs Windows-10 v1909 or later.
+ *
+ * \param[in] cmd_only If 1, the return value need that 'cmd.exe' is in `%COMPSPEC%`.
+ */
+int C_virtual_terminal_detected (int cmd_only)
+{
+  char  *env;
+  int    is_cmd = 0;
+  DWORD  value = 0;
+  DWORD  mode = 0;
+  HANDLE hnd = INVALID_HANDLE_VALUE;
+
+  #ifndef DISABLE_NEWLINE_AUTO_RETURN
+  #define DISABLE_NEWLINE_AUTO_RETURN 0x0008
+  #endif
+
+  hnd = GetStdHandle (STD_OUTPUT_HANDLE);
+  if (hnd != INVALID_HANDLE_VALUE)
+     GetConsoleMode (hnd, &mode);
+
+  env = getenv ("COMSPEC");
+  if (env)
+  {
+    env = strrchr (env, '\\');
+    is_cmd = (stricmp(env,"\\cmd.exe") == 0);
+    if (cmd_only && !is_cmd)
+       value = 0;
+  }
+
+  if (value && hnd != INVALID_HANDLE_VALUE &&
+      (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING))
+     SetConsoleMode (hnd, mode | DISABLE_NEWLINE_AUTO_RETURN);
+
+  return (is_cmd && value != 0);
 }
 
 /**
@@ -344,7 +382,7 @@ static int C_init (void)
             GetFileType(console_hnd) == FILE_TYPE_CHAR);
 
 #if defined(__CYGWIN__)
-     if (!okay) /* Use ANSI-colours even if stdout is redirected */
+     if (!okay)     /* Use ANSI-colours even if stdout is redirected */
      {
        console_info.srWindow.Right = 100;
        console_info.srWindow.Left  = 0;
@@ -377,6 +415,8 @@ static int C_init (void)
       C_use_ansi_colours = 1;
 #endif
       if (C_conemu_detected())
+         C_use_ansi_colours = 1;
+      else if (C_virtual_terminal_detected(1))
          C_use_ansi_colours = 1;
     }
 
