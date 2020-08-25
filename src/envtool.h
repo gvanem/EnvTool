@@ -379,6 +379,13 @@ typedef struct beep_info {
         unsigned  msec;
       } beep_info;
 
+typedef struct grep_info {
+        const char *content;       /**< The file-content to search for in `report_grep_file()`. */
+        DWORD       num_matches;   /**< The total number of matches found in all files. */
+        DWORD       max_matches;   /**< The maximum number of matches to print for each file. */
+        DWORD       binary_files;  /**< The number of files detected as binary files. */
+      } grep_info;
+
 /** struct prog_options
  *
  * All vital program options are set here.
@@ -447,6 +454,7 @@ struct prog_options {
        command_line    cmd_line;
        void           *cfg_file;          /**< The config-file structure returned by `cfg_init()`. */
        ULONGLONG       shadow_dtime;      /**< The files delta-time to ignore in `is_shadow_candidate()`. */
+       grep_info       grep;
      };
 
 extern struct prog_options opt;

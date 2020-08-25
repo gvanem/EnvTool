@@ -359,6 +359,7 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
     else
     {
       r.file        = full_name;
+      r.content     = NULL;      /* cannot read a remote file (yet) */
       r.mtime       = ctx->mtime;
       r.fsize       = ctx->fsize;
       r.is_dir      = is_dir;

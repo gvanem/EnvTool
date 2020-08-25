@@ -12,6 +12,7 @@ struct report {
        BOOL        is_junction;
        HKEY        key;
        const char *filler;
+       const char *content;
        int       (*pre_action) (struct report *r);
        int       (*post_action) (struct report *r);
      };
@@ -21,10 +22,11 @@ extern DWORD num_verified;
 extern DWORD num_evry_dups;
 extern DWORD num_evry_ignored;
 
-extern int  report_file (struct report *r);
-extern int  report_file2 (struct report *r);
-extern void report_header_print (void);
-extern void report_header_set (const char *fmt, ...);
-extern void report_final (int found);
+extern int   report_file (struct report *r);
+extern int   report_file2 (struct report *r);
+extern void  report_header_print (void);
+extern void  report_header_set (const char *fmt, ...);
+extern DWORD report_grep_file (const char *file, const char *content);
+extern void  report_final (int found);
 
 #endif

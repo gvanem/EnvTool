@@ -516,6 +516,7 @@ static int show_help (void)
 
   C_puts ("  ~6[options]~0\n"
           "    ~6--descr~0        show 4NT/TCC file-description.\n"
+          "    ~6--grep~0=~3content~0 search found file(s) for ~3content~0 also.\n"
           "    ~6--no-gcc~0       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
           "    ~6--no-g++~0       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
           "    ~6--no-prefix~0    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs.    ~2[2]~0\n"
@@ -543,7 +544,7 @@ static int show_help (void)
           "    ~6-c~0             be case-sensitive.\n"
           "    ~6-d~0, ~6--debug~0    set debug level (level 2, ~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
           "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n"
-          "    ~6-k~0, ~6--keep~0     keep temporary files.\n");
+          "    ~6-k~0, ~6--keep~0     keep temporary files used in ~6--python~0 mode.\n");
 
   C_printf ("    ~6-r~0, ~6--regex~0    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
             "    ~6-s~0, ~6--size~0     show size of files or directories found.\n"
@@ -610,6 +611,7 @@ static int show_help (void)
 
   C_puts ("\n"
           "  Notes:\n"
+          "    Option ~6-c~0 applies both to the ~6<file-spec>~0 and the ~6--grep=content~0.\n"
           "    ~6<file-spec>~0 accepts Posix ranges. E.g. \"~6[a-f]*.txt~0\".\n"
           "    ~6<file-spec>~0 matches both files and directories. If ~6-D~0/~6--dir~0 is used, only\n"
           "                matching directories are reported.\n"
@@ -1487,6 +1489,7 @@ static int report_registry (const char *reg_key)
 
         snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
         r.file        = fqfn;
+        r.content     = NULL;
         r.mtime       = arr->mtime;
         r.fsize       = arr->fsize;
         r.is_dir      = FALSE;
@@ -1656,6 +1659,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
         struct report r;
 
         r.file        = fqfn;
+        r.content     = opt.grep.content;
         r.mtime       = st.st_mtime;
         r.fsize       = st.st_size;
         r.is_dir      = is_dir;
@@ -1714,6 +1718,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
       struct report r;
 
       r.file        = file;
+      r.content     = opt.grep.content;
       r.mtime       = st.st_mtime;
       r.fsize       = st.st_size;
       r.is_dir      = is_dir;
@@ -1848,7 +1853,7 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  *
  * \endparblock
  */
-static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL *is_shadow)
+static int report_evry_file (const char *file, const char *content, time_t mtime, UINT64 fsize, BOOL *is_shadow)
 {
   struct stat   st;
   struct report r;
@@ -1894,6 +1899,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
   }
 
   r.file        = file;
+  r.content     = content ? content : opt.grep.content;
   r.mtime       = mtime;
   r.fsize       = is_dir ? (__int64)-1 : fsize;
   r.is_dir      = is_dir;
@@ -1956,6 +1962,7 @@ static int do_check_evry (void)
   char  *query = query_buf;
   char  *dir   = NULL;
   char  *base  = NULL;
+  char  *content;
   int    len, found = 0;
   HWND   wnd;
   struct ver_info evry_ver = { 0, 0, 0, 0 };
@@ -1982,7 +1989,10 @@ static int do_check_evry (void)
           evry_ver.val_4);
 
   if (opt.evry_raw)
-     query = evry_raw_query();
+  {
+    query = evry_raw_query();
+    len = strlen (query);
+  }
   else
   {
     /* EveryThing seems not to support `\\`. Must split the `opt.file_spec`
@@ -1998,7 +2008,7 @@ static int do_check_evry (void)
      */
     if (opt.dir_mode && !opt.use_regex)
     {
-      snprintf (query_buf, sizeof(query_buf), "regex:\"^%s$\" folder:", translate_shell_pattern(opt.file_spec));
+      len = snprintf (query_buf, sizeof(query_buf), "regex:\"^%s$\" folder:", translate_shell_pattern(opt.file_spec));
       DEBUGF (2, "Simple directory mode: '%s'\n", query_buf);
     }
     else
@@ -2007,7 +2017,7 @@ static int do_check_evry (void)
       {
         len = snprintf (query_buf, sizeof(query_buf), "regex:\"%s\"", opt.file_spec);
         if (opt.dir_mode)
-           snprintf (query_buf+len, sizeof(query_buf)-len, " folder:");
+           len += snprintf (query_buf+len, sizeof(query_buf)-len, " folder:");
       }
       else if (dir)
       {
@@ -2021,10 +2031,13 @@ static int do_check_evry (void)
         len = snprintf (query_buf, sizeof(query_buf), "regex:^%s$", translate_shell_pattern(opt.file_spec));
     }
 
-#if 0   /* \todo Query contents with option "--grep" */
-    if (opt.evry_grep && len > 0)
-       snprintf (query_buf+len, sizeof(query_buf)-len, "content: %s", opt.evry_grep);
-#endif
+    /* Query contents with "--grep content"
+     */
+    if (opt.grep.content && len > 0)
+    {
+      DEBUGF (1, "opt.grep.content: '%s'\n", opt.grep.content);
+      // snprintf (query_buf+len, sizeof(query_buf)-len, "content: %s", opt.grep.content);
+    }
 
     FREE (dir);
   }
@@ -2131,6 +2144,10 @@ static int do_check_evry (void)
     return (0);
   }
 
+  content = strstr (query," content:");
+  if (content && strlen(content) > strlen(" content:"))
+     content += strlen (" content:");
+
   /* Sort results by path (ignore case).
    * This will fail if `request_flags` has either `EVERYTHING_REQUEST_SIZE`
    * or `EVERYTHING_REQUEST_DATE_MODIFIED` since version 2 of the query protocol
@@ -2236,7 +2253,7 @@ static int do_check_evry (void)
     {
       if (!opt.dir_mode && prev[0] && !strcmp(prev, file))
          num_evry_dups++;
-      else if (report_evry_file(file, mtime, fsize, &is_shadow))
+      else if (report_evry_file(file, content, mtime, fsize, &is_shadow))
          found++;
       if (!is_shadow)
          _strlcpy (prev, file, sizeof(prev));
@@ -4118,7 +4135,8 @@ static const struct option long_options[] = {
            { "vcpkg",       optional_argument, NULL, 0 },    /* 39 */
            { "descr",       no_argument,       NULL, 0 },
            { "keep",        no_argument,       NULL, 0 },    /* 41 */
-           { NULL,          no_argument,       NULL, 0 }
+           { "grep",        required_argument, NULL, 0 },
+           { NULL,          no_argument,       NULL, 0 }     /* 43 */
          };
 
 static int *values_tab[] = {
@@ -4398,6 +4416,12 @@ static void set_long_option (int o, const char *arg)
     return;
   }
 
+  if (!strcmp("grep",long_options[o].name))
+  {
+    opt.grep.content = STRDUP (arg);
+    return;
+  }
+
   if (arg)
   {
     if (!strcmp("python",long_options[o].name))
@@ -4532,6 +4556,7 @@ static void MS_CDECL cleanup (void)
   FREE (user_env_lib);
   FREE (user_env_inc);
   FREE (opt.file_spec);
+  FREE (opt.grep.content);
 
   free_all_compilers();
 
@@ -4699,6 +4724,15 @@ static void cfg_ETP_handler (const char *key, const char *value)
 }
 
 /**
+ * The config-file handler for "grep.*" key/value pairs.
+ */
+static void cfg_grep_handler (const char *key, const char *value)
+{
+  if (!stricmp(key,"max_matches"))
+     opt.grep.max_matches = atoi (value);
+}
+
+/**
  * The config-file handler for key/value pairs in the "[Shadow]" section.
  */
 static void shadow_ignore_handler (const char *section, const char *key, const char *value)
@@ -4737,6 +4771,11 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
   {
     DEBUGF (2, "%s: Calling 'cfg_ETP_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
     cfg_ETP_handler (key+4, value);
+  }
+  else if (!strnicmp(key,"grep.",5))
+  {
+    DEBUGF (2, "%s: Calling 'cfg_grep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
+    cfg_grep_handler (key+5, value);
   }
 }
 
@@ -5802,3 +5841,6 @@ static void print_build_ldflags (void)
 #endif
 }
 
+// \todo foo bar \todo foo bar
+
+// \todo foo bar

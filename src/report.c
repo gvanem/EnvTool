@@ -33,6 +33,181 @@ DWORD num_verified = 0;
 DWORD num_evry_dups = 0;
 DWORD num_evry_ignored = 0;
 
+static const char *mmap_max;
+static BOOL        first_match = FALSE;
+
+/**
+ * Print a chunk of a match-line. Replace a `<TAB>` with 2 spaces.
+ * Stop printing:
+ *  * when `max_len` character printed.
+ *  * or when a newline is found.
+ *  * or `p` pointer reached beyond `mmap_max`.
+ */
+static size_t print_chunk (const char *str, size_t max_len)
+{
+  const char *p = str;
+  size_t      len = 0;
+  int         raw = C_setraw (1);
+
+  for (p = str; *p != '\r' && *p != '\n' && len < max_len && p < mmap_max; len++, p++)
+  {
+    if (*p == '\t')
+         C_puts ("  ");
+    else C_putc (*p);
+  }
+  C_setraw (raw);
+  return (len);
+}
+
+/**
+ * Print a match as a "grep --line-number 'content' file" would do:
+ *   2: * 'content' rest of line.
+ *   ^     ^
+ *   |     |__ match in hightlighted colour
+ *   |________ line_num in hightlighted colour
+ *
+ * \todo If these are > 1 matches on the same line, remember the previous
+ *       output (using a `FMT_BUF`), and merge current result with the previous.
+ *
+ * \todo Add a configurable `before-context` and `after-context`. Similar to grep.
+ */
+static void print_match (DWORD line_num, const char *line, const char *match, size_t match_len, size_t line_max)
+{
+  const char *rest, *indent = "        ";
+  size_t      len, rest_max;
+
+  if (first_match)
+     C_putc ('\n');
+  first_match = FALSE;
+
+  len = C_printf ("%s~2%lu:~0 ", indent, line_num);
+  len += print_chunk (line, match - line);
+
+  C_puts ("~6");
+  len += print_chunk (match, match_len);
+  C_puts ("~0");
+
+  rest = match + match_len;
+  rest_max = C_screen_width() - 1 - len;
+  rest_max = min (line_max, rest_max);
+  print_chunk (rest, rest_max);
+  C_putc ('\n');
+}
+
+/**
+ * Open a `file` in memory-mapped mode and search for `content`.
+ * The search is case-sensitive if `opt.case_sensitive == TRUE`.
+ *
+ * \param[in] file     the file to search.
+ * \param[in] content  the content in `file` to search for.
+ * \retval The number of matches found in `file`.
+ */
+DWORD report_grep_file (const char *file, const char *content)
+{
+  HANDLE        hnd_file, mmap_file;
+  LARGE_INTEGER fsize;
+  const char   *mmap_buf, *p;
+  const char   *line_start, *line_end, *match;
+  DWORD         matches = 0, line_num = 1;
+  size_t        match_len = strlen (content);
+
+  if (opt.debug >= 1)
+      C_putc ('\n');
+
+  hnd_file = CreateFile (file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (hnd_file == INVALID_HANDLE_VALUE)
+  {
+    DEBUGF (1, "Could not open file: %s.\n", win_strerror(GetLastError()));
+    return (0);
+  }
+
+  if (!GetFileSizeEx(hnd_file,&fsize))
+  {
+    DEBUGF (1, "Could not get file-size: %s.\n", win_strerror(GetLastError()));
+    CloseHandle (hnd_file);
+    return (0);
+  }
+
+  mmap_file = CreateFileMapping (hnd_file, NULL, PAGE_READONLY, 0, 0, NULL);
+  if (!mmap_file)
+  {
+    DEBUGF (1, "CreateFileMapping() failed: %s.\n", win_strerror(GetLastError()));
+    CloseHandle (hnd_file);
+    return (0);
+  }
+
+  mmap_buf = MapViewOfFile (mmap_file, FILE_MAP_READ, 0, 0, 0);
+  if (!mmap_buf)
+  {
+    DEBUGF (1, "MapViewOfFile() failed: %s.\n", win_strerror(GetLastError()));
+    CloseHandle (hnd_file);
+    CloseHandle (mmap_file);
+    return (0);
+  }
+
+  mmap_max = mmap_buf + ((UINT64)fsize.HighPart << 32) + fsize.LowPart;
+  DEBUGF (1, "view range: 0x%p - 0x%p. fsize: %" U64_FMT " bytes.\n",
+          mmap_buf, mmap_max-1, ((UINT64)fsize.HighPart << 32) + fsize.LowPart);
+
+  /* Detect and ignore files with binary content
+   */
+  p = mmap_max;
+  if (p > mmap_buf + 100)
+     p = mmap_buf + 100;
+  if (memchr(mmap_buf, '\0', p - mmap_buf))
+  {
+    DEBUGF (1, "Ignoring binary file %s.\n", file);
+    opt.grep.binary_files++;
+    goto quit;
+  }
+
+  match = line_end = NULL;
+  first_match = TRUE;
+
+  for (p = line_start = mmap_buf; p < mmap_max; p++)
+  {
+    if (p[0] == '\r' && p[1] == '\n')
+    {
+      line_start = ++p + 1;  /* MSDOS terminated file */
+      line_num++;
+    }
+    else if (p[0] == '\n')
+    {
+      line_start = p + 1;    /* Unix terminated file */
+      line_num++;
+    }
+    else if (str_equal_n(p, content, match_len))
+    {
+      DEBUGF (1, "Found at line: %lu, ofs: %zu -> '%.*s'\n",
+              line_num, (size_t)(p - mmap_buf), (int)match_len, p);
+      match = p;
+      p += match_len;
+      line_end = memchr (p, '\r', mmap_max - p);
+      if (!line_end)
+         line_end = memchr (p, '\n', mmap_max - p);
+      if (!line_end)
+         line_end = mmap_max;
+    }
+    if (match)
+    {
+      print_match (line_num, line_start, match, match_len, line_end - line_start);
+      match = NULL;
+      opt.grep.num_matches++;
+      if (++matches >= opt.grep.max_matches && opt.grep.max_matches)
+      {
+        C_puts ("        ...\n");
+        break;
+      }
+    }
+  }
+
+quit:
+  UnmapViewOfFile (mmap_buf);
+  CloseHandle (hnd_file);
+  CloseHandle (mmap_file);
+  return (matches);
+}
+
 /**
   Use this as an indication that the EveryThing database is not up-to-date with
  * the reality; files have been deleted after the database was last updated.
@@ -70,7 +245,9 @@ void incr_total_size (UINT64 size)
  */
 int report_file (struct report *r)
 {
-  const char *note   = NULL;
+  const char *note = NULL;
+  const char *link = NULL;
+  const char *ext  = NULL;
   const char *description;
   char        size [40] = "?";
   int         len;
@@ -175,8 +352,7 @@ int report_file (struct report *r)
 
   if (show_pc_files_only)
   {
-    const char *ext = get_file_ext (r->file);
-
+    ext = get_file_ext (r->file);
     if (stricmp(ext,"pc"))
     {
       show_this_file = FALSE;
@@ -304,14 +480,11 @@ int report_file (struct report *r)
 
   if (!r->is_dir && r->key == HKEY_MAN_FILE)
   {
-    const char *link = get_man_link (r->file);
-    const char *ext  = get_file_ext (r->file);
-
+    ext  = get_file_ext (r->file);
+    link = get_man_link (r->file);
 #if 0
     if (!link && !isdigit((int)*ext))
        link = get_gzip_link (r->file);
-#else
-    ARGSUSED (ext);
 #endif
 
     if (link)
@@ -357,6 +530,9 @@ int report_file (struct report *r)
     C_puts (fmt_buf_trust_info.buffer_start);
     print_PE_file_details (r->filler);
   }
+
+  if (r->content)
+     report_grep_file (link ? link : r->file, r->content);
 
   if (r->key == HKEY_PKG_CONFIG_FILE && opt.verbose > 0)
      pkg_config_get_details (r->file, r->filler);
@@ -657,12 +833,23 @@ void report_final (int found)
      snprintf (ignored, sizeof(ignored), " (%lu ignored)",
                (unsigned long)num_evry_ignored);
 
-  C_printf ("%s match%s found for \"%s\"%s%s.",
-            dword_str((DWORD)found), (found == 0 || found > 1) ? "es" : "", opt.file_spec, duplicates, ignored);
+  C_printf ("%s %s found for \"%s\"%s%s.",
+            dword_str((DWORD)found),
+            plural_str(found, "match", "matches"),
+            opt.file_spec, duplicates, ignored);
 
   if (opt.show_size && total_size > 0)
      C_printf (" Totalling %s (%s bytes). ",
-               str_trim((char*)get_file_size_str(total_size)), qword_str(total_size));
+               str_trim((char*)get_file_size_str(total_size)),
+               qword_str(total_size));
+
+  if (opt.grep.content)
+  {
+    C_printf (" With %s %s for the \"--grep\" content. (%lu binary files). ",
+              qword_str(opt.grep.num_matches),
+              plural_str(opt.grep.num_matches, "match", "matches"),
+              opt.grep.binary_files);
+  }
 
   if (opt.evry_host)
   {
@@ -674,8 +861,7 @@ void report_final (int found)
     C_printf (" %lu have PE-version info.", (unsigned long)num_version_ok);
 
     if (opt.signed_status != SIGN_CHECK_NONE)
-       C_printf (" %lu %s verified.",
-                 (unsigned long)num_verified, plural_str(num_verified,"is","are"));
+       C_printf (" %lu %s verified.", (unsigned long)num_verified, plural_str(num_verified, "is", "are"));
   }
   C_putc ('\n');
 }
