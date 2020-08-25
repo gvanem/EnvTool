@@ -3015,7 +3015,7 @@ static void gnu_add_gpp_path (void)
 static int setup_gcc_includes (const compiler_info *cc)
 {
   const char *gcc = cc->full_name;
-  int   found = 0;
+  int   duplicates, found = 0;
 
   if (!gcc)
   {
@@ -3046,6 +3046,10 @@ static int setup_gcc_includes (const compiler_info *cc)
   }
   else
     gnu_popen_warn (gcc, found);
+
+  duplicates = dir_array_make_unique ("C_INCLUDE_PATH");
+  if (duplicates > 0)
+     DEBUGF (1, "found %d duplicates in `%%C_INCLUDE_PATH%%` for %s.\n", duplicates, gcc);
 
   return put_inc_dirs_to_cache (cc);
 }
@@ -3995,10 +3999,13 @@ static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
   char         bcc_cfg [_MAX_PATH];
 
   bcc_root = strlwr (STRDUP(cc->full_name));
-  bin_dir =  strrchr (bcc_root, '\\');
-  *bin_dir = '\0';
-  bin_dir =  strrchr (bcc_root, '\\');
-  *bin_dir = '\0';
+  bin_dir = strrchr (bcc_root, '\\');
+  if (bin_dir)
+     *bin_dir = '\0';
+
+  bin_dir = strrchr (bcc_root, '\\');
+  if (bin_dir)
+     *bin_dir = '\0';
 
   DEBUGF (2, "bcc_root: %s, short_name: %s\n", bcc_root, cc->short_name);
 
@@ -4181,7 +4188,8 @@ static int *values_tab[] = {
             (int*)1,                  /* Since option '-S' is handled specially. This address is not used. */
             &opt.do_vcpkg,            /* 39 */
             &opt.show_descr,
-            &opt.keep_temp            /* 41 */
+            &opt.keep_temp,           /* 41 */
+            (int*)&opt.grep.content
           };
 
 /**
