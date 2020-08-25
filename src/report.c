@@ -531,7 +531,7 @@ int report_file (struct report *r)
     print_PE_file_details (r->filler);
   }
 
-  if (r->content)
+  if (r->content && !r->is_dir)
      report_grep_file (link ? link : r->file, r->content);
 
   if (r->key == HKEY_PKG_CONFIG_FILE && opt.verbose > 0)
