@@ -4510,10 +4510,10 @@ static int eval_options (void)
 
   C_no_ansi = opt.no_ansi;
 
-  /* Use ANSI-sequences under ConEmu or if "%COLOUR_TRACE >= 2".
+  /* Use ANSI-sequences under ConEmu, AppVeyor or if "%COLOUR_TRACE >= 2".
    * Nullifies the "--no-ansi" option.
    */
-  if (opt.under_conemu || C_trace_level() >= 2)
+  if (opt.under_conemu || opt.under_appveyor || C_trace_level() >= 2)
      C_use_ansi_colours = 1;
 
   if (opt.no_colours)
@@ -5841,6 +5841,3 @@ static void print_build_ldflags (void)
 #endif
 }
 
-// \todo foo bar \todo foo bar
-
-// \todo foo bar
