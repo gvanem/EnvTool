@@ -1661,7 +1661,7 @@ static int report_zip_file (const char *zip_file, char *output)
    *        we should save the .pyd to a `%TEMP`-file and examine it in `report_file()`.
    */
   r.file        = report;
-  r.content     = NULL;
+  r.content     = opt.grep.content;
   r.mtime       = mtime;
   r.fsize       = fsize;
   r.is_dir      = FALSE;
