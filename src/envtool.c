@@ -1489,7 +1489,7 @@ static int report_registry (const char *reg_key)
 
         snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
         r.file        = fqfn;
-        r.content     = NULL;
+        r.content     = opt.grep.content;
         r.mtime       = arr->mtime;
         r.fsize       = arr->fsize;
         r.is_dir      = FALSE;
