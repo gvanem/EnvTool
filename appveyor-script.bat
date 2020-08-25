@@ -40,6 +40,7 @@ exit /b 1
   set NoDefaultCurrentDirectoryInExePath=1
   set COLUMNS=120
   set APPDATA=%APPVEYOR_BUILD_FOLDER%
+  set INCLUDE=%INCLUDE%;c:\Python34\include
 
   cd %APPDATA%
   call :create_auth_files
@@ -50,6 +51,10 @@ exit /b 1
 
   @echo Testing version output
   .\envtool -VVV
+
+  @echo.
+  @echo Testing grep search and --inc mode
+  .\envtool --inc --grep _Py_str pys*.h
 
   @echo.
   @echo Testing test output (show owner in test_PE_wintrust())
