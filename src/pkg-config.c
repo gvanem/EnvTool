@@ -18,7 +18,7 @@ static char           *pkgconfig_exe = NULL;
  */
 struct pkgconfig_dir {
        char  path [_MAX_PATH];
-       BOOL  from_reg;
+       HKEY  top_key;
        BOOL  exist;
        BOOL  is_dir;
        BOOL  exp_ok;
@@ -314,7 +314,7 @@ static void merge_directories (smartlist_t *dir, smartlist_t *reg)
 
     pkdir = CALLOC (sizeof(*pkdir), 1);
     _strlcpy (pkdir->path, arr->dir, sizeof(pkdir->path));
-    pkdir->from_reg = FALSE;
+    pkdir->top_key = NULL;
     pkdir->exist    = arr->exist;
     pkdir->is_dir   = arr->is_dir;
     pkdir->exp_ok   = arr->exp_ok;
@@ -344,10 +344,10 @@ static void merge_directories (smartlist_t *dir, smartlist_t *reg)
 
     pkdir = CALLOC (sizeof(*pkdir), 1);
     _strlcpy (pkdir->path, arr1->fname, sizeof(pkdir->path));
-    pkdir->from_reg = TRUE;
-    pkdir->exist    = arr1->exist;
-    pkdir->is_dir   = arr1->exist;
-    pkdir->exp_ok   = TRUE;
+    pkdir->top_key = arr1->key;
+    pkdir->exist   = arr1->exist;
+    pkdir->is_dir  = arr1->exist;
+    pkdir->exp_ok  = TRUE;
     smartlist_add (pkgconfig_dirs, pkdir);
   }
 }
@@ -415,10 +415,21 @@ int pkg_config_search (const char *search_spec)
   for (i = 0; i < max; i++)
   {
     struct pkgconfig_dir *dir = smartlist_get (pkgconfig_dirs, i);
+    char   prefix [30];
 
-    DEBUGF (2, "Checking in %s dir '%s'\n", dir->from_reg ? "Registry" : "environment", dir->path);
+    DEBUGF (2, "Checking in %s dir '%s'\n", dir->top_key ? "Registry" : "environment", dir->path);
+
+    if (dir->top_key == HKEY_CURRENT_USER)
+       snprintf (prefix, sizeof(prefix), "[HKCU\\%s]", REG_KEY);
+    else if (dir->top_key == HKEY_LOCAL_MACHINE)
+       snprintf (prefix, sizeof(prefix), "[HKLM\\%s]", REG_KEY);
+    else if (dir->top_key == NULL)
+       _strlcpy (prefix, ENV_NAME, sizeof(prefix));
+    else
+       _strlcpy (prefix, "PkgConfig?", sizeof(prefix));
+
     num = process_dir (dir->path, 0, dir->exist, TRUE, dir->is_dir, dir->exp_ok,
-                       ENV_NAME, HKEY_PKG_CONFIG_FILE, FALSE);
+                       prefix, HKEY_PKG_CONFIG_FILE, FALSE);
     if (dir->num_dup == 0 && prev_num > 0 && num > 0)
        do_warn = TRUE;
     found += num;
