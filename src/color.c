@@ -100,6 +100,14 @@ extern int         is_cygwin_tty (int fd);
 #define STDOUT_FILENO  1
 #endif
 
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
+
+#ifndef DISABLE_NEWLINE_AUTO_RETURN
+#define DISABLE_NEWLINE_AUTO_RETURN 0x0008
+#endif
+
 /**
  * The app using color.c must set to \b 1 prior to
  * calling the below C_printf() or C_puts() functions.
@@ -215,10 +223,6 @@ int C_virtual_terminal_detected (int cmd_only)
   DWORD  value = 0;
   DWORD  mode = 0;
   HANDLE hnd = INVALID_HANDLE_VALUE;
-
-  #ifndef DISABLE_NEWLINE_AUTO_RETURN
-  #define DISABLE_NEWLINE_AUTO_RETURN 0x0008
-  #endif
 
   hnd = GetStdHandle (STD_OUTPUT_HANDLE);
   if (hnd != INVALID_HANDLE_VALUE)
