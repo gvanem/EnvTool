@@ -55,9 +55,7 @@ exit /b 1
 
   @echo.
   @echo Testing grep search and --inc mode
-  @set COLOUR_TRACE=2
   .\envtool --inc --no-gcc --no-g++ --no-clang --grep PyOS_ pys*.h
-  @set COLOUR_TRACE=
 
   @echo.
   @echo Testing test output (show owner in test_PE_wintrust())
