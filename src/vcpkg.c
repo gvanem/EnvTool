@@ -755,7 +755,7 @@ static void make_depend_platform (vcpkg_package *dep, char *platform, BOOL recur
  * Split a line like "x86-windows" and (on the first call, do it recursively)
  * return the `VCPKG_platform_x` value for it.
  */
-static enum VCPKG_platform make_package_platform (char *platform, BOOL recurse)
+static enum VCPKG_platform make_package_platform (const char *platform, BOOL recurse)
 {
   VCPKG_platform ret = 0;
   unsigned       val = list_lookup_value (platform, platforms, DIM(platforms));
@@ -765,13 +765,15 @@ static enum VCPKG_platform make_package_platform (char *platform, BOOL recurse)
 
   if (recurse)
   {
-    char *tok_end, *tok = _strtok_r (platform, "-", &tok_end);
+    char *tok_end, *tok, *copy = STRDUP (platform);
 
+    tok = _strtok_r (copy, "-", &tok_end);
     while (tok)
     {
       ret |= make_package_platform (tok, FALSE);
       tok = _strtok_r (NULL, "-", &tok_end);
     }
+    FREE (copy);
   }
   return (ret);
 }
@@ -1788,7 +1790,7 @@ static void put_all_to_cache (void)
          cache_putf (SECTION_VCPKG, "port_node_%d = %s,%s,%s,%d,\"%s\"",
                      i, node->package, node->version,
                      node->homepage, node->have_CONTROL, node->description);
-    else cache_putf (SECTION_VCPKG, "ports_cmake_%d = %s",
+    else cache_putf (SECTION_VCPKG, "port_cmake_%d = %s",    /* not used yet */
                      i, node->package);
 
     if (node->deps)
@@ -1964,7 +1966,7 @@ void vcpkg_init (void)
    * `<vcpkg_root>/packages/`
    *
    * and figure out which belongs to the
-   * `<vcpkg_root>/installed/`  i.e. the `installed_packeges` list.
+   * `<vcpkg_root>/installed/`  i.e. the `installed_packages` list.
    *
    * directory. Some packages may have been orpaned.
    */
@@ -2203,6 +2205,25 @@ static void print_package_info (const vcpkg_package *pkg, FMT_buf *fmt_buf, int 
 }
 
 /**
+ * Print a brief list of installed packages.
+ *
+ * Only print the package description similar to `pkg_config_list_installed()`.
+ */
+static void print_package_brief (const vcpkg_package *pkg, FMT_buf *fmt_buf, int indent)
+{
+  port_node *node;
+  int  i = 0;
+
+  if (get_control_node(&i, &node, pkg->package))
+  {
+    indent += buf_printf (fmt_buf, "%s ", pkg->arch);
+    buf_puts_long_line (fmt_buf, node->description ? node->description : "<none>", indent);
+  }
+  else
+    buf_puts (fmt_buf, "No node\n");
+}
+
+/**
  * Parser for a single `*.list` file for a specific package.
  * Add wanted `char *` elements to this smartlist as we parse the file.
  */
@@ -2252,9 +2273,12 @@ static BOOL get_installed_info (vcpkg_package *pkg)
     DEBUGF (2, "Package '%s' is not installed; no '%s'.\n", pkg->package, file);
     return (FALSE);
   }
+
   DEBUGF (2, "Getting package information from '%s'.\n", file);
   wanted_arch = pkg->arch;
+
   pkg->install_info = smartlist_read_file (file, (smartlist_parse_func)info_parse);
+  pkg->platform = make_package_platform (pkg->arch, TRUE);
   return (pkg->install_info != NULL);
 }
 
@@ -2263,7 +2287,7 @@ static BOOL get_installed_info (vcpkg_package *pkg)
  *
  * \note Only called from `show_version()` in envtool.c.
  */
-unsigned vcpkg_list_installed (void)
+unsigned vcpkg_list_installed (BOOL detailed)
 {
   const char *only = "";
   const char *last = "";
@@ -2307,7 +2331,10 @@ unsigned vcpkg_list_installed (void)
     }
     indent = buf_printf (&fmt_buf, "    %-25s", pkg->package);
 
-    print_package_info (pkg, &fmt_buf, indent);
+    if (detailed)
+         print_package_info (pkg, &fmt_buf, indent);
+    else print_package_brief (pkg, &fmt_buf, indent);
+
     last = pkg->package;
   }
 

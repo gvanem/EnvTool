@@ -11,7 +11,7 @@ extern unsigned    vcpkg_get_num_CONTROLS (void);
 extern unsigned    vcpkg_get_num_portfile (void);
 extern unsigned    vcpkg_get_num_built (void);
 extern unsigned    vcpkg_get_num_installed (void);
-extern unsigned    vcpkg_list_installed (void);
+extern unsigned    vcpkg_list_installed (BOOL detailed);
 extern unsigned    vcpkg_find (const char *package_spec);
 extern BOOL        vcpkg_get_only_installed (void);
 extern BOOL        vcpkg_set_only_installed (BOOL True);

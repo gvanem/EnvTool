@@ -455,7 +455,7 @@ static int show_version (void)
     num = pkg_config_list_installed();
     DEBUGF (2, "pkg_config_list_installed(): %u.\n", num);
 
-    num = vcpkg_list_installed();
+    num = vcpkg_list_installed (opt.verbose >= 1);
     DEBUGF (2, "vcpkg_list_installed(): %u.\n", num);
   }
   return (0);
