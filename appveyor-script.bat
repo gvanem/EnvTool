@@ -41,6 +41,7 @@ exit /b 1
   set COLUMNS=120
   set APPDATA=%APPVEYOR_BUILD_FOLDER%
   set INCLUDE=%INCLUDE%;c:\Python34\include
+  set VCPKG_ROOT=c:\Tools\vcpkg
 
   cd %APPDATA%
   call :create_auth_files
@@ -54,7 +55,9 @@ exit /b 1
 
   @echo.
   @echo Testing grep search and --inc mode
+  @set COLOUR_TRACE=2
   .\envtool --inc --no-gcc --no-g++ --no-clang --grep PyOS_ pys*.h
+  @set COLOUR_TRACE=
 
   @echo.
   @echo Testing test output (show owner in test_PE_wintrust())
@@ -70,7 +73,7 @@ exit /b 1
 
   @echo.
   @echo Testing VCPKG output
-  .\envtool --vcpkg azure-u*
+  .\envtool --vcpkg=all azure-u*
 
   @echo.
   @echo Testing ETP-searches (should fail)
