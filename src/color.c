@@ -20,6 +20,7 @@
  * + 5: bright red foreground.
  * + 6: bright white foreground.
  * + 7: dark cyan foreground.
+ * + 8: white on bright red background (not yet).
  *
  * by G. Vanem <gvanem@yahoo.no> 2011.
  */
