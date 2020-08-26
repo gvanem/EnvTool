@@ -54,7 +54,7 @@ exit /b 1
 
   @echo.
   @echo Testing grep search and --inc mode
-  .\envtool --inc --no-gcc --no-g++ --grep PyOS_ pys*.h
+  .\envtool --inc --no-gcc --no-g++ --no-clang --grep PyOS_ pys*.h
 
   @echo.
   @echo Testing test output (show owner in test_PE_wintrust())
