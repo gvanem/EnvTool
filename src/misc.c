@@ -31,9 +31,7 @@
 #if defined(__CYGWIN__)
   #include <cygwin/version.h>
   #include <pwd.h>
-#endif
-
-#if defined(__MINGW32__) || defined(__CYGWIN__)
+#elif defined(__MINGW32__)
   #include <sec_api/string_s.h>
 #endif
 
@@ -2045,6 +2043,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
  * Create a `%TEMP%-file`.
  * \return An allocated string of the file-name.
  *         Caller must call `FREE()` on it after use.
+ *         For Cygwin, the returned file-name is on Windows form.
  */
 char *create_temp_file (void)
 {
@@ -2058,7 +2057,16 @@ char *create_temp_file (void)
 
   if (tmp)
   {
-    char *t = STRDUP (tmp);
+    char *t;
+#ifdef __CYGWIN__
+    char tmp_conv [_MAX_PATH];
+
+    if (cygwin_conv_path (CCP_POSIX_TO_WIN_A, tmp, tmp_conv, sizeof(tmp_conv)))
+       return (NULL);
+    t = STRDUP (tmp_conv);
+#else
+    t = STRDUP (tmp);
+#endif
 
     DEBUGF (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
     free (tmp);     /* Free CRT data */
@@ -4585,7 +4593,7 @@ int is_cygwin_tty (int fd)
   func_NtQueryObject   p_NtQueryObject;
   intptr_t             h_fd;
 
-  /* NtQueryObject needs space for OBJECT_NAME_INFORMATION.Name->Buffer also.
+  /* NtQueryObject needs space for `OBJECT_NAME_INFORMATION.Name->Buffer` also.
    */
   char                      ntfn_bytes [sizeof(OBJECT_NAME_INFORMATION2) + MAX_PATH * sizeof(WCHAR)];
   OBJECT_NAME_INFORMATION2 *ntfn = (OBJECT_NAME_INFORMATION2*) ntfn_bytes;
@@ -4618,7 +4626,7 @@ int is_cygwin_tty (int fd)
 
     /* If it is not NUL (i.e. `\Device\Null`, which would succeed),
      * then normal `isatty()` could be consulted.
-     * */
+     */
     if (_isatty(fd))
        return (1);
     goto no_tty;
@@ -4713,7 +4721,6 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   func_GetCoreTempInfo p_GetCoreTempInfoAlt;
   ULONG   index;
   UINT    i, j;
-  DWORD   last_error = 0UL;
   char    temp_type;
   HMODULE ct_dll = LoadLibraryEx ("GetCoreTempInfo.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 
@@ -4734,7 +4741,6 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   memset (ct_data, '\0', sizeof(*ct_data));
   if (!(*p_GetCoreTempInfoAlt)(ct_data))
   {
-    last_error = GetLastError();
     C_printf ("\"Core Temp\" is not running or shared memory could not be read.\n");
     FreeLibrary (ct_dll);
     return (FALSE);

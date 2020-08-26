@@ -92,6 +92,7 @@
 #include <ctype.h>
 #include <io.h>
 #include <limits.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <windows.h>
 
@@ -120,6 +121,7 @@
 
   #define stricmp(s1, s2)         strcasecmp (s1, s2)
   #define strnicmp(s1, s2, len)   strncasecmp (s1, s2, len)
+  #define _strtoi64(v, end, base) (ULONGLONG) strtoll (v, end, base)
   #define DEV_NULL                "/dev/null"
 
   extern char  *_itoa (int value, char *buf, int radix);
@@ -286,6 +288,14 @@
 #else
   #define S64_FMT "I64d"
   #define U64_FMT "I64u"
+#endif
+
+#ifndef _I64_MIN
+#define _I64_MIN  -9223372036854775806LL
+#endif
+
+#ifndef _I64_MAX
+#define _I64_MAX  9223372036854775807LL
 #endif
 
 /*

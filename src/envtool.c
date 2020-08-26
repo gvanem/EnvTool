@@ -1310,7 +1310,7 @@ static void build_reg_array_app_path (HKEY top_key)
 
   for (num = 0; rc == ERROR_SUCCESS; num++)
   {
-    char  sub_key [512];
+    char  sub_key [700];
     char  fname [512];
     const char *fqfn;
     DWORD size = sizeof(fname);
@@ -1800,7 +1800,7 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
 #if (IS_WIN64 == 0)
   if (str_equal_n(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
   {
-    static char shadow [_MAX_PATH];
+    static char shadow [_MAX_PATH+2];
     struct stat st2;
 
     snprintf (shadow, sizeof(shadow), "%s\\%s", sys_native_dir, file+strlen(sys_dir)+1);
@@ -5540,7 +5540,7 @@ static void check_app_paths (HKEY key)
   for (i = errors = 0; i < max; i++)
   {
     const struct registry_array *arr = smartlist_get (reg_array, i);
-    char  fqfn [_MAX_PATH];
+    char  fqfn [_MAX_PATH+2];
     char  fbuf [_MAX_PATH];
 
     slashify2 (fbuf, arr->path, opt.show_unix_paths ? '/' : '\\');

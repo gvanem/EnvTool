@@ -350,7 +350,7 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
   {
     struct report r;
     static char prev_name [_MAX_PATH];
-    char   full_name [_MAX_PATH];
+    char   full_name [_MAX_PATH+2];
 
     snprintf (full_name, sizeof(full_name), "%s%c%s", ctx->path, DIR_SEP, name);
 

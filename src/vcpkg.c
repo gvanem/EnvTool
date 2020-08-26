@@ -230,7 +230,7 @@ static char *vcpkg_exe;
  * Save last error-text here.
  * (no trailing `".\n"` here).
  */
-static char last_err_str [200];
+static char last_err_str [_MAX_PATH+50];
 
 /**
  * The recursion-level for sub-dependency checking.

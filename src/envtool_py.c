@@ -868,7 +868,7 @@ void py_exit (void)
 static PyObject *setup_stdout_catcher (void)
 {
   static char code[] = "import sys\n"                               \
-                       "PY3 = (sys.version_info[0] == 3)\n"         \
+                       "PY3 = (sys.version_info[0] >= 3)\n"         \
                        "Empty = ['', b''][PY3]\n"                   \
                        "\n"                                         \
                        "class catch_stdout:\n"                      \
@@ -2786,7 +2786,7 @@ void enum_python_in_registry (const char *key_name)
 
   while (rc == ERROR_SUCCESS)
   {
-    char  sub_key [512];
+    char  sub_key [700];
     char  value [512];
     DWORD value_size = sizeof(value);
     char  bitness[3] = { '\0' };

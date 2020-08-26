@@ -160,14 +160,14 @@ static void descr_parse (smartlist_t *sl, const char *buf)
   const char *p = buf;
   int   i;
 
-  for (i = 0; i < sizeof(file)-1 && *p && !isspace(*p); p++)
+  for (i = 0; i < sizeof(file)-1 && *p && !isspace((int)*p); p++)
   {
     if (*p != '"')
        file[i++] = *p;
   }
   file[i] = '\0';
 
-  while (*p && isspace(*p))
+  while (*p && isspace((int)*p))
         p++;
 
   for (i = 0 ; i < sizeof(descr)-1; p++)

@@ -626,7 +626,7 @@ static void test_PE_wintrust (void)
     char  *file = (char*) files[i];
     char  *account_name;
     char  *domain_name;
-    char   path [_MAX_PATH];
+    char   path [_MAX_PATH+2];
     char  *is_sys = strchr (file, '%');
     size_t len;
     DWORD  wintrust_rc;

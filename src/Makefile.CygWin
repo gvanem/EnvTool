@@ -2,17 +2,21 @@
 # EnvTool CygWin (32/64-bit) makefile.
 #
 FORTIFY_SOURCE ?= 0
-USE_DEBUG      ?= 0
+USE_DEBUG      ?= 1
 USE_WS2_32     ?= 0
 
 #
-# This MUST match the Cygwin gcc you have on PATH.
-# I.e. if using CygWin64, this MUST be 1.
-#      if using CygWin32, this MUST be 0.
+# It is assumed you have defined 2 env-vars:
+#  %CYGWIN64_ROOT% for the 64-bit version and a
+#  %CYGWIN32_ROOT% for the 32-bit version.
 #
 USE_64BIT ?= 0
 
-CC = gcc
+ifeq ($(USE_64BIT),1)
+  CC = $(realpath $(CYGWIN64_ROOT))/bin/gcc
+else
+  CC = $(realpath $(CYGWIN32_ROOT))/bin/gcc
+endif
 
 CFLAGS = -Wall -static-libgcc -Wno-strict-aliasing -Wno-missing-braces \
          -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
