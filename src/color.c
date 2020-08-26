@@ -366,75 +366,74 @@ void C_exit (void)
  *  + Set c_out to default `stdout` and setup buffer head and tail.
  *  + Initialise the critical-section structure crit.
  */
-static int C_init (void)
+static void C_init (void)
 {
+  const char *env;
+  BOOL        okay;
+
   if (c_exited)
   {
     fputs ("C_init() called after C_exit()!?\n", stderr);
     c_exited = FALSE;
   }
 
-  if (!c_head || !c_out)
+  if (c_head && c_out)  /* already done this */
+     return;
+
+  c_trace = C_trace_level();
+
+  console_hnd = GetStdHandle (STD_OUTPUT_HANDLE);
+  okay = (console_hnd != INVALID_HANDLE_VALUE &&
+          GetConsoleScreenBufferInfo(console_hnd, &console_info) &&
+          GetFileType(console_hnd) == FILE_TYPE_CHAR);
+
+#if defined(__CYGWIN__)
+   if (!okay)     /* Use ANSI-colours even if stdout is redirected */
+   {
+     console_info.srWindow.Right = 100;
+     console_info.srWindow.Left  = 0;
+     console_info.wAttributes    = 0x1F;   /* Bright white on blue background */
+     c_always_set_bg = TRUE;
+     okay = TRUE;
+   }
+#endif
+
+  if (okay || C_use_ansi_colours > 0) /* force using ANSI colours */
   {
-    const char *env;
-    BOOL        okay;
+    WORD bg = console_info.wAttributes & ~7;
 
-    c_trace = C_trace_level();
-
-    console_hnd = GetStdHandle (STD_OUTPUT_HANDLE);
-    okay = (console_hnd != INVALID_HANDLE_VALUE &&
-            GetConsoleScreenBufferInfo(console_hnd, &console_info) &&
-            GetFileType(console_hnd) == FILE_TYPE_CHAR);
-
-#if defined(__CYGWIN__)
-     if (!okay)     /* Use ANSI-colours even if stdout is redirected */
-     {
-       console_info.srWindow.Right = 100;
-       console_info.srWindow.Left  = 0;
-       console_info.wAttributes    = 0x1F;   /* Bright white on blue background */
-       c_always_set_bg = TRUE;
-       okay = TRUE;
-     }
-#endif
-
-    if (okay)
-    {
-      WORD bg = console_info.wAttributes & ~7;
-
-      c_screen_width = console_info.srWindow.Right - console_info.srWindow.Left + 1;
-      C_init_colour_map ((bg + 3) | FOREGROUND_INTENSITY,  /* "~1" -> bright cyan */
-                         (bg + 2) | FOREGROUND_INTENSITY,  /* "~2" -> bright green */
-                         (bg + 6) | FOREGROUND_INTENSITY,  /* "~3" -> bright yellow */
-                         (bg + 5) | FOREGROUND_INTENSITY,  /* "~4" -> bright magenta */
-                         (bg + 4) | FOREGROUND_INTENSITY,  /* "~5" -> bright red */
-                         (bg + 7) | FOREGROUND_INTENSITY,  /* "~6" -> bright white */
-                         (bg + 3),                         /* "~7" -> dark cyan */
-                         0);
-    }
-    else
-      C_use_colours = 0;
-
-    if (C_no_ansi == 0 && C_use_colours)
-    {
-#if defined(__CYGWIN__)
-      C_use_ansi_colours = 1;
-#endif
-      if (C_conemu_detected())
-         C_use_ansi_colours = 1;
-      else if (C_virtual_terminal_detected(1))
-         C_use_ansi_colours = 1;
-    }
-
-    env = getenv ("COLUMNS");
-    if (env && atoi(env) > 0)
-       c_screen_width = atoi (env);
-
-    c_out  = stdout;
-    c_head = c_buf;
-    c_tail = c_head + C_BUF_SIZE - 1;
-    InitializeCriticalSection (&crit);
+    c_screen_width = console_info.srWindow.Right - console_info.srWindow.Left + 1;
+    C_init_colour_map ((bg + 3) | FOREGROUND_INTENSITY,  /* "~1" -> bright cyan */
+                       (bg + 2) | FOREGROUND_INTENSITY,  /* "~2" -> bright green */
+                       (bg + 6) | FOREGROUND_INTENSITY,  /* "~3" -> bright yellow */
+                       (bg + 5) | FOREGROUND_INTENSITY,  /* "~4" -> bright magenta */
+                       (bg + 4) | FOREGROUND_INTENSITY,  /* "~5" -> bright red */
+                       (bg + 7) | FOREGROUND_INTENSITY,  /* "~6" -> bright white */
+                       (bg + 3),                         /* "~7" -> dark cyan */
+                       0);
   }
-  return (1);
+  else
+    C_use_colours = 0;
+
+  if (C_no_ansi == 0 && C_use_colours)
+  {
+#if defined(__CYGWIN__)
+    C_use_ansi_colours = 1;
+#endif
+    if (C_conemu_detected())
+       C_use_ansi_colours = 1;
+    else if (C_virtual_terminal_detected(1))
+       C_use_ansi_colours = 1;
+  }
+
+  env = getenv ("COLUMNS");
+  if (env && atoi(env) > 0)
+     c_screen_width = atoi (env);
+
+  c_out  = stdout;
+  c_head = c_buf;
+  c_tail = c_head + C_BUF_SIZE - 1;
+  InitializeCriticalSection (&crit);
 }
 
 /**
@@ -632,8 +631,7 @@ int C_vprintf (const char *fmt, va_list args)
 {
   int len1, len2;
 
-  if (!C_init())
-     return (0);
+  C_init();
 
   if (c_raw)
   {
@@ -671,8 +669,7 @@ int C_putc (int ch)
   static BOOL get_color = FALSE;
   int    i, rc = 0;
 
-  if (!C_init())
-     return (0);
+  C_init();
 
   assert (c_head);
   assert (c_tail);
