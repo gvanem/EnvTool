@@ -53,8 +53,6 @@ extern int C_printf (_Printf_format_string_ const char *fmt, ...)
   #endif
    ;
 
-extern void (*C_write_hook) (const char *buf);
-
 extern int    C_vprintf  (const char *fmt, va_list args);
 extern int    C_puts     (const char *str);
 extern int    C_putsn    (const char *str, size_t len);
@@ -65,14 +63,14 @@ extern int    C_setbin   (int bin);
 extern size_t C_flush    (void);
 extern void   C_reset    (void);
 extern void   C_exit     (void);
-extern void   C_set_colour (unsigned short col);
-extern void   C_set_ansi (unsigned short col);
-extern void   C_puts_long_line (const char *start, size_t indent);
+extern void   C_set_colour      (unsigned short col);
+extern void   C_set_ansi        (unsigned short col);
+extern void   C_puts_long_line  (const char *start, size_t indent);
 extern int    C_init_colour_map (unsigned short col1, ...);
-extern size_t C_screen_width (void);
-extern int    C_trace_level (void);
+extern size_t C_screen_width    (void);
+extern int    C_trace_level     (void);
 extern int    C_conemu_detected (void);
-extern int    C_virtual_terminal_detected (int cmd_only);
+extern int    C_VT_detected     (int cmd_only);
 
 #ifdef __cplusplus
 }

@@ -126,13 +126,13 @@ int C_use_colours = 0;
 int C_use_ansi_colours = 0;
 
 /**
- * When this is set to \b 0, CygWin / ConEmu will also uses WinCon API to set colours.
+ * When this is set to \b 0, CygWin / ConEmu will also use WinCon API to set colours.
  */
 int C_no_ansi = 1;
 
 /**
  * The program using color.c must set this to \b 1 if `fwrite()` shall
- * be used in C_flush(). This can be needed to synchronize the output
+ * be used in `C_flush()`. This can be needed to synchronize the output
  * with other calls (libraries?) that writes to stdout using `fwrite()`.
  */
 int C_use_fwrite = 0;
@@ -142,8 +142,6 @@ int C_use_fwrite = 0;
  * in the trace-buffer.
  */
 unsigned C_redundant_flush = 0;
-
-void (*C_write_hook) (const char *buf) = NULL;
 
 static char   c_buf [C_BUF_SIZE];
 static char  *c_head, *c_tail;
@@ -171,6 +169,9 @@ static CONSOLE_SCREEN_BUFFER_INFO console_info;
  */
 static CRITICAL_SECTION crit;
 
+/** The handle for `STD_OUTPUT_HANDLE`.
+ *  If `stdout` output is redirected, this will remain at `INVALID_HANDLE_VALUE`.
+ */
 static HANDLE console_hnd = INVALID_HANDLE_VALUE;
 
 /**
@@ -217,7 +218,7 @@ int C_conemu_detected (void)
  *
  * \param[in] cmd_only If 1, the return value need that 'cmd.exe' is in `%COMPSPEC%`.
  */
-int C_virtual_terminal_detected (int cmd_only)
+int C_VT_detected (int cmd_only)
 {
   char  *env;
   int    is_cmd = 0;
@@ -422,7 +423,7 @@ static void C_init (void)
 #endif
     if (C_conemu_detected())
        C_use_ansi_colours = 1;
-    else if (C_virtual_terminal_detected(1))
+    else if (C_VT_detected(1))
        C_use_ansi_colours = 1;
   }
 
@@ -599,12 +600,6 @@ size_t C_flush (void)
        len2 = fwrite (c_buf, 1, len1, c_out);
   else len2 = _write (_fileno(c_out), c_buf, (unsigned int)len1);
 
-  if (C_write_hook)
-  {
-    c_buf [len1] = '\0';
-    (*C_write_hook) (c_buf);
-  }
-
   c_head = c_buf;   /* restart buffer */
   LeaveCriticalSection (&crit);
   return (len2);
@@ -694,14 +689,6 @@ int C_putc (int ch)
                i, ch, ch, (int)(c_head - c_buf), c_buf);
 
       C_flush();
-
-      if (C_write_hook)
-      {
-        char buf[3] = { '~', '\0', '\0' };
-
-        buf[1] = (char) ch;
-        (*C_write_hook) (buf);
-      }
       C_set_colour (color);
       return (1);
     }
