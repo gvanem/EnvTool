@@ -1284,8 +1284,10 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
  * Print the list of installed Python modules with
  * their location and version.
  *
- * \param[in] spec  Print only those module-names `m->name` that matches `spec`.
- * \retval          The number of modules printed.
+ * \param[in] spec         Print only those module-names `m->name` that matches `spec`.
+ * \param[in] get_details  Print more details, like meta information.
+ *
+ * \retval The number of modules printed.
  */
 static int py_print_modinfo (const char *spec, BOOL get_details)
 {
@@ -1478,7 +1480,7 @@ static void py_get_meta_info (struct python_module *m)
 /**
  * \todo
  *   Use 'python data-to-c.py file-with-PY_LIST_MODULES > generated-PY_LIST_MODULES.c' and a
- *   #include "generated-PY_LIST_MODULES.c" here instead.
+ *   `#include "generated-PY_LIST_MODULES.c"` here instead.
  */
 
 /**
