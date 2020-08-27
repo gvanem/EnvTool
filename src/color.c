@@ -180,7 +180,7 @@ static HANDLE console_hnd = INVALID_HANDLE_VALUE;
  * This map is also configurable from the calling side via the C_init_colour_map()
  * function. The default colours are set in C_init().
  */
-static WORD colour_map [8];
+static WORD colour_map [10];
 
 /**
  * Array of colour indices to ANSI-sequences (foreground and background combined).
@@ -287,6 +287,9 @@ int C_init_colour_map (unsigned short col, ...)
      */
     col = (WORD) va_arg (args, int);
   }
+
+  if (i == DIM(colour_map))
+     FATAL ("'colour_map[]' has room for max %d values.\n", i);
 
   /* Set the rest to default colours in case not all elements was filled.
    */
@@ -404,13 +407,14 @@ static void C_init (void)
     WORD bg = console_info.wAttributes & ~7;
 
     c_screen_width = console_info.srWindow.Right - console_info.srWindow.Left + 1;
-    C_init_colour_map ((bg + 3) | FOREGROUND_INTENSITY,  /* "~1" -> bright cyan */
-                       (bg + 2) | FOREGROUND_INTENSITY,  /* "~2" -> bright green */
-                       (bg + 6) | FOREGROUND_INTENSITY,  /* "~3" -> bright yellow */
-                       (bg + 5) | FOREGROUND_INTENSITY,  /* "~4" -> bright magenta */
-                       (bg + 4) | FOREGROUND_INTENSITY,  /* "~5" -> bright red */
-                       (bg + 7) | FOREGROUND_INTENSITY,  /* "~6" -> bright white */
-                       (bg + 3),                         /* "~7" -> dark cyan */
+    C_init_colour_map ((bg + 3) | FOREGROUND_INTENSITY,    /* "~1" -> bright cyan */
+                       (bg + 2) | FOREGROUND_INTENSITY,    /* "~2" -> bright green */
+                       (bg + 6) | FOREGROUND_INTENSITY,    /* "~3" -> bright yellow */
+                       (bg + 5) | FOREGROUND_INTENSITY,    /* "~4" -> bright magenta */
+                       (bg + 4) | FOREGROUND_INTENSITY,    /* "~5" -> bright red */
+                       (bg + 7) | FOREGROUND_INTENSITY,    /* "~6" -> bright white */
+                       (bg + 3),                           /* "~7" -> dark cyan */
+                       (16*4 + 7) | FOREGROUND_INTENSITY,  /* "~8" -> white on red background */
                        0);
   }
   else

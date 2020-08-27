@@ -83,7 +83,7 @@ static void print_match (DWORD line_num, const char *line, const char *match, si
   len = C_printf ("%s~2%lu:~0 ", indent, line_num);
   len += print_chunk (line, match - line);
 
-  C_puts ("~6");
+  C_puts ("~8");  /* bright white on red background */
   len += print_chunk (match, match_len);
   C_puts ("~0");
 
