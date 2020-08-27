@@ -889,6 +889,7 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
 
   if (hnd == INVALID_HANDLE_VALUE)
   {
+    *account_name_p = STRDUP ("<No access>");
     DEBUGF (1, "CreateFile (\"%s\") error = %s\n", file, win_strerror(GetLastError()));
     return (FALSE);
   }

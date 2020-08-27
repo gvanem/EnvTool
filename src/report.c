@@ -414,7 +414,7 @@ int report_file (struct report *r)
    */
   if (opt.show_owner && r->key != HKEY_EVERYTHING_ETP)
   {
-    char       *account_name;
+    char       *account_name = NULL;
     const char *found_owner = NULL;
     BOOL        inverse = FALSE;
 
@@ -464,7 +464,7 @@ int report_file (struct report *r)
     }
     else
     {
-      buf_printf (&fmt_buf_owner_info, "%-18s", "<None>");
+      buf_printf (&fmt_buf_owner_info, "%-18s", account_name ? account_name : "<None>");
       DEBUGF (2, "account_name (%s) did not match any wanted owner(s) for file '%s'.\n",
               account_name, basename(r->file));
     }
