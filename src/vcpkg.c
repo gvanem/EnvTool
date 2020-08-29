@@ -2215,12 +2215,8 @@ static void print_package_brief (const vcpkg_package *pkg, FMT_buf *fmt_buf, int
   int  i = 0;
 
   if (get_control_node(&i, &node, pkg->package))
-  {
-    indent += buf_printf (fmt_buf, "%s ", pkg->arch);
-    buf_puts_long_line (fmt_buf, node->description ? node->description : "<none>", indent);
-  }
-  else
-    buf_puts (fmt_buf, "No node\n");
+       buf_puts_long_line (fmt_buf, node->description ? node->description : "<none>", indent);
+  else buf_puts (fmt_buf, "No node\n");
 }
 
 /**
@@ -2283,31 +2279,56 @@ static BOOL get_installed_info (vcpkg_package *pkg)
 }
 
 /**
+ * Compare 2 `vcpkg_package` records on name.
+ */
+static int compare_package (const void **_a, const void **_b)
+{
+  const vcpkg_package *a = *_a;
+  const vcpkg_package *b = *_b;
+
+  return stricmp (a->package, b->package);
+}
+
+/**
  * Print a list of installed packages.
  *
  * \note Only called from `show_version()` in envtool.c.
  */
 unsigned vcpkg_list_installed (BOOL detailed)
 {
-  const char *only = "";
-  const char *last = "";
-  unsigned    i, indent, num_installed, num_ignored;
-  FMT_buf     fmt_buf;
+  const char  *only = "";
+  unsigned     i, indent, num_ignored, num_sorted = 0;
+  FMT_buf      fmt_buf;
+  smartlist_t *sorted_list = NULL;
+  const vcpkg_package *pkg;
 
   vcpkg_init();
 
-  num_installed = installed_packages ? smartlist_len (installed_packages) : 0;
+  if (installed_packages)
+  {
+    int max = smartlist_len (installed_packages);
 
-  BUF_INIT (&fmt_buf, BUF_INIT_SIZE, 1);
+    sorted_list = smartlist_new();
+    for (i = 0; i < max; i++)
+    {
+      pkg = smartlist_get (installed_packages, i);
+      smartlist_add (sorted_list, (void*)pkg);
+    }
+    smartlist_sort (sorted_list, compare_package);
+    smartlist_make_uniq (sorted_list, compare_package, NULL);
+
+    BUF_INIT (&fmt_buf, BUF_INIT_SIZE, 1);
+    num_sorted = smartlist_len (sorted_list);
+  }
 
   if (opt.only_32bit)
      only = ". These are for x86";
   else if (opt.only_64bit)
      only = ". These are for x64";
 
-  for (i = num_ignored = 0; i < num_installed; i++)
+  for (i = num_ignored = 0; i < num_sorted; i++)
   {
-    const vcpkg_package *pkg = smartlist_get (installed_packages, i);
+    pkg = smartlist_get (sorted_list, i);
 
     if (opt.only_32bit && !(pkg->platform & VCPKG_plat_x86))
     {
@@ -2315,11 +2336,6 @@ unsigned vcpkg_list_installed (BOOL detailed)
       continue;
     }
     if (opt.only_64bit && !(pkg->platform & VCPKG_plat_x64))
-    {
-      num_ignored++;
-      continue;
-    }
-    if (!strcmp(last, pkg->package))
     {
       num_ignored++;
       continue;
@@ -2334,22 +2350,23 @@ unsigned vcpkg_list_installed (BOOL detailed)
     if (detailed)
          print_package_info (pkg, &fmt_buf, indent);
     else print_package_brief (pkg, &fmt_buf, indent);
-
-    last = pkg->package;
   }
 
-  if (num_installed - num_ignored == 0)
+  if (num_sorted - num_ignored == 0)
      only = "";
 
   if (have_installed_dir)
        C_printf ("\n  Found %u installed ~3VCPKG~0 packages under ~3%s~0%s:\n",
-                 num_installed - num_ignored, get_installed_dir(NULL), only);
+                 num_sorted, get_installed_dir(NULL), only);
   else C_printf ("\n  Found 0 installed ~3VCPKG~0 packages.\n");
 
-  C_puts (fmt_buf.buffer_start);
-
-  BUF_EXIT (&fmt_buf);
-  return (num_installed - num_ignored);
+  if (sorted_list)
+  {
+    C_puts (fmt_buf.buffer_start);
+    smartlist_free (sorted_list);
+    BUF_EXIT (&fmt_buf);
+  }
+  return (num_sorted - num_ignored);
 }
 
 /**

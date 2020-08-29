@@ -59,7 +59,7 @@ typedef struct python_module {
 
        /** \todo
         * Put the module/package `RECORD` information here as a smartlist of `struct record_info`.
-        smartlist_t *record;
+        * smartlist_t *record;
         */
       } python_module;
 
@@ -641,18 +641,8 @@ static char *get_prog_name_ascii (const struct python_info *pi)
   if (GetModuleFileNameA(NULL, prog, DIM(prog)))
      p = prog;
 
-#if defined(__CYGWIN__)
-  {
-    char cyg_name [_MAX_PATH];
-
-    if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, prog, cyg_name, sizeof(cyg_name)) == 0)
-       p = cyg_name;
-  }
-#else
   if (pi->is_cygwin)
      p = make_cyg_path (prog, prog);
-#endif
-
   return (p ? STRDUP(p) : NULL);
 }
 
@@ -664,18 +654,8 @@ static wchar_t *get_prog_name_wchar (const struct python_info *pi)
   if (GetModuleFileNameW(NULL, prog, DIM(prog)))
      p = prog;
 
-#if defined(__CYGWIN__)
-  {
-    wchar_t cyg_name [_MAX_PATH];
-
-    if (cygwin_conv_path(CCP_WIN_W_TO_POSIX, prog, cyg_name, DIM(cyg_name)) == 0)
-       p = cyg_name;
-  }
-#else
   if (pi->is_cygwin)
      p = make_cyg_pathw (prog, prog);
-#endif
-
   return (p ? WCSDUP(p) : NULL);
 }
 
@@ -705,10 +685,6 @@ static void set_python_prog (struct python_info *pi)
  */
 static void set_python_home (struct python_info *pi)
 {
-#if defined(__CYGWIN__)
-  pi->home_a = STRDUP ("/usr/lib");
-  pi->home_w = NULL;
-#else
   char *dir = pi->exe_dir;
 
   if (pi->ver_major >= 3)
@@ -737,7 +713,6 @@ static void set_python_home (struct python_info *pi)
     else pi->home_a = STRDUP (dir);
     pi->home_w = NULL;
   }
-#endif
 }
 
 /**
@@ -1246,8 +1221,9 @@ static void popen_append_clear (void)
  */
 static char *popen_run_py (const struct python_info *pi, const char *prog)
 {
-  char report [1000];
-  int  rc;
+  char        report [1000];
+  const char *py_exe = pi->exe_name;
+  int         rc;
 
   popen_tmp = tmp_fputs (pi, prog);
   if (!popen_tmp)
@@ -1257,12 +1233,28 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
     return (NULL);
   }
 
+  /** \todo: need to check 'pi->is_cygwin' first
+   */
+#ifdef __CYGWIN__
+  char cyg_exe_name [_MAX_PATH];
+  char win_tmp_name [_MAX_PATH];
+
+  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, pi->exe_name, cyg_exe_name, sizeof(cyg_exe_name)) != 0)
+     return (NULL);
+  if (cygwin_conv_path(CCP_POSIX_TO_WIN_A, popen_tmp, win_tmp_name, sizeof(win_tmp_name)) != 0)
+     return (NULL);
+
+  py_exe = cyg_exe_name;
+  rc = popen_runf (popen_append_out, "%s %s 2>&1", cyg_exe_name, win_tmp_name);
+#else
   rc = popen_runf (popen_append_out, "%s %s 2>&1", pi->exe_name, popen_tmp);
+#endif
+
   if (rc < 0)
   {
-    snprintf (report, sizeof(report), "\"%s %s\"; errno: %d\n", pi->exe_name, popen_tmp, errno);
+    snprintf (report, sizeof(report), "\"%s %s\"; errno: %d\n", py_exe, popen_tmp, errno);
     Beep (1000, 30);
-    WARN ("Failed script (%s): ", pi->exe_name);
+    WARN ("Failed script (%s): ", py_exe);
     C_puts (report);
     popen_append_clear();
     return (NULL);
@@ -1270,9 +1262,9 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
 
   if (popen_py_crash)
   {
-    snprintf (report, sizeof(report), "\"%s %s\":\n%s\n", pi->exe_name, popen_tmp, popen_out);
+    snprintf (report, sizeof(report), "\"%s %s\":\n%s\n", py_exe, popen_tmp, popen_out);
     Beep (1000, 30);
-    WARN ("Failed script (%s): ", pi->exe_name);
+    WARN ("Failed script (%s): ", py_exe);
     C_puts (report);
     popen_append_clear();
     return (NULL);
@@ -1344,7 +1336,7 @@ static int py_print_modinfo (const char *spec, BOOL get_details)
 /**
  * \todo
  * Check if there is a `RECORD` file on `m->meta_path`.
- * It there is:
+ * If there is:
  *   \li build a list of files for this package.
  *   \li extract the size and SHA256 value for the file from a RECORD-line like:
 
@@ -1524,7 +1516,7 @@ static void py_get_module_info (struct python_info *pi)
 
   if (str)
   {
-    for (line = _strtok_r(str,"\n",&tok_end); line; line = _strtok_r(NULL,"\n",&tok_end))
+    for (line = _strtok_r(str, "\n", &tok_end); line; line = _strtok_r(NULL, "\n", &tok_end))
     {
       /** The `print()` statement from `PY_LIST_MODULES()` should look like this:
        *  \code
@@ -1540,7 +1532,7 @@ static void py_get_module_info (struct python_info *pi)
       char meta    [256+1] = { "-" };
       int  num = sscanf (line, "%40[^;];%20[^;];%256[^;];%256s", module, version, fname, meta);
 
-      if (num >= 3)
+      if (num >= 3)  /* Watcom's 'sscanf()' is buggy */
       {
         struct python_module m;
 

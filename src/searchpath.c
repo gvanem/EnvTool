@@ -45,13 +45,13 @@ int searchpath_pos (void)
  *   \code
  *     searchpath ("SWAPFILE.SYS", "c:\\")
  *   \endcode
- * would simply return `C:\\SWAPFILE.SYS\`.
+ * would simply return `C:\\SWAPFILE.SYS`.
  */
-static char *searchpath_internal (const char *file, const char *env_var, char *found)
+static char *_searchpath (const char *file, const char *env_var, char *found)
 {
-  char   *p, *path, *test_dir;
-  size_t  alloc;
-  int     save_debug = opt.debug;
+  char       *env, *path, *_path, *end, *tok;
+  const char *env_dir = NULL;
+  char       *_file = alloca (strlen(file)+1);
 
   last_pos = -1;
 
@@ -78,130 +78,59 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
 
   init_misc();
 
+  strcpy (_file, file);
+  str_unquote (_file);     /* remove quotes around a long filename */
+
   found[0] = '\0';
-  opt.debug = 0;
-  p = getenv_expand (env_var);
-  opt.debug = save_debug;
 
-  if (!p)
-       alloc = 2;              /* Room for `.` */
-  else alloc = strlen(p) + 3;  /* Room for `.;%env_var` */
+  env = getenv_expand (env_var);
+  if (!env)
+  {
+    path = MALLOC (strlen(env_var) + 3);   /* Room for `.;env_var` */
+    if (is_directory(env_var))             /* Given env_var is "c:\\" */
+       env_dir = env_var;
+  }
+  else
+    path = MALLOC (strlen(env) + 3);       /* Room for `.;%env_var%` */
 
-  path = CALLOC (alloc, 1);
   if (!path)
   {
     DEBUGF (1, "calloc() failed");
-    FREE (p);
+    FREE (env);
     errno = ENOMEM;
     return (NULL);
   }
 
-  /* Prepend `.` to the $(env_var), so current directory
-   * is always searched first.
-   */
-  path[0] = '.';
-
-  /* If the env-var has a value, search along ".;%env_val".
-   */
-  if (p)
+  if ((env && !(env[0] == '.' && env[1] == ';')) || !env)
   {
-    char *s, *name_start = 0;
-    int   preserve_case = 1;
-
+    path[0] = '.';
     path[1] = ';';
-    strcpy (path + 2, p);
-
-    /* switch `FOO\BAR` into `foo/bar`, downcase where appropriate.
-     */
-    for (s = path + 2, name_start = s; *name_start; s++)
-    {
-      char lname [FILENAME_MAX];
-
-      if (s == name_start)
-         continue;
-
-      if (*s == ':')
-         name_start = s + 1;
-      else if (!preserve_case && (*s == '/' || *s == ';' || *s == '\0'))
-      {
-        memcpy (lname, name_start+1, s-name_start-1);
-        lname [s-name_start-1] = '\0';
-        if (_is_DOS83(lname))
-        {
-          name_start++;
-          while (name_start < s)
-          {
-            if (*name_start >= 'A' && *name_start <= 'Z')
-              *name_start += 'a' - 'A';
-            name_start++;
-          }
-        }
-        else
-          name_start = s;
-      }
-      else if (*s == '\0')
-        break;
-    }
+    path[2] = '\0';
+    _path = path + 2;
   }
+  else
+    _path = path;
 
-  /* If the file name includes slashes or the drive letter, maybe they
-   * already have a good name.
-   */
-  if (strpbrk(file, "/\\:") && FILE_EXISTS(file))
+  if (env)
+     strcpy (_path, env);
+  else if (env_dir)
+     strcpy (_path, env_dir);
+
+  DEBUGF (2, "Looking for _file: '%s' in path: '%s'\n", _file, path);
+
+  tok = _strtok_r (path, ";", &end);
+  while (tok)
   {
-    if (IS_SLASH(file[0]) || file[1] == ':' ||
-        ((file[0] == '.' && IS_SLASH(file[1])) ||
-         (file[1] == '.' && IS_SLASH(file[2]))) )
-    {
-      /* Either absolute file name or it begins with a `./`.
-       */
-      strcpy (found, file);
-    }
-    else
-    {
-      /* Relative file name: add `.\\`.
-       */
-      strcpy (found, ".\\");
-      str_cat (found, _MAX_PATH, file);
-    }
-    last_pos = 0;
-    goto was_found;
-  }
+    last_pos++;
 
-  test_dir = path;
-  last_pos = 0;     /* Assume it will be found in 1st position */
-
-  do
-  {
-    char *dp = strchr (test_dir, ';');
-
-    if (!dp)
-       dp = test_dir + strlen (test_dir);
-
-    if (dp == test_dir)
-       strcpy (found, file);
-    else
-    {
-      strncpy (found, test_dir, dp - test_dir);
-      found [dp-test_dir] = '\\';
-      strcpy (found + (dp - test_dir) + 1, file);
-    }
-
+    snprintf (found, _MAX_PATH, "%s\\%s", tok, _file);
     if (FILE_EXISTS(found))
        goto was_found;
 
-    if (*dp == 0)   /* We have reached the end of `%env_val` */
-       break;
-
-    test_dir = dp + 1;
-    last_pos++;
+    tok = _strtok_r (NULL, ";", &end);
   }
-  while (*test_dir);
 
-  /* FIXME: perhaps now that we failed to find it, we should try the
-   * basename alone?
-   */
-  FREE (p);
+  FREE (env);
   FREE (path);
 
   last_pos = -1;
@@ -209,12 +138,9 @@ static char *searchpath_internal (const char *file, const char *env_var, char *f
   return (NULL);
 
 was_found:
-  FREE (p);
+  FREE (env);
   FREE (path);
-
-  if (strstr(found,".."))
-     _fix_path (found, found);
-  return (found);
+  return _fix_path (found, found);
 }
 
 /**
@@ -227,13 +153,16 @@ was_found:
 char *searchpath (const char *file, const char *env_var)
 {
   static char found [_MAX_PATH];
-  char       *s = searchpath_internal (file, env_var, found);
+  char       *s = _searchpath (file, env_var, found);
 
   if (s)
      return slashify2 (found, found, opt.show_unix_paths ? '/' : '\\');
   return (NULL);
 }
 
+/*
+ * Not used any more.
+ */
 int _is_DOS83 (const char *fname)
 {
   const char *s = fname;
@@ -265,10 +194,7 @@ int _is_DOS83 (const char *fname)
   if (c >= 'a' && c <= 'z')
     return (0);                          /* lower case character */
 
-  if (c == '+' || c == ',' ||
-      c == ';' || c == ' ' ||
-      c == '=' || c == '[' || c == ']')
+  if (strchr("+,; =[]", c))
     return (0);                          /* special non-DOS characters */
   return (1);                            /* all chars OK */
 }
-

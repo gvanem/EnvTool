@@ -375,7 +375,8 @@ static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
        rc = getdirent2 (hnd, NULL, ff);
   }
 
-  DEBUGF (3, "spec: %s, hnd: %p, rc: %s\n", spec ? spec : "<N/A>", hnd, rc);
+  DEBUGF (3, "spec: %s, *hnd: %p, rc: %s, err: %lu\n",
+          spec ? spec : "<N/A>", *hnd, rc, okay ? 0 : GetLastError());
   return (rc);
 }
 
@@ -692,16 +693,12 @@ static int print_it (const char *what, const char *prefix, const struct od2x_opt
 
   if (show_owner)
   {
-    char *account_name, *domain_name;
+    char *account_name = NULL;
 
-    if (get_file_owner(f, &domain_name, &account_name))
-    {
-      C_printf ("%-16s ", account_name);
-      FREE (domain_name);
-      FREE (account_name);
-    }
-    else
-      C_printf ("%-16s ", "<Unknown>");
+    if (get_file_owner(f, NULL, &account_name) || account_name)
+         C_printf ("%-16s ", account_name);
+    else C_printf ("%-16s ", "<Unknown>");
+    FREE (account_name);
   }
   else
   if (opt.show_owner)
@@ -954,7 +951,9 @@ int MS_CDECL main (int argc, char **argv)
 
   argc -= optind;
   argv += optind;
+
   C_use_colours = 1;
+  C_init();
 
   if (argc-- < 1 || *argv == NULL)
      usage();

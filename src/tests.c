@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <windows.h>
+#include <shellapi.h>  /* old Watcom 1.9 needs this ahead of '<shlobj.h>' */
 #include <shlobj.h>
 
 #include "tests.h"
@@ -52,7 +53,7 @@ static void test_split_env (const char *env)
 
     if (arr->num_dup > 0)
        C_puts ("  ~3**duplicated**~0");
-    if (arr->is_native && !have_sys_native_dir)
+    if (arr->is_native && !arr->exist)
        C_puts ("  ~5**native dir not existing**~0");
     else if (!arr->exist)
        C_puts ("  ~5**not existing**~0");
@@ -78,7 +79,7 @@ static void test_split_env_cygwin (const char *env)
 {
   smartlist_t *list;
   char        *value, *cyg_value;
-  int          i, max, rc, needed, save = opt.conv_cygdrive;
+  int          i, max, rc, needed;
 
   dir_array_free();
 
@@ -100,7 +101,6 @@ static void test_split_env_cygwin (const char *env)
   DEBUGF (2, "cygwin_conv_path_list(): rc: %d, '%s'\n", rc, cyg_value);
 
   path_separator = ':';
-  opt.conv_cygdrive = 0;
   list = split_env_var (env, cyg_value);
 
   max = list ? smartlist_len (list) : 0;
@@ -131,7 +131,6 @@ static void test_split_env_cygwin (const char *env)
 
   path_separator = ';';
 fail:
-  opt.conv_cygdrive = save;
   C_printf ("~0  %d elements\n\n", i);
 }
 
@@ -140,7 +139,7 @@ fail:
  */
 void test_posix_to_win_cygwin (void)
 {
-  int i, rc, save;
+  int i, raw, rc;
   static const char *cyg_paths[] = {
                     "/usr/bin",
                     "/usr/lib",
@@ -151,10 +150,6 @@ void test_posix_to_win_cygwin (void)
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
-  path_separator = ':';
-  save = opt.conv_cygdrive;
-  opt.conv_cygdrive = 0;
-
   for (i = 0; i < DIM(cyg_paths); i++)
   {
     const char *file, *dir = cyg_paths[i];
@@ -164,12 +159,11 @@ void test_posix_to_win_cygwin (void)
     DEBUGF (2, "cygwin_conv_path(CCP_POSIX_TO_WIN_A): rc: %d, '%s'\n", rc, result);
 
     file = slashify2 (result, result, opt.show_unix_paths ? '/' : '\\');
-    C_printf ("    %-20s -> ", cyg_paths[i]);
-    print_raw (file, NULL, "\n");
+    raw = C_setraw (1);
+    C_printf ("    %-20s -> %s\n", cyg_paths[i], file);
+    C_setraw (raw);
   }
   C_putc ('\n');
-  path_separator = ';';
-  opt.conv_cygdrive = save;
 }
 #endif  /* __CYGWIN__ */
 
@@ -182,8 +176,8 @@ struct test_table1 {
      };
 
 static const struct test_table1 tab1[] = {
-                  { "kernel32.dll",      "PATH" },
-                  { "notepad.exe",       "PATH" },
+                  { "kernel32.dll",  "PATH" },
+                  { "notepad.exe",   "PATH" },
 
                   /* Relative file-name test:
                    *   `c:\Windows\system32\Resources\Themes\aero.theme` is present in Win-8.1+
@@ -191,19 +185,19 @@ static const struct test_table1 tab1[] = {
                    */
                   { "..\\Resources\\Themes\\aero.theme", "PATH" },
 
-                  { "./envtool.c",       "FOO-BAR" },       /* CWD should always be at pos 0 regardless of env-var. */
-                  { "msvcrt.lib",        "LIB" },
-                  { "libgcc.a",          "LIBRARY_PATH" },  /* MinGW-w64 doesn't seem to have libgcc.a */
-                  { "libgmon.a",         "LIBRARY_PATH" },
-                  { "stdio.h",           "INCLUDE" },
-                  { "../os.py",          "PYTHONPATH" },
+                  { "./envtool.c",        "FOO-BAR" },       /* CWD should always be at pos 0 regardless of env-var. */
+                  { "msvcrt.lib",         "LIB" },
+                  { "libgcc.a",           "LIBRARY_PATH" },  /* MinGW-w64 doesn't seem to have libgcc.a */
+                  { "libgmon.a",          "LIBRARY_PATH" },
+                  { "stdio.h",            "INCLUDE" },
+                  { "../../../Lib/os.py", "PYTHONPATH" },
 
                   /* test if `searchpath()` works for Short File Names
                    * (%WinDir\systems32\PresentationHost.exe).
                    * SFN seems not to be available on Win-7+.
                    * "PRESEN~~1.EXE" = "PRESEN~1.EXE" since `C_printf()` is used.
                    */
-                  { "PRESEN~~1.EXE",      "PATH" },
+                  { "PRESEN~~1.EXE",     "PATH" },
 
                   /* test if `searchpath()` works with "%WinDir%\sysnative" on Win-7+.
                    */
@@ -347,10 +341,10 @@ static void test_slashify (void)
 static void test_fix_path (void)
 {
   static const char *files[] = {
-    "f:\\CygWin64\\bin\\../lib/gcc/x86_64-w64-mingw32/6.4.0/include",                            /* exists here */
-    "f:\\CygWin64\\bin\\../lib/gcc/x86_64-w64-mingw32/6.4.0/include\\ssp\\ssp.h",                /* exists here */
-    "f:\\CygWin64\\bin\\../lib/gcc/i686-w64-mingw32/6.4.0/../../../../i686-w64-mingw32/include", /* exists here */
-    "/usr/lib/gcc/x86_64-pc-cygwin/6.4.0/../../../../include/w32api"                             /* CygWin64 output, exists here */
+    "f:\\CygWin64\\bin\\../lib/gcc/x86_64-w64-mingw32/6.4.0/include",              /* exists here */
+    "f:\\CygWin64\\bin\\../lib/gcc/x86_64-w64-mingw32/6.4.0/include\\ssp\\ssp.h",  /* exists here */
+    "f:\\CygWin64\\lib/gcc/i686-pc-mingw32/4.7.3/../../../perl5",                  /* exists here */
+    "/usr/libexec/../include/w32api"                                               /* CygWin64 output, exists here */
   };
   const char *f;
   char *rc1;
@@ -671,7 +665,7 @@ static void test_PE_wintrust (void)
   }
   C_putc ('\n');
 
-  wintrust_dump_pkcs7_cert (NULL);   /* does nothing at the moment */
+  wintrust_dump_pkcs7_cert();   /* does nothing at the moment */
 }
 
 static void test_disk_ready (void)
@@ -832,12 +826,11 @@ int do_tests (void)
 #ifdef __WATCOMC__
   test_split_env ("NT_INCLUDE");
 #else
-  test_split_env ("LIB");
   test_split_env ("INCLUDE");
 #endif
 
   save = opt.no_cwd;
-  opt.no_cwd = 0;
+  opt.no_cwd = 1;
 #ifdef __CYGWIN__
   setenv ("FOO", "/cygdrive/c", 1);
 #else

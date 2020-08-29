@@ -31,6 +31,7 @@ extern "C" {
 #define C_BR_WHITE    "~6"   /**< bright white */
 #define C_DK_CYAN     "~7"   /**< dark cyan */
 #define C_BG_RED      "~8"   /**< white on red background */
+#define C_BG_BLACK    "~9"   /**< white on black background (not yet) */
 #define C_DEFAULT     "~0"   /**< restore default colour */
 
 extern int C_use_colours;
@@ -44,8 +45,6 @@ extern int C_use_fwrite;
 #ifndef _Printf_format_string_
 #define _Printf_format_string_
 #endif
-
-extern unsigned C_redundant_flush;
 
 extern int C_printf (_Printf_format_string_ const char *fmt, ...)
   #if defined(__GNUC__)
@@ -62,6 +61,7 @@ extern int    C_setraw   (int raw);
 extern int    C_setbin   (int bin);
 extern size_t C_flush    (void);
 extern void   C_reset    (void);
+extern void   C_init     (void);
 extern void   C_exit     (void);
 extern void   C_set_colour      (unsigned short col);
 extern void   C_set_ansi        (unsigned short col);

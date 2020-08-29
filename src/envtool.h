@@ -264,6 +264,10 @@
   #define _S_ISREG(mode)     (((mode) & _S_IFMT) == _S_IFREG)
 #endif
 
+#ifndef _tzname
+  #define _tzname tzname
+#endif
+
 #define FILE_EXISTS(f)       _file_exists (f)
 #define IS_SLASH(c)          ((c) == '\\' || (c) == '/')
 
@@ -390,10 +394,11 @@ typedef struct beep_info {
       } beep_info;
 
 typedef struct grep_info {
-        const char *content;       /**< The file-content to search for in `report_grep_file()`. */
-        DWORD       num_matches;   /**< The total number of matches found in all files. */
-        DWORD       max_matches;   /**< The maximum number of matches to print for each file. */
-        DWORD       binary_files;  /**< The number of files detected as binary files. */
+        char   *content;       /**< The file-content to search for in `report_grep_file()`. */
+        DWORD   num_matches;   /**< The total number of matches found in all files. */
+        DWORD   max_matches;   /**< The maximum number of matches to print for each file. */
+        DWORD   binary_files;  /**< The number of files detected as binary files. */
+        int     only;          /**< Show file(s) that only matches 'content' (not yet). */
       } grep_info;
 
 /** struct prog_options
@@ -450,7 +455,6 @@ struct prog_options {
        int             do_pkg;
        int             do_vcpkg;
        int             do_check;
-       int             conv_cygdrive;
        int             case_sensitive;
        int             keep_temp;         /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
        int             under_conemu;      /**< TRUE if running under ConEmu console-emulator */
@@ -504,8 +508,7 @@ struct directory_array {
        int          exp_ok;      /**< `expand_env_var()` returned with no `%`? */
        int          num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
        BOOL         check_empty; /**< check if it contains at least 1 file? */
-       const char  *file;        /**< Debug: in what file was `dir_array_add()` called */
-       unsigned     line;        /**< Debug: at what line was `dir_array_add()` called */
+       BOOL         done;        /**< alreay processed */
        smartlist_t *dirent2;     /**< List of `struct dirent2` for this directory; used in `check_shadow_files()` only */
      };
 
@@ -520,8 +523,6 @@ struct registry_array {
        time_t      mtime;        /**< file modification time */
        UINT64      fsize;        /**< file size */
        HKEY        key;          /**< The `top_key` used in `RegOpenKeyEx()` */
-       const char *file;         /**< Debug: in what file was `reg_array_add()` called */
-       unsigned    line;         /**< Debug: at what line was `reg_array_add()` called */
      };
 
 /**
@@ -529,14 +530,11 @@ struct registry_array {
  */
 extern smartlist_t *dir_array_head (void);
 extern void         dir_array_free (void);
-extern void         dir_array_add (const char *dir, int is_cwd, const char *file, unsigned line);
+extern void         dir_array_add (const char *dir, int is_cwd);
 
 extern smartlist_t *reg_array_head (void);
 extern void         reg_array_free (void);
-extern void         reg_array_add (HKEY key, const char *fname, const char *fqfn, const char *file, unsigned line);
-
-#define DIR_ARRAY_ADD(dir, is_cwd)      dir_array_add (dir, is_cwd, __FILE__, __LINE__)
-#define REG_ARRAY_ADD(key, fname, fqfn) reg_array_add (key, fname, fqfn, __FILE__, __LINE__)
+extern void         reg_array_add (HKEY key, const char *fname, const char *fqfn);
 
 /**
  * \def REG_APP_PATH
@@ -610,7 +608,6 @@ extern char *_fix_drive     (char *path);
 extern char *path_ltrim     (const char *p1, const char *p2);
 extern char *basename       (const char *fname);
 extern char *dirname        (const char *fname);
-extern int   _is_DOS83      (const char *fname);
 extern char *slashify       (const char *path, char use);
 extern char *slashify2      (char *buf, const char *path, char use);
 extern char *win_strerror   (unsigned long err);
@@ -848,7 +845,7 @@ extern char       *wintrust_timestamp_subject, *wintrust_timestamp_issuer;
 extern DWORD       wintrust_check (const char *pe_file, BOOL details, BOOL revoke_check);
 extern const char *wintrust_check_result (DWORD rc);
 extern void        wintrust_cleanup (void);
-extern BOOL        wintrust_dump_pkcs7_cert (const char *file);
+extern BOOL        wintrust_dump_pkcs7_cert (void);
 
 /* Simple debug-malloc functions:
  */

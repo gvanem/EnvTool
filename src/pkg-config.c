@@ -248,7 +248,7 @@ static smartlist_t *pkg_config_reg_keys (HKEY top_key)
     if (i == 0)
         tok = _strtok_r (tok, ";", &end);
     DEBUGF (1, "tok[%d]: '%s'\n", i, tok);
-    REG_ARRAY_ADD (top_key, tok, tok);
+    reg_array_add (top_key, tok, tok);
     tok = _strtok_r (NULL, ";", &end);
   }
   return reg_array_head();

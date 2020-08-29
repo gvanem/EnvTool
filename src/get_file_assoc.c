@@ -229,6 +229,7 @@ int MS_CDECL main (int argc, char **argv)
 
   opt.debug = 0;
   C_use_colours = 1;
+  C_init();
   crtdbug_init();
 
    if (argc >= 2 && !strcmp(argv[1],"-d"))

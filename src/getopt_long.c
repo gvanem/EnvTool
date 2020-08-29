@@ -655,7 +655,7 @@ static char **build_array (char *buf, const char *delim, int *len)
     array[i] = token;
     buf = str_ltrim (end);
 
-    DEBUGF (2, "array[%d]: '%s', buf: '%.5s'\n", i, array[i], buf);
+    DEBUGF (2, "array[%d]: '%s', buf: '%.5s'...\n", i, array[i], buf);
 
     if (++i >= i_min)
     {
@@ -704,18 +704,20 @@ static int get_file_array (struct command_line *c, const char *file)
   long  flen;
   FILE *f = fopen (file, "rb");
 
-  if (f)
-       flen = filelength (fileno(f));
-  else flen = 0;
+  if (!f)
+  {
+    fprintf (stderr, "Failed to open response file '%s'.\n", file);
+    exit (1);
+  }
 
+  flen = filelength (fileno(f));
   c->file_buf = MALLOC (flen+1);
   c->file_buf[flen] = '\0';
 
-  if (f && fread(c->file_buf, 1, flen, f) == flen)
+  if (fread(c->file_buf, 1, flen, f) == flen)
      c->file_array = build_array (c->file_buf, "\" \t\r\n", &i);
 
-  if (f)
-     fclose (f);
+  fclose (f);
   DEBUGF (2, "file: %s, filelength: %lu -> %d\n", file, flen, i);
   return (i);
 }

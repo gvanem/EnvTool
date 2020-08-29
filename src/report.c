@@ -43,19 +43,21 @@ static BOOL        first_match = FALSE;
  *  * or when a newline is found.
  *  * or `p` pointer reached beyond `mmap_max`.
  */
-static size_t print_chunk (const char *str, size_t max_len)
+static size_t save_chunk (FMT_buf *fmt, const char *str, size_t max_len)
 {
   const char *p = str;
   size_t      len = 0;
-  int         raw = C_setraw (1);
 
   for (p = str; *p != '\r' && *p != '\n' && len < max_len && p < mmap_max; len++, p++)
   {
     if (*p == '\t')
-         C_puts ("  ");
-    else C_putc (*p);
+         buf_puts (fmt, "  ");
+    else if (*p == '~')
+         buf_puts (fmt, "~~");
+    else buf_putc (fmt, *p);
+    if (fmt->buffer_left < 2)
+       break;
   }
-  C_setraw (raw);
   return (len);
 }
 
@@ -63,35 +65,35 @@ static size_t print_chunk (const char *str, size_t max_len)
  * Print a match as a "grep --line-number 'content' file" would do:
  *   2: * 'content' rest of line.
  *   ^     ^
- *   |     |__ match in hightlighted colour
- *   |________ line_num in hightlighted colour
+ *   |     |__ match in hightlighted colour    (white on red background)
+ *   |________ line_num in hightlighted colour (bright green)
  *
  * \todo If these are > 1 matches on the same line, remember the previous
  *       output (using a `FMT_BUF`), and merge current result with the previous.
  *
  * \todo Add a configurable `before-context` and `after-context`. Similar to grep.
  */
-static void print_match (DWORD line_num, const char *line, const char *match, size_t match_len, size_t line_max)
+static void save_match (FMT_buf *fmt, DWORD line_num, const char *line, const char *match, size_t match_len, size_t line_max)
 {
   const char *rest, *indent = "        ";
   size_t      len, rest_max;
 
   if (first_match)
-     C_putc ('\n');
+     buf_putc (fmt, '\n');
   first_match = FALSE;
 
-  len = C_printf ("%s~2%lu:~0 ", indent, line_num);
-  len += print_chunk (line, match - line);
+  len = buf_printf (fmt, "%s~2%lu:~0 ", indent, line_num);
+  len += save_chunk (fmt, line, match - line);
 
-  C_puts ("~8");  /* bright white on red background */
-  len += print_chunk (match, match_len);
-  C_puts ("~0");
+  buf_puts (fmt, "~8");  /* bright white on red background */
+  len += save_chunk (fmt, match, match_len);
+  buf_puts (fmt, "~0");
 
   rest = match + match_len;
   rest_max = C_screen_width() - 1 - len;
   rest_max = min (line_max, rest_max);
-  print_chunk (rest, rest_max);
-  C_putc ('\n');
+  save_chunk (fmt, rest, rest_max);
+  buf_putc (fmt, '\n');
 }
 
 /**
@@ -102,47 +104,54 @@ static void print_match (DWORD line_num, const char *line, const char *match, si
  * \param[in] content  the content in `file` to search for.
  * \retval The number of matches found in `file`.
  */
-DWORD report_grep_file (const char *file, const char *content)
+static int report_grep_file (FMT_buf *fmt, const char *file, const char *content)
 {
   HANDLE        hnd_file, mmap_file;
   LARGE_INTEGER fsize;
   const char   *mmap_buf, *p;
   const char   *line_start, *line_end, *match;
-  DWORD         matches = 0, line_num = 1;
+  DWORD         line_num = 1, err = 0;
   size_t        match_len = strlen (content);
+  int           matches = 0;
 
   if (opt.debug >= 1)
-      C_putc ('\n');
+     buf_putc (fmt, '\n');
+
+  DEBUGF (1, "grepping file '%s' for '%s'.\n", file, content);
 
   hnd_file = CreateFile (file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
   if (hnd_file == INVALID_HANDLE_VALUE)
   {
-    DEBUGF (1, "Could not open file: %s.\n", win_strerror(GetLastError()));
-    return (0);
+    err = GetLastError();
+    DEBUGF (1, "Could not open file: %s.\n", win_strerror(err));
+    return (-(int)err);
   }
 
   if (!GetFileSizeEx(hnd_file,&fsize))
   {
-    DEBUGF (1, "Could not get file-size: %s.\n", win_strerror(GetLastError()));
+    err = GetLastError();
+    DEBUGF (1, "Could not get file-size: %s.\n", win_strerror(err));
     CloseHandle (hnd_file);
-    return (0);
+    return (-(int)err);
   }
 
   mmap_file = CreateFileMapping (hnd_file, NULL, PAGE_READONLY, 0, 0, NULL);
   if (!mmap_file)
   {
-    DEBUGF (1, "CreateFileMapping() failed: %s.\n", win_strerror(GetLastError()));
+    err = GetLastError();
+    DEBUGF (1, "CreateFileMapping() failed: %s.\n", win_strerror(err));
     CloseHandle (hnd_file);
-    return (0);
+    return (-(int)err);
   }
 
   mmap_buf = MapViewOfFile (mmap_file, FILE_MAP_READ, 0, 0, 0);
   if (!mmap_buf)
   {
-    DEBUGF (1, "MapViewOfFile() failed: %s.\n", win_strerror(GetLastError()));
+    err = GetLastError();
+    DEBUGF (1, "MapViewOfFile() failed: %s.\n", win_strerror(err));
     CloseHandle (hnd_file);
     CloseHandle (mmap_file);
-    return (0);
+    return (-(int)err);
   }
 
   mmap_max = mmap_buf + ((UINT64)fsize.HighPart << 32) + fsize.LowPart;
@@ -190,12 +199,12 @@ DWORD report_grep_file (const char *file, const char *content)
     }
     if (match)
     {
-      print_match (line_num, line_start, match, match_len, line_end - line_start);
+      save_match (fmt, line_num, line_start, match, match_len, line_end - line_start);
       match = NULL;
       opt.grep.num_matches++;
       if (++matches >= opt.grep.max_matches && opt.grep.max_matches)
       {
-        C_puts ("        ...\n");
+        buf_puts (fmt, "        ...\n");
         break;
       }
     }
@@ -263,12 +272,14 @@ int report_file (struct report *r)
   FMT_buf     fmt_buf_owner_info;
   FMT_buf     fmt_buf_ver_info;
   FMT_buf     fmt_buf_trust_info;
+  FMT_buf     fmt_buf_grep_info;
 
   BUF_INIT (&fmt_buf_time_size, 100, 0);
   BUF_INIT (&fmt_buf_file_info, 100 + _MAX_PATH, 0);
   BUF_INIT (&fmt_buf_owner_info, 100, 0);
   BUF_INIT (&fmt_buf_ver_info, 100, 0);
   BUF_INIT (&fmt_buf_trust_info, 100, 0);
+  BUF_INIT (&fmt_buf_grep_info, 10000, 0);
 
   r->filler = "      ";
 
@@ -307,6 +318,10 @@ int report_file (struct report *r)
     found_in_python_egg++;
     possible_PE_file = FALSE;
     note = " (5)  ";
+  }
+  else if (r->key == HKEY_MAN_FILE)
+  {
+    possible_PE_file = FALSE;
   }
   else if (r->key == HKEY_EVERYTHING)
   {
@@ -498,6 +513,14 @@ int report_file (struct report *r)
        buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(r->file), " ", shebang);
   }
 
+  if (r->content && !r->is_dir)
+  {
+    int matches = report_grep_file (&fmt_buf_grep_info, link ? link : r->file, r->content);
+
+    if (opt.grep.only && matches == 0)
+       show_this_file = FALSE;
+  }
+
   if (!show_this_file)
   {
     get_PE_version_info_free();
@@ -522,6 +545,11 @@ int report_file (struct report *r)
     C_puts ("~0");
   }
 
+  if (r->content)
+  {
+    C_puts (fmt_buf_grep_info.buffer_start);
+  }
+
   /* All this must be printed on the next line
    */
   if (opt.PE_check && fmt_buf_ver_info.buffer_start[0])
@@ -530,9 +558,6 @@ int report_file (struct report *r)
     C_puts (fmt_buf_trust_info.buffer_start);
     print_PE_file_details (r->filler);
   }
-
-  if (r->content && !r->is_dir)
-     report_grep_file (link ? link : r->file, r->content);
 
   if (r->key == HKEY_PKG_CONFIG_FILE && opt.verbose > 0)
      pkg_config_get_details (r->file, r->filler);
@@ -675,7 +700,7 @@ static BOOL get_PE_file_brief (const struct report *r, char *dest, size_t dest_s
       r->key == HKEY_EVERYTHING_ETP || r->key == HKEY_PKG_CONFIG_FILE)
      return (FALSE);
 
-  if (!check_if_PE(r->file,&bits))
+  if (!check_if_PE(r->file, &bits))
      return (FALSE);
 
   if (opt.only_32bit && bits != bit_32)
@@ -833,22 +858,19 @@ void report_final (int found)
      snprintf (ignored, sizeof(ignored), " (%lu ignored)",
                (unsigned long)num_evry_ignored);
 
-  C_printf ("%s %s found for \"%s\"%s%s.",
-            dword_str((DWORD)found),
-            plural_str(found, "match", "matches"),
-            opt.file_spec, duplicates, ignored);
+  C_printf ("%s %s", dword_str((DWORD)found), plural_str(found, "match", "matches"));
+  C_printf (" found for \"%s\"%s%s.", opt.file_spec, duplicates, ignored);
 
   if (opt.show_size && total_size > 0)
      C_printf (" Totalling %s (%s bytes). ",
                str_trim((char*)get_file_size_str(total_size)),
                qword_str(total_size));
 
-  if (opt.grep.content)
+  if (opt.grep.content && !opt.evry_host)
   {
-    C_printf (" With %s %s for the \"--grep\" content. (%lu binary files). ",
-              qword_str(opt.grep.num_matches),
-              plural_str(opt.grep.num_matches, "match", "matches"),
-              opt.grep.binary_files);
+    C_printf (" With %s %s for the \"--grep\" content. ",
+               qword_str(opt.grep.num_matches),
+               plural_str(opt.grep.num_matches, "match", "matches"));
   }
 
   if (opt.evry_host)

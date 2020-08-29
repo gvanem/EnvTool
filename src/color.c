@@ -42,12 +42,12 @@
 
 #if defined(__CYGWIN__)
   #include <unistd.h>
-  #define _fileno(f)         fileno (f)
-  #define _write(f,buf,len)  write (f,buf,len)
-  #define stricmp(s1, s2)    strcasecmp (s1, s2)
+  #define _fileno(f)           fileno (f)
+  #define _write(f, buf, len)  write (f, buf, len)
+  #define stricmp(s1, s2)      strcasecmp (s1, s2)
 
 #elif defined(_MSC_VER) && (_MSC_VER <= 1600)
-  #define snprintf           _snprintf
+  #define snprintf  _snprintf
 #endif
 
 #if defined(_MSC_VER) && !defined(__POCC__) && defined(_DEBUG)
@@ -55,8 +55,12 @@
 
   /* Use this in `FATAL()` to` avoid huge report of leaks from CrtDbg.
    */
-  #define CRTDBG_CHECK_OFF() \
-          _CrtSetDbgFlag (~_CRTDBG_LEAK_CHECK_DF & _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG))
+  #define CRTDBG_CHECK_OFF()                                  \
+          do {                                                \
+            int state = _CrtSetDbgFlag (_CRTDBG_REPORT_FLAG); \
+            state &= ~_CRTDBG_LEAK_CHECK_DF;                  \
+            _CrtSetDbgFlag (state);                           \
+          } while (0)
 #else
   #define CRTDBG_CHECK_OFF()
 #endif
@@ -82,16 +86,7 @@
                          } while (0)
 
 static int c_trace = 0;
-static const char *C_dump20 (const void *data_p, size_t size);
-extern int         is_cygwin_tty (int fd);
-
-#define TRACE(level, ...)  do {                             \
-                            if (c_trace >= level) {         \
-                               printf ("%s(%u): ",          \
-                                       __FILE__, __LINE__); \
-                               printf (__VA_ARGS__);        \
-                            }                               \
-                          } while (0)
+extern int is_cygwin_tty (int fd);
 
 #ifndef C_BUF_SIZE
 #define C_BUF_SIZE 2048
@@ -126,9 +121,10 @@ int C_use_colours = 0;
 int C_use_ansi_colours = 0;
 
 /**
- * When this is set to \b 0, CygWin / ConEmu will also use WinCon API to set colours.
+ * When this is set to \b 1, CygWin / ConEmu will not use ANSI-sequences for colours.
+ * But use WinCon API to set colours.
  */
-int C_no_ansi = 1;
+int C_no_ansi = 0;
 
 /**
  * The program using color.c must set this to \b 1 if `fwrite()` shall
@@ -136,12 +132,6 @@ int C_no_ansi = 1;
  * with other calls (libraries?) that writes to stdout using `fwrite()`.
  */
 int C_use_fwrite = 0;
-
-/**
- * A count of number of times C_flush() was called with nothing
- * in the trace-buffer.
- */
-unsigned C_redundant_flush = 0;
 
 static char   c_buf [C_BUF_SIZE];
 static char  *c_head, *c_tail;
@@ -200,15 +190,9 @@ int C_conemu_detected (void)
   const char *conemu_ansi = getenv ("ConEmuANSI");
 
   if (!conemu_hwnd || !conemu_ansi)
-  {
-    TRACE (1, "Not running under ConEmu.\n");
-    return (FALSE);
-  }
+     return (FALSE);
   if (!stricmp(conemu_ansi,"ON"))
-  {
-    TRACE (1, "Running under ConEmu with ANSI X3.64 support.\n");
-    return (TRUE);
-  }
+     return (TRUE);
   return (FALSE);
 }
 
@@ -272,13 +256,11 @@ int C_init_colour_map (unsigned short col, ...)
   va_start (args, col);
 
   colour_map[0] = console_info.wAttributes;
-  TRACE (1, "i: 0, col: %u.\n", colour_map[0]);
   i = 1;
 
   while (col && i < DIM(colour_map))
   {
     colour_map [i] = col;
-    TRACE (1, "i: %d, col: %u.\n", i, col);
     i++;
 
     /* Use an 'int' due to the clang-cl warning:
@@ -296,7 +278,6 @@ int C_init_colour_map (unsigned short col, ...)
   while (i < DIM(colour_map))
   {
     col = console_info.wAttributes;
-    TRACE (1, "i: %d, col: %u.\n", i, col);
     colour_map [i++] = col;
   }
 
@@ -308,7 +289,6 @@ int C_init_colour_map (unsigned short col, ...)
   {
     const char *p = wincon_to_ansi (colour_map[i]);
 
-    TRACE (2, "colour_map_ansi[%u] -> %s\n", (unsigned)i, C_dump20(p,strlen(p)));
     strncpy (colour_map_ansi[i], p, sizeof(colour_map_ansi[i]));
   }
   return (1);
@@ -370,7 +350,7 @@ void C_exit (void)
  *  + Set c_out to default `stdout` and setup buffer head and tail.
  *  + Initialise the critical-section structure crit.
  */
-static void C_init (void)
+void C_init (void)
 {
   const char *env;
   BOOL        okay;
@@ -394,19 +374,19 @@ static void C_init (void)
 #if defined(__CYGWIN__)
    if (!okay)     /* Use ANSI-colours even if stdout is redirected */
    {
-     console_info.srWindow.Right = 100;
-     console_info.srWindow.Left  = 0;
-     console_info.wAttributes    = 0x1F;   /* Bright white on blue background */
+     console_info.wAttributes = 0x1F;   /* Bright white on blue background */
+     C_use_colours = 1;
      c_always_set_bg = TRUE;
-     okay = TRUE;
    }
 #endif
 
-  if (okay || C_use_ansi_colours > 0) /* force using ANSI colours */
+  if (okay || C_use_ansi_colours) /* force using ANSI colours */
   {
     WORD bg = console_info.wAttributes & ~7;
 
-    c_screen_width = console_info.srWindow.Right - console_info.srWindow.Left + 1;
+    if (okay)
+       c_screen_width = console_info.srWindow.Right - console_info.srWindow.Left + 1;
+
     C_init_colour_map ((bg + 3) | FOREGROUND_INTENSITY,    /* "~1" -> bright cyan */
                        (bg + 2) | FOREGROUND_INTENSITY,    /* "~2" -> bright green */
                        (bg + 6) | FOREGROUND_INTENSITY,    /* "~3" -> bright yellow */
@@ -545,8 +525,6 @@ static const char *wincon_to_ansi (WORD col)
   bg   = (col & ~BACKGROUND_INTENSITY) >> 4;
   if (c_always_set_bg || (bg && bg != (console_info.wAttributes >> 4)))
   {
-    TRACE (2, "col: %u, bg: 0x%02X, console_info.wAttributes: 0x%04X\n",
-           col, bg, console_info.wAttributes);
     SGR = wincon_to_SGR [bg];
     if (bold)
          snprintf (p-1, left+1, ";%d;1m", 40 + SGR);
@@ -594,10 +572,7 @@ size_t C_flush (void)
   size_t len2;
 
   if (!c_out || len1 == 0)
-  {
-    C_redundant_flush++;
-    return (0);
-  }
+     return (0);
 
   EnterCriticalSection (&crit);
   if (C_use_fwrite)
@@ -630,17 +605,26 @@ int C_vprintf (const char *fmt, va_list args)
 {
   int len1, len2;
 
-  C_init();
-
   if (c_raw)
   {
-    C_flush();
-    len1 = vfprintf (c_out, fmt, args);
-    fflush (c_out);
+    if (!c_head)  /* allow using 'DEBUGF()' before C_init()' was called */
+    {
+      len1 = vfprintf (stdout, fmt, args);
+      fflush (stdout);
+    }
+    else
+    {
+      C_flush();
+      len1 = vfprintf (c_out, fmt, args);
+      fflush (c_out);
+    }
   }
   else
   {
     char buf [2*C_BUF_SIZE];
+
+    assert (c_head);
+    assert (c_tail);
 
     EnterCriticalSection (&crit);
 
@@ -667,8 +651,6 @@ int C_putc (int ch)
 {
   static BOOL get_color = FALSE;
   int    i, rc = 0;
-
-  C_init();
 
   assert (c_head);
   assert (c_tail);
@@ -810,26 +792,4 @@ void C_puts_long_line (const char *start, size_t indent)
 size_t C_screen_width (void)
 {
   return (c_screen_width);
-}
-
-/**
- * Dump max 20 bytes of data as hex-printables.
- */
-static const char *C_dump20 (const void *data, size_t size)
-{
-  static char ret [25];
-  size_t ofs;
-  int    ch;
-
-  for (ofs = 0; ofs < sizeof(ret)-4 && ofs < size; ofs++)
-  {
-    ch = ((const BYTE*)data) [ofs];
-    if (ch < ' ')            /* non-printable */
-         ret [ofs] = '.';
-    else ret [ofs] = (char) ch;
-    ret [ofs+1] = '\0';
-  }
-  if (ofs < size)
-     strcat (ret, "...");
-  return (ret);
 }

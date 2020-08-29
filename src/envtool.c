@@ -455,7 +455,7 @@ static int show_version (void)
     num = pkg_config_list_installed();
     DEBUGF (2, "pkg_config_list_installed(): %u.\n", num);
 
-    num = vcpkg_list_installed (opt.verbose >= 1);
+    num = vcpkg_list_installed (opt.do_version >= 3);
     DEBUGF (2, "vcpkg_list_installed(): %u.\n", num);
   }
   return (0);
@@ -469,21 +469,11 @@ static void usage (const char *fmt, ...)
 {
   va_list args;
 
+  C_setraw (1);   /* since 'C_init()' was probably NOT called */
   va_start (args, fmt);
   C_vprintf (fmt, args);
   va_end (args);
   exit (-1);
-}
-
-/**
- * Print some help for the `--32` and `--64` options.
- */
-static void print_help_bits (int bits)
-{
-  C_printf ("    ~6--%d~0           report only %d-bit PE-files in ~6--path~0 or ~6--evry~0 modes.\n"
-            "                   ~4not yet~0: report only %d-bit libraries in ~6--lib~0 mode.\n"
-            "                            report only %d-bit packages in ~6--vcpkg~0 mode.\n",
-            bits, bits, bits, bits);
 }
 
 /**
@@ -517,34 +507,35 @@ static int show_help (void)
   C_puts ("  ~6[options]~0\n"
           "    ~6--descr~0        show 4NT/TCC file-description.\n"
           "    ~6--grep~0=~3content~0 search found file(s) for ~3content~0 also.\n"
+          "    ~6--no-ansi~0      don't print colours using ANSI sequences (effective for CygWin/ConEmu only).\n"
+          "    ~6--no-app~0       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
+          "                              ~3HKLM\\" REG_APP_PATH "~0.\n"
+          "    ~6--no-borland~0   don't check for Borland in ~6--include~0 or ~6--lib~0 mode.\n"
+          "    ~6--no-clang~0     don't check for Clang in ~6--include~0 or ~6--lib~0 mode.\n"
+          "    ~6--no-colour~0    don't print using colours.\n"
           "    ~6--no-gcc~0       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
           "    ~6--no-g++~0       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
           "    ~6--no-prefix~0    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs.    ~2[2]~0\n"
           "    ~6--no-sys~0       don't scan ~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0.\n"
           "    ~6--no-usr~0       don't scan ~3HKCU\\Environment~0.\n"
-          "    ~6--no-app~0       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
-          "                              ~3HKLM\\" REG_APP_PATH "~0.\n"
-          "    ~6--no-colour~0    don't print using colours.\n"
-          "    ~6--no-ansi~0      don't print colours using ANSI sequences (effective for CygWin/ConEmu only).\n"
-          "    ~6--no-borland~0   don't check for Borland in ~6--include~0 or ~6--lib~0 mode.\n"
-          "    ~6--no-clang~0     don't check for Clang in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--no-watcom~0    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--owner~0        shown owner of the file (shows all owners).\n"
           "    ~6--owner~0=~3spec~0   shown only files/directories matching owner ~3spec~0.\n"
           "    ~6--owner~0=~3!spec~0  shown only files/directories ~4not~0 matching owner ~3spec~0.\n"
           "    ~6--pe~0           print checksum, version-info and signing status for PE-files.\n");
 
-  print_help_bits (32);
-  print_help_bits (64);
+  C_puts ("    ~6--32~0           report only 32-bit PE-files in ~6--path~0, ~6--vcpkg~0 or ~6--evry~0 modes.\n");
+  C_puts ("    ~6--64~0           report only 64-bit PE-files in ~6--path~0, ~6--vcpkg~0 or ~6--evry~0 modes.\n");
 
   C_puts ("    ~6--signed~0       check for ~4all~0 digital signature with the ~6--pe~0 option.\n"
           "    ~6--signed=0~0     report only ~4PE~0-files files that are ~6unsigned~0.\n"
           "    ~6--signed=1~0     report only ~4PE~0-files files that are ~6signed~0.\n"
-          "    ~6--no-cwd~0       don't add current directory to search-lists.\n"
+          "    ~6--no-cwd~0       don't add current directory to the search-paths.\n"
           "    ~6-c~0             be case-sensitive.\n"
           "    ~6-d~0, ~6--debug~0    set debug level (level 2, ~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
           "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n"
-          "    ~6-k~0, ~6--keep~0     keep temporary files used in ~6--python~0 mode.\n");
+          "    ~6-k~0, ~6--keep~0     keep temporary files used in ~6--python~0 mode.\n"
+          "    ~6-o~0, ~6--only~0     show only files that matches the ~6--grep~0 ~3content~0 \n");
 
   C_printf ("    ~6-r~0, ~6--regex~0    enable Regular Expressions in all ~6<--mode>~0 searches.\n"
             "    ~6-s~0, ~6--size~0     show size of files or directories found.\n"
@@ -627,18 +618,16 @@ smartlist_t *dir_array_head (void)
 }
 
 /**
- * Add the `dir` to the `dir_array` smartlist.
- * `is_cwd` == 1 if `dir` == current working directory.
+ * Add (or insert at position 0) the `dir` to the `dir_array` smartlist.
  *
- * \param[in] dir     the directory to add to the smartlist.
- * \param[in] is_cwd  TRUE if `dir` is the current working directory.
- * \param[in] file    in what file was `dir_array_add()` called.
- * \param[in] line    at what line was `dir_array_add()` called.
-
+ * \param[in] dir         the directory to add to the smartlist.
+ * \param[in] is_cwd      TRUE if `dir` is the current working directory.
+ * \param[in] insert_at0  insert the new `d` element at position 0 in `dir_array`.
+ *
  * Since this function could be called with a `dir` from `expand_env_var()`,
  * we check here if it returned with no `%`.
  */
-void dir_array_add (const char *dir, int is_cwd, const char *file, unsigned line)
+static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at0)
 {
   struct directory_array *d = CALLOC (1, sizeof(*d));
   struct stat st;
@@ -655,8 +644,10 @@ void dir_array_add (const char *dir, int is_cwd, const char *file, unsigned line
   d->exist   = exp_ok && exists;
   d->is_dir  = is_dir;
   d->is_cwd  = is_cwd;
+#if 0
   d->file    = file;
   d->line    = line;
+#endif
 
   /* Can we have >1 native dirs?
    *
@@ -702,7 +693,9 @@ void dir_array_add (const char *dir, int is_cwd, const char *file, unsigned line
   }
 #endif
 
-  smartlist_add (dir_array, d);
+  if (insert_at0)
+       smartlist_insert (dir_array, 0, d);
+  else smartlist_add (dir_array, d);
 
   if (is_cwd || !exp_ok)
      return;
@@ -717,6 +710,16 @@ void dir_array_add (const char *dir, int is_cwd, const char *file, unsigned line
   }
 }
 
+void dir_array_add (const char *dir, int is_cwd)
+{
+  dir_array_add_or_insert (dir, is_cwd, FALSE);
+}
+
+void dir_array_prepend (const char *dir, int is_cwd)
+{
+  dir_array_add_or_insert (dir, is_cwd, TRUE);
+}
+
 static int dir_array_dump (const char *where, const char *note)
 {
   int i, max;
@@ -728,8 +731,12 @@ static int dir_array_dump (const char *where, const char *note)
   {
     const struct directory_array *dir = smartlist_get (dir_array, i);
 
-    DEBUGF (2, "  dir_array[%d]: exist:%d, num_dup:%d, %s  %s\n",
-            (int)i, dir->exist, dir->num_dup, dir->dir, dir->cyg_dir ? dir->cyg_dir : "");
+    DEBUGF (2, "  dir_array[%d]: exist:%d, num_dup:%d, %s\n",
+            (int)i, dir->exist, dir->num_dup, dir->dir);
+
+#ifdef __CYGWIN__
+    DEBUGF (2, "%53s%s\n", "", dir->cyg_dir);
+#endif
   }
   return (max);
 }
@@ -831,7 +838,7 @@ smartlist_t *reg_array_head (void)
  * Note: `basename (fqfn)` may NOT be equal to `fname` (aliasing). That's the reason
  *       we store `real_fname` too.
  */
-void reg_array_add (HKEY key, const char *fname, const char *fqfn, const char *file, unsigned line)
+void reg_array_add (HKEY key, const char *fname, const char *fqfn)
 {
   struct registry_array *reg;
   struct stat  st;
@@ -856,8 +863,6 @@ void reg_array_add (HKEY key, const char *fname, const char *fqfn, const char *f
   reg->path       = dirname (fqfn);
   reg->exist      = (rc == 0) && FILE_EXISTS (fqfn);
   reg->key        = key;
-  reg->file       = file;
-  reg->line       = line;
   _fix_drive (reg->path);
 }
 
@@ -915,6 +920,40 @@ void dir_array_free (void)
   smartlist_wipe (dir_array, _dir_array_free);
 }
 
+/**
+ * Check and warn when a component on form `c:\dir with space` is found.
+ * I.e. a path without quotes `"c:\dir with space"`.
+ */
+static void check_component (const char *env_name, char *tok, int is_cwd)
+{
+  char *p, *end = strchr (tok, '\0');
+
+  if (!opt.quiet)
+  {
+    p = strchr (tok, ' ');
+    if (opt.quotes_warn && p && (*tok != '"' || end[-1] != '"'))
+       WARN ("%s: \"%s\" needs to be enclosed in quotes.\n", env_name, tok);
+
+#if !defined(__CYGWIN__)
+    /*
+     * Check for missing drive-letter (`x:`) in component.
+     */
+    if (!is_cwd && IS_SLASH(tok[0]) && !str_equal_n(tok,"/cygdrive/",10))
+       WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
+#else
+    ARGSUSED (is_cwd);
+#endif
+
+    /* Warn on `x:` (a missing trailing slash)
+     */
+    if (strlen(tok) <= 3 && isalpha((int)tok[0]) && tok[1] == ':' && !IS_SLASH(tok[2]))
+       WARN ("%s: Component \"%s\" should be \"%s%c\".\n", env_name, tok, tok, DIR_SEP);
+  }
+
+  p = strchr (tok, '%');
+  if (p)
+    WARN ("%s: unexpanded component \"%s\".\n", env_name, tok);
+}
 
 /**
  * Parses an environment string and returns all components as an array of
@@ -923,7 +962,8 @@ void dir_array_free (void)
  * This works since we handle only one env-var at a time. The `dir_array`
  * gets cleared in `dir_array_free()` first (in case it was used already).
  *
- * Add current working directory first if `opt.no_cwd` is FALSE.
+ * Add current working directory first if `opt.no_cwd == 0` and
+ * environment variable does NOT starts with "." or ".\".
  *
  * Convert CygWin style paths to Windows paths: `"/cygdrive/x/.."` -> `"x:/.."`.
  */
@@ -932,6 +972,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   char *tok, *val, *_end;
   int   is_cwd, max, i;
   char  sep [2];
+  BOOL  cwd_added = FALSE;
 
   if (!value)
   {
@@ -941,6 +982,17 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
 
   val = STRDUP (value);  /* Freed before we return */
   dir_array_free();
+
+#if !defined(__CYGWIN__)
+  if (str_equal_n(val,"/cygdrive/",10))
+  {
+    const char *p = strchr (tok, ';');
+
+    if (p && !opt.quiet)
+       WARN ("%s: Using ';' and \"/cygdrive\" together is suspisious.\n", env_name);
+    path_separator = ':';    /* Assume all components are separated by ':' */
+  }
+#endif
 
   sep[0] = (char) path_separator;
   sep[1] = '\0';
@@ -958,8 +1010,11 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   * the %C_INCLUDE_PATH% by default.
   */
   i = 0;
-  if (!opt.no_cwd && is_cwd)
-     DIR_ARRAY_ADD (current_dir, 1);
+  if (!opt.no_cwd && !is_cwd)
+  {
+    dir_array_add (current_dir, 1);
+    cwd_added = TRUE;
+  }
 
   max = INT_MAX;
 
@@ -968,7 +1023,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
     /* Remove trailing `\\`, `/` or `\\"` from environment component
      * unless it's a simple `"c:\"`.
      */
-    char *p, *end = strchr (tok, '\0');
+    char *end = strchr (tok, '\0');
 
     if (end > tok+3)
     {
@@ -978,32 +1033,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
         end[-2] = '\0';
     }
 
-    if (!opt.quiet)
-    {
-      /* Check and warn when a component on form `c:\dir with space` is found.
-       * I.e. a path without quotes `"c:\dir with space"`.
-       */
-      p = strchr (tok, ' ');
-      if (opt.quotes_warn && p && (*tok != '"' || end[-1] != '"'))
-         WARN ("%s: \"%s\" needs to be enclosed in quotes.\n", env_name, tok);
-
-#if !defined(__CYGWIN__)
-      /*
-       * Check for missing drive-letter (`x:`) in component.
-       */
-      if (!is_cwd && IS_SLASH(tok[0]) && str_equal_n(tok,"/cygdrive/",10))
-         WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
-#endif
-
-      /* Warn on `x:` (a missing trailing slash)
-       */
-      if (strlen(tok) <= 3 && isalpha((int)tok[0]) && tok[1] == ':' && !IS_SLASH(tok[2]))
-         WARN ("%s: Component \"%s\" should be \"%s%c\".\n", env_name, tok, tok, DIR_SEP);
-    }
-
-    p = strchr (tok, '%');
-    if (p)
-      WARN ("%s: unexpanded component \"%s\".\n", env_name, tok);
+    check_component (env_name, tok, is_cwd);
 
     if (*tok == '"' && end[-1] == '"')   /* Remove quotes */
     {
@@ -1021,7 +1051,8 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
                tok, env_name);
       tok = current_dir;
     }
-    else if (opt.conv_cygdrive && strlen(tok) >= 12 && str_equal_n(tok,"/cygdrive/",10))
+#if !defined(__CYGWIN__)
+    else if (strlen(tok) >= 12 && str_equal_n(tok,"/cygdrive/",10))
     {
       char buf [_MAX_PATH];
 
@@ -1029,10 +1060,24 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
       DEBUGF (1, "CygPath conv: '%s' -> '%s'\n", tok, buf);
       tok = buf;
     }
+#endif
 
-    DIR_ARRAY_ADD (tok, str_equal(tok,current_dir));
+    if (str_equal(tok,current_dir))
+    {
+      if (!cwd_added)
+         dir_array_add (tok, 1);
+      cwd_added = TRUE;
+    }
+    else
+      dir_array_add (tok, 0);
+
     tok = _strtok_r (NULL, sep, &_end);
   }
+
+  /* Insert CWD at position 0 if not done already
+   */
+  if (!cwd_added && !opt.no_cwd)
+     dir_array_prepend (current_dir, 1);
 
   FREE (val);
   return (dir_array);
@@ -1324,7 +1369,7 @@ static void build_reg_array_app_path (HKEY top_key)
     snprintf (sub_key, sizeof(sub_key), "%s\\%s", REG_APP_PATH, fname);
 
     if (enum_sub_values(top_key, sub_key, &fqfn))
-       REG_ARRAY_ADD (top_key, fname, fqfn);
+       reg_array_add (top_key, fname, fqfn);
   }
   if (key)
      RegCloseKey (key);
@@ -1580,6 +1625,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
 {
   HANDLE          handle;
   WIN32_FIND_DATA ff_data;
+  BOOL            ff_more;
   char            fqfn  [_MAX_PATH];  /* Fully qualified file-name */
   int             found = 0;
 
@@ -1633,7 +1679,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     return (0);
   }
 
-  do
+  for (ff_more = TRUE; ff_more; ff_more = FindNextFile(handle, &ff_data))
   {
     struct stat   st;
     char  *base, *file = ff_data.cFileName;
@@ -1641,6 +1687,9 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     BOOL   is_junction;
     BOOL   ignore = ((file[0] == '.' && file[1] == '\0') ||                   /* current dir entry */
                      (file[0] == '.' && file[1] == '.' && file[2] == '\0'));  /* parent dir entry */
+
+    DEBUGF (1, "ff_data.cFileName \"%s\", ff_data.dwFileAttributes: 0x%08lX, ignore: %d.\n",
+            ff_data.cFileName, ff_data.dwFileAttributes, ignore);
 
     if (ignore)
        continue;
@@ -1710,7 +1759,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     if (is_dir && opt.do_lib)  /* A directory is never a match for a library */
        match = FNM_NOMATCH;
 
-    DEBUGF (1, "Testing \"%s\". is_dir: %d, is_junction: %d, %s\n",
+    DEBUGF (2, "Testing \"%s\". is_dir: %d, is_junction: %d, %s\n",
             file, is_dir, is_junction, fnmatch_res(match));
 
     if (match == FNM_MATCH && safe_stat(file, &st, NULL) == 0)
@@ -1728,7 +1777,6 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
          found++;
     }
   }
-  while (FindNextFile(handle, &ff_data));
 
   FindClose (handle);
   ARGSUSED (recursive);
@@ -1853,7 +1901,7 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  *
  * \endparblock
  */
-static int report_evry_file (const char *file, const char *content, time_t mtime, UINT64 fsize, BOOL *is_shadow)
+static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL *is_shadow)
 {
   struct stat   st;
   struct report r;
@@ -1899,7 +1947,7 @@ static int report_evry_file (const char *file, const char *content, time_t mtime
   }
 
   r.file        = file;
-  r.content     = content ? content : opt.grep.content;
+  r.content     = opt.grep.content;
   r.mtime       = mtime;
   r.fsize       = is_dir ? (__int64)-1 : fsize;
   r.is_dir      = is_dir;
@@ -1962,8 +2010,8 @@ static int do_check_evry (void)
   char  *query = query_buf;
   char  *dir   = NULL;
   char  *base  = NULL;
-  char  *content;
-  int    len, found = 0;
+  int    found = 0;
+  size_t len;
   HWND   wnd;
   struct ver_info evry_ver = { 0, 0, 0, 0 };
 
@@ -2144,10 +2192,6 @@ static int do_check_evry (void)
     return (0);
   }
 
-  content = strstr (query," content:");
-  if (content && strlen(content) > strlen(" content:"))
-     content += strlen (" content:");
-
   /* Sort results by path (ignore case).
    * This will fail if `request_flags` has either `EVERYTHING_REQUEST_SIZE`
    * or `EVERYTHING_REQUEST_DATE_MODIFIED` since version 2 of the query protocol
@@ -2253,7 +2297,7 @@ static int do_check_evry (void)
     {
       if (!opt.dir_mode && prev[0] && !strcmp(prev, file))
          num_evry_dups++;
-      else if (report_evry_file(file, content, mtime, fsize, &is_shadow))
+      else if (report_evry_file(file, mtime, fsize, &is_shadow))
          found++;
       if (!is_shadow)
          _strlcpy (prev, file, sizeof(prev));
@@ -2294,9 +2338,15 @@ static int do_check_env (const char *env_name, BOOL recursive)
 
     if (check_empty && arr->exist && !arr->is_cwd)
        arr->check_empty = check_empty;
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
-                          arr->is_dir, arr->exp_ok, env_name, NULL,
-                          recursive);
+
+    if (arr->is_cwd)
+       DEBUGF (1, "arr->dir: '%s', arr->is_cwd: 1\n", arr->dir);
+
+    if (!arr->done)
+       found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
+                             arr->is_dir, arr->exp_ok, env_name, NULL,
+                             recursive);
+    arr->done = TRUE;
   }
   dir_array_free();
   FREE (orig_e);
@@ -2463,6 +2513,7 @@ static int cmake_version_cb (char *buf, int index)
 static BOOL cmake_get_info (char **exe, struct ver_info *ver)
 {
   static char exe_copy [_MAX_PATH];
+  const char *quote =  "\"";
 
   *ver = cmake_ver;
   *exe = NULL;
@@ -2495,12 +2546,18 @@ static BOOL cmake_get_info (char **exe, struct ver_info *ver)
   if (!cmake_exe)
      return (FALSE);
 
+#ifdef __CYGWIN__
+   if (cygwin_conv_path (CCP_WIN_A_TO_POSIX, cmake_exe, exe_copy, sizeof(exe_copy)) == 0)
+      *exe = cmake_exe = STRDUP (exe_copy);
+  quote = "";
+#else
   cmake_exe = slashify2 (exe_copy, cmake_exe, '\\');
   *exe = STRDUP (cmake_exe);
+#endif
 
   cache_putf (SECTION_CMAKE, "cmake_exe = %s", cmake_exe);
 
-  if (!VALID_VER(cmake_ver) && popen_runf(cmake_version_cb, "\"%s\" -version", cmake_exe) > 0)
+  if (!VALID_VER(cmake_ver) && popen_runf(cmake_version_cb, "%s%s%s -version", quote, quote, cmake_exe) > 0)
      cache_putf (SECTION_CMAKE, "cmake_version = %d,%d,%d", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
 
   *ver = cmake_ver;
@@ -2731,7 +2788,7 @@ static int get_inc_dirs_from_cache (const compiler_info *cc)
     snprintf (format, sizeof(format), "compiler_inc_%d_%d = %%s", cc->type, i);
     if (cache_getf(SECTION_COMPILER, format, &inc_dir) != 1)
        break;
-    DIR_ARRAY_ADD (inc_dir, FALSE);
+    dir_array_add (inc_dir, FALSE);
     found++;
     i++;
   }
@@ -2749,7 +2806,7 @@ static int get_lib_dirs_from_cache (const compiler_info *cc)
     snprintf (format, sizeof(format), "compiler_lib_%d_%d = %%s", cc->type, i);
     if (cache_getf(SECTION_COMPILER, format, &lib_dir) != 1)
        break;
-    DIR_ARRAY_ADD (lib_dir, FALSE);
+    dir_array_add (lib_dir, FALSE);
     found++;
     i++;
   }
@@ -2799,10 +2856,9 @@ static void check_if_cygwin (const char *path)
   if (looks_like_cygwin)
      return;
 
-  if (!memcmp(path,&cyg_usr,sizeof(cyg_usr)-1) || !memcmp(path,&cyg_drv,sizeof(cyg_drv)-1))
+  if (!memcmp(path, &cyg_usr, sizeof(cyg_usr)-1) || !memcmp(path, &cyg_drv, sizeof(cyg_drv)-1))
   {
     looks_like_cygwin = TRUE;
-//  opt.conv_cygdrive = 1;
     DEBUGF (2, "looks_like_cygwin = %d, cygwin_root: '%s'\n", looks_like_cygwin, cygwin_root);
   }
 }
@@ -2841,7 +2897,7 @@ static int find_include_path_cb (char *buf, int index)
   static const char end[]   = "End of search list.";
   const  char *p;
 
-  if (!found_search_line && !memcmp(buf,&start,sizeof(start)-1))
+  if (!found_search_line && !memcmp(buf, &start, sizeof(start)-1))
   {
     found_search_line = TRUE;
     return (0);
@@ -2852,7 +2908,7 @@ static int find_include_path_cb (char *buf, int index)
     p = str_ltrim (buf);
     check_if_cygwin (p);
 
-    if (!memcmp(buf,&end,sizeof(end)-1)) /* got: "End of search list.". No more paths excepted. */
+    if (!memcmp(buf, &end, sizeof(end)-1)) /* got: "End of search list.". No more paths excepted. */
     {
       found_search_line = FALSE;
       return (-1);
@@ -2887,7 +2943,7 @@ static int find_include_path_cb (char *buf, int index)
         p = _fix_path (str_trim(buf), buf2);
     }
 
-    DIR_ARRAY_ADD (p, !stricmp(current_dir,p));
+    dir_array_add (p, !stricmp(current_dir,p));
     DEBUGF (3, "line: '%s'\n", p);
     return (1);
   }
@@ -2946,7 +3002,7 @@ static int find_library_path_cb (char *buf, int index)
            *end = '\0';
       }
     }
-    DIR_ARRAY_ADD (rc, FALSE);
+    dir_array_add (rc, FALSE);
     DEBUGF (3, "tok %d: '%s'\n", i, rc);
   }
   ARGSUSED (index);
@@ -2988,7 +3044,7 @@ static void gnu_add_gpp_path (void)
     {
       /* This will be added at `dir_array[max+1]`.
        */
-      DIR_ARRAY_ADD (fqfn, 0);
+      dir_array_add (fqfn, 0);
 
 #if 0
       /* Insert the new `c++` directory at the `i`-th element.
@@ -3006,15 +3062,16 @@ static void gnu_add_gpp_path (void)
 
 #if defined(__CYGWIN__)
   #define CLANG_DUMP_FMT "%s -v -dM -xc -c - < /dev/null 2>&1"
-  #define GCC_DUMP_FMT   "%s %s -v -dM -xc -c - < /dev/null 2>&1"
+  #define GCC_DUMP_FMT   "%s%s%s -v -dM -xc -c - < /dev/null 2>&1"
 #else
   #define CLANG_DUMP_FMT "%s -o NUL -v -dM -xc -c - < NUL 2>&1"
-  #define GCC_DUMP_FMT   "%s %s -o NUL -v -dM -xc -c - < NUL 2>&1"
-#endif             /* gcc ^, ^ '', '-m32' or '-m64' */
+  #define GCC_DUMP_FMT   "%s%s%s -o NUL -v -dM -xc -c - < NUL 2>&1"
+#endif
 
 static int setup_gcc_includes (const compiler_info *cc)
 {
   const char *gcc = cc->full_name;
+  const char *save_temps = "";
   int   duplicates, found = 0;
 
   if (!gcc)
@@ -3033,10 +3090,15 @@ static int setup_gcc_includes (const compiler_info *cc)
 
   setup_cygwin_root (cc);
 
+  /* Figure out why Cygwin refuses to return it's 'include paths'
+   */
+  if (opt.debug >= 1 && !strnicmp(gcc+2, "\\Cygwin", 7))
+     save_temps = " -save-temps";
+
   found = get_inc_dirs_from_cache (cc);
 
   if (found == 0)
-     found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, "");
+     found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, save_temps, "");
 
   if (found > 0)
   {
@@ -3071,9 +3133,9 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
    * (assuming it supports the `-m32/-m64` switches.
    */
   if (opt.only_32bit)
-       m_cpu = "-m32";
+       m_cpu = " -m32";
   else if (opt.only_64bit)
-       m_cpu = "-m64";
+       m_cpu = " -m64";
   else m_cpu = "";
 
   /* We want the output of stderr only. But that seems impossible on CMD/4NT.
@@ -3087,7 +3149,7 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
   found = get_lib_dirs_from_cache (cc);
 
   if (found == 0)
-     found = popen_runf (find_library_path_cb, GCC_DUMP_FMT, gcc, m_cpu);
+     found = popen_runf (find_library_path_cb, GCC_DUMP_FMT, gcc, m_cpu, "");
   if (found <= 0)
   {
     if (warn)
@@ -3109,7 +3171,7 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
     int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, "/usr/lib/w32api", result, sizeof(result));
 
     if (rc == 0)
-       DIR_ARRAY_ADD (result, FALSE);
+       dir_array_add (result, FALSE);
   }
 #endif
 
@@ -3547,7 +3609,7 @@ static int do_check_gcc_includes (void)
   int num_dirs;
   int found = check_gnu_includes (CC_GNU_GCC, &num_dirs);
 
-  if (num_dirs == 0 && !ignore_all_gcc)  /* Impossible unless we ignore all `*gcc` */
+  if (num_dirs == 0 && !ignore_all_gcc)  /* Hardly possible unless we ignore all `*gcc` */
      WARN ("No gcc.exe programs returned any include paths.\n");
   return (found);
 }
@@ -3673,10 +3735,10 @@ static int find_clang_library_path_cb (char *buf, int index)
     _fix_path (buf2, buf2);
 
     DEBUGF (2, "buf1: '%s'\n", buf1);
-    DIR_ARRAY_ADD (buf1, FALSE);
+    dir_array_add (buf1, FALSE);
 
     DEBUGF (2, "buf2: '%s'\n", buf2);
-    DIR_ARRAY_ADD (buf2, FALSE);
+    dir_array_add (buf2, FALSE);
   }
   ARGSUSED (index);
   return (2*i);
@@ -3799,7 +3861,7 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
   }
 
   if (!opt.no_cwd)
-     DIR_ARRAY_ADD (current_dir, 1);
+     dir_array_add (current_dir, 1);
 
   watcom_dir[0] = getenv_expand (dir0);
   watcom_dir[1] = getenv_expand (dir1);
@@ -3810,10 +3872,10 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
    */
   dir2_found = is_directory (watcom_dir[2]);
 
-  DIR_ARRAY_ADD (watcom_dir[0], 0);
-  DIR_ARRAY_ADD (watcom_dir[1], 0);
+  dir_array_add (watcom_dir[0], 0);
+  dir_array_add (watcom_dir[1], 0);
   if (dir2_found)
-     DIR_ARRAY_ADD (watcom_dir[2], 0);
+     dir_array_add (watcom_dir[2], 0);
 
   return (1);
 }
@@ -3945,7 +4007,7 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
 
     snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(isystem));
     DEBUGF (2, "dir: %s.\n", dir);
-    DIR_ARRAY_ADD (dir, FALSE);
+    dir_array_add (dir, FALSE);
   }
   else if (!strncmp(line,"-I",2))
   {
@@ -3980,7 +4042,7 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
 
     snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(Ldir));
     DEBUGF (2, "dir: %s.\n", dir);
-    DIR_ARRAY_ADD (dir, FALSE);
+    dir_array_add (dir, FALSE);
   }
   else if (!strncmp(line,"-L",2))
   {
@@ -4143,7 +4205,8 @@ static const struct option long_options[] = {
            { "descr",       no_argument,       NULL, 0 },
            { "keep",        no_argument,       NULL, 0 },    /* 41 */
            { "grep",        required_argument, NULL, 0 },
-           { NULL,          no_argument,       NULL, 0 }     /* 43 */
+           { "only",        no_argument,       NULL, 0 },    /* 43 */
+           { NULL,          no_argument,       NULL, 0 }
          };
 
 static int *values_tab[] = {
@@ -4189,7 +4252,8 @@ static int *values_tab[] = {
             &opt.do_vcpkg,            /* 39 */
             &opt.show_descr,
             &opt.keep_temp,           /* 41 */
-            (int*)&opt.grep.content
+            (int*)&opt.grep.content,
+            &opt.grep.only            /* 43 */
           };
 
 /**
@@ -4344,6 +4408,9 @@ static void set_short_option (int o, const char *arg)
     case 'k':
          opt.keep_temp = 1;
          break;
+    case 'o':
+         opt.grep.only = 1;
+         break;
     case 'r':
          opt.use_regex = 1;
          break;
@@ -4473,7 +4540,7 @@ static void parse_cmdline (int _argc, const char **_argv)
   command_line *c = &opt.cmd_line;
 
   c->env_opt       = "ENVTOOL_OPTIONS";
-  c->short_opt     = "+chH:vVdDkrsS:tTuq";
+  c->short_opt     = "+chH:vVdDkorsS:tTuq";
   c->long_opt      = long_options;
   c->set_short_opt = set_short_option;
   c->set_long_opt  = set_long_option;
@@ -4505,7 +4572,7 @@ static int eval_options (void)
     return (0);
   }
 
-  if (!opt.PE_check && !opt.do_vcpkg && (opt.only_32bit || opt.only_64bit))
+  if (!opt.PE_check && !opt.do_vcpkg && !opt.do_man && !opt.do_cmake && (opt.only_32bit || opt.only_64bit))
      opt.PE_check = TRUE;
 
   if (opt.do_check &&
@@ -4516,23 +4583,14 @@ static int eval_options (void)
     return (0);
   }
 
-  C_no_ansi = opt.no_ansi;
-
-  /* Use ANSI-sequences under ConEmu, AppVeyor or if "%COLOUR_TRACE >= 2".
-   * Nullifies the "--no-ansi" option.
-   */
-  if (opt.under_conemu || opt.under_appveyor || C_trace_level() >= 2)
-     C_use_ansi_colours = 1;
-
-  if (opt.no_colours)
-     C_use_colours = C_use_ansi_colours = 0;
-
   if (opt.evry_host)
   {
     if (opt.signed_status != SIGN_CHECK_NONE)
        WARN ("Option '--sign' is not supported for a remote search.\n");
     if (opt.PE_check)
        WARN ("Option '--pe' is not supported for a remote search.\n");
+    if (opt.grep.content)
+       WARN ("Option '--grep' is not supported for a remote search.\n");
     if (opt.show_owner)
        WARN ("Option '--owner' is not supported for a remote search.\n");
   }
@@ -4675,10 +4733,6 @@ static void init_all (const char *argv0)
   dir_array = smartlist_new();
   reg_array = smartlist_new();
 
-#ifdef __CYGWIN__
-  opt.conv_cygdrive = 1;
-#endif
-
   file_descr_init();
 
   current_dir[0] = '.';
@@ -4798,10 +4852,11 @@ static void evry_cfg_handler (const char *section, const char *key, const char *
 }
 
 /**
- * Our main entry point.
+ * Our main entry point:
  *  + Initialise program.
  *  + Parse the command line.
  *  + Evaluate given options for conflicts.
+ *  + Initialise the color.c module (`C_init()`).
  *  + Open and parse `"%APPDATA%/envtool.cfg"`.
  *  + Check if `%WINDIR%\\sysnative` and/or `%WINDIR%\\SysWOW64` exists.
  *  + Install signal-handlers for `SIGINT` and `SIGILL`.
@@ -4815,6 +4870,20 @@ int MS_CDECL main (int argc, const char **argv)
   init_all (argv[0]);
 
   parse_cmdline (argc, argv);
+
+  C_no_ansi = opt.no_ansi;
+
+  /* Use ANSI-sequences under ConEmu, AppVeyor or if "%COLOUR_TRACE >= 2" (for testing).
+   * Nullifies the "--no-ansi" option.
+   */
+  if (opt.under_conemu || opt.under_appveyor || C_trace_level() >= 2)
+     C_use_ansi_colours = 1;
+
+  if (opt.no_colours)
+     C_use_colours = C_use_ansi_colours = 0;
+
+  C_init();
+
   if (!eval_options())
      return (1);
 
@@ -5234,6 +5303,7 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
   {
     const struct shadow_entry *se;
     size_t len, longest = 0;
+    char   slash = opt.show_unix_paths ? '/' : '\\';
 
     /* First find the longest shadow line
      */
@@ -5258,8 +5328,8 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
       t1 = get_time_str_FILETIME (&se->shadowed_FILE_TIME);
       t2 = get_time_str_FILETIME (&se->shadowing_FILE_TIME);
 
-      C_printf ("     ~6shadowed:~0 %-*s  ~6%s~0\n", longest, se->shadowed_file, t1);
-      C_printf ("               %-*s  ~6%s~0\n", longest, se->shadowing_file, t2);
+      C_printf ("     ~6shadowed:~0 %-*s  ~6%s~0\n", longest, slashify(se->shadowed_file, slash), t1);
+      C_printf ("               %-*s  ~6%s~0\n", longest, slashify(se->shadowing_file, slash), t2);
     }
 
     /* We're done; free the shadow-list
@@ -5305,7 +5375,7 @@ static int get_dirlist_from_cache (const char *env_var)
     if (cache_getf(SECTION_ENV_DIR, format, dir) != 1)
        break;
 
-    DIR_ARRAY_ADD (dir, str_equal(dir,current_dir));
+    dir_array_add (dir, str_equal(dir,current_dir));
     i++;
   }
   DEBUGF (1, "Found %d cached 'env_dir_x'.\n", i);
@@ -5338,7 +5408,6 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
 {
   smartlist_t *list = NULL;
   int          i, errors, max = 0;
-  int          save  = opt.conv_cygdrive;
   char        *value;
   const struct directory_array *arr;
 
@@ -5355,12 +5424,11 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
 
   if (value)
   {
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) && 0
     int   needed = cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, NULL, 0);
     char *cyg_value = alloca (needed+1);
 
     cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, cyg_value, needed+1);
-    opt.conv_cygdrive = 0;
     path_separator = ':';
     FREE (value);
     value = cyg_value;
@@ -5429,7 +5497,7 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
   else if (!status[0])
     _strlcpy (status, "~2OK~0", status_sz);
 
-#ifndef __CYGWIN__
+#if !defined(__CYGWIN__) || 1
   FREE (value);
 #endif
 
@@ -5440,7 +5508,6 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
      shadow_report (list, file_spec);
 
   dir_array_free();
-  opt.conv_cygdrive = save;
   path_separator = ';';
 }
 
@@ -5604,10 +5671,13 @@ static void check_app_paths (HKEY key)
  */
 static void print_env_val (const char *val, size_t len, size_t indent)
 {
-  size_t width = (C_screen_width() == 0) ? 200 : C_screen_width() - indent;
+  size_t c_width = C_screen_width();
+  size_t max = (c_width < UINT_MAX) ? 200 : c_width - indent;
 
   C_setraw (1);
-  C_printf ("%.*s", len, str_shorten(val, width));
+  if (c_width == UINT_MAX)
+       C_puts (val);
+  else C_printf ("%.*s", len, str_shorten(val, max));
   C_setraw (0);
   C_puts ("~0\n");
 }
@@ -5678,6 +5748,7 @@ static void do_check_user_sys_env (void)
     return;
   }
 
+  DEBUGF (1, "C_screen_width(): %zd\n", C_screen_width());
   max = smartlist_len (list);
   for (i = 0; i < max; i++)
   {
@@ -5711,21 +5782,22 @@ struct environ_fspec {
      };
 
 static struct environ_fspec envs[] = {
-               { "*.exe",   "PATH"               },
-               { "*.lib",   "LIB"                },
-               { "*.a",     "LIBRARY_PATH"       },
-               { "*.h",     "INCLUDE"            },
-               { "*.h",     "C_INCLUDE_PATH"     },
-               { "*",       "CPLUS_INCLUDE_PATH" },
-               { NULL,      "MANPATH"            },
-               { NULL,      "PKG_CONFIG_PATH"    },
-               { "*.py?",   "PYTHONPATH"         },
-               { "*.cmake", "CMAKE_MODULE_PATH"  },
-               { NULL,      "CLASSPATH"          },  /* No support for these. But do it anyway. */
-               { "*.go",    "GOPATH"             },
-            // { "*.pm",    "PERLLIBDIR"         },
-               { NULL,      "FOO"                },  /* Check that non-existing env-vars are also checked */
-               { NULL,      NULL                 },
+               { "*.exe",   "PATH"                },
+               { "*.lib",   "LIB"                 },
+               { "*.a",     "LIBRARY_PATH"        },
+               { "*.h",     "INCLUDE"             },
+               { "*.h",     "C_INCLUDE_PATH"      },
+               { "*",       "CPLUS_INCLUDE_PATH"  },
+               { NULL,      "MANPATH"             },
+               { NULL,      "PKG_CONFIG_PATH"     },
+               { "*.py?",   "PYTHONPATH"          },
+               { "*.cmake", "CMAKE_MODULE_PATH"   },
+               { "*.pm",    "AUTOM4TE_PERLLIBDIR" },
+               { NULL,      "CLASSPATH"           },  /* No support for these. But do it anyway. */
+               { "*.go",    "GOPATH"              },
+            // { "*.pm",    "PERLLIBDIR"          },
+               { NULL,      "FOO"                 },  /* Check that non-existing env-vars are also checked */
+               { NULL,      NULL                  },
     };
 
 static int do_check (void)
@@ -5738,14 +5810,14 @@ static int do_check (void)
   int         i, save;
   int         num, indent;
 
-  /* Do not implicit add current directory in these searches.
+  /* Do not implicitly add current directory in these searches.
    */
   save = opt.no_cwd;
   opt.no_cwd = 1;
 
   for (i = 0, env = envs[0].env; i < DIM(envs) && env; env = envs[++i].env)
   {
-    indent = (int) (sizeof("CPLUS_INCLUDE_PATH") - strlen(env));
+    indent = (int) (sizeof("AUTOM4TE_PERLLIBDIR") - strlen(env));
 
     C_printf ("Checking ~3%%%s%%~0:%*c", env, indent, ' ');
     if (opt.verbose)

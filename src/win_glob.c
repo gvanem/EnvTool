@@ -16,8 +16,9 @@
 #include <windows.h>
 
 #include "envtool.h"
-#include "win_glob.h"
 #include "getopt_long.h"
+#include "color.h"
+#include "win_glob.h"
 
 #define PATHBUF_LEN  2000
 #define EOS          '\0'
@@ -968,6 +969,7 @@ int MS_CDECL main (int argc, char **argv)
 
   show_full_path = 0;
   global_slash = '\\';
+  C_init();
 
   while ((ch = getopt(argc, argv, "dCfgruxh?")) != EOF)
      switch (ch)

@@ -124,7 +124,7 @@ void cache_init (void)
   f = fopen (cache.filename, "rt");
   if (!f)
   {
-    DEBUGF (1, "Failed to open %s; errno: %d.\n", cache.filename, errno);
+    DEBUGF (1, "Failed to open %s; %s.\n", cache.filename, strerror(errno));
     return;
   }
   cache_parse (f);
@@ -339,7 +339,7 @@ static void cache_write (void)
   f = fopen (cache.filename, "w+t");
   if (!f)
   {
-    DEBUGF (1, "Failed to open %s; errno: %d.\n", cache.filename, errno);
+    DEBUGF (1, "Failed to open %s; %s.\n", cache.filename, strerror(errno));
     return;
   }
 

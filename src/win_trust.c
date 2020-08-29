@@ -22,6 +22,7 @@
 
 #include "getopt_long.h"
 #include "envtool.h"
+#include "color.h"
 
 #ifndef __IN
 #define __IN
@@ -31,18 +32,18 @@
 #define __OUT
 #endif
 
+#undef ERROR
+
 #if defined(WIN_TRUST_TEST)
   #define PRINTF0(str)      printf (str)
   #define PRINTF(fmt, ...)  printf (fmt, ##__VA_ARGS__)
   #define NEWLINE()         putchar ('\n')
-  #undef  ERROR
   #define ERROR(s)          printf ("%s() failed: %s\n", s, win_strerror(GetLastError()))
 
 #else
   #define PRINTF0(str)      ((void)0)
   #define PRINTF(fmt, ...)  ((void)0)
   #define NEWLINE()         ((void)0)
-  #undef  ERROR
   #define ERROR(s)          last_err = GetLastError()
 #endif
 
@@ -69,140 +70,8 @@ char *wintrust_signer_issuer,  *wintrust_timestamp_issuer;
 
 static DWORD last_err;
 
-static wchar_t *evil_char_to_wchar (const char *text);
+static wchar_t *char_to_wchar (const char *text);
 static int      crypt_check_file (const char *fname);
-
-#if defined(WIN_TRUST_TEST)
-
-char  *program_name = "win_trust.exe";
-struct prog_options opt;
-
-static const char *usage_fmt = "Usage: %s <-hcdr> PE-file\n"
-                               "    -h: show this help.\n"
-                               "    -c: call crypt_check_file().\n"
-                               "    -d: set debug-level.\n"
-                               "    -r: perform a Cert revocation check.\n";
-
-static void usage (const char *fmt, ...)
-{
-  va_list args;
-
-  va_start (args, fmt);
-  vprintf (fmt, args);
-  va_end (args);
-  exit (-1);
-}
-
-int MS_CDECL main (int argc, char **argv)
-{
-  const char *pe_file;
-  DWORD       err;
-  BOOL        check_details = FALSE;
-  BOOL        revoke_check = FALSE;
-  int         ch;
-
-  while ((ch = getopt(argc, argv, "cdh?r")) != EOF)
-        switch (ch)
-        {
-          case 'c': check_details = TRUE;
-                    break;
-          case 'd': opt.debug++;
-                    break;
-          case 'r': revoke_check = TRUE;
-                    break;
-          case '?':
-          case 'h': usage (usage_fmt, argv[0]);
-                    break;
-        }
-
-  if (!argv[optind])
-     usage (usage_fmt, argv[0]);
-
-  pe_file = argv[optind];
-
-  err = wintrust_check (pe_file, check_details, revoke_check);
-
-  switch (err)
-  {
-    case ERROR_SUCCESS:
-         printf ("The file %s is signed and the signature was verified.\n", pe_file);
-         break;
-
-    case TRUST_E_NOSIGNATURE:
-         err = GetLastError();
-         if (err == TRUST_E_NOSIGNATURE ||
-             err == TRUST_E_SUBJECT_FORM_UNKNOWN ||
-             err == TRUST_E_PROVIDER_UNKNOWN)
-              printf ("The file \"%s\" is not signed.\n", pe_file);
-         else printf ("An unknown error occurred trying to verify the signature of "
-                      "the \"%s\" file.\n", pe_file);
-         break;
-
-    case TRUST_E_EXPLICIT_DISTRUST:
-         printf ("The signature is present, but specifically disallowed.\n");
-         break;
-
-    case TRUST_E_SUBJECT_NOT_TRUSTED:
-         printf ("The signature is present, but not trusted.\n");
-         break;
-
-    case CRYPT_E_SECURITY_SETTINGS:
-         printf ("CRYPT_E_SECURITY_SETTINGS - The hash "
-                 "representing the subject or the publisher wasn't "
-                 "explicitly trusted by the admin and admin policy "
-                 "has disabled user trust. No signature, publisher "
-                 "or timestamp errors.\n");
-         break;
-
-    default:
-         printf ("Error is: 0x%lx.\n", (unsigned long)err);
-         break;
-  }
-
-#if 0
-  if (err == ERROR_SUCCESS               ||
-      err == TRUST_E_EXPLICIT_DISTRUST   ||
-      err == TRUST_E_SUBJECT_NOT_TRUSTED ||
-      err == CRYPT_E_SECURITY_SETTINGS)
-  {
-    CRYPT_PROVIDER_SGNR *signer   = NULL;
-    CRYPT_PROVIDER_CERT *cert     = NULL;
-    CRYPT_PROVIDER_DATA *provider = WTHelperProvDataFromStateData (data.hWVTStateData);
-
-    if (provider)
-    {
-      /*
-       * MS OIDs:
-       *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa377978(v=vs.85).aspx
-       *
-       *    1.3.6.1.xx
-       *    1.3.6.1.5.5.7.3.3
-       */
-       DEBUGF (1, "SignerUsageOID: '%s'\n", provider->pszCTLSignerUsageOID);
-       DEBUGF (1, "UsageOID:       '%s'\n", provider->pszUsageOID);
-
-       signer = WTHelperGetProvSignerFromChain ((CRYPT_PROVIDER_DATA*)provider,
-                                                0, FALSE, /* first signer*/
-                                                0);       /* not a counter signer */
-       DEBUGF (1, "signer:          %p\n", signer);
-       if (signer)
-       {
-         /* grab the signer cert from CRYPT_PROV_SGNR
-          */
-         cert = WTHelperGetProvCertFromChain (signer, 0);          /* 0 = signer Cert */
-         DEBUGF (1, "Signer Cert:     %p\n", cert);
-         cert = WTHelperGetProvCertFromChain (signer, (DWORD)-1);  /* -1 = root Cert */
-         DEBUGF (1, "Root Cert:       %p\n", cert);
-       }
-    }
-    else
-      ERROR ("WTHelperProvDataFromStateData");
-  }
-#endif
-
-  return (err);
-}
-#endif  /* WIN_TRUST_TEST */
 
 /**
  * Free the memory allcated by `PrintCertificateInfo()`.
@@ -249,7 +118,7 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
   last_err = 0;
 
   file_info.cbStruct      = sizeof(file_info);
-  file_info.pcwszFilePath = evil_char_to_wchar (pe_file);
+  file_info.pcwszFilePath = char_to_wchar (pe_file);
 
   data.cbStruct            = sizeof(data);
   data.dwUIChoice          = WTD_UI_NONE;
@@ -257,7 +126,7 @@ DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check
   data.pFile               = &file_info;
   data.dwStateAction       = WTD_STATEACTION_VERIFY;
   data.dwUIContext         = WTD_UICONTEXT_EXECUTE;
-  data.fdwRevocationChecks = revoke_check ? WTD_REVOKE_WHOLECHAIN : WTD_REVOKE_NONE;
+  data.fdwRevocationChecks = revoke_check ? WTD_REVOKE_WHOLECHAIN      : WTD_REVOKE_NONE;
   data.dwProvFlags         = revoke_check ? WTD_REVOCATION_CHECK_CHAIN : 0;
 
   rc = last_err = WinVerifyTrust (NULL, &action, &data);
@@ -702,7 +571,7 @@ quit:
   return (res);
 }
 
-static wchar_t *evil_char_to_wchar (const char *text)
+static wchar_t *char_to_wchar (const char *text)
 {
   wchar_t *wtext;
   int      wsize;
@@ -731,7 +600,7 @@ static wchar_t *evil_char_to_wchar (const char *text)
  * Generated by:
  *  xxd -i -s 0x17200 F:\ProgramFiler\Python36\DLLs\_ctypes.pyd
  *
- * to test the PKCS7_verify() function.
+ * to test using the OpenSSL `PKCS7_verify()` function.
  */
 static unsigned char Python36_DLLs__ctypes_pyd[] = {
   0x98, 0x1a, 0x00, 0x00, 0x00, 0x02, 0x02, 0x00, 0x30, 0x82, 0x1a, 0x8c,
@@ -1304,21 +1173,155 @@ static unsigned char Python36_DLLs__ctypes_pyd[] = {
   0xbc, 0x59, 0xc5, 0x74
 };
 
-BOOL wintrust_dump_pkcs7_cert (const char *file)
+/**
+ * Called from `test_PE_wintrust()`
+ */
+BOOL wintrust_dump_pkcs7_cert (void)
 {
- /** \todo call from `do_tests()`
-  */
 #if 0
   BIO  *indata = BIO_new();
   PKC7  p7;
 
-  BIO_write (indata, Python36_DLLs__ctypes_pyd, sizeof( Python36_DLLs__ctypes_pyd));
+  BIO_write (indata, Python36_DLLs__ctypes_pyd, sizeof(Python36_DLLs__ctypes_pyd));
   if (PKCS7_verify(&p7, NULL, store, indata, NULL, 0) != 0)
       PKCS7_get0_signers();
 #else
   ARGSUSED (Python36_DLLs__ctypes_pyd);
 #endif
 
-  ARGSUSED (file);
   return (TRUE);
 }
+
+#if defined(WIN_TRUST_TEST)
+
+char  *program_name = "win_trust.exe";
+struct prog_options opt;
+
+static const char *usage_fmt = "Usage: %s <-hcdr> PE-file\n"
+                               "    -h: show this help.\n"
+                               "    -c: call crypt_check_file().\n"
+                               "    -d: set debug-level.\n"
+                               "    -r: perform a Cert revocation check.\n";
+
+static void usage (const char *fmt, ...)
+{
+  va_list args;
+
+  va_start (args, fmt);
+  vprintf (fmt, args);
+  va_end (args);
+  exit (-1);
+}
+
+int MS_CDECL main (int argc, char **argv)
+{
+  const char *pe_file;
+  DWORD       err;
+  BOOL        check_details = FALSE;
+  BOOL        revoke_check = FALSE;
+  int         ch;
+
+  while ((ch = getopt(argc, argv, "cdh?r")) != EOF)
+        switch (ch)
+        {
+          case 'c': check_details = TRUE;
+                    break;
+          case 'd': opt.debug++;
+                    break;
+          case 'r': revoke_check = TRUE;
+                    break;
+          case '?':
+          case 'h': usage (usage_fmt, argv[0]);
+                    break;
+        }
+
+  if (!argv[optind])
+     usage (usage_fmt, argv[0]);
+
+  C_init();
+  pe_file = argv[optind];
+
+  err = wintrust_check (pe_file, check_details, revoke_check);
+
+  switch (err)
+  {
+    case ERROR_SUCCESS:
+         printf ("The file %s is signed and the signature was verified.\n", pe_file);
+         break;
+
+    case TRUST_E_NOSIGNATURE:
+         err = GetLastError();
+         if (err == TRUST_E_NOSIGNATURE ||
+             err == TRUST_E_SUBJECT_FORM_UNKNOWN ||
+             err == TRUST_E_PROVIDER_UNKNOWN)
+              printf ("The file \"%s\" is not signed.\n", pe_file);
+         else printf ("An unknown error occurred trying to verify the signature of "
+                      "the \"%s\" file.\n", pe_file);
+         break;
+
+    case TRUST_E_EXPLICIT_DISTRUST:
+         printf ("The signature is present, but specifically disallowed.\n");
+         break;
+
+    case TRUST_E_SUBJECT_NOT_TRUSTED:
+         printf ("The signature is present, but not trusted.\n");
+         break;
+
+    case CRYPT_E_SECURITY_SETTINGS:
+         printf ("CRYPT_E_SECURITY_SETTINGS - The hash "
+                 "representing the subject or the publisher wasn't "
+                 "explicitly trusted by the admin and admin policy "
+                 "has disabled user trust. No signature, publisher "
+                 "or timestamp errors.\n");
+         break;
+
+    default:
+         printf ("Error is: 0x%lx.\n", (unsigned long)err);
+         break;
+  }
+
+#if 0
+  if (err == ERROR_SUCCESS               ||
+      err == TRUST_E_EXPLICIT_DISTRUST   ||
+      err == TRUST_E_SUBJECT_NOT_TRUSTED ||
+      err == CRYPT_E_SECURITY_SETTINGS)
+  {
+    CRYPT_PROVIDER_SGNR *signer   = NULL;
+    CRYPT_PROVIDER_CERT *cert     = NULL;
+    CRYPT_PROVIDER_DATA *provider = WTHelperProvDataFromStateData (data.hWVTStateData);
+
+    if (provider)
+    {
+      /*
+       * MS OIDs:
+       *   https://msdn.microsoft.com/en-us/library/windows/desktop/aa377978(v=vs.85).aspx
+       *
+       *    1.3.6.1.xx
+       *    1.3.6.1.5.5.7.3.3
+       */
+       DEBUGF (1, "SignerUsageOID: '%s'\n", provider->pszCTLSignerUsageOID);
+       DEBUGF (1, "UsageOID:       '%s'\n", provider->pszUsageOID);
+
+       signer = WTHelperGetProvSignerFromChain ((CRYPT_PROVIDER_DATA*)provider,
+                                                0, FALSE, /* first signer*/
+                                                0);       /* not a counter signer */
+       DEBUGF (1, "signer:          %p\n", signer);
+       if (signer)
+       {
+         /* grab the signer cert from CRYPT_PROV_SGNR
+          */
+         cert = WTHelperGetProvCertFromChain (signer, 0);          /* 0 = signer Cert */
+         DEBUGF (1, "Signer Cert:     %p\n", cert);
+         cert = WTHelperGetProvCertFromChain (signer, (DWORD)-1);  /* -1 = root Cert */
+         DEBUGF (1, "Root Cert:       %p\n", cert);
+       }
+    }
+    else
+      ERROR ("WTHelperProvDataFromStateData");
+  }
+#endif
+
+  return (err);
+}
+#endif  /* WIN_TRUST_TEST */
+

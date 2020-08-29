@@ -66,27 +66,27 @@ static char descr_name [200] = "DESCRIPT.ION";
  */
 void file_descr_init (void)
 {
-  if (!all_descr)
+  const char *env, *line, *shell;
+
+  if (all_descr)
+     return;
+
+  all_descr = smartlist_new();
+  env = getenv ("COMSPEC");
+  if (!env)
+     return;
+
+  shell = strlwr (basename(env));
+  if (!strcmp(shell,"4nt.exe") || !strcmp(env,"tcc.exe"))
   {
-    const char *env = getenv ("COMSPEC");
-
-    all_descr = smartlist_new();
-    if (env)
-    {
-      const char *line, *shell = strlwr (basename(env));
-
-      if (!strcmp(shell,"4nt.exe") || !strcmp(env,"tcc.exe"))
-      {
-        /* `%_DNAME` is an internal 4NT/TCC variable
-         */
-        popen_runf (NULL, "%s /C echo %%_dname", shell);
-        line = popen_last_line();
-        DEBUGF (2, "line: '%s'.\n", line);
-        if (*line && strchr(line,'.'))
-           _strlcpy (descr_name, line, sizeof(descr_name));
-       }
-    }
-  }
+    /* `%_DNAME` is an internal 4NT/TCC variable
+     */
+    popen_runf (NULL, "%s /C echo %%_dname", shell);
+    line = popen_last_line();
+    DEBUGF (2, "line: '%s'.\n", line);
+    if (*line && strchr(line,'.'))
+       _strlcpy (descr_name, line, sizeof(descr_name));
+   }
 }
 
 /**
@@ -138,15 +138,15 @@ static void all_descr_free (void *_d)
  */
 void file_descr_exit (void)
 {
-  if (all_descr)
-  {
-    if (opt.debug >= 2)
-       all_descr_dump();
+  if (!all_descr)
+     return;
 
-    smartlist_wipe (all_descr, all_descr_free);
-    smartlist_free (all_descr);
-    all_descr = NULL;
-  }
+  if (opt.debug >= 2)
+     all_descr_dump();
+
+  smartlist_wipe (all_descr, all_descr_free);
+  smartlist_free (all_descr);
+  all_descr = NULL;
 }
 
 /**
@@ -253,7 +253,7 @@ static const char *all_descr_new (const char *dir, const char *file)
  * Lookup a file/directory description for a `file_dir` in the directory `dir`.
  *
  * if `d->descr == NULL`, it means the `dir` was already
- * tried and we found no `descr_name` in it. Hence no point lookup further.
+ * tried and we found no `descr_name` in it. Hence no point to look further.
  *
  * \retval !NULL The file/dir description was found.
  * \retval NULL  The file/dir have no description.
@@ -335,9 +335,10 @@ struct prog_options opt;
 
 static void init (int argc, char **argv)
 {
-  if (argc == 2 && !strcmp(argv[1],"-d"))
+  if (argc == 2 && !strcmp(argv[1], "-d"))
      opt.debug = 2;
 
+  C_init();
   crtdbug_init();
   file_descr_init();
 }

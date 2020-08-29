@@ -13,6 +13,7 @@
 #include <windows.h>
 #include <wincon.h>
 #include <winioctl.h>
+#include <shellapi.h> /* old Watcom 1.9 needs this ahead of '<shlobj.h>' */
 #include <shlobj.h>
 #include <accctrl.h>
 #include <aclapi.h>
@@ -1186,7 +1187,7 @@ const char *reg_access_name (REGSAM acc)
 }
 
 /**
- * Swap bytes in a 32-bit value.
+ * Swap bytes a 32-bit value.
  */
 DWORD reg_swap_long (DWORD val)
 {
@@ -1199,45 +1200,45 @@ DWORD reg_swap_long (DWORD val)
 /**
  * Removes end-of-line termination from a string.
  */
-char *str_strip_nl (char *s)
+char *str_strip_nl (char *str)
 {
   char *p;
 
-  if ((p = strrchr(s,'\n')) != NULL) *p = '\0';
-  if ((p = strrchr(s,'\r')) != NULL) *p = '\0';
-  return (s);
+  if ((p = strrchr(str,'\n')) != NULL) *p = '\0';
+  if ((p = strrchr(str,'\r')) != NULL) *p = '\0';
+  return (str);
 }
 
 /**
  * Trim leading blanks (space/tab) from a string.
  */
-char *str_ltrim (char *s)
+char *str_ltrim (char *str)
 {
-  ASSERT (s != NULL);
+  ASSERT (str != NULL);
 
-  while (s[0] && s[1] && VALID_CH((int)s[0]) && isspace((int)s[0]))
-       s++;
-  return (s);
+  while (str[0] && str[1] && VALID_CH((int)str[0]) && isspace((int)str[0]))
+       str++;
+  return (str);
 }
 
 /**
  * Trim trailing blanks (space/tab) from a string.
  */
-char *str_rtrim (char *s)
+char *str_rtrim (char *str)
 {
   size_t n;
   int    ch;
 
-  ASSERT (s != NULL);
-  n = strlen (s) - 1;
+  ASSERT (str != NULL);
+  n = strlen (str) - 1;
   while (n)
   {
-    ch = (int)s [n];
+    ch = (int)str [n];
     if (VALID_CH(ch) && !isspace(ch))
        break;
-    s[n--] = '\0';
+    str[n--] = '\0';
   }
-  return (s);
+  return (str);
 }
 
 /**
@@ -1294,16 +1295,16 @@ BOOL str_endswith (const char *s1, const char *s2)
 }
 
 /**
- * Match a string `s` against word `what`.
- * Set `*next` to position after `what` in `s`.
+ * Match a string `str` against word `what`.
+ * Set `*next` to position after `what` in `str`.
  */
-BOOL str_match (const char *s, const char *what, char **next)
+BOOL str_match (const char *str, const char *what, char **next)
 {
   size_t len = strlen (what);
 
-  if (str_startswith(s,what))
+  if (str_startswith(str,what))
   {
-    *next = str_ltrim ((char*)s + len);
+    *next = str_ltrim ((char*)str + len);
     return (TRUE);
   }
   return (FALSE);
@@ -1389,28 +1390,27 @@ char *str_replace2 (int ch, const char *replace, char *str, size_t max_size)
 }
 
 /**
- * Remote quotes (`"`) inside a string `s`.
+ * Remote quotes (`"`) inside or around a string `str`.
  */
-char *str_unquote (char *s)
+char *str_unquote (char *str)
 {
-  char *p = s, *q;
-  char *copy = alloca (strlen(s)+1);
+  char *p = str, *q;
+  char *copy = alloca (strlen(str)+1);
 
   for (q = copy; *p; p++)
       if (*p != '"')
          *q++ = *p;
   *q = '\0';
-  memcpy (s, copy, strlen(copy)+1);
-  return (s);
+  return memcpy (str, copy, strlen(copy)+1);
 }
 
 /**
- * Return TRUE is string `s` is properly quoted.
+ * Return TRUE is string `str` is properly quoted.
  */
-int str_isquoted (const char *s)
+int str_isquoted (const char *str)
 {
-  char *l_quote = strchr (s, '\"');
-  char *r_quote = strrchr (s, '\"');
+  char *l_quote = strchr (str, '\"');
+  char *r_quote = strrchr (str, '\"');
 
   return (l_quote && r_quote && r_quote > l_quote);
 }
@@ -1797,16 +1797,6 @@ char *dirname (const char *fname)
   return (dirpart);
 }
 
-/**
- * Create a full MS-DOS path name from the components.
- */
-void make_path (char *path, const char *drive, const char *dir, const char *filename, const char *ext)
-{
-#if !defined(__CYGWIN__)
-  _makepath (path, drive, dir, filename, ext);
-#endif
-}
-
 #if !defined(__CYGWIN__)
 /**
  * Create a CygWin compatible path name from a Windows path.
@@ -1832,17 +1822,31 @@ char *make_cyg_path (const char *path, char *result)
 wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
 {
   wchar_t *p = WCSDUP (path);
-  wchar_t  buf [_MAX_PATH+20];
 
   if (wcslen(p) > 2 && p[1] == ':' && IS_SLASH(p[2]))
-  {
-    _snwprintf (buf, DIM(buf), L"/cygdrive/%c/%s", towlower(p[0]), p+3);
-    wcsncpy (result, buf, _MAX_PATH);
-  }
-  else
-    wcsncpy (result, p, _MAX_PATH);
+       _snwprintf (result, _MAX_PATH, L"/cygdrive/%c/%s", towlower(p[0]), p+3);
+  else wcsncpy (result, p, _MAX_PATH);
   FREE (p);
   return (result);
+}
+
+#else
+char *make_cyg_path (const char *path, char *result)
+{
+  char cyg_name [_MAX_PATH];
+
+  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, path, cyg_name, sizeof(cyg_name)) == 0)
+     return _strlcpy (result, cyg_name, _MAX_PATH);
+  return _strlcpy (result, path, _MAX_PATH);  /* return unchanged */
+}
+
+wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
+{
+  wchar_t cyg_name [_MAX_PATH];
+
+  if (cygwin_conv_path(CCP_WIN_W_TO_POSIX, path, cyg_name, DIM(cyg_name)) == 0)
+     return wcsncpy (result, cyg_name, _MAX_PATH);
+  return wcsncpy (result, path, _MAX_PATH);   /* return unchanged */
 }
 #endif
 
@@ -1941,14 +1945,14 @@ BOOL is_directory (const char *file)
   struct stat st;
 
 #if defined(__CYGWIN__)
-  char  *p, buf [_MAX_PATH];
+  char  *end, buf [_MAX_PATH];
 
-  strlcpy (buf, file, sizeof(buf));
-  p = strchr (buf, '\0');
-  if (!IS_SLASH(p[-1]))
+  _strlcpy (buf, file, sizeof(buf));
+  end = strchr (buf, '\0');
+  if (!IS_SLASH(end[-1]))
   {
-    *p++ = '/';
-    *p = '\0';
+    *end++ = '/';
+    *end = '\0';
   }
   file = buf;
 #endif
@@ -1993,7 +1997,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
      attr = 0;   /* Pass on to Cygwin's stat() */
   else
 #endif
-  attr = GetFileAttributes (file);
+    attr = GetFileAttributes (file);
 
   memset (st, '\0', sizeof(*st));
   st->st_size = (off_t)-1;     /* signal if stat() fails */
@@ -2019,12 +2023,12 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 
     if (hnd != INVALID_HANDLE_VALUE)
     {
-      if (GetFileTime(hnd,&c_ftime,NULL,&m_ftime))
+      if (GetFileTime(hnd, &c_ftime, NULL, &m_ftime))
       {
         st->st_ctime = FILETIME_to_time_t (&c_ftime);
         st->st_mtime = FILETIME_to_time_t (&m_ftime);
       }
-      if (GetFileSizeEx(hnd,&fsize))
+      if (GetFileSizeEx(hnd, &fsize))
          st->st_size = ((UINT64)fsize.HighPart << 32) + fsize.LowPart;
       CloseHandle (hnd);
     }
@@ -2032,7 +2036,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
       err = GetLastError();
   }
 
-  DEBUGF (1, "file: %s, attr: 0x%08lX, hnd: %p, err: %lu, mtime: %" U64_FMT " fsize: %s\n",
+  DEBUGF (1, "file: '%s', attr: 0x%08lX, hnd: %p, err: %lu, mtime: %" U64_FMT " fsize: %s\n",
           file, (unsigned long)attr, hnd, err, (UINT64)st->st_mtime, get_file_size_str(st->st_size));
 
   if (win_err)
@@ -2058,16 +2062,7 @@ char *create_temp_file (void)
 
   if (tmp)
   {
-    char *t;
-#ifdef __CYGWIN__
-    char tmp_conv [_MAX_PATH];
-
-    if (cygwin_conv_path (CCP_POSIX_TO_WIN_A, tmp, tmp_conv, sizeof(tmp_conv)))
-       return (NULL);
-    t = STRDUP (tmp_conv);
-#else
-    t = STRDUP (tmp);
-#endif
+    char *t = STRDUP (tmp);
 
     DEBUGF (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
     free (tmp);     /* Free CRT data */
@@ -2399,24 +2394,24 @@ BOOL chk_disk_ready (int disk)
 /**
  * This used to be a macro in envtool.h.
  */
-#if defined(__CYGWIN__)
-  /**
-   * Cannot use `GetFileAttributes()` in case file is on Posix form.
-   * \eg. `/cygdrive/c/foo`
-   */
-  int _file_exists (const char *file)
+int _file_exists (const char *file)
+{
+  if (_has_drive(file) && !chk_disk_ready((int)file[0]))
   {
-    struct stat st;
-    return (safe_stat(file,&st,NULL) == 0);
+    DEBUGF (2, "Disk %c: not ready.\n", file[0]);
+    return (0);
   }
+  if (GetFileAttributes(file) != INVALID_FILE_ATTRIBUTES)
+     return (1);
+
+#if defined(__CYGWIN__)  /* In case file is on Posix form. E.g. `/cygdrive/c/foo` */
+  struct stat st;
+  return (safe_stat(file, &st, NULL) == 0 && st.st_mtime);
 #else
-  int _file_exists (const char *file)
-  {
-    if (_has_drive(file) && !chk_disk_ready((int)file[0]))
-       return (FALSE);
-    return (GetFileAttributes(file) != INVALID_FILE_ATTRIBUTES);
-  }
+  DEBUGF (2, "No attributes for File '%s'.\n", file);
+  return (0);
 #endif
+}
 
 /**
  * Return TRUE if this program is executed as an `elevated` process.
@@ -3603,7 +3598,7 @@ int debug_printf (const char *format, ...)
 
 /**
  * Duplicate and fix the `cmd` before calling `popen()`.
- * The caller (i.e. `popen_run()`) must free the return value.
+ * The caller `popen_run()` must free the return value.
  */
 static char *popen_setup (const char *cmd)
 {
@@ -3691,7 +3686,7 @@ char *popen_last_line (void)
  */
 int popen_run (popen_callback callback, const char *cmd)
 {
-  char  buf[1000];
+  char  buf [3000];
   int   i = 0;
   int   j = -1;
   FILE *f;
@@ -3865,14 +3860,9 @@ BOOL getenv_system (smartlist_t **sl)
   *sl = NULL;
   env_blk = NULL;
 
-  if (!p_CreateEnvironmentBlock)
+  if (!p_CreateEnvironmentBlock || !p_DestroyEnvironmentBlock)
   {
-    DEBUGF (1, "p_CreateEnvironmentBlock not available.\n");
-    return (FALSE);
-  }
-  if (!p_DestroyEnvironmentBlock)
-  {
-    DEBUGF (1, "p_DestroyEnvironmentBlock not available.\n");
+    DEBUGF (1, "p_CreateEnvironmentBlock and/or p_DestroyEnvironmentBlock not available.\n");
     return (FALSE);
   }
 

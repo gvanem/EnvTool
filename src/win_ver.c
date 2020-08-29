@@ -11,6 +11,7 @@
 #include <lm.h>
 
 #include "envtool.h"
+#include "color.h"
 
 #ifndef VER_PLATFORM_WIN32_CE
 #define VER_PLATFORM_WIN32_CE 3
@@ -366,36 +367,39 @@ const char *os_full_version (void)
 
 struct prog_options opt;
 
-int MS_CDECL main (void)
+int MS_CDECL main (int argc, char **argv)
 {
   DWORD major, minor, platform;
   BOOL  rc;
   const char *ver, *release, *build, *full;
 
-  opt.debug = 1;
+  if (argc >= 2 && !strcmp(argv[1], "-d"))
+     opt.debug = 1;
+
+  C_init();
 
   rc = get_wksta_version (&major, &minor, &platform, 100);
-  DEBUGF (1, "Result from NetWkstaGetInfo(), level 100:\n");
+  C_puts ("Result from NetWkstaGetInfo(), level 100:\n");
   if (!rc)
-     DEBUGF (1, "  failed\n");
+     C_puts ("  failed\n");
 
   rc = get_wksta_version (&major, &minor, &platform, 102);
-  DEBUGF (1, "Result from NetWkstaGetInfo(), level 102:\n");
+  C_puts ("Result from NetWkstaGetInfo(), level 102:\n");
   if (!rc)
-     DEBUGF (1, "  failed\n");
+     C_puts ("  failed\n");
 
   ver = os_name();
-  DEBUGF (1, "Result from os_name():             %s\n", ver);
-  DEBUGF (1, "Result from os_bits():             %s bits\n", os_bits());
+  C_printf ("Result from os_name():             %s\n", ver);
+  C_printf ("Result from os_bits():             %s bits\n", os_bits());
 
   release = os_release_id();
-  DEBUGF (1, "Result from os_release_id():       %s\n", release ? release : "<none>");
+  C_printf ("Result from os_release_id():       %s\n", release ? release : "<none>");
 
   build = os_update_build_rev();
-  DEBUGF (1, "Result from os_update_build_rev(): %s\n", build ? build : "<none>");
+  C_printf ("Result from os_update_build_rev(): %s\n", build ? build : "<none>");
 
   full = os_full_version();
-  DEBUGF (1, "Result from os_full_version():     %s\n", full ? full : "<none>");
+  C_printf ("Result from os_full_version():     %s\n", full ? full : "<none>");
   return (0);
 }
 #endif
