@@ -16,7 +16,7 @@ CC = $(POCC_ROOT)/bin/pocc
 
 CFLAGS = -X -W1 -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl          \
          -D_WIN32_WINNT=0x501 -D_WIN32_IE=0x500 -DWIN32_LEAN_AND_MEAN \
-         -std:C11 -Go -Zi -Zl -Ze                                     \
+         -DUSE_SQLITE3 -std:C11 -Go -Zi -Zl -Ze                       \
          -I$(POCC_ROOT)/include -I$(POCC_ROOT)/include/win
 
 # CFLAGS += -DSTRSAFE_NO_DEPRECATE

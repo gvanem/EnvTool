@@ -1,23 +1,45 @@
 /**
  * \file    win_sqlite3.c
  * \ingroup Misc
- * \brief   Function for read/write to envtool Sqlite cache
+ * \brief   Function for read/write to envtool Sqlite3 cache
+ *
+ * Currently called only from 'tests.c' (calls 'test_sqlite3()').
+ * It is meant to replace or enhance functions in 'cache.c' later.
  */
-
 #include "envtool.h"
 #include "color.h"
 
 #if defined(USE_SQLITE3)   /* rest of file */
 
-#define SQLITE_API       __declspec(dllimport)
+#if defined(HAVE_WINSQLITE3_H)
+  #define SQLITE_API __declspec(dllimport)
+
+   #if defined(_MSC_VER)
+    #include <winsqlite/winsqlite3.h>
+  #else
+    #include <winsqlite3.h>
+  #endif
+  #undef sqlite3_open
+#else
+  typedef struct sqlite3     sqlite3;
+  typedef struct sqlite3_vfs sqlite3_vfs;
+  typedef int (__stdcall*    sqlite3_callback) (void *cb_arg, int argc, char **argv, char **col_name);
+#endif
+
+#ifndef SQLITE_OPEN_READWRITE
+#define SQLITE_OPEN_READWRITE 2
+#endif
+
+#ifndef SQLITE_OPEN_CREATE
+#define SQLITE_OPEN_CREATE 4
+#endif
+
+#ifndef SQLITE_OK
+#define SQLITE_OK 0
+#endif
+
 #define SQLITE_APICALL   __stdcall
 #define SQLITE_CALLBACK  __stdcall
-
-#if defined(_MSC_VER)
-  #include <winsqlite/winsqlite3.h>
-#else
-  #include <winsqlite3.h>
-#endif
 
 static const char *db_name = "test.db";
 
@@ -35,23 +57,22 @@ static const char *dll_name = "WinSqlite3.dll";
 /*
  * Similar to 'envtool_py.c'
  */
-#define DEF_FUNC(ret, f, args)                  \
-        typedef ret (__stdcall *func_##f) args; \
+#define DEF_FUNC(ret, f, args)                       \
+        typedef ret (SQLITE_APICALL *func_##f) args; \
         static func_##f p_##f = NULL
 
 #define LOAD_FUNC(is_opt, f)                               \
         do {                                               \
           p_##f = (func_##f) GetProcAddress (dll_hnd, #f); \
-          if (!p_##f && !is_opt) {                         \
-             WARN ("  Failed to find '%s()' in %s.\n",     \
-                   #f, dll_name);                          \
-            goto failed;                                   \
+          if (!p_##f && !is_opt)                           \
+          {                                                \
+            WARN ("  Failed to find '%s()' in %s.\n",      \
+                  #f, dll_name);                           \
+            return (FALSE);                                \
           }                                                \
           DEBUGF (2, "Function %s(): %*s 0x%p.\n",         \
                      #f, 23-(int)strlen(#f), "", p_##f);   \
         } while (0)
-
-#undef sqlite3_open
 
 DEF_FUNC (int,          sqlite3_open, (const char *filename, sqlite3 **p_db));
 DEF_FUNC (int,          sqlite3_open_v2, (const char *filename, sqlite3 **p_db,
@@ -87,8 +108,6 @@ static BOOL sql3_load (void)
   LOAD_FUNC (0, sqlite3_sourceid);
   LOAD_FUNC (0, sqlite3_vfs_find);
   return (TRUE);
- failed:
-  return (FALSE);
 }
 
 static BOOL sql3_unload (void)
@@ -116,6 +135,7 @@ static int SQLITE_CALLBACK sql3_callback (void *cb_arg, int argc, char **argv, c
 
 static void test_sqlite3_vfs (void)
 {
+#if defined(HAVE_WINSQLITE3_H)
   const struct sqlite3_vfs *vfs;
   int   i;
 
@@ -128,6 +148,7 @@ static void test_sqlite3_vfs (void)
   if (i == 0)
      C_puts   ("No Virtual File Systems.");
   C_puts ("\n\n");
+#endif
 }
 
 /*

@@ -23,7 +23,7 @@ endif
 
 CFLAGS = -Wall -Wno-strict-aliasing -Wno-missing-braces \
          -static-libgcc -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl \
-         -D__GETOPT_H__ -D_WIN32_WINNT=0x0602
+         -D__GETOPT_H__ -D_WIN32_WINNT=0x0602 -DUSE_SQLITE3
 
 LDFLAGS = -Wl,--print-map,--sort-common,--cref
 RCFLAGS = -O COFF

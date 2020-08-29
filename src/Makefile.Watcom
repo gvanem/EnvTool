@@ -5,7 +5,8 @@
 CC     = wcc386
 CFLAGS = -bt=nt -mf -w6 -d2 -zq -zc -zm -3r -fr=nul   &
          -DEVERYTHINGUSERAPI= -DEVERYTHINGAPI=__cdecl &
-         -DWIN32_LEAN_AND_MEAN -D_WIN32_WINNT=0x0501
+         -DWIN32_LEAN_AND_MEAN -D_WIN32_WINNT=0x0501  &
+         -DUSE_SQLITE3
 
 LINK    = wlink option quiet, map, eliminate, caseexact system nt debug all sort global
 EX_LIBS = advapi32.lib imagehlp.lib version.lib shfolder.lib shlwapi.lib &
