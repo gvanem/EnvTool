@@ -72,7 +72,7 @@
       <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN /D_WIN32_WINNT=0x0602 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN /D_WIN32_WINNT=0x0602 /D_WIN32_IE=0x500 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -102,7 +102,7 @@
       <PreprocessorDefinitions>WIN32;EVERYTHINGUSERAPI=;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN /D_WIN32_WINNT=0x0602 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/I. /D_LIBC /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_DEPRECATE /DWIN32_LEAN_AND_MEAN /D_WIN32_WINNT=0x0602 /D_WIN32_IE=0x500 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
