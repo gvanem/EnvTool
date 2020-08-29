@@ -34,6 +34,7 @@ OBJECTS = auth.obj           &
           sort.obj           &
           tests.obj          &
           vcpkg.obj          &
+          win_sqlite3.obj    &
           win_trust.obj      &
           win_ver.obj
 
@@ -47,27 +48,24 @@ envtool.exe: $(OBJECTS) envtool.res
 
 .ERASE
 dirlist.exe: dirlist.c misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj
-	$(CC) $(CFLAGS) -DDIRLIST_TEST dirlist.c
-	$(LINK) name $*.exe file { dirlist.obj misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj } library { $(EX_LIBS) }
-	rm dirlist.obj
+	$(CC) $(CFLAGS) -DDIRLIST_TEST -fo=dirlist_test.obj dirlist.c
+	$(LINK) name $*.exe file { dirlist_test.obj misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj } library { $(EX_LIBS) }
 
 .ERASE
 win_trust.exe: win_trust.c dirlist.obj misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj
-	$(CC) $(CFLAGS) -DWIN_TRUST_TEST win_trust.c
-	$(LINK) name $*.exe file { win_trust.obj dirlist.obj misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj } &
+	$(CC) $(CFLAGS) -DWIN_TRUST_TEST -fo=win_trust_test.obj win_trust.c
+	$(LINK) name $*.exe file { win_trust_test.obj dirlist.obj misc.obj color.obj getopt_long.obj searchpath.obj smartlist.obj } &
 	        library { $(EX_LIBS) }
-	rm win_trust.obj
 
 .ERASE
 win_ver.exe: win_ver.c dirlist.obj misc.obj color.obj searchpath.obj smartlist.obj
-	$(CC) $(CFLAGS) -DWIN_VER_TEST win_ver.c
-	$(LINK) name $*.exe file { win_ver.obj dirlist.obj misc.obj color.obj searchpath.obj smartlist.obj } &
+	$(CC) $(CFLAGS) -DWIN_VER_TEST -fo=win_ver_test.obj win_ver.c
+	$(LINK) name $*.exe file { win_ver_test.obj dirlist.obj misc.obj color.obj searchpath.obj smartlist.obj } &
 	        library { $(EX_LIBS) }
-	rm win_ver.obj
 
 .ERASE
 .c.obj:
-	$(CC) $(CFLAGS) $[@
+	$(CC) $(CFLAGS) $[@ -fo=$^@
 
 .ERASE
 cflags_Watcom.h: Makefile.Watcom
@@ -81,6 +79,6 @@ envtool.res: envtool.rc
 	wrc -D__WATCOMC__ -DRC_INVOKED -r -zm -fo=envtool.res envtool.rc
 
 clean vclean: .SYMBOLIC
-	- rm -f $(OBJECTS) envtool.map envtool.res envtool.exe cflags_Watcom.h ldflags_Watcom.h
+	- rm -f $(OBJECTS) dirlist_test.obj win_trust_test.obj win_ver_test.obj envtool.map envtool.res envtool.exe cflags_Watcom.h ldflags_Watcom.h
 	- rm -f dirlist.exe dirlist.map win_trust.exe win_trust.map
 

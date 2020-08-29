@@ -11,6 +11,11 @@ CFLAGS  = -nologo -W3 -Zi -Zo -Gy -Gs -DWIN32 \
           -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -D_WIN32_IE=0x500 \
           -DEVERYTHINGAPI=__cdecl -D_WIN32_WINNT=0x0602
 
+#
+# This depends on the SDK having '<winsqlite/winsqlite3.h>'.
+
+CFLAGS = $(CFLAGS) -DUSE_SQLITE3
+
 LDFLAGS = -nologo -incremental:no -debug -map
 
 #
@@ -57,7 +62,7 @@ OBJECTS = auth.obj envtool.obj envtool_py.obj cache.obj cfg_file.obj color.obj d
           dirlist.obj Everything.obj Everything_ETP.obj find_vstudio.obj get_file_assoc.obj \
           getopt_long.obj ignore.obj misc.obj pkg-config.obj report.obj searchpath.obj \
           show_ver.obj smartlist.obj sort.obj regex.obj tests.obj vcpkg.obj win_trust.obj \
-          win_ver.obj
+          win_sqlite3.obj win_ver.obj
 
 all: cflags_MSVC.h ldflags_MSVC.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
 	copy /y envtool.exe ..
