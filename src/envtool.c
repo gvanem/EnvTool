@@ -986,7 +986,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
 #if !defined(__CYGWIN__)
   if (str_equal_n(val,"/cygdrive/",10))
   {
-    const char *p = strchr (tok, ';');
+    const char *p = strchr (val, ';');
 
     if (p && !opt.quiet)
        WARN ("%s: Using ';' and \"/cygdrive\" together is suspisious.\n", env_name);
