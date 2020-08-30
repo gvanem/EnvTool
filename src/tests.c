@@ -69,71 +69,6 @@ static void test_split_env (const char *env)
 
 
 #if defined(__CYGWIN__)
-
-#pragma GCC diagnostic ignored  "-Wstack-protector"
-
-/**
- * Test Cygwin specific env-var splitting in `split_env_var()`.
- */
-static void test_split_env_cygwin (const char *env)
-{
-  smartlist_t *list;
-  char        *value, *cyg_value;
-  int          i, max, rc, needed;
-
-  dir_array_free();
-
-  C_printf ("~3%s():~0 ", __FUNCTION__);
-  C_printf (" testing 'split_env_var (\"%s\",\"%%%s\")':\n", env, env);
-
-  value = getenv_expand (env);
-  if (!value)
-  {
-    i = 0;
-    goto fail;  /* Should not happen */
-  }
-
-  needed = cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, NULL, 0);
-  cyg_value = alloca (needed+1);
-  DEBUGF (2, "cygwin_conv_path_list(): needed %d\n", needed);
-
-  rc = cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, cyg_value, needed+1);
-  DEBUGF (2, "cygwin_conv_path_list(): rc: %d, '%s'\n", rc, cyg_value);
-
-  path_separator = ':';
-  list = split_env_var (env, cyg_value);
-
-  max = list ? smartlist_len (list) : 0;
-
-  for (i = 0; i < max; i++)
-  {
-    const struct directory_array *arr = smartlist_get (list, i);
-    char *dir = arr->dir;
-
-    if (arr->exist && arr->is_dir)
-       dir = cygwin_create_path (CCP_WIN_A_TO_POSIX, dir);
-
-    C_printf ("  arr[%d]: %s", i, dir);
-
-    if (arr->num_dup > 0)
-       C_puts ("  ~4**duplicated**~0");
-    if (!arr->exist)
-       C_puts ("  ~5**not existing**~0");
-    if (!arr->is_dir)
-       C_puts ("  ~4**not a dir**~0");
-    C_putc ('\n');
-
-    if (dir != arr->dir)
-       free (dir);
-  }
-  dir_array_free();
-  FREE (value);
-
-  path_separator = ';';
-fail:
-  C_printf ("~0  %d elements\n\n", i);
-}
-
 /**
  * Test the POSIX to Windows Path functions.
  */
@@ -737,18 +672,21 @@ static void test_libssp (void)
  */
 static void test_AppVeyor (void)
 {
-  const char *cmake = searchpath ("cmake.exe", "PATH");
-  int   rc;
+  const char *cmake;
+  int   rc, save = opt.debug;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
+  opt.debug = 2;
+  cmake = searchpath ("cmake.exe", "PATH");
 
   if (!cmake)
      C_printf ("cmake.exe not on %%PATH.\n");
   else
   {
-    rc = popen_runf (NULL, "\"%s\" -version > %s", cmake, DEV_NULL);
+    rc = popen_run (NULL, cmake, "-version > %s", DEV_NULL);
     C_printf ("popen_run() reported %d: %s\n", rc, rc == 0 ? cmake : "cmake not found");
   }
+  opt.debug = save;
 }
 
 /**
@@ -804,8 +742,6 @@ static int test_python_funcs (void)
  */
 int do_tests (void)
 {
-  int save;
-
   if (opt.do_evry && opt.evry_host)
   {
     test_ETP_host();
@@ -819,26 +755,8 @@ int do_tests (void)
   test_split_env ("MANPATH");
 
 #ifdef __CYGWIN__
-  test_split_env_cygwin ("PATH");
   test_posix_to_win_cygwin();
 #endif
-
-#ifdef __WATCOMC__
-  test_split_env ("NT_INCLUDE");
-#else
-  test_split_env ("INCLUDE");
-#endif
-
-  save = opt.no_cwd;
-  opt.no_cwd = 1;
-#ifdef __CYGWIN__
-  setenv ("FOO", "/cygdrive/c", 1);
-#else
-  putenv ("FOO=c:\\");
-#endif
-
-  test_split_env ("FOO");
-  opt.no_cwd = save;
 
   test_searchpath();
   test_fnmatch();
