@@ -202,7 +202,7 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
       save_match (fmt, line_num, line_start, match, match_len, line_end - line_start);
       match = NULL;
       opt.grep.num_matches++;
-      if (++matches >= opt.grep.max_matches && opt.grep.max_matches)
+      if (++matches >= (int)opt.grep.max_matches && opt.grep.max_matches)
       {
         buf_puts (fmt, "        ...\n");
         break;
