@@ -2,7 +2,7 @@
 # EnvTool CygWin (32/64-bit) makefile.
 #
 FORTIFY_SOURCE ?= 0
-USE_DEBUG      ?= 1
+USE_DEBUG      ?= 0
 USE_WS2_32     ?= 0
 
 #
@@ -77,7 +77,7 @@ SOURCES = auth.c cache.c cfg_file.c color.c description.c dirlist.c envtool.c \
           smartlist.c sort.c tests.c vcpkg.c win_sqlite3.c win_trust.c win_ver.c
 
 OBJECTS  = $(notdir $(SOURCES:.c=.o))
-PROGRAMS = envtool.exe win_glob.exe win_ver.exe win_trust.exe dirlist.exe
+PROGRAMS = envtool.exe win_glob.exe win_ver.exe win_trust.exe description.exe dirlist.exe
 
 all: cflags_CygWin.h ldflags_CygWin.h $(PROGRAMS)
 	cp --update envtool.exe ..
@@ -89,6 +89,11 @@ envtool.exe: $(OBJECTS) envtool.res
 
 envtool.res: envtool.rc
 	windres $(RCFLAGS) -o envtool.res -i envtool.rc
+	@echo
+
+description.exe: description.c dirlist.c misc.c color.c searchpath.c smartlist.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DDESCRIPTION_TEST -o $@ $^ $(EX_LIBS) > description.map
+	rm -f description.o
 	@echo
 
 dirlist.exe: dirlist.c misc.c color.c searchpath.c smartlist.c
