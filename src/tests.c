@@ -100,6 +100,27 @@ void test_posix_to_win_cygwin (void)
   }
   C_putc ('\n');
 }
+
+/**
+ * Test the command-line for `popen()`.
+ *
+ * It's a major hazzle to get the quotes correct for `/bin/sh` when passing
+ * in a program with spaces. This `cmake.exe` exists here. Change to suite.
+ * The below should call:
+ *   popen ("'/cygdrive/c/Program Files (x86)/PC Connectivity Solution/bin/cmake.exe' -version", "r");
+ *
+ * in misc.c. And `popen_run()` should hopefully return 0 (success).
+ */
+void test_popen_cygwin (void)
+{
+  int         rc, save = opt.debug;
+  const char *cmake = "c:\\Program Files (x86)\\PC Connectivity Solution\\bin\\cmake.exe";
+
+  opt.debug = 2;
+  rc = popen_run (cmake_version_cb, cmake, "-version");
+  C_printf ("popen_run() reported %d: %s\n", rc, cmake);
+  opt.debug = save;
+}
 #endif  /* __CYGWIN__ */
 
 /**\struct test_table1
@@ -664,6 +685,12 @@ static void test_libssp (void)
 #endif /* (_FORTIFY_SOURCE > 0) */
 }
 
+static int cmake_version_cb (char *buf, int index)
+{
+  DEBUGF (2, "buf: '%s', index: %d.\n", buf, index);
+  return (0);
+}
+
 /**
  * This should run when user-name is `APPVYR-WIN\appveyor`.
  *
@@ -673,19 +700,20 @@ static void test_libssp (void)
 static void test_AppVeyor (void)
 {
   const char *cmake;
-  int   rc, save = opt.debug;
+  int   rc, save;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
-  opt.debug = 2;
   cmake = searchpath ("cmake.exe", "PATH");
 
   if (!cmake)
-     C_printf ("cmake.exe not on %%PATH.\n");
-  else
   {
-    rc = popen_run (NULL, cmake, "-version > %s", DEV_NULL);
-    C_printf ("popen_run() reported %d: %s\n", rc, rc == 0 ? cmake : "cmake not found");
+    C_printf ("cmake.exe not on %%PATH.\n");
+    return;
   }
+  save = opt.debug;
+  opt.debug = 2;
+  rc = popen_run (cmake_version_cb, cmake, "-version");
+  C_printf ("popen_run() reported %d: %s\n", rc, cmake);
   opt.debug = save;
 }
 
@@ -756,6 +784,7 @@ int do_tests (void)
 
 #ifdef __CYGWIN__
   test_posix_to_win_cygwin();
+  test_popen_cygwin();
 #endif
 
   test_searchpath();
@@ -779,7 +808,7 @@ int do_tests (void)
 #endif
 
 #if defined(USE_SQLITE3)
-  test_sqlite3();
+  // test_sqlite3();
 #endif
 
   if (opt.use_cache)
