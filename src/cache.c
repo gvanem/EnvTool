@@ -381,7 +381,7 @@ static int compare_on_section_key2 (const void *_key, const void **member)
 }
 
 /**
- * Do a binary search for `section` and `key` and return a `cach_node*` if found.
+ * Do a binary search for `section` and `key` and return a `cache_node*` if found.
  * If `idx_p` is set and:
  *   if cache-node was found, set the index of the entry in `*idx_p`.
  *   if cache-node was not found, set the index of the first vacant (new) entry in `*idx_p`.
@@ -582,7 +582,8 @@ void cache_putf (CacheSections section, const char *fmt, ...)
 }
 
 /**
- * Lookup a `key` and set the value if found.
+ * Lookup a `key` and return the value if found.
+ * Sets `*value == NULL` if `key` was not found in `section`.
  */
 static int cache_get (CacheSections section, const char *key, const char **value)
 {
@@ -809,13 +810,13 @@ void cache_test (void)
   int   d_val10, d_val11, d_val12;
   int   d_val20, d_val21, d_val22;
   int   d_val30, d_val31, d_val32;
-  char *s_val00, *s_val10, *s_val20, *s_val30;
+  char *s_val00 = NULL, *s_val10 = NULL, *s_val20 = NULL, *s_val30 = NULL;
 
   cache_node *c;
 
-  if (!cache.entries)
+  if (!cache.entries || smartlist_len(cache.entries) == 0)
   {
-    DEBUGF (0, "cache.entries == NULL!\n");
+    DEBUGF (0, "No cache.entries.\n");
     return;
   }
 
