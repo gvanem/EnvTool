@@ -11,9 +11,11 @@
 
 #if defined(USE_SQLITE3)   /* rest of file */
 
-#if defined(HAVE_WINSQLITE3_H)
-  #define SQLITE_API __declspec(dllimport)
+#define SQLITE_API       __declspec(dllimport)
+#define SQLITE_APICALL   __stdcall
+#define SQLITE_CALLBACK  __stdcall
 
+#if defined(HAVE_WINSQLITE3_H)
    #if defined(_MSC_VER)
     #include <winsqlite/winsqlite3.h>
   #else
@@ -38,9 +40,6 @@
 #define SQLITE_OK 0
 #endif
 
-#define SQLITE_APICALL   __stdcall
-#define SQLITE_CALLBACK  __stdcall
-
 static const char *db_name = "test.db";
 
 static const char *exec_stmt[] = {
@@ -48,7 +47,8 @@ static const char *exec_stmt[] = {
                   "INSERT OR REPLACE INTO     tbl VALUES (1, 'hello!',         10);",
                   "INSERT OR REPLACE INTO     tbl VALUES (2, 'another string', 20);",
                   "INSERT OR REPLACE INTO     tbl VALUES (3, 'goodbye',        30);",
-                  "SELECT * FROM  tbl WHERE column >= 2;"
+                  "SELECT *       FROM tbl WHERE column >= 2;",
+               // "SELECT message FROM tbl WHERE message = 'hello!';"
                 };
 
 static HANDLE      dll_hnd = INVALID_HANDLE_VALUE;
@@ -122,7 +122,7 @@ static int SQLITE_CALLBACK sql3_callback (void *cb_arg, int argc, char **argv, c
 {
   int i;
 
-  C_printf ("  ~3%s(): loop-number: %d~0  (argc: %d)\n",
+  C_printf ("  ~3%s(): exec-number: %d~0  (argc: %d)\n",
             __FUNCTION__, (int)cb_arg, argc);
 
   for (i = 0; i < argc; i++)
@@ -206,7 +206,7 @@ void test_sqlite3 (void)
   }
 
   if (rc == SQLITE_OK && i == DIM(exec_stmt))
-     C_printf ("  Successfully created ~6%s~0 and executed all statements\n", db_name);
+     C_printf ("  Successfully created ~6%s~0 and executed all statements.\n", db_name);
 
   (*p_sqlite3_close) (db);
   sql3_unload();
