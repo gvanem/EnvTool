@@ -3784,7 +3784,8 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
     if (rc < 0)
        break;
   }
-  _pclose (f);
+  rc = _pclose (f);
+  DEBUGF (2, " _pclose(): %d.\n", rc);
   FREE (cmd2);
   return (i);
 }
