@@ -2455,7 +2455,7 @@ static BOOL get_control_node (int *index_p, port_node **node_p, const char *pack
     port_node *node = smartlist_get (ports_list, i);
 
     if (node->have_CONTROL &&
-        fnmatch(package_spec, node->package, FNM_FLAG_NOCASE) == FNM_MATCH)
+        fnmatch(package_spec, node->package, fnmatch_case(0)) == FNM_MATCH)
     {
       DEBUGF (2, "i=%d, index=%d, package: %s\n", i, index, node->package);
       *node_p  = node;

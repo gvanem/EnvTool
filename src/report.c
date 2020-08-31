@@ -456,14 +456,14 @@ int report_file (struct report *r)
       {
         const char *owner = smartlist_get (opt.owners, i);
 
-        if (owner[0] == '!' && fnmatch(owner+1, account_name, FNM_FLAG_NOCASE) == FNM_NOMATCH)
+        if (owner[0] == '!' && fnmatch(owner+1, account_name, fnmatch_case(0)) == FNM_NOMATCH)
         {
           inverse = TRUE;
           found_owner = owner + 1;
           show_this_file = TRUE;
           break;
         }
-        else if (fnmatch(owner, account_name, FNM_FLAG_NOCASE) == FNM_MATCH)
+        else if (fnmatch(owner, account_name, fnmatch_case(0)) == FNM_MATCH)
         {
           found_owner = owner;
           show_this_file = TRUE;
