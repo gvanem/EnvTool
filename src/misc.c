@@ -1578,6 +1578,10 @@ static const char *find_slash (const char *s)
   return (NULL);
 }
 
+/*
+ * Test a character `test` for match of a `pattern`.
+ * For a `pattern == "!x"`, check if `test != x`.
+ */
 static const char *range_match (const char *pattern, char test, int nocase)
 {
   char c, c2;
