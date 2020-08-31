@@ -134,7 +134,7 @@ int C_no_ansi = 0;
 int C_use_fwrite = 0;
 
 static char   c_buf [C_BUF_SIZE];
-static char  *c_head, *c_tail;
+static char  *c_head = NULL, *c_tail = NULL;
 static int    c_raw = 0;
 static int    c_binmode = 0;
 static BOOL   c_always_set_bg = FALSE;
@@ -607,7 +607,7 @@ int C_vprintf (const char *fmt, va_list args)
 
   if (c_raw)
   {
-    if (!c_head)  /* allow using 'DEBUGF()' before C_init()' was called */
+    if (!c_out)  /* allow using 'DEBUGF()' before C_init()' was called */
     {
       len1 = vfprintf (stdout, fmt, args);
       fflush (stdout);
