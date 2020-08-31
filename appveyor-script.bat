@@ -84,6 +84,10 @@ exit /b 1
   :: echo Testing win_glob
   :: win_glob -fr "c:\Program Files (x86)\CMake"
 
+  @echo.
+  @echo Show last 20 lines of cache-file
+  @"c:\Program Files\Git\usr\bin\tail" --lines=20 %TEMP%\envtool.cache
+
   @echo off
   del /q %APPDATA%\.netrc %APPDATA%\.authinfo
   exit /b
