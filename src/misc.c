@@ -3785,7 +3785,9 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
        break;
   }
   rc = _pclose (f);
-  DEBUGF (2, " _pclose(): %d.\n", rc);
+  if (rc == -1)
+       DEBUGF (2, " _pclose(): -1, errno: %d.\n", errno);
+  else DEBUGF (2, " _pclose(): %d.\n", rc);
   FREE (cmd2);
   return (i);
 }
