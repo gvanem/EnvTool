@@ -16,7 +16,7 @@
  *
  * By Gisle Vanem <gvanem@yahoo.no> 2011 - 2020.
  *
- * Functions fnmatch() and searchpath() taken from djgpp and modified:
+ * Functions fnmatch() was taken from djgpp and modified:
  *   Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details
  */
 #include <stdio.h>

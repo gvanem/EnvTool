@@ -4,11 +4,6 @@
  *    Find a file along an envirnment variable. (Usually the `%PATH%`).
  */
 
-/* Copyright (C) 2001 DJ Delorie, see COPYING.DJ for details */
-/* Copyright (C) 1999 DJ Delorie, see COPYING.DJ for details */
-/* Copyright (C) 1996 DJ Delorie, see COPYING.DJ for details */
-/* Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details */
-
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>

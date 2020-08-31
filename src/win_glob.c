@@ -1,9 +1,4 @@
-/* Copyright (C) 2001 DJ Delorie, see COPYING.DJ for details */
-/* Copyright (C) 1999 DJ Delorie, see COPYING.DJ for details */
-/* Copyright (C) 1998 DJ Delorie, see COPYING.DJ for details */
-/* Copyright (C) 1997 DJ Delorie, see COPYING.DJ for details */
-/* Copyright (C) 1996 DJ Delorie, see COPYING.DJ for details */
-/* Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details */
+/* Copyright (C) 1995-2001 DJ Delorie, see COPYING.DJ for details */
 
 #include <stdio.h>
 #include <string.h>
