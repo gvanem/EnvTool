@@ -711,7 +711,7 @@ static void test_AppVeyor (void)
     return;
   }
   save = opt.debug;
-  opt.debug = 2;
+  opt.debug = 3;
   rc = popen_run (cmake_version_cb, cmake, "-version");
   C_printf ("popen_run() reported %d: %s\n", rc, cmake);
   opt.debug = save;

@@ -3752,7 +3752,7 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
     left -= vsnprintf (p, left, arg, args);
     va_end (args);
   }
-  DEBUGF (2, "left: %zd, cmd_buf: '%s'.\n", left, cmd_buf);
+  DEBUGF (2, "left: %d, cmd_buf: '%s'.\n", (int)left, cmd_buf);
 
   cmd2 = popen_setup (cmd_buf);
   if (!cmd2)
