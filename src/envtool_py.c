@@ -624,7 +624,7 @@ static void print_user_site_path (const struct python_info *pi, int indent)
 {
   C_printf ("%*s", indent+global_indent, "~7User-site:~0");
   if (pi->user_site_path)
-       C_printf (" %s %s~0\n", dir_name(pi->user_site_path,TRUE),
+       C_printf (" %s %s~0\n", dir_name(pi->user_site_path, TRUE),
                  is_directory(pi->user_site_path) ? "~2OK" : "~5Does not exist");
   else C_puts (" ~5<none>~0\n");
 }
@@ -1172,7 +1172,7 @@ static char *tmp_fputs (const struct python_info *pi, const char *buf)
  * this is much slower than using `call_python_func()` directly).
  *
  * Write the Python-code (\ref PY_LIST_MODULES() or \ref PY_ZIP_LIST()) to a
- * temporary file and `call popen_runf()` on it. Then parse the output.
+ * temporary file and `call popen_run()` on it. Then parse the output.
  */
 static int popen_append_out (char *str, int index)
 {
@@ -1217,7 +1217,7 @@ static void popen_append_clear (void)
 }
 
 /**
- * The `popen_runf()` function for running a non-embedded Python program.
+ * The `popen_run()` function for running a non-embedded Python program.
  */
 static char *popen_run_py (const struct python_info *pi, const char *prog)
 {
@@ -1245,9 +1245,9 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
      return (NULL);
 
   py_exe = cyg_exe_name;
-  rc = popen_runf (popen_append_out, "%s %s 2>&1", cyg_exe_name, win_tmp_name);
+  rc = popen_run (popen_append_out, cyg_exe_name, "%s 2>&1", win_tmp_name);
 #else
-  rc = popen_runf (popen_append_out, "%s %s 2>&1", pi->exe_name, popen_tmp);
+  rc = popen_run (popen_append_out, py_exe, "%s 2>&1", popen_tmp);
 #endif
 
   if (rc < 0)
@@ -1847,7 +1847,7 @@ static void add_sys_path (const char *dir)
  *
  * \param[in] str    the string to add to `g_pi->sys_path[]`.
  * \param[in] index  `index == -1`  we are called from `call_python_func()`.
- *                   `index != -1`  we are the `popen_runf()` callback.
+ *                   `index != -1`  we are the `popen_run()` callback.
  */
 static int build_sys_path (char *str, int index)
 {
@@ -1930,7 +1930,7 @@ static int build_sys_path (char *str, int index)
 /**
  * \todo
  *   CygWin's Python doesn't like the `;` and `\\` in `%PYTHONPATH`.
- *   Try to detect Cygwin and please it before calling popen_runf().
+ *   Try to detect Cygwin and please it before calling popen_run().
  *   Do something like `cygwin_create_path(CCP_WIN_A_TO_POSIX, dir)`
  *   does in CygWin.
  */
@@ -1940,9 +1940,8 @@ static void get_sys_path (const struct python_info *pi)
      return;
 
   ASSERT (pi == g_pi);
-  popen_runf (build_sys_path, "%s -c \"%s\"",
-              pi->exe_name,
-              pi->ver_major >= 3 ? PY_PRINT_SYS_PATH3_CMD() : PY_PRINT_SYS_PATH2_CMD());
+  popen_run (build_sys_path, pi->exe_name, "-c \"%s\"",
+             pi->ver_major >= 3 ? PY_PRINT_SYS_PATH3_CMD() : PY_PRINT_SYS_PATH2_CMD());
 }
 
 /**
@@ -2578,26 +2577,27 @@ int py_test (void)
 }
 
 /**
- * `popen_runf()` callback to get the Python version.
+ * `popen_run()` callback to get the Python version.
  *
- * \param[in] output  the string from `popen_runf()`.
- * \param[in] line    the line-number from `popen_runf()`.
+ * \param[in] output  the string from `popen_run()`.
+ * \param[in] line    the line-number from `popen_run()`.
  */
 static int report_py_version_cb (char *output, int line)
 {
- /** `pypy.exe -c "import sys; print (sys.version_info)"` doesn't print this.
-  */
   const char *prefix = "sys.version_info";
   int   num;
 
-  if (line == 1)
+  if (line == 1)  /* the 2nd line */
   {
     DEBUGF (1, "line: %d, output: '%s'\n", line, output);
     _strlcpy (tmp_user_site, output, sizeof(tmp_user_site));
     return (1);
   }
 
-  if (!strncmp(output,prefix,strlen(prefix)))
+  /** `pypy.exe -c "import sys; print (sys.version_info)"` doesn't print the `prefix`.
+   * But simply the result. Like: `(major=2, minor=7, micro=9, releaselevel='final', serial=42)`.
+   */
+  if (!strncmp(output, prefix, strlen(prefix)))
      output += strlen (prefix);
 
   num = sscanf (output, "(major=%d, minor=%d, micro=%d",
@@ -2614,7 +2614,7 @@ static int get_python_version (const char *exe_name)
 {
   tmp_ver_major = tmp_ver_minor = tmp_ver_micro = -1;
   tmp_user_site[0] = '\0';
-  return (popen_runf(report_py_version_cb, "%s -c \"%s\"", exe_name, PY_GET_VERSION()) >= 1);
+  return (popen_run(report_py_version_cb, exe_name, "-c \"%s\"", PY_GET_VERSION()) >= 1);
 }
 
 /**

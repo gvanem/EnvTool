@@ -2512,9 +2512,6 @@ static int cmake_version_cb (char *buf, int index)
 
 static BOOL cmake_get_info (char **exe, struct ver_info *ver)
 {
-  static char exe_copy [_MAX_PATH];
-  const char *quote =  "\"";
-
   *ver = cmake_ver;
   *exe = NULL;
 
@@ -2546,18 +2543,10 @@ static BOOL cmake_get_info (char **exe, struct ver_info *ver)
   if (!cmake_exe)
      return (FALSE);
 
-#ifdef __CYGWIN__
-   if (cygwin_conv_path (CCP_WIN_A_TO_POSIX, cmake_exe, exe_copy, sizeof(exe_copy)) == 0)
-      *exe = cmake_exe = STRDUP (exe_copy);
-  quote = "";
-#else
-  cmake_exe = slashify2 (exe_copy, cmake_exe, '\\');
-  *exe = STRDUP (cmake_exe);
-#endif
-
   cache_putf (SECTION_CMAKE, "cmake_exe = %s", cmake_exe);
+  *exe = STRDUP (cmake_exe);
 
-  if (!VALID_VER(cmake_ver) && popen_runf(cmake_version_cb, "%s%s%s -version", quote, quote, cmake_exe) > 0)
+  if (!VALID_VER(cmake_ver) && popen_run(cmake_version_cb, cmake_exe, "-version") > 0)
      cache_putf (SECTION_CMAKE, "cmake_version = %d,%d,%d", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
 
   *ver = cmake_ver;
@@ -3010,7 +2999,7 @@ static int find_library_path_cb (char *buf, int index)
 }
 
 /**
- * Print a warning on last error from a gnu `popen_runf()` callback.
+ * Print a warning on last error from a gnu `popen_run()` callback.
  */
 static void gnu_popen_warn (const char *gcc, int rc)
 {
@@ -3061,11 +3050,11 @@ static void gnu_add_gpp_path (void)
 }
 
 #if defined(__CYGWIN__)
-  #define CLANG_DUMP_FMT "%s -v -dM -xc -c - < /dev/null 2>&1"
-  #define GCC_DUMP_FMT   "%s%s%s -v -dM -xc -c - < /dev/null 2>&1"
+  #define CLANG_DUMP_FMT "-v -dM -xc -c - < /dev/null 2>&1"
+  #define GCC_DUMP_FMT   "%s%s -v -dM -xc -c - < /dev/null 2>&1"
 #else
-  #define CLANG_DUMP_FMT "%s -o NUL -v -dM -xc -c - < NUL 2>&1"
-  #define GCC_DUMP_FMT   "%s%s%s -o NUL -v -dM -xc -c - < NUL 2>&1"
+  #define CLANG_DUMP_FMT "-o NUL -v -dM -xc -c - < NUL 2>&1"
+  #define GCC_DUMP_FMT   "%s%s -o NUL -v -dM -xc -c - < NUL 2>&1"
 #endif
 
 static int setup_gcc_includes (const compiler_info *cc)
@@ -3098,7 +3087,7 @@ static int setup_gcc_includes (const compiler_info *cc)
   found = get_inc_dirs_from_cache (cc);
 
   if (found == 0)
-     found = popen_runf (find_include_path_cb, GCC_DUMP_FMT, gcc, save_temps, "");
+     found = popen_run (find_include_path_cb, gcc, GCC_DUMP_FMT, save_temps, "");
 
   if (found > 0)
   {
@@ -3149,7 +3138,7 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
   found = get_lib_dirs_from_cache (cc);
 
   if (found == 0)
-     found = popen_runf (find_library_path_cb, GCC_DUMP_FMT, gcc, m_cpu, "");
+     found = popen_run (find_library_path_cb, gcc, GCC_DUMP_FMT, m_cpu, "");
   if (found <= 0)
   {
     if (warn)
@@ -3688,6 +3677,7 @@ static void clang_popen_warn (const compiler_info *cc, int rc)
 
 static int setup_clang_includes (const compiler_info *cc)
 {
+  const char *clang = cc->full_name;
   int found = 0;
 
   dir_array_free();
@@ -3701,9 +3691,9 @@ static int setup_clang_includes (const compiler_info *cc)
      */
     found_search_line = FALSE;
 
-    found = popen_runf (find_include_path_cb, CLANG_DUMP_FMT, cc->full_name);
+    found = popen_run (find_include_path_cb, clang, CLANG_DUMP_FMT);
     if (found > 0)
-         DEBUGF (1, "found %d include paths for %s.\n", found, cc->full_name);
+         DEBUGF (1, "found %d include paths for %s.\n", found, clang);
     else clang_popen_warn (cc, found);
   }
   return put_inc_dirs_to_cache (cc);
@@ -3759,7 +3749,7 @@ static int setup_clang_library_path (const compiler_info *cc)
   found = get_lib_dirs_from_cache (cc);
 
   if (found == 0)
-     found = popen_runf (find_clang_library_path_cb, "%s -print-search-dirs", cc->full_name);
+     found = popen_run (find_clang_library_path_cb, cc->full_name, "-print-search-dirs");
   if (found > 0)
        DEBUGF (1, "found %d library paths for %s.\n", found, cc->full_name);
   else clang_popen_warn (cc, found);

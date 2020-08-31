@@ -440,7 +440,7 @@ static int gzip_cb (char *buf, int index)
   if (index == 0 && strlen(buf) < sizeof(gzip_link_name)-3 &&
       sscanf(buf, ".so %s", gzip_link_name) == 1)
      return (1);
-  return (-1);  /* causes popen_run() to quit */
+  return (-1);  /* causes `popen_run()` to quit */
 }
 
 /**
@@ -479,7 +479,7 @@ const char *get_gzip_link (const char *file)
   }
 #endif
 
-  if (popen_runf(gzip_cb, "\"%s\" -cd %s 2> %s", gzip_exe, f, DEV_NULL) > 0)
+  if (popen_run(gzip_cb, gzip_exe, "-cd %s 2> %s", f, DEV_NULL) > 0)
   {
     DEBUGF (2, "gzip_link_name: \"%s\".\n", gzip_link_name);
     return slashify2 (gzip_link_name, gzip_link_name, opt.show_unix_paths ? '/' : '\\');
@@ -1405,14 +1405,22 @@ char *str_unquote (char *str)
 }
 
 /**
- * Return TRUE is string `str` is properly quoted.
+ * Return TRUE if string `str` is quoted with `quote`.
+ */
+static int _str_isquoted (const char *str, char quote)
+{
+  char *l_quote = strchr (str, quote);
+  char *r_quote = strrchr (str, quote);
+
+  return (l_quote && r_quote && r_quote > l_quote);
+}
+
+/**
+ * Return TRUE if string `str` is properly quoted with `"` or `'`.
  */
 int str_isquoted (const char *str)
 {
-  char *l_quote = strchr (str, '\"');
-  char *r_quote = strrchr (str, '\"');
-
-  return (l_quote && r_quote && r_quote > l_quote);
+  return _str_isquoted(str, '\"') || _str_isquoted(str, '\'');
 }
 
 /**
@@ -1742,6 +1750,11 @@ char *basename (const char *fname)
 /**
  * Return the malloc'ed directory part of a filename.
  */
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
+
 char *dirname (const char *fname)
 {
   const char *p = fname;
@@ -1790,12 +1803,17 @@ char *dirname (const char *fname)
   if (dirpart)
   {
     strncpy (dirpart, fname, dirlen);
+
     if (slash && *slash == ':' && dirlen == 3)
        dirpart[2] = '.';      /* for "x:foo" return "x:." */
     dirpart[dirlen] = '\0';
   }
   return (dirpart);
 }
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #if !defined(__CYGWIN__)
 /**
@@ -1940,29 +1958,29 @@ const char *get_file_ext (const char *file)
  * Returns TRUE if `file` is a directory.
  * CygWin MUST have a trailing `/` for directories.
  */
-BOOL is_directory (const char *file)
+BOOL is_directory (const char *path)
 {
   struct stat st;
 
 #if defined(__CYGWIN__)
-  char  *end, buf [_MAX_PATH];
+  char *end, buf [_MAX_PATH];
 
-  _strlcpy (buf, file, sizeof(buf));
+  _strlcpy (buf, path, sizeof(buf));
   end = strchr (buf, '\0');
   if (!IS_SLASH(end[-1]))
   {
     *end++ = '/';
     *end = '\0';
   }
-  file = buf;
-#endif
-
-  if (safe_stat(file, &st, NULL) == 0)
+  if (safe_stat(buf, &st, NULL) == 0)
      return (_S_ISDIR(st.st_mode));
 
-#if defined(__CYGWIN__)
-  DEBUGF (2, "safe_stat (\"%s\") fail, errno: %d\n", file, errno);
+  DEBUGF (2, "safe_stat (\"%s\"/) fail, errno: %d\n", path, errno);
+#else
+  if (safe_stat(path, &st, NULL) == 0)
+     return (_S_ISDIR(st.st_mode));
 #endif
+
   return (FALSE);
 }
 
@@ -2433,7 +2451,7 @@ BOOL is_user_admin (void)
 
   p_IsUserAnAdmin = (func_IsUserAnAdmin) GetProcAddress (shell32, "IsUserAnAdmin");
   if (!p_IsUserAnAdmin)
-       rc = FALSE;
+       rc = is_user_admin2();
   else rc = (*p_IsUserAnAdmin)();
 
   FreeLibrary (shell32);
@@ -2458,7 +2476,7 @@ BOOL is_user_admin2 (void)
                                 (PSID*)&admin_group))
   {
     rc = GetLastError();
-    goto Cleanup;
+    goto cleanup;
   }
 
   /* Determine whether the SID of administrators group is enabled in
@@ -2467,7 +2485,7 @@ BOOL is_user_admin2 (void)
   if (!CheckTokenMembership(NULL, admin_group, &is_admin))
      rc = GetLastError();
 
-Cleanup:
+cleanup:
   if (admin_group)
      FreeSid (admin_group);
 
@@ -2651,8 +2669,8 @@ int str_cat (char *dst, size_t dst_size, const char *src)
  * \param[in] arr  the array of strings to join and return as a single string.
  * \param[in] sep  the separator between the `arr` elements; after the first up-to the 2nd last
  *
- * \retval  NULL  if `arr` is empty
- * \retval  !NULL a `MALLOC()`-ed string of the concatinated result.
+ * \retval NULL  if `arr` is empty
+ * \retval !NULL a `MALLOC()`-ed string of the concatinated result.
  */
 char *str_join (char * const *arr, const char *sep)
 {
@@ -3012,7 +3030,8 @@ void mem_report (void)
   for (m = mem_list, num = 0; m; m = m->next, num++)
   {
     C_printf ("  Un-freed memory 0x%p at %s (%u). %u bytes: \"%s\"\n",
-              m+1, m->file, m->line, (unsigned int)m->size, dump10(m+1,(unsigned)m->size));
+              m+1, m->file, m->line, (unsigned int)m->size,
+              dump10(m+1, (unsigned)m->size));
     if (num > 20)
     {
       C_printf ("  ..and more.\n");
@@ -3379,7 +3398,7 @@ const char *get_time_str_FILETIME (const FILETIME *ft)
 
   SYSTEMTIME st, lt;
 
-  if (!FileTimeToSystemTime(ft,&st) || !SystemTimeToTzSpecificLocalTime(NULL,&st,&lt))
+  if (!FileTimeToSystemTime(ft, &st) || !SystemTimeToTzSpecificLocalTime(NULL, &st, &lt))
      return ("?");
 
   if (lt.wMonth <= DIM(months))
@@ -3537,7 +3556,7 @@ unsigned list_lookup_value (const char *name, const struct search_list *list, in
 {
   while (num > 0 && list->name)
   {
-    if (!stricmp(name,list->name))
+    if (!stricmp(name, list->name))
        return (list->value);
     num--;
     list++;
@@ -3597,31 +3616,34 @@ int debug_printf (const char *format, ...)
 }
 
 /**
+ * Helper buffer for the `while` loop in `popen_run()`.
+ */
+static char popen_last [1000];
+
+/**
+ * Return the last line in the `fgets()` loop below.
+ */
+char *popen_last_line (void)
+{
+  return (popen_last);
+}
+
+/**
  * Duplicate and fix the `cmd` before calling `popen()`.
  * The caller `popen_run()` must free the return value.
  */
 static char *popen_setup (const char *cmd)
 {
-  char *cmd2;
-
 #if defined(__CYGWIN__)
-  char *p, *space;
-
   if (!system(NULL))
   {
     WARN ("/bin/sh not found.\n");
     return (NULL);
   }
-  cmd2 = STRDUP (cmd);
-
-  /* Replace `\\` with `/` up to the first space.
-   */
-  space = strchr (cmd2, ' ');
-  for (p = cmd2; p < space; p++)
-      if (*p == '\\')
-         *p = '/';
+  return STRDUP (cmd);
 
 #else
+  char       *cmd2;
   char       *env = getenv ("COMSPEC");
   const char *comspec = "";
   const char *setdos  = "";
@@ -3638,7 +3660,7 @@ static char *popen_setup (const char *cmd)
     DEBUGF (3, "%%COMSPEC: %s.\n", env);
 #if !defined(__WATCOMC__)
     env = strlwr (basename(env));
-    if (!strcmp(env,"4nt.exe") || !strcmp(env,"tcc.exe"))
+    if (!strcmp(env, "4nt.exe") || !strcmp(env, "tcc.exe"))
        setdos = "setdos /x-3 & ";
 #endif
   }
@@ -3653,54 +3675,88 @@ static char *popen_setup (const char *cmd)
   strcpy (cmd2, setdos);
   strcat (cmd2, comspec);
   strcat (cmd2, cmd);
-#endif
   return (cmd2);
+#endif
 }
 
 /**
- * Helper buffer for the `while` loop in `popen_run()`.
- */
-static char popen_last[1000];
-
-/**
- * Return the last line in the `fgets()` loop below.
- */
-char *popen_last_line (void)
-{
-  return (popen_last);
-}
-
-/**
- * A wrapper for `popen()`.
+ * A var-arg wrapper for `_popen()` that takes care of quoting the command:
  *
- * \param[in] cmd       The program and arguments to run.
- * \param[in] callback  Function to call for each line from `popen()`.
+ * \eg. `popen_run (callback, "some program.exe", "--help")`
+ *      gets converted to `_popen ("\"some program.exe\" --help", "r")`.
+ *
+ * For Cygwin, the `cmd` gets converted to a `/cygdrive/x/path/program` as needed.
+ *
+ * \param[in] callback  Optional function to call for each line from `popen()`.
  *                      This function should return number of matches.
  *                      The `callback` is allowed to modify the `buf` given to it.
+ * \param[in] cmd       The mandatory program to run.
+ * \param[in] arg       Optional argument(s) for the program.
  *
  * \retval -1   if `"/bin/sh"` is not found for Cygwin. <br>
  *              if `cmd` was not found or `_popen()` fails for some reason. `errno` should be set.
  * \retval >=0  total number of matches from `callback`.
- *
- * \anchor popen_run
  */
-int popen_run (popen_callback callback, const char *cmd)
+int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
 {
-  char  buf [3000];
-  int   i = 0;
-  int   j = -1;
-  FILE *f;
-  char *cmd2 = NULL;
+#if defined(__CYGWIN__)
+  char   cmd_copy [1000];
+  char   quote = '\'';
+#else
+  char   quote = '"';
+#endif
+  char   line_buf [5000];
+  char   cmd_buf [1000], *p;
+  size_t left;
+  int    line, i, rc;
+  FILE  *f;
+  char  *cmd2;
 
-  if (!cmd)
+#if defined(__CYGWIN__)
+  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, cmd, cmd_copy, sizeof(cmd_copy)) == 0)
+     cmd = cmd_copy;
+#endif
+
+  DEBUGF (2, "cmd: '%s'.\n", cmd);
+
+  p = cmd_buf;
+  left = sizeof(cmd_buf) - 1;
+
+  if (!str_isquoted(cmd) && strchr(cmd, ' '))
   {
-    DEBUGF (1, "Called with 'cmd == NULL'!\n");
-    goto quit;
+    *p++ = quote;
+    _strlcpy (p, cmd, left);
+    p += strlen (cmd);
+    *p++ = quote;
+    left -= 2 + strlen (cmd);
   }
+  else
+  {
+    _strlcpy (p, cmd, left);
+    p    += strlen (cmd);
+    left -= strlen (cmd);
+  }
+  *p = '\0';
 
-  cmd2 = popen_setup (cmd);
+#if !defined(__CYGWIN__)
+  slashify2 (cmd_buf, cmd_buf, '\\');
+#endif
+
+  if (arg)
+  {
+    va_list args;
+
+    *p++ = ' ';
+    left--;
+    va_start (args, arg);
+    left -= vsnprintf (p, left, arg, args);
+    va_end (args);
+  }
+  DEBUGF (2, "left: %zd, cmd_buf: '%s'.\n", left, cmd_buf);
+
+  cmd2 = popen_setup (cmd_buf);
   if (!cmd2)
-     goto quit;
+     return (-1);
 
   *popen_last_line() = '\0';
 
@@ -3710,44 +3766,27 @@ int popen_run (popen_callback callback, const char *cmd)
   if (!f)
   {
     DEBUGF (1, "failed to call _popen(); errno=%d.\n", errno);
-    goto quit;
+    FREE (cmd2);
+    return (-1);
   }
 
-  j = 0;
-  while (fgets(buf,sizeof(buf)-1,f))
+  line = i = 0;
+  while (fgets(line_buf, sizeof(line_buf)-1, f))
   {
-    int rc;
-
-    str_strip_nl (buf);
-    DEBUGF (3, " _popen() buf: '%s'\n", buf);
-    _strlcpy (popen_last, buf, sizeof(popen_last));
-    if (!buf[0] || !callback)
+    str_strip_nl (line_buf);
+    DEBUGF (3, " _popen() line_buf: '%s'\n", line_buf);
+    _strlcpy (popen_last, line_buf, sizeof(popen_last));
+    if (!line_buf[0] || !callback)
        continue;
 
-    rc = (*callback) (buf, i++);
-    j += rc;
+    rc = (*callback) (line_buf, line++);
+    i += rc;
     if (rc < 0)
        break;
   }
   _pclose (f);
-
-quit:
   FREE (cmd2);
-  return (j);
-}
-
-/**
- * A var-arg version of `popen_run()`.
- */
-int popen_runf (popen_callback callback, const char *fmt, ...)
-{
-  char cmd [5000];
-  va_list args;
-
-  va_start (args, fmt);
-  vsnprintf (cmd, sizeof(cmd), fmt, args);
-  va_end (args);
-  return popen_run (callback, cmd);
+  return (i);
 }
 
 /**
@@ -3966,41 +4005,31 @@ char *translate_shell_pattern (const char *pattern)
 /**
  * A simple test for `translate_shell_pattern()`.
  */
-BOOL test_shell_pattern (void)
+void test_shell_pattern (void)
 {
-  const char in_pattern [] = "\\ "      // 0
-                             "* "
-                             ". "       // 2
-                             "+ "
-                             "\\ "      // 4
-                             "$ "
-                             "? "       // 6
-                             "\" "
-                             "foo-bar";
-  const char ref_pattern[] = "\\\\ "    // 0
-                             ".* "
-                             "\\. "     // 2
-                             "\\+ "
-                             "\\\\ "    // 4
-                             "\\$ "
-                             ". "       // 6
-                             "\\\" "
-                             "foo-bar";
-  const char *out_pattern = translate_shell_pattern (in_pattern);
-  size_t      pos, len = sizeof(ref_pattern)-1;
-  BOOL        equal = !strcmp (out_pattern, ref_pattern);
+  static const struct {
+    const  char *test_pattern;
+    const  char *expect;
+  } patterns[] = {
+    { "\\ ",     "\\\\ "   },
+    { "* ",      ".* "     },
+    { ". ",      "\\. "    },
+    { "+ ",      "\\+ "    },
+    { "\\ ",     "\\\\ "   },
+    { "$ ",      "\\$ "    },
+    { "? ",      ". "      },
+    { "\" ",     "\\\" "   },
+    { "foo-bar", "foo-bar" },
+  };
+  int i;
 
-  printf ("ref: '%s'\n", ref_pattern);
-  for (pos = 0; pos < len; pos++)
+  for (i = 0; i < DIM(patterns); i++)
   {
-    if (ref_pattern[pos] != out_pattern[pos])
-       break;
-  }
+    const char *result = translate_shell_pattern (patterns[i].test_pattern);
+    BOOL        equal  = !strcmp (result, patterns[i].expect);
 
-  printf ("out: '%s' -> %s\n", out_pattern, equal ? "OKAY" : "FAILED");
-  if (!equal)
-     printf ("%*c\n", (int)(pos+sizeof("ref: '")), '^');
-  return (equal);
+    printf ("out: '%-15s' -> %s\n", result, equal ? "OKAY" : "FAILED");
+  }
 }
 
 /**
@@ -4052,11 +4081,11 @@ void hex_dump (const void *data_p, size_t datalen)
 }
 
 /**
- * Format and return a hex-dump string for maximum 10 bytes.
+ * Format and return a printable string of maximum 10 bytes.
  */
 const char *dump10 (const void *data, unsigned size)
 {
-  static char ret [15];
+  static char ret [20];
   unsigned  ofs;
   int       ch;
 

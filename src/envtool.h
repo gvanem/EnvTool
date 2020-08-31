@@ -650,7 +650,7 @@ extern const char *plural_str (DWORD val, const char *singular, const char *plur
 extern void        format_and_print_line (const char *line, int indent);
 extern void        print_long_line (const char *line, size_t indent);
 extern char       *translate_shell_pattern (const char *pattern);
-extern BOOL        test_shell_pattern (void);
+extern void        test_shell_pattern (void);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
 extern BOOL        get_module_filename_ex (HANDLE proc, char *filename);
@@ -880,8 +880,7 @@ extern void     mem_report (void);
  */
 typedef int (*popen_callback) (char *buf, int index);
 
-int   popen_run  (popen_callback callback, const char *cmd);
-int   popen_runf (popen_callback callback, const char *fmt, ...);
+int   popen_run (popen_callback callback, const char *cmd, const char *arg, ...);
 char *popen_last_line (void);
 
 /* fnmatch() ret-values and flags:

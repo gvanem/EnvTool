@@ -77,11 +77,11 @@ void file_descr_init (void)
      return;
 
   shell = strlwr (basename(env));
-  if (!strcmp(shell,"4nt.exe") || !strcmp(env,"tcc.exe"))
+  if (!strcmp(shell, "4nt.exe") || !strcmp(env, "tcc.exe"))
   {
     /* `%_DNAME` is an internal 4NT/TCC variable
      */
-    popen_runf (NULL, "%s /C echo %%_dname", shell);
+    popen_run (NULL, env, "/C echo %%_dname");
     line = popen_last_line();
     DEBUGF (2, "line: '%s'.\n", line);
     if (*line && strchr(line,'.'))
@@ -213,6 +213,10 @@ static const char *lookup_file_descr (const smartlist_t *sl, const char *file_di
   return (NULL);
 }
 
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+
 /**
  * Allocate a new smartlist `struct descr_dir` element for this directory.
  *
@@ -335,8 +339,13 @@ struct prog_options opt;
 
 static void init (int argc, char **argv)
 {
-  if (argc == 2 && !strcmp(argv[1], "-d"))
-     opt.debug = 2;
+  if (argc == 2)
+  {
+    if (!strcmp(argv[1], "-d"))
+      opt.debug = 2;
+    else if (!strcmp(argv[1], "-dd"))
+      opt.debug = 3;
+  }
 
   C_init();
   crtdbug_init();
@@ -356,7 +365,7 @@ static void init (int argc, char **argv)
  */
 static void create_descr_file (void)
 {
-  char  fbuf [100];
+  char  fbuf [210];
   FILE *fil;
 
   snprintf (fbuf, sizeof(fbuf), "../%s", descr_name);

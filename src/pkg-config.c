@@ -82,7 +82,7 @@ static int pkg_config_list_all_cb (char *buf, int index)
 }
 
 /**
- * Build the list of pkg_config packages installed.
+ * Build the list of pkg_config packages found.
  *
  * This has no relation to the number of `*.pc` files found on `PKG_CONFIG_PATH`.
  * But rather via the output of `pkg-config --list-all`.
@@ -113,7 +113,7 @@ static void pkg_config_build_pkg (void)
   {
     /* None found from cache. Try for real
      */
-    popen_runf (pkg_config_list_all_cb, "\"%s\" --list-all", pkgconfig_exe);
+    popen_run (pkg_config_list_all_cb, pkgconfig_exe, "--list-all");
   }
 
   max = smartlist_len (pkgconfig_pkg);
@@ -127,7 +127,7 @@ static void pkg_config_build_pkg (void)
 }
 
 /**
- * Get the number of pkg_config packages installed.
+ * Get the number of pkg_config packages found.
  */
 unsigned pkg_config_get_num_installed (void)
 {
@@ -139,7 +139,7 @@ unsigned pkg_config_get_num_installed (void)
 }
 
 /**
- * Print the pkg_config packages installed.
+ * Print the pkg_config packages found.
  */
 unsigned pkg_config_list_installed (void)
 {
@@ -147,7 +147,7 @@ unsigned pkg_config_list_installed (void)
   int num_dirs = pkgconfig_dirs ? smartlist_len (pkgconfig_dirs) : 0;
   int indent;
 
-  C_printf ("\n  Found %u installed ~3pkg-config~0 packages in ~3%d~0 directories:\n", max, num_dirs);
+  C_printf ("\n  Found %u ~3pkg-config~0 packages in ~3%d~0 directories:\n", max, num_dirs);
   for (i = 0; i < max; i++)
   {
     const struct pkgconfig_node *pkg = smartlist_get (pkgconfig_pkg, i);
@@ -201,7 +201,7 @@ static BOOL pkg_config_get_info_internal (void)
   /* A valid version from the cache?
    */
   if (!VALID_VER(pkgconfig_ver) &&
-      popen_runf(pkg_config_version_cb, "\"%s\" --version", pkgconfig_exe) > 0)
+      popen_run(pkg_config_version_cb, pkgconfig_exe, "--version") > 0)
      cache_putf (SECTION_PKGCONFIG, "pkgconfig_version = %d,%d", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
 
   DEBUGF (2, "ver: %d.%d.\n", pkgconfig_ver.val_1, pkgconfig_ver.val_2);

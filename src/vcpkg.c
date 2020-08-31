@@ -1844,7 +1844,7 @@ BOOL vcpkg_get_info (char **exe, struct ver_info *ver)
   cache_putf (SECTION_VCPKG, "vcpkg_exe = %s", vcpkg_exe);
 
   if (vcpkg_ver.val_1 + vcpkg_ver.val_2 == 0 &&
-      popen_runf(vcpkg_version_cb, "\"%s\" version", vcpkg_exe) > 0)
+      popen_run(vcpkg_version_cb, vcpkg_exe, "version") > 0)
      cache_putf (SECTION_VCPKG, "vcpkg_version = %d,%d,%d", vcpkg_ver.val_1, vcpkg_ver.val_2, vcpkg_ver.val_3);
 
   *ver = vcpkg_ver;
@@ -1963,10 +1963,10 @@ void vcpkg_init (void)
 
   /**
    * Loop over all our packages directory
-   * `<vcpkg_root>/packages/`
+   * `<vcpkg_root>\\packages\\`
    *
    * and figure out which belongs to the
-   * `<vcpkg_root>/installed/`  i.e. the `installed_packages` list.
+   * `<vcpkg_root>\\installed\\`  i.e. the `installed_packages` list.
    *
    * directory. Some packages may have been orpaned.
    */
@@ -2306,7 +2306,7 @@ unsigned vcpkg_list_installed (BOOL detailed)
 
   if (installed_packages)
   {
-    int max = smartlist_len (installed_packages);
+    unsigned max = smartlist_len (installed_packages);
 
     sorted_list = smartlist_new();
     for (i = 0; i < max; i++)
