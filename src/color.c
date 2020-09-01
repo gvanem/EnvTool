@@ -218,7 +218,7 @@ int C_VT_detected (int cmd_only)
   if (env)
   {
     env = strrchr (env, '\\');
-    is_cmd = (stricmp(env,"\\cmd.exe") == 0);
+    is_cmd = (env && stricmp(env,"\\cmd.exe") == 0);
     if (cmd_only && !is_cmd)
        value = 0;
   }
