@@ -629,18 +629,20 @@ static DWORD  num_junctions_err = 0;
 static DWORD  num_files = 0;
 static UINT64 total_size = 0;
 static UINT64 total_size_alloc = 0;
+static UINT64 total_size_compr = 0;
 static BOOL   follow_junctions = TRUE;
 
 void usage (void)
 {
-  printf ("Usage: dirlist [-cdourSs<type>] <dir\\spec*>\n"
+  printf ("Usage: dirlist [-cdourzSs<type>] <dir\\spec*>\n"
           "       -c:      case-sensitive.\n"
           "       -d:      debug-level.\n"
           "       -o:      show file-owner.\n"
           "       -u:      show files on Unix form.\n"
           "       -r:      be recursive.\n"
           "       -S:      use scandir2(). Otherwise use readdir2().\n"
-          "       -s type: sort the listing on \"names\", \"files\", \"dirs\". Optionally with \",reverse\".\n");
+          "       -s type: sort the listing on \"names\", \"files\", \"dirs\". Optionally with \",reverse\".\n"
+          "       -z:      show file-sizes.\n");
   exit (-1);
 }
 
@@ -672,26 +674,35 @@ static const char *make_unixy_path (const char *path)
 #endif
 }
 
-static int print_it (const char *what, const char *prefix, const struct od2x_options *opts, BOOL show_owner)
+static int print_it (const char  *file,
+                     DWORD64      fsize,
+                     const char  *prefix,
+                     const struct od2x_options *opts,
+                     BOOL         show_size,
+                     BOOL         show_owner)
 {
   const char *f;
   int         slash;
 
   if (opts && opts->unixy_paths)
   {
-    f = make_unixy_path (what);
+    f = make_unixy_path (file);
     slash = '/';
   }
   else
   {
-    f = what;
+    f = file;
     slash = '\\';
   }
 
   if (prefix)
      C_puts (prefix);
 
-  if (show_owner)
+  if (show_size)
+  {
+    C_printf ("%-10s", get_file_size_str(fsize));
+  }
+  else if (show_owner)
   {
     char *account_name = NULL;
 
@@ -700,9 +711,14 @@ static int print_it (const char *what, const char *prefix, const struct od2x_opt
     else C_printf ("%-16s ", "<Unknown>");
     FREE (account_name);
   }
-  else
-  if (opt.show_owner)
-      C_puts ("                 ");
+  else if (opt.show_size)
+  {
+    C_puts ("          ");
+  }
+  else if (opt.show_owner)
+  {
+    C_puts ("                 ");
+  }
 
   C_setraw (1);
   C_puts (f);
@@ -710,7 +726,7 @@ static int print_it (const char *what, const char *prefix, const struct od2x_opt
   return (slash);
 }
 
-static void print_de (const struct dirent2 *de, int idx, const struct od2x_options *opts)
+static void print_dirent2 (const struct dirent2 *de, int idx, const struct od2x_options *opts)
 {
   int is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
   int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
@@ -725,14 +741,14 @@ static void print_de (const struct dirent2 *de, int idx, const struct od2x_optio
   {
     static char prefix[] = " \n              -> ~3";
 
-    prefix[0] = (char) print_it (de->d_name, NULL, opts, FALSE);
-    slash = print_it (de->d_link ? de->d_link : "??", prefix, opts, FALSE);
+    prefix[0] = (char) print_it (de->d_name, 0ULL, NULL, opts, FALSE, FALSE);
+    slash = print_it (de->d_link ? de->d_link : "??", 0ULL, prefix, opts, FALSE, FALSE);
     if (de->d_link)
        C_putc (slash);
   }
   else
   {
-    slash = print_it (de->d_name, NULL, opts, opt.show_owner);
+    slash = print_it (de->d_name, de->d_fsize, NULL, opts, opt.show_size && !is_dir, opt.show_owner);
     if (is_dir)
        C_putc (slash);
   }
@@ -741,9 +757,13 @@ static void print_de (const struct dirent2 *de, int idx, const struct od2x_optio
 
   if (!is_dir && !is_junction)
   {
+    UINT64 compr_size;
+
     num_files++;
     total_size += de->d_fsize;
     total_size_alloc += get_file_alloc_size (de->d_name, de->d_fsize);
+    if (get_file_compr_size(de->d_name, &compr_size))
+       total_size_compr += compr_size;
   }
   else
   {
@@ -761,13 +781,70 @@ static void print_de (const struct dirent2 *de, int idx, const struct od2x_optio
   }
 }
 
-static void final_report (void)
+static void final_report (const char *spec)
 {
+  #define ADD_VALUE(v)  { v, #v }
+
+  static const struct search_list fs_flags[] = {
+               ADD_VALUE (FILE_FILE_COMPRESSION),
+               ADD_VALUE (FILE_NAMED_STREAMS),
+               ADD_VALUE (FILE_PERSISTENT_ACLS),
+               ADD_VALUE (FILE_READ_ONLY_VOLUME),
+               ADD_VALUE (FILE_SEQUENTIAL_WRITE_ONCE),
+               ADD_VALUE (FILE_SUPPORTS_ENCRYPTION),
+               ADD_VALUE (FILE_SUPPORTS_EXTENDED_ATTRIBUTES),
+               ADD_VALUE (FILE_SUPPORTS_HARD_LINKS),
+               ADD_VALUE (FILE_SUPPORTS_OBJECT_IDS),
+               ADD_VALUE (FILE_SUPPORTS_OPEN_BY_FILE_ID),
+               ADD_VALUE (FILE_SUPPORTS_REPARSE_POINTS),
+               ADD_VALUE (FILE_SUPPORTS_SPARSE_FILES),
+               ADD_VALUE (FILE_SUPPORTS_TRANSACTIONS),
+               ADD_VALUE (FILE_SUPPORTS_USN_JOURNAL),
+               ADD_VALUE (FILE_UNICODE_ON_DISK),
+               ADD_VALUE (FILE_VOLUME_IS_COMPRESSED),
+               ADD_VALUE (FILE_VOLUME_QUOTAS)
+             };
+  char  root [4];
+  char  volume [_MAX_PATH];
+  DWORD volume_sn = 0;
+  DWORD max_component_length = 0;
+  DWORD fs_flag = 0;
+  char  fs_name [20];
+
   C_printf ("  Num files:        %lu\n", (unsigned long)num_files);
   C_printf ("  Num directories:  %lu\n", (unsigned long)num_directories);
   C_printf ("  Num junctions:    %lu (errors: %lu)\n", (unsigned long)num_junctions, (unsigned long)num_junctions_err);
   C_printf ("  total-size:       %s bytes", qword_str(total_size));
-  C_printf (" (allocated: %s)\n", qword_str(total_size_alloc));
+  C_printf (" (allocated: %s,", qword_str(total_size_alloc));
+
+  if (total_size_compr <= total_size_alloc)
+       C_printf (" compressed: %s)\n", qword_str(total_size_compr));
+  else C_printf (" no compressed files)\n");
+
+  C_puts ("  Volume info: ");
+
+  if (_has_drive(spec))
+       strncpy (root, spec, 3);
+  else strcpy (root, "\\");
+
+  if (!GetVolumeInformation (root, volume, sizeof(volume), &volume_sn, &max_component_length,
+                             &fs_flag, fs_name, sizeof(fs_name)))
+     C_printf ("GetVolumeInformation() failed: %s\n", win_strerror(GetLastError()));
+  else
+  {
+    size_t i;
+
+    C_printf ("'%s', volume_sn: %lu, fs_name: '%s', max_component_length: %lu\n",
+              volume, volume_sn, fs_name, max_component_length);
+
+    C_puts ("  fs_flags:\n");
+    for (i = 0; i < DIM(fs_flags); i++)
+    {
+      if (fs_flag & fs_flags[i].value)
+           C_printf ("    + %s\n", fs_flags[i].name);
+      else C_printf ("    - %s\n", fs_flags[i].name);
+    }
+  }
 }
 
 /**
@@ -805,7 +882,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
       }
 
       if (fnmatch(opts->pattern,basename(de->d_name),fnmatch_case(FNM_FLAG_PATHNAME)) == FNM_MATCH)
-         print_de (de, i, opts);
+         print_dirent2 (de, i, opts);
 
       if (opts->recursive && (is_dir || is_junction))
       {
@@ -853,7 +930,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
          de->d_link = STRDUP (_fix_drive(result));
     }
 
-    print_de (de, i++, opts);
+    print_dirent2 (de, i++, opts);
 
     if (opts->recursive && (is_dir || is_junction))
     {
@@ -867,7 +944,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
   rewinddir2 (dp);
   printf ("After rewinddir2(dp):\n");
   while ((de = readdir2(dp)) != NULL)
-     print_de (de, telldir2(dp), opts);
+     print_dirent2 (de, telldir2(dp), opts);
 #endif
 
   closedir2 (dp);
@@ -916,7 +993,7 @@ int MS_CDECL main (int argc, char **argv)
   memset (&opts, '\0', sizeof(opts));
   memset (&opt, '\0', sizeof(opt));
 
-  while ((ch = getopt(argc, argv, "cdjurs:Soh?")) != EOF)
+  while ((ch = getopt(argc, argv, "cdjurs:Sozh?")) != EOF)
      switch (ch)
      {
        case 'c':
@@ -942,6 +1019,9 @@ int MS_CDECL main (int argc, char **argv)
             break;
        case 'o':
             opt.show_owner++;
+            break;
+       case 'z':
+            opt.show_size++;
             break;
        case '?':
        case 'h':
@@ -970,7 +1050,7 @@ int MS_CDECL main (int argc, char **argv)
        do_scandir2 (dir_buf, &opts);
   else do_dirent2 (dir_buf, &opts);
 
-  final_report();
+  final_report (spec_buf);
   crtdbug_exit();
   mem_report();
   return (0);

@@ -127,7 +127,7 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
     return (-(int)err);
   }
 
-  if (!GetFileSizeEx(hnd_file,&fsize))
+  if (!GetFileSizeEx(hnd_file, &fsize))
   {
     err = GetLastError();
     DEBUGF (1, "Could not get file-size: %s.\n", win_strerror(err));

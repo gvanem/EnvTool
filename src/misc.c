@@ -2220,6 +2220,24 @@ UINT64 get_file_alloc_size (const char *file, UINT64 size)
 }
 
 /**
+ * Get the compressed size of a file.
+ */
+BOOL get_file_compr_size (const char *file, UINT64 *fsize)
+{
+  DWORD loDword, hiDword = 0;
+
+  *fsize = (UINT64)-1;
+  loDword = GetCompressedFileSize (file, &hiDword);
+
+  if (loDword == INVALID_FILE_SIZE)
+     return (FALSE);
+  *fsize = hiDword;
+  *fsize <<= 32;
+  *fsize += loDword;
+  return (TRUE);
+}
+
+/**
  * Get the size of files in a directory by walking
  * recursively in all sub-directories under `dir`.
  */
