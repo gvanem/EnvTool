@@ -60,6 +60,10 @@
   #define HAVE_TMPNAM_S
 #endif
 
+#if defined(__CYGWIN__)
+  #define HAVE_STRLCAT
+#endif
+
 /** From Windows-Kit's <ctype.h> comment:
  *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
  */
@@ -1302,7 +1306,7 @@ BOOL str_match (const char *str, const char *what, char **next)
 {
   size_t len = strlen (what);
 
-  if (str_startswith(str,what))
+  if (str_startswith(str, what))
   {
     *next = str_ltrim ((char*)str + len);
     return (TRUE);
@@ -1363,7 +1367,7 @@ char *str_replace2 (int ch, const char *replace, char *str, size_t max_size)
   size_t ofs = 0, left = max_size;
   int    num = 0;
 
-  if (!strchr(str,ch))   /* Nothing to do here */
+  if (!strchr(str, ch))   /* Nothing to do here */
      return (str);
 
   copy = p = alloca (max_size);
@@ -1385,8 +1389,7 @@ char *str_replace2 (int ch, const char *replace, char *str, size_t max_size)
     ofs++;
   }
   *p = '\0';
-  strcpy (str, copy);
-  return (str);
+  return strcpy (str, copy);
 }
 
 /**
@@ -2678,10 +2681,33 @@ int str_cat (char *dst, size_t dst_size, const char *src)
 {
 #if defined(HAVE_STRCAT_S)
   return strcat_s (dst, dst_size, src);
+#elif defined(HAVE_STRLCAT)
+  return strlcat (dst, src, dst_size);
 #else
-  strcat (dst, src);
-  ARGSUSED (dst_size);
-  return (0);
+  char       *d = dst;
+  const char *s = src;
+  size_t      n = dst_size, dlen;
+
+  /* Find the end of dst and adjust bytes left but don't go past end
+   */
+  while (*d != '\0' && n-- != 0)
+        d++;
+  dlen = d - dst;
+  n = dst_size - dlen;
+
+  if (n == 0)
+     return (dlen + strlen(s));
+  while (*s)
+  {
+    if (n != 1)
+    {
+      *d++ = *s;
+      n--;
+    }
+    s++;
+  }
+  *d = '\0';
+  return (dlen + (s - src));      /* count does not include NUL */
 #endif
 }
 
