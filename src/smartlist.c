@@ -6,7 +6,8 @@
 #include "envtool.h"
 #include "smartlist.h"
 
-/**\typedef struct smartlist_t
+/**
+ * \typedef struct smartlist_t
  *
  * From Tor's `src/lib/smartlist_core/smartlist.h`:
  *
@@ -27,14 +28,16 @@ typedef struct smartlist_t {
         int    capacity;
       } smartlist_t;
 
-/** \def SMARTLIST_DEFAULT_CAPACITY
+/**
+ * \def SMARTLIST_DEFAULT_CAPACITY
  *
  * All newly allocated smartlists have this capacity.
  * I.e. room for 16 elements in `smartlist_t::list[]`.
  */
 #define SMARTLIST_DEFAULT_CAPACITY  16
 
-/** \def SMARTLIST_MAX_CAPACITY
+/**
+ * \def SMARTLIST_MAX_CAPACITY
  *
  * A smartlist can hold `INT_MAX` (2147483647) number of
  * elements in `smartlist_t::list[]`.
@@ -98,26 +101,15 @@ void smartlist_set (smartlist_t *sl, int idx, void *val)
 }
 
 /**
- * Allocate and return an empty smartlist.
+ * Allocate, initialise and return an empty smartlist.
  */
 smartlist_t *smartlist_new (void)
 {
   smartlist_t *sl = MALLOC (sizeof(*sl));
 
-  return smartlist_init (sl);
-}
-
-/**
- * Initialise a new smartlist.
- */
-smartlist_t *smartlist_init (smartlist_t *sl)
-{
-  if (sl)
-  {
-    sl->num_used = 0;
-    sl->capacity = SMARTLIST_DEFAULT_CAPACITY;
-    sl->list = CALLOC (sizeof(void*), sl->capacity);
-  }
+  sl->num_used = 0;
+  sl->capacity = SMARTLIST_DEFAULT_CAPACITY;
+  sl->list = CALLOC (sizeof(void*), sl->capacity);
   return (sl);
 }
 
@@ -224,8 +216,8 @@ void smartlist_del_keeporder (smartlist_t *sl, int idx)
   --sl->num_used;
   if (idx < sl->num_used)
   {
-    void  *src = sl->list+idx+1;
-    void  *dst = sl->list+idx;
+    void  *src = sl->list + idx + 1;
+    void  *dst = sl->list + idx;
     size_t sz = (sl->num_used - idx) * sizeof(void*);
 
     memmove (dst, src, sz);
@@ -328,6 +320,7 @@ smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
 
 /**
  * Dump a smartlist of text-lines to a file.
+ * Not used.
  */
 int smartlist_write_file (smartlist_t *sl, const char *file)
 {
@@ -343,7 +336,10 @@ int smartlist_write_file (smartlist_t *sl, const char *file)
 
   max = smartlist_len (sl);
   for (i = 0; i < max; i++)
-     fputs ((const char*)smartlist_get(sl, i), f);
+  {
+    fputs ((const char*)smartlist_get(sl, i), f);
+    fputc ('\n', f);
+  }
   fclose (f);
   return (1);
 }
