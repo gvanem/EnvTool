@@ -159,12 +159,13 @@ void cache_exit (void)
     smartlist_free (cache.entries);
     cache.entries = NULL;
   }
-  cache_report (num);
+  if (opt.use_cache)
+     cache_report (num);
 }
 
 /**
  * The `envtool.cfg` handler called from `envtool_cfg_handler()` in envtool.c.
- * Calls `cache_init()` if `"cache.enable = 1"`.
+ * Calls `cache_init()` if `"cache.enable = 1"` (i.e. `opt.use_cache` gets set).
  */
 void cache_config (const char *key, const char *value)
 {
@@ -417,7 +418,7 @@ void cache_del (CacheSections section, const char *key)
   if (!cache.entries || smartlist_len(cache.entries) == 0)
      return;
 
-  if ((int)section < 0 || section >= SECTION_LAST)
+  if ((int)section < SECTION_FIRST || section >= SECTION_LAST)
   {
     DEBUGF (1, "No such section: %d.\n", section);
     return;
