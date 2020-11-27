@@ -65,6 +65,7 @@ typedef struct smartlist_t {
 
 #undef smartlist_len
 #undef smartlist_get
+#undef smartlist_getu
 
 /**
  * Return the number of items in `sl`.
@@ -86,6 +87,15 @@ void *smartlist_get (const smartlist_t *sl, int idx)
   ASSERT (idx >= 0);
   ASSERT (sl->num_used > idx);
   return (sl->list[idx]);
+}
+
+unsigned smartlist_getu (const smartlist_t *sl, int idx)
+{
+  ASSERT (sl);
+  ASSERT_VAL (sl);
+  ASSERT (idx >= 0);
+  ASSERT (sl->num_used > idx);
+  return (unsigned) sl->list[idx];
 }
 
 /**
@@ -182,6 +192,14 @@ void *smartlist_add (smartlist_t *sl, void *element)
   ASSERT (sl);
   smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
   sl->list [sl->num_used++] = element;
+  return (element);
+}
+
+unsigned smartlist_addu (smartlist_t *sl, unsigned element)
+{
+  ASSERT (sl);
+  smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
+  sl->list [sl->num_used++] = (void*) element;
   return (element);
 }
 #endif
@@ -657,6 +675,16 @@ void *smartlist_add_dbg (smartlist_t *sl, void *element, const char *sl_name, co
   ASSERT_VAL (sl);
   smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
   sl->list [sl->num_used++] = element;
+  return (element);
+}
+
+unsigned smartlist_addu_dbg (smartlist_t *sl, unsigned element, const char *sl_name, const char *file, unsigned line)
+{
+  if (!sl)
+     FATAL ("Illegal use of 'smartlist_add (%s, 0x%p)' from %s(%u).\n", sl_name, element, file, line);
+  ASSERT_VAL (sl);
+  smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
+  sl->list [sl->num_used++] = (void*) element;
   return (element);
 }
 #endif
