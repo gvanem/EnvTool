@@ -89,6 +89,10 @@ void *smartlist_get (const smartlist_t *sl, int idx)
   return (sl->list[idx]);
 }
 
+/**
+ * As `smartlist_get()` but return the unsigned value
+ * at the `idx`-th element of `sl`.
+ */
 unsigned smartlist_getu (const smartlist_t *sl, int idx)
 {
   ASSERT (sl);
@@ -141,6 +145,9 @@ void smartlist_free (smartlist_t *sl)
 
 /**
  * Deallocate a smartlist and associated storage in the list's elements.
+ *
+ * All storage (`sl->list[]`) must have been allocated using `MALLOC()`,
+ * `CALLOC()` or `STRDUP()`.
  */
 void smartlist_free_all (smartlist_t *sl)
 {
@@ -184,7 +191,8 @@ void smartlist_ensure_capacity (smartlist_t *sl, size_t num)
 }
 
 /**
- * Append `element` to the end of the `sl` list.
+ * Append the pointer `element` (or `unsigned element`) to the end
+ * of the `sl` list.
  */
 #if !defined(_DEBUG)
 void *smartlist_add (smartlist_t *sl, void *element)
@@ -309,7 +317,9 @@ int smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, smartlist
 }
 
 /**
- * Open a file and return the parsed lines as a smartlist.
+ * Open a file and return the parsed lines as a smartlist. <br>
+ * Lines starting with `#` or `;` are assumed to be comment lines
+ * and ignored in the returned list.
  */
 smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
 {
@@ -337,7 +347,8 @@ smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
 }
 
 /**
- * Dump a smartlist of text-lines to a file.
+ * Dump a smartlist of text-lines to a file. <br>
+ * Lines are assumed to not contain newlines at the end.
  * Not used.
  */
 int smartlist_write_file (smartlist_t *sl, const char *file)
@@ -443,7 +454,8 @@ int smartlist_pos (const smartlist_t *sl, const void *element)
   return (-1);
 }
 
-/**\typedef int (*UserCmpFunc) (const void *, const void *);
+/**
+ *\typedef int (*UserCmpFunc) (const void *, const void *);
  *
  * The `__cdecl` or `__fastcall` type of user's compare function.<br>
  * Since `qsort()` needs a `__cdecl` compare function, we sort via
@@ -486,16 +498,16 @@ void smartlist_sort (smartlist_t *sl, smartlist_sort_func compare)
 
 /**
  * Assuming the members of `sl` are in order, return the index of the
- * member that matches `key`. <br>
+ * member that matches `key`.
+ *
  * If no member matches, return the index of the first member greater than `key`,
  * or `smartlist_len(sl)` if no member is greater than `key`. <br>
  * Set `found_out` to `TRUE` on a match, to `FALSE` otherwise.
  *
- * Ordering and matching are defined by a `compare` function that
- *
- *  - returns 0 on a match.
- *  - less than 0 if `key` is less than member.
- *  - and greater than 0 if `key` is greater then member.
+ * Ordering and matching are defined by a `compare` function that:
+ *  \li - returns 0 on a match.
+ *  \li - less than 0 if `key` is less than the member.
+ *  \li - and greater than 0 if `key` is greater than the member.
  */
 int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
                            smartlist_compare_func compare, int *found_out)
@@ -518,7 +530,6 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
 
   /* Okay, we have a real search to do
    */
-  ASSERT (len > 0);
   lo = 0;
   hi = len - 1;
 
@@ -655,7 +666,6 @@ int smartlist_len_dbg (const smartlist_t *sl, const char *sl_name, const char *f
 {
   if (!sl)
      FATAL ("Illegal use of 'smartlist_len (%s)' from %s(%u).\n", sl_name, file, line);
-
   ASSERT_VAL (sl);
   return (sl->num_used);
 }
@@ -681,7 +691,7 @@ void *smartlist_add_dbg (smartlist_t *sl, void *element, const char *sl_name, co
 unsigned smartlist_addu_dbg (smartlist_t *sl, unsigned element, const char *sl_name, const char *file, unsigned line)
 {
   if (!sl)
-     FATAL ("Illegal use of 'smartlist_add (%s, 0x%p)' from %s(%u).\n", sl_name, element, file, line);
+     FATAL ("Illegal use of 'smartlist_addu (%s, %u)' from %s(%u).\n", sl_name, element, file, line);
   ASSERT_VAL (sl);
   smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
   sl->list [sl->num_used++] = (void*) element;
