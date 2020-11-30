@@ -678,6 +678,14 @@ void *smartlist_get_dbg (const smartlist_t *sl, int idx, const char *sl_name, co
   return (sl->list[idx]);
 }
 
+unsigned smartlist_getu_dbg (const smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line)
+{
+  if (!sl)
+     FATAL ("Illegal use of 'smartlist_getu (%s, %d)' from %s(%u).\n", sl_name, idx, file, line);
+  ASSERT_VAL (sl);
+  return (unsigned) sl->list[idx];
+}
+
 void *smartlist_add_dbg (smartlist_t *sl, void *element, const char *sl_name, const char *file, unsigned line)
 {
   if (!sl)
