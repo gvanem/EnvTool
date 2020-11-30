@@ -573,6 +573,10 @@ int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1
  */
 #define MAX_ENV_VAR  32767
 
+#ifndef strdupa     /* CygWin have this macro in it's <string.h> */
+#define strdupa(s)  strcpy (alloca(strlen(s) + 1), s)
+#endif
+
 extern void   init_misc     (void);
 extern void   exit_misc     (void);
 
