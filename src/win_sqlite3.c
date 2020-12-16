@@ -40,6 +40,8 @@
 #define SQLITE_OK 0
 #endif
 
+#define SQLITE_DLL_NAME  "WinSqlite3.dll"
+
 static const char *db_name = "test.db";
 
 static const char *exec_stmt[] = {
@@ -51,8 +53,7 @@ static const char *exec_stmt[] = {
                // "SELECT message FROM tbl WHERE message = 'hello!';"
                 };
 
-static HANDLE      dll_hnd = INVALID_HANDLE_VALUE;
-static const char *dll_name = "WinSqlite3.dll";
+static HANDLE dll_hnd = INVALID_HANDLE_VALUE;
 
 /*
  * Similar to 'envtool_py.c'
@@ -67,7 +68,7 @@ static const char *dll_name = "WinSqlite3.dll";
           if (!p_##f && !is_opt)                           \
           {                                                \
             WARN ("  Failed to find '%s()' in %s.\n",      \
-                  #f, dll_name);                           \
+                  #f, SQLITE_DLL_NAME);                    \
             return (FALSE);                                \
           }                                                \
           DEBUGF (2, "Function %s(): %*s 0x%p.\n",         \
@@ -91,10 +92,10 @@ DEF_FUNC (int,          sqlite3_exec, (sqlite3 *db, const char *statement,
 
 static BOOL sql3_load (void)
 {
-  dll_hnd = LoadLibrary (dll_name);
+  dll_hnd = LoadLibrary (SQLITE_DLL_NAME);
   if (!dll_hnd || dll_hnd == INVALID_HANDLE_VALUE)
   {
-    WARN ("  Failed to load %s; %s\n", dll_name, win_strerror(GetLastError()));
+    WARN ("  Failed to load %s; %s\n", SQLITE_DLL_NAME, win_strerror(GetLastError()));
     return (FALSE);
   }
   LOAD_FUNC (0, sqlite3_open);
