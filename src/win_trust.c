@@ -1299,21 +1299,21 @@ int MS_CDECL main (int argc, char **argv)
        *    1.3.6.1.xx
        *    1.3.6.1.5.5.7.3.3
        */
-       DEBUGF (1, "SignerUsageOID: '%s'\n", provider->pszCTLSignerUsageOID);
-       DEBUGF (1, "UsageOID:       '%s'\n", provider->pszUsageOID);
+       TRACE (1, "SignerUsageOID: '%s'\n", provider->pszCTLSignerUsageOID);
+       TRACE (1, "UsageOID:       '%s'\n", provider->pszUsageOID);
 
        signer = WTHelperGetProvSignerFromChain ((CRYPT_PROVIDER_DATA*)provider,
                                                 0, FALSE, /* first signer*/
                                                 0);       /* not a counter signer */
-       DEBUGF (1, "signer:          %p\n", signer);
+       TRACE (1, "signer:          %p\n", signer);
        if (signer)
        {
          /* grab the signer cert from CRYPT_PROV_SGNR
           */
          cert = WTHelperGetProvCertFromChain (signer, 0);          /* 0 = signer Cert */
-         DEBUGF (1, "Signer Cert:     %p\n", cert);
+         TRACE (1, "Signer Cert:     %p\n", cert);
          cert = WTHelperGetProvCertFromChain (signer, (DWORD)-1);  /* -1 = root Cert */
-         DEBUGF (1, "Root Cert:       %p\n", cert);
+         TRACE (1, "Root Cert:       %p\n", cert);
        }
     }
     else

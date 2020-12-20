@@ -117,20 +117,20 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
   if (opt.debug >= 1)
      buf_putc (fmt, '\n');
 
-  DEBUGF (1, "grepping file '%s' for '%s'.\n", file, content);
+  TRACE (1, "grepping file '%s' for '%s'.\n", file, content);
 
   hnd_file = CreateFile (file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
   if (hnd_file == INVALID_HANDLE_VALUE)
   {
     err = GetLastError();
-    DEBUGF (1, "Could not open file: %s.\n", win_strerror(err));
+    TRACE (1, "Could not open file: %s.\n", win_strerror(err));
     return (-(int)err);
   }
 
   if (!GetFileSizeEx(hnd_file, &fsize))
   {
     err = GetLastError();
-    DEBUGF (1, "Could not get file-size: %s.\n", win_strerror(err));
+    TRACE (1, "Could not get file-size: %s.\n", win_strerror(err));
     CloseHandle (hnd_file);
     return (-(int)err);
   }
@@ -139,7 +139,7 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
   if (!mmap_file)
   {
     err = GetLastError();
-    DEBUGF (1, "CreateFileMapping() failed: %s.\n", win_strerror(err));
+    TRACE (1, "CreateFileMapping() failed: %s.\n", win_strerror(err));
     CloseHandle (hnd_file);
     return (-(int)err);
   }
@@ -148,15 +148,15 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
   if (!mmap_buf)
   {
     err = GetLastError();
-    DEBUGF (1, "MapViewOfFile() failed: %s.\n", win_strerror(err));
+    TRACE (1, "MapViewOfFile() failed: %s.\n", win_strerror(err));
     CloseHandle (hnd_file);
     CloseHandle (mmap_file);
     return (-(int)err);
   }
 
   mmap_max = mmap_buf + ((UINT64)fsize.HighPart << 32) + fsize.LowPart;
-  DEBUGF (1, "view range: 0x%p - 0x%p. fsize: %" U64_FMT " bytes.\n",
-          mmap_buf, mmap_max-1, ((UINT64)fsize.HighPart << 32) + fsize.LowPart);
+  TRACE (1, "view range: 0x%p - 0x%p. fsize: %" U64_FMT " bytes.\n",
+         mmap_buf, mmap_max-1, ((UINT64)fsize.HighPart << 32) + fsize.LowPart);
 
   /* Detect and ignore files with binary content
    */
@@ -165,7 +165,7 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
      p = mmap_buf + 100;
   if (memchr(mmap_buf, '\0', p - mmap_buf))
   {
-    DEBUGF (1, "Ignoring binary file %s.\n", file);
+    TRACE (1, "Ignoring binary file %s.\n", file);
     opt.grep.binary_files++;
     goto quit;
   }
@@ -187,8 +187,8 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
     }
     else if (str_equal_n(p, content, match_len))
     {
-      DEBUGF (1, "Found at line: %lu, ofs: %zu -> '%.*s'\n",
-              line_num, (size_t)(p - mmap_buf), (int)match_len, p);
+      TRACE (1, "Found at line: %lu, ofs: %zu -> '%.*s'\n",
+             line_num, (size_t)(p - mmap_buf), (int)match_len, p);
       match = p;
       p += match_len;
       line_end = memchr (p, '\r', mmap_max - p);
@@ -474,14 +474,14 @@ int report_file (struct report *r)
 
     if (found_owner)
     {
-      DEBUGF (2, "account_name (%s) %smatches owner (%s).\n", account_name, inverse ? "does not " : "", found_owner);
+      TRACE (2, "account_name (%s) %smatches owner (%s).\n", account_name, inverse ? "does not " : "", found_owner);
       buf_printf (&fmt_buf_owner_info, "%-18s", str_shorten(account_name,18));
     }
     else
     {
       buf_printf (&fmt_buf_owner_info, "%-18s", account_name ? account_name : "<None>");
-      DEBUGF (2, "account_name (%s) did not match any wanted owner(s) for file '%s'.\n",
-              account_name, basename(r->file));
+      TRACE (2, "account_name (%s) did not match any wanted owner(s) for file '%s'.\n",
+             account_name, basename(r->file));
     }
     FREE (account_name);
   }
@@ -634,8 +634,8 @@ static int get_trailing_indent (const char *file)
   if (len <= longest_file_so_far)
      indent = 1 + longest_file_so_far - len;
 
-  DEBUGF (2, "longest_file_so_far: %d, len: %d, indent: %d\n",
-          longest_file_so_far, len, indent);
+  TRACE (2, "longest_file_so_far: %d, len: %d, indent: %d\n",
+         longest_file_so_far, len, indent);
   return (indent);
 }
 

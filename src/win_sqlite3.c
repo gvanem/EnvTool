@@ -71,8 +71,8 @@ static HANDLE dll_hnd = INVALID_HANDLE_VALUE;
                   #f, SQLITE_DLL_NAME);                    \
             return (FALSE);                                \
           }                                                \
-          DEBUGF (2, "Function %s(): %*s 0x%p.\n",         \
-                     #f, 23-(int)strlen(#f), "", p_##f);   \
+          TRACE (2, "Function %s(): %*s 0x%p.\n",          \
+                 #f, 23-(int)strlen(#f), "", p_##f);       \
         } while (0)
 
 DEF_FUNC (int,          sqlite3_open, (const char *filename, sqlite3 **p_db));

@@ -58,7 +58,7 @@ static BOOL setdirent2 (struct dirent2 *de, const char *dir, const char *file)
      *p++ = '\\';
   strcpy (p, file);
 
-  DEBUGF (3, "len: %u, de->d_name: '%s'\n", (unsigned)len, de->d_name);
+  TRACE (3, "len: %u, de->d_name: '%s'\n", (unsigned)len, de->d_name);
   return (TRUE);
 }
 
@@ -68,7 +68,7 @@ static int _sd_select (const struct dirent2 *de)
 
   if (!strcmp(de->d_name,".") || !strcmp(de->d_name,".."))
      rc = 0;
-  DEBUGF (3, "rc: %d, de->d_name: %s\n", rc, de->d_name);
+  TRACE (3, "rc: %d, de->d_name: %s\n", rc, de->d_name);
   return (rc);
 }
 
@@ -93,7 +93,7 @@ static BOOL safe_to_access (const char *file)
 {
   if (_has_drive(file) && !chk_disk_ready((int)file[0]))
   {
-    DEBUGF (2, "Disk %c: not safe to access.\n", (int)file[0]);
+    TRACE (2, "Disk %c: not safe to access.\n", (int)file[0]);
     return (FALSE);
   }
   return (TRUE);
@@ -128,7 +128,7 @@ int make_dir_spec (const char *arg, char *dir, char *spec)
   end = strchr (a_copy, '\0');
   if (end > a_copy && end[-1] == '"')
      end[-1] = '\0';
-  DEBUGF (3, "a_copy: '%s'\n", a_copy);
+  TRACE (3, "a_copy: '%s'\n", a_copy);
 
   unc  = (strncmp(a_copy,"\\\\",2) == 0);
   safe = safe_to_access (a_copy);
@@ -139,12 +139,12 @@ int make_dir_spec (const char *arg, char *dir, char *spec)
   {
     strcpy (dir, a_copy);
     strcpy (spec, "*");
-    DEBUGF (2, "stat() okay:\n");
+    TRACE (2, "stat() okay:\n");
     goto quit;
   }
 
   if (unc)
-       DEBUGF (2, "Not using stat() on an UNC name.\n");
+       TRACE (2, "Not using stat() on an UNC name.\n");
   else strcpy (dir, ".");   /* set default values */
 
   strcpy (spec, "*");
@@ -168,7 +168,7 @@ int make_dir_spec (const char *arg, char *dir, char *spec)
 
 quit:
   FREE (a_copy);
-  DEBUGF (2, "dir: '%s', spec: '%s'\n", dir, spec);
+  TRACE (2, "dir: '%s', spec: '%s'\n", dir, spec);
   return (1);
 }
 
@@ -197,7 +197,7 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   if (!dirp->dd_contents)
      goto enomem;
 
-  DEBUGF (3, "CALLOC (%u) -> %p\n", (unsigned)max_size, dirp->dd_contents);
+  TRACE (3, "CALLOC (%u) -> %p\n", (unsigned)max_size, dirp->dd_contents);
 
  /*
   * If we're called from `scandir2()`, we have no pattern; we match all files.
@@ -206,7 +206,7 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   */
   snprintf (path, sizeof(path), "%s\\%s", dir_name, opts ? opts->pattern : "*");
 
-  DEBUGF (3, "path: %s\n", path);
+  TRACE (3, "path: %s\n", path);
 
   file = getdirent2 (&hnd, path, &ff);
   if (!file)
@@ -225,7 +225,7 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
       goto enomem;
     }
 
-    DEBUGF (3, "adding to de: %p, dirp->dd_num: %u\n", de, (unsigned)dirp->dd_num);
+    TRACE (3, "adding to de: %p, dirp->dd_num: %u\n", de, (unsigned)dirp->dd_num);
 
     de->d_attrib      = ff.dwFileAttributes;
     de->d_time_create = ff.ftCreationTime;
@@ -244,7 +244,7 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
       max_cnt  *= 5;
 
       more = REALLOC (dirp->dd_contents, max_size);
-      DEBUGF (3, "Limit reached. REALLOC (%u) -> %p\n", (unsigned)max_size, more);
+      TRACE (3, "Limit reached. REALLOC (%u) -> %p\n", (unsigned)max_size, more);
 
       if (!more)
       {
@@ -290,8 +290,8 @@ struct dirent2 *readdir2 (DIR2 *dirp)
 {
   struct dirent2 *de;
 
-  DEBUGF (3, "dirp->dd_contents: %p, dirp->dd_loc: %u, dirp->dd_num: %u\n",
-          dirp->dd_contents, (unsigned)dirp->dd_loc, (unsigned)dirp->dd_num);
+  TRACE (3, "dirp->dd_contents: %p, dirp->dd_loc: %u, dirp->dd_num: %u\n",
+         dirp->dd_contents, (unsigned)dirp->dd_loc, (unsigned)dirp->dd_num);
 
   if (!dirp->dd_contents || dirp->dd_loc >= dirp->dd_num)
      return (NULL);
@@ -375,8 +375,8 @@ static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
        rc = getdirent2 (hnd, NULL, ff);
   }
 
-  DEBUGF (3, "spec: %s, *hnd: %p, rc: %s, err: %lu\n",
-          spec ? spec : "<N/A>", *hnd, rc, okay ? 0 : GetLastError());
+  TRACE (3, "spec: %s, *hnd: %p, rc: %s, err: %lu\n",
+         spec ? spec : "<N/A>", *hnd, rc, okay ? 0 : GetLastError());
   return (rc);
 }
 
@@ -410,14 +410,14 @@ int scandir2 (const char       *dirname,
   dirptr = opendir2 (dirname);    /* This will match anything and not call qsort() */
   if (!dirptr)
   {
-    DEBUGF (1, "opendir2 (\"%s\"): failed\n", dirname);
+    TRACE (1, "opendir2 (\"%s\"): failed\n", dirname);
     return (-1);
   }
 
   namelist = CALLOC (1, max_size);
   if (!namelist)
   {
-    DEBUGF (1, "CALLOC() of %u bytes failed.\n", (unsigned)max_size);
+    TRACE (1, "CALLOC() of %u bytes failed.\n", (unsigned)max_size);
     goto enomem;
   }
 
@@ -430,7 +430,7 @@ int scandir2 (const char       *dirname,
     if (!de)
        break;
 
-    DEBUGF (2, "readdir2(): %s.\n", de->d_name);
+    TRACE (2, "readdir2(): %s.\n", de->d_name);
 
     /* The "." and ".." entries are already filtered out in `getdirent2()`.
      * The caller can filter out more if needed in a `sd_select` function.
@@ -446,7 +446,7 @@ int scandir2 (const char       *dirname,
     namelist [num] = MALLOC (tdirsize);
     if (!namelist[num])
     {
-      DEBUGF (1, "MALLOC() of %u bytes failed.\n", tdirsize);
+      TRACE (1, "MALLOC() of %u bytes failed.\n", tdirsize);
       goto enomem;
     }
 
@@ -462,7 +462,7 @@ int scandir2 (const char       *dirname,
       namelist = REALLOC (namelist, max_size);
       if (!namelist)
       {
-        DEBUGF (1, "REALLOC() of %u bytes failed.\n", (unsigned)max_size);
+        TRACE (1, "REALLOC() of %u bytes failed.\n", (unsigned)max_size);
         goto enomem;
       }
     }
@@ -499,7 +499,7 @@ static int MS_CDECL compare_alphasort (const struct dirent2 *a, const struct dir
   else rc = stricmp (base_a, base_b);
   rc = reverse_sort (rc);
 
-  DEBUGF (3, "base_a: %s, base_b: %s, rc: %d\n", base_a, base_b, rc);
+  TRACE (3, "base_a: %s, base_b: %s, rc: %d\n", base_a, base_b, rc);
   return (rc);
 }
 
@@ -517,8 +517,8 @@ static int MS_CDECL compare_dirs_first (const struct dirent2 *a, const struct di
        rc = reverse_sort (1);
   else rc = compare_alphasort (a, b);
 
-  DEBUGF (3, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
-          basename(a->d_name), basename(b->d_name), a_dir, b_dir, rc);
+  TRACE (3, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
+         basename(a->d_name), basename(b->d_name), a_dir, b_dir, rc);
   return (rc);
 }
 
@@ -536,8 +536,8 @@ static int MS_CDECL compare_files_first (const struct dirent2 *a, const struct d
        rc = reverse_sort (-1);
   else rc = compare_alphasort (a, b);
 
-  DEBUGF (3, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
-          basename(a->d_name), basename(b->d_name), a_dir, b_dir, rc);
+  TRACE (3, "a->d_name: %-15.15s, b->d_name: %-15.15s, a_dir: %d, b_dir: %d, rc: %d\n",
+         basename(a->d_name), basename(b->d_name), a_dir, b_dir, rc);
   return (rc);
 }
 
@@ -569,7 +569,7 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
   switch (s)
   {
     case OD2X_FILES_FIRST:
-         DEBUGF (3, "Using compare_files_first(), sort_reverse: %d\n", sort_reverse);
+         TRACE (3, "Using compare_files_first(), sort_reverse: %d\n", sort_reverse);
          if (qsort_func)
             *qsort_func = (QsortCmpFunc) compare_files_first;
          if (sd_cmp_func)
@@ -577,7 +577,7 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
          break;
 
     case OD2X_DIRECTORIES_FIRST:
-         DEBUGF (3, "Using compare_dirs_first(), sort_reverse: %d\n", sort_reverse);
+         TRACE (3, "Using compare_dirs_first(), sort_reverse: %d\n", sort_reverse);
          if (qsort_func)
             *qsort_func = (QsortCmpFunc) compare_dirs_first;
          if (sd_cmp_func)
@@ -585,7 +585,7 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
          break;
 
     case OD2X_ON_NAME:
-         DEBUGF (3, "Using compare_alphasort(), sort_reverse: %d\n", sort_reverse);
+         TRACE (3, "Using compare_alphasort(), sort_reverse: %d\n", sort_reverse);
          if (qsort_func)
             *qsort_func = (QsortCmpFunc) compare_alphasort;
          if (sd_cmp_func)
@@ -593,7 +593,7 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
          break;
 
     default:
-         DEBUGF (3, "Not sorting.\n");
+         TRACE (3, "Not sorting.\n");
          if (qsort_func)
             *qsort_func = NULL;
          if (sd_cmp_func)
@@ -859,11 +859,11 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
   set_sort_funcs (opts->sort, NULL, &sorter);
   n = scandir2 (dir, &namelist, NULL, sorter);
 
-  DEBUGF (1, "scandir2 (\"%s\"), pattern: '%s': n: %d, sort_reverse: %d.\n", dir, opts->pattern, n, sort_reverse);
+  TRACE (1, "scandir2 (\"%s\"), pattern: '%s': n: %d, sort_reverse: %d.\n", dir, opts->pattern, n, sort_reverse);
 
   if (n < 0)
-     DEBUGF (0, "(recursion_level: %lu). Error in scandir2 (\"%s\"): %s\n",
-             (unsigned long)recursion_level, dir, strerror(errno));
+     TRACE (0, "(recursion_level: %lu). Error in scandir2 (\"%s\"): %s\n",
+            (unsigned long)recursion_level, dir, strerror(errno));
   else
   {
     for (i = 0; i < n; i++)
@@ -892,8 +892,8 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
       }
     }
 
-    DEBUGF (2, "(recursion_level: %lu). freeing %d items and *namelist.\n",
-            (unsigned long)recursion_level, n);
+    TRACE (2, "(recursion_level: %lu). freeing %d items and *namelist.\n",
+           (unsigned long)recursion_level, n);
 
     while (n--)
        FREE (namelist[n]);
@@ -911,7 +911,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
   int             i = 0;
   DIR2           *dp = opendir2x (dir, opts);
 
-  DEBUGF (1, "dir: '%s', pattern: '%s', dp: %p\n", dir, opts->pattern, dp);
+  TRACE (1, "dir: '%s', pattern: '%s', dp: %p\n", dir, opts->pattern, dp);
 
   if (!dp)
      return;

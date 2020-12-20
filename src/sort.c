@@ -117,7 +117,7 @@ BOOL set_sort_method (const char *opts, char **err_opt)
   check_sizes();
   ASSERT (opts);
 
-  DEBUGF (1, "got sort opts: '%s'.\n", opts);
+  TRACE (1, "got sort opts: '%s'.\n", opts);
   opts2 = alloca (strlen(opts)+1);
   strcpy (opts2, opts);
 
@@ -141,9 +141,9 @@ BOOL set_sort_method (const char *opts, char **err_opt)
     tok = _strtok_r (NULL, ", ", &end);
   }
   for (i = 0; opt.sort_methods[i]; i++)
-      DEBUGF (1, "opt.sort_methods[%d]: '%s'.\n",
-              i, list_lookup_name(opt.sort_methods[i], method_names, DIM(method_names)));
-  DEBUGF (1, "opt.sort_methods[%d]: 0.\n", i);
+      TRACE (1, "opt.sort_methods[%d]: '%s'.\n",
+             i, list_lookup_name(opt.sort_methods[i], method_names, DIM(method_names)));
+  TRACE (1, "opt.sort_methods[%d]: 0.\n", i);
   return (rc);
 }
 

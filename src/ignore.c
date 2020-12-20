@@ -75,7 +75,7 @@ void cfg_ignore_handler (const char *section, const char *key, const char *value
     node->section = sections[idx].name;
     node->value   = value;
     smartlist_add (ignore_list, node);
-    DEBUGF (3, "%s: ignore = '%s'\n", node->section, node->value);
+    TRACE (3, "%s: ignore = '%s'\n", node->section, node->value);
   }
 }
 
@@ -110,7 +110,7 @@ int cfg_ignore_lookup (const char *section, const char *value)
      */
     if (str_equal(value, node->value))
     {
-      DEBUGF (3, "Found '%s' in %s.\n", value, section);
+      TRACE (3, "Found '%s' in %s.\n", value, section);
       return (1);
     }
 
@@ -119,7 +119,7 @@ int cfg_ignore_lookup (const char *section, const char *value)
      */
     if (fnmatch(node->value, value, fnmatch_case(0)) == FNM_MATCH)
     {
-      DEBUGF (3, "Wildcard match for '%s' in %s.\n", value, section);
+      TRACE (3, "Wildcard match for '%s' in %s.\n", value, section);
       return (1);
     }
   }
@@ -139,7 +139,7 @@ const char *cfg_ignore_first (const char *section)
 
   if (idx == UINT_MAX)
   {
-    DEBUGF (3, "No such section: %s.\n", section);
+    TRACE (3, "No such section: %s.\n", section);
     goto not_found;
   }
 
@@ -207,7 +207,7 @@ void cfg_ignore_dump (void)
          ignored;
          ignored = cfg_ignore_next(section), j++)
         ;
-    DEBUGF (3, "section: %-15s: num: %d.\n", section, j);
+    TRACE (3, "section: %-15s: num: %d.\n", section, j);
   }
 }
 

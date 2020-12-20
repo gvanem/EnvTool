@@ -76,7 +76,7 @@ static int pkg_config_list_all_cb (char *buf, int index)
   descr = (*end != '\0') ? end : "";
   descr = str_ltrim (descr);
 
-  DEBUGF (2, "%3d: %-30s -> %s.\n", index, name, descr);
+  TRACE (2, "%3d: %-30s -> %s.\n", index, name, descr);
   add_package (name, descr);
   return (1);
 }
@@ -108,7 +108,7 @@ static void pkg_config_build_pkg (void)
 
   max = smartlist_len (pkgconfig_pkg);
   if (max > 0)
-     DEBUGF (1, "Found %d cached pkg-config packages.\n", max);
+     TRACE (1, "Found %d cached pkg-config packages.\n", max);
   else
   {
     /* None found from cache. Try for real
@@ -121,7 +121,7 @@ static void pkg_config_build_pkg (void)
   {
     const struct pkgconfig_node *pkg = smartlist_get (pkgconfig_pkg, i);
 
-    DEBUGF (2, "%3d: %-30s  descr: %s.\n", i, pkg->name, pkg->description);
+    TRACE (2, "%3d: %-30s  descr: %s.\n", i, pkg->name, pkg->description);
     cache_putf (SECTION_PKGCONFIG, "pkgconfig_node_%d = %s,%s", i, pkg->name, pkg->description);
   }
 }
@@ -204,7 +204,7 @@ static BOOL pkg_config_get_info_internal (void)
       popen_run(pkg_config_version_cb, pkgconfig_exe, "--version") > 0)
      cache_putf (SECTION_PKGCONFIG, "pkgconfig_version = %d,%d", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
 
-  DEBUGF (2, "ver: %d.%d.\n", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
+  TRACE (2, "ver: %d.%d.\n", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
   return (VALID_VER(pkgconfig_ver));
 }
 
@@ -237,8 +237,8 @@ static smartlist_t *pkg_config_reg_keys (HKEY top_key)
   DWORD rc = RegGetValue (top_key, REG_KEY, ENV_NAME, RRF_RT_REG_SZ,
                           &type, (void*)&buf, &buf_size);
 
-  DEBUGF (1, "  RegGetValue (%s\\%s, %s), type: %s:\n -> %s\n",
-          reg_top_key_name(top_key), REG_KEY, win_strerror(rc), reg_type_name(type), buf);
+  TRACE (1, "  RegGetValue (%s\\%s, %s), type: %s:\n -> %s\n",
+         reg_top_key_name(top_key), REG_KEY, win_strerror(rc), reg_type_name(type), buf);
 
   if (rc != ERROR_SUCCESS || type != REG_SZ)
      return (NULL);
@@ -247,7 +247,7 @@ static smartlist_t *pkg_config_reg_keys (HKEY top_key)
   {
     if (i == 0)
         tok = _strtok_r (tok, ";", &end);
-    DEBUGF (1, "tok[%d]: '%s'\n", i, tok);
+    TRACE (1, "tok[%d]: '%s'\n", i, tok);
     reg_array_add (top_key, tok, tok);
     tok = _strtok_r (NULL, ";", &end);
   }
@@ -417,7 +417,7 @@ int pkg_config_search (const char *search_spec)
     struct pkgconfig_dir *dir = smartlist_get (pkgconfig_dirs, i);
     char   prefix [30];
 
-    DEBUGF (2, "Checking in %s dir '%s'\n", dir->top_key ? "Registry" : "environment", dir->path);
+    TRACE (2, "Checking in %s dir '%s'\n", dir->top_key ? "Registry" : "environment", dir->path);
 
     if (dir->top_key == HKEY_CURRENT_USER)
        snprintf (prefix, sizeof(prefix), "[HKCU\\%s]", REG_KEY);

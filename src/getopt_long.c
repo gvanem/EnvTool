@@ -100,8 +100,8 @@ int   optind, opterr = 1, optopt;
 
 static unsigned debugf_line;
 
-#undef  DEBUGF
-#define DEBUGF(level, ...)                             \
+#undef  TRACE
+#define TRACE(level, ...)                              \
         do {                                           \
           if (opt.debug >= level) {                    \
              debug_printf ("getopt_long.c(%u): ",      \
@@ -655,7 +655,7 @@ static char **build_array (char *buf, const char *delim, int *len)
     array[i] = token;
     buf = str_ltrim (end);
 
-    DEBUGF (2, "array[%d]: '%s', buf: '%.5s'...\n", i, array[i], buf);
+    TRACE (2, "array[%d]: '%s', buf: '%.5s'...\n", i, array[i], buf);
 
     if (++i >= i_min)
     {
@@ -718,7 +718,7 @@ static int get_file_array (struct command_line *c, const char *file)
      c->file_array = build_array (c->file_buf, "\" \t\r\n", &i);
 
   fclose (f);
-  DEBUGF (2, "file: %s, filelength: %lu -> %d\n", file, flen, i);
+  TRACE (2, "file: %s, filelength: %lu -> %d\n", file, flen, i);
   return (i);
 }
 
@@ -741,13 +741,13 @@ static void dump_argv (const struct command_line *c, unsigned line)
   int   i;
 
   debugf_line = line;
-  DEBUGF (2, "c->argc: %d\n", c->argc);
+  TRACE (2, "c->argc: %d\n", c->argc);
   for (i = 0; c->argv && i <= c->argc; i++)
   {
     p = c->argv[i];
     debugf_line = line;
-    DEBUGF (2, "c->argv[%2d]: %-40.40s (0x%p)\n",
-            i, (p && IsBadReadPtr(p,40)) ? "<bogus>" : p, p);
+    TRACE (2, "c->argv[%2d]: %-40.40s (0x%p)\n",
+           i, (p && IsBadReadPtr(p,40)) ? "<bogus>" : p, p);
   }
 }
 
@@ -858,8 +858,8 @@ void getopt_parse (struct command_line *c, int _argc, const char **_argv)
       }
     }
 
-    DEBUGF (3, "arg_idx: %d, c0_idx: %d, env_idx: %d, file_idx: %d, arg: '%s'.\n",
-            arg_idx, c0_idx, env_idx, file_idx, arg);
+    TRACE (3, "arg_idx: %d, c0_idx: %d, env_idx: %d, file_idx: %d, arg: '%s'.\n",
+           arg_idx, c0_idx, env_idx, file_idx, arg);
 
     c->argv [arg_idx++] = arg;
     if (arg == NULL)
@@ -901,7 +901,7 @@ void getopt_parse (struct command_line *c, int _argc, const char **_argv)
        break;
   }
 
-  DEBUGF (2, "c->argc: %d, optind: %d\n", c->argc, optind);
+  TRACE (2, "c->argc: %d, optind: %d\n", c->argc, optind);
 
   if (c->argc > optind)
      c->argc0 = optind;

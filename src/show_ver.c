@@ -400,7 +400,7 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
 
       /* The current child is a 'struct StringFileInfo' element
        */
-      DEBUGF (3, "pSFI->wType: %d\n", pSFI->wType);
+      TRACE (3, "pSFI->wType: %d\n", pSFI->wType);
 
       ASSERT (pSFI->wType == 0 || pSFI->wType == 1);
       ASSERT (!pSFI->wValueLength);
@@ -445,7 +445,7 @@ static void get_PE_version_data (const void *pVer, DWORD size, struct ver_info *
 
       /* The current child is a 'struct VarFileInfo' element
        */
-      DEBUGF (3, "pSFI->wType: %d\n", pSFI->wType);
+      TRACE (3, "pSFI->wType: %d\n", pSFI->wType);
       ASSERT (pSFI->wType == 0 || pSFI->wType == 1);     /* ?? it just seems to be this way... */
 
       ASSERT (!wcscmp(pVFI->szKey, L"VarFileInfo"));
@@ -500,17 +500,17 @@ int get_PE_version_info (const char *file, struct ver_info *ver)
   if (!size)
   {
     last_err = GetLastError();
-    DEBUGF (1, "file \"%s\": %s\n", file, win_strerror(last_err));
+    TRACE (1, "file \"%s\": %s\n", file, win_strerror(last_err));
     return (0);
   }
 
-  DEBUGF (1, "size: %lu\n", (u_long)size);
+  TRACE (1, "size: %lu\n", (u_long)size);
 
   ver_data = CALLOC (size, 1);
   if (!GetFileVersionInfoA(file, 0, size, ver_data))
   {
     last_err = GetLastError();
-    DEBUGF (1, "file \"%s\": %s\n", file, win_strerror(last_err));
+    TRACE (1, "file \"%s\": %s\n", file, win_strerror(last_err));
     FREE (ver_data);
     return (0);
   }

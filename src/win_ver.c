@@ -65,9 +65,9 @@ BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level
       *minor    = info->wki100_ver_minor;
       *platform = info->wki100_platform_id;
 
-      DEBUGF (1, "  major:     0x%08lX\n", *(u_long*)major);
-      DEBUGF (1, "  minor:     0x%08lX\n", *(u_long*)minor);
-      DEBUGF (1, "  platform:  %lu\n", *(u_long*)platform);
+      TRACE (1, "  major:     0x%08lX\n", *(u_long*)major);
+      TRACE (1, "  minor:     0x%08lX\n", *(u_long*)minor);
+      TRACE (1, "  platform:  %lu\n", *(u_long*)platform);
     }
     else if (level == 102)
     {
@@ -77,13 +77,13 @@ BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level
       *minor    = info->wki102_ver_minor;
       *platform = info->wki102_platform_id;
 
-      DEBUGF (1, "  major:     0x%08lX\n", *(u_long*)major);
-      DEBUGF (1, "  minor:     0x%08lX\n", *(u_long*)minor);
-      DEBUGF (1, "  platform:  %lu\n", *(u_long*)platform);
-      DEBUGF (1, "  comp-name: %S\n", info->wki102_computername);
-      DEBUGF (1, "  langroup:  %S\n", info->wki102_langroup);
-      DEBUGF (1, "  langroot:  %S\n", info->wki102_lanroot);
-      DEBUGF (1, "  users:     %lu\n", info->wki102_logged_on_users);
+      TRACE (1, "  major:     0x%08lX\n", *(u_long*)major);
+      TRACE (1, "  minor:     0x%08lX\n", *(u_long*)minor);
+      TRACE (1, "  platform:  %lu\n", *(u_long*)platform);
+      TRACE (1, "  comp-name: %S\n", info->wki102_computername);
+      TRACE (1, "  langroup:  %S\n", info->wki102_langroup);
+      TRACE (1, "  langroot:  %S\n", info->wki102_lanroot);
+      TRACE (1, "  users:     %lu\n", info->wki102_logged_on_users);
     }
     else
       FATAL ("level must be 100 or 102.\n");
@@ -144,37 +144,37 @@ static const char *get_os_version (void)
         return ("WIN-??");
   }
 
-  DEBUGF (1, "Data from GetVersionExW():\n"
-             "  os.dwMajorVersion: 0x%08lX\n"
-             "  os.dwMinorVersion: 0x%08lX\n"
-             "  os.dwPlatformId:   0x%08lX\n"
-             "  os.wProductType:   0x%02X\n"
-             "  os.szCSDVersion:   '%" WIDESTR_FMT "'\n",
-             (u_long)os.dwMajorVersion, (u_long)os.dwMinorVersion,
-             (u_long)os.dwPlatformId, os.wProductType, os.szCSDVersion);
+  TRACE (1, "Data from GetVersionExW():\n"
+            "  os.dwMajorVersion: 0x%08lX\n"
+            "  os.dwMinorVersion: 0x%08lX\n"
+            "  os.dwPlatformId:   0x%08lX\n"
+            "  os.wProductType:   0x%02X\n"
+            "  os.szCSDVersion:   '%" WIDESTR_FMT "'\n",
+            (u_long)os.dwMajorVersion, (u_long)os.dwMinorVersion,
+            (u_long)os.dwPlatformId, os.wProductType, os.szCSDVersion);
 
 #if defined(USE_RTDLL_VERSION)
   rc = get_rtdll_version (&osw);
   equal = (memcmp (&os, &osw, os.dwOSVersionInfoSize) == 0);
 
   if (!rc)
-     DEBUGF (1, "RtlGetVersion() failed\n");
+     TRACE (1, "RtlGetVersion() failed\n");
   else
   {
-    DEBUGF (1, "Data from RtlGetVersion():\n"
-               "  os.dwMajorVersion: 0x%08lX\n"
-               "  os.dwMinorVersion: 0x%08lX\n"
-               "  os.dwPlatformId:   0x%08lX\n"
-               "  os.wProductType:   0x%02X\n"
-               "  os.szCSDVersion:   '%" WIDESTR_FMT "'\n",
-               (u_long)osw.dwMajorVersion, (u_long)osw.dwMinorVersion,
-               (u_long)osw.dwPlatformId, osw.wProductType, osw.szCSDVersion);
+    TRACE (1, "Data from RtlGetVersion():\n"
+              "  os.dwMajorVersion: 0x%08lX\n"
+              "  os.dwMinorVersion: 0x%08lX\n"
+              "  os.dwPlatformId:   0x%08lX\n"
+              "  os.wProductType:   0x%02X\n"
+              "  os.szCSDVersion:   '%" WIDESTR_FMT "'\n",
+              (u_long)osw.dwMajorVersion, (u_long)osw.dwMinorVersion,
+              (u_long)osw.dwPlatformId, osw.wProductType, osw.szCSDVersion);
   }
 
   if (rc && !equal)
   {
     p_os = &osw;
-    DEBUGF (1, "  os != osw. Using osw data from RtlGetVersion().\n");
+    TRACE (1, "  os != osw. Using osw data from RtlGetVersion().\n");
   }
   else
     p_os = &os;
@@ -301,9 +301,9 @@ static const char *get_registry_value (const char *wanted_value, DWORD wanted_ty
   rc = RegGetValue (HKEY_LOCAL_MACHINE, CURRENT_VER_KEY, wanted_value, RRF_RT_ANY,
                     &type, (void*)&ret_buf, &buf_size);
 
-  DEBUGF (1, "  RegGetValue (%s\\%s\\%s, %s), type: %s.\n",
-          reg_top_key_name(HKEY_LOCAL_MACHINE), CURRENT_VER_KEY, wanted_value,
-          win_strerror(rc), reg_type_name(type));
+  TRACE (1, "  RegGetValue (%s\\%s\\%s, %s), type: %s.\n",
+         reg_top_key_name(HKEY_LOCAL_MACHINE), CURRENT_VER_KEY, wanted_value,
+         win_strerror(rc), reg_type_name(type));
 
   if (rc != ERROR_SUCCESS || type != wanted_type)
      return (NULL);

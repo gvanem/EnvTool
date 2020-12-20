@@ -228,7 +228,7 @@
 /*
  * To turn off these annoying warnings:
  *   misc.c(3552,36):  warning: precision used with 'S' conversion specifier, resulting in undefined behavior [-Wformat]
- *   DEBUGF (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
+ *   TRACE (2, "SubstitutionName: '%.*S'\n", (int)(slen/2), sub_name);
  *                                 ~~^~
  */
 #define _WFORMAT_OFF()       _PRAGMA (GCC diagnostic push) \
@@ -911,12 +911,12 @@ extern char *fnmatch_res  (int rc);
  *   Avoid a compiler warning on an used variable.
  *   \param foo the variable.
  *
- * \def DEBUGF(level, ...)
+ * \def TRACE(level, ...)
  *   Print a debug-statement if opt.debug >= level.
  *   \param level  the level needed to trigger a print-out.
  *   \param ...    a var-arg list of format an arguments (just like `printf()`).
  *
- * \def DEBUG_NL(level)
+ * \def TRACE_NL(level)
  *   Print a newline if opt.debug >= level.
  *
  * \def WARN(...)
@@ -930,17 +930,17 @@ extern char *fnmatch_res  (int rc);
 #define DIM(arr)       (int) (sizeof(arr) / sizeof(arr[0]))
 #define ARGSUSED(foo)  (void)foo
 
-#define DEBUGF(level, ...)  do {                                        \
-                              if (opt.debug >= level) {                 \
-                                debug_printf ("%s(%u): ",               \
-                                              __FILE(), __LINE__);      \
-                                debug_printf (__VA_ARGS__);             \
-                              }                                         \
-                            } while (0)
+#define TRACE(level, ...)  do {                                   \
+                             if (opt.debug >= level) {            \
+                               debug_printf ("%s(%u): ",          \
+                                             __FILE(), __LINE__); \
+                               debug_printf (__VA_ARGS__);        \
+                             }                                    \
+                           } while (0)
 
-#define DEBUG_NL(level)    do {                                         \
-                              if (opt.debug >= level)                   \
-                                C_putc ('\n');                          \
+#define TRACE_NL(level)    do {                                   \
+                             if (opt.debug >= level)              \
+                                C_putc ('\n');                    \
                            } while (0)
 
 #define WARN(...)           do {                                        \

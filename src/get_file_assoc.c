@@ -122,7 +122,7 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
   if (hr != S_OK)
   {
     _strlcpy (last_err, win_strerror(hr), sizeof(last_err));
-    DEBUGF (1, "Failed: %s\n", last_err);
+    TRACE (1, "Failed: %s\n", last_err);
     return (FALSE);
   }
   *program_descr = STRDUP (buf);
@@ -133,7 +133,7 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
   if (hr != S_OK)
   {
     _strlcpy (last_err, win_strerror(hr), sizeof(last_err));
-    DEBUGF (1, "Failed: %s\n", last_err);
+    TRACE (1, "Failed: %s\n", last_err);
     return (FALSE);
   }
 
@@ -178,7 +178,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   if (!is_sfn && GetShortPathNameA(*file_p, buf, sizeof(buf)) == 0)
   {
     _strlcpy (last_err, win_strerror(GetLastError()), sizeof(last_err));
-    DEBUGF (1, "*file_p: '%s' failed: %s\n", *file_p, last_err);
+    TRACE (1, "*file_p: '%s' failed: %s\n", *file_p, last_err);
     return (FALSE);
   }
 
@@ -188,7 +188,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   if (GetLongPathNameA(file, _new, _MAX_PATH) == 0)
   {
     _strlcpy (last_err, win_strerror(GetLastError()), sizeof(last_err));
-    DEBUGF (1, "file: '%s' failed: %s\n", file, last_err);
+    TRACE (1, "file: '%s' failed: %s\n", file, last_err);
     FREE (_new);
     return (FALSE);
   }
@@ -200,7 +200,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   *file_p = _new;
   last_err[0] = '\0';
 
-  DEBUGF (3, "\n    short: '%s' ->\n    long:  '%s'\n", buf, *file_p);
+  TRACE (3, "\n    short: '%s' ->\n    long:  '%s'\n", buf, *file_p);
   return (TRUE);
 }
 

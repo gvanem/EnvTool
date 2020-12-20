@@ -607,7 +607,7 @@ int C_vprintf (const char *fmt, va_list args)
 
   if (c_raw)
   {
-    if (!c_out)  /* allow using 'DEBUGF()' before C_init()' was called */
+    if (!c_out)  /* allow using 'TRACE()' before C_init()' was called */
     {
       len1 = vfprintf (stdout, fmt, args);
       fflush (stdout);

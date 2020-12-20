@@ -83,7 +83,7 @@ void file_descr_init (void)
      */
     popen_run (NULL, env, "/C echo %%_dname");
     line = popen_last_line();
-    DEBUGF (2, "line: '%s'.\n", line);
+    TRACE (2, "line: '%s'.\n", line);
     if (*line && strchr(line,'.'))
        _strlcpy (descr_name, line, sizeof(descr_name));
    }
@@ -188,7 +188,7 @@ static void descr_parse (smartlist_t *sl, const char *buf)
     _strlcpy (d->file_descr, descr, sizeof(d->file_descr));
     smartlist_add (sl, d);
   }
-  DEBUGF (2, "file: %s, descr: %s.\n", file, descr);
+  TRACE (2, "file: %s, descr: %s.\n", file, descr);
 }
 
 /**
@@ -206,7 +206,7 @@ static const char *lookup_file_descr (const smartlist_t *sl, const char *file_di
   {
     const struct descr_node *d = smartlist_get (sl, i);
 
-    DEBUGF (2, "i: %d, file_dir: %s.\n", i, d->file_dir);
+    TRACE (2, "i: %d, file_dir: %s.\n", i, d->file_dir);
     if (!stricmp(file_dir,d->file_dir))
        return (d->file_descr);
   }
@@ -241,8 +241,8 @@ static const char *all_descr_new (const char *dir, const char *file)
   _strlcpy (d->dir, dir, sizeof(d->dir));
 
   if (d->descr)
-       DEBUGF (2, "Parser found %d descriptions for %s.\n", smartlist_len(d->descr), fname);
-  else DEBUGF (2, "Parser found no descriptions for files in '%s\\'.\n", dir);
+       TRACE (2, "Parser found %d descriptions for %s.\n", smartlist_len(d->descr), fname);
+  else TRACE (2, "Parser found no descriptions for files in '%s\\'.\n", dir);
 
   smartlist_add (all_descr, d);
 
@@ -268,12 +268,12 @@ static const char *all_descr_lookup (const char *dir, const char *file_dir, BOOL
   int   i, max = smartlist_len (all_descr);
 
   *empty = FALSE;
-  DEBUGF (2, "all_descr_lookup(): max: %d, looking for dir: %s\n", max, dir);
+  TRACE (2, "all_descr_lookup(): max: %d, looking for dir: %s\n", max, dir);
 
   for (i = 0; i < max; i++)
   {
     d = smartlist_get (all_descr, i);
-    DEBUGF (2, "  i=%d: empty: %d, dir: %s\n", i, d->descr ? 0 : 1, d->dir);
+    TRACE (2, "  i=%d: empty: %d, dir: %s\n", i, d->descr ? 0 : 1, d->dir);
 
     if (!stricmp(dir,d->dir))
     {
@@ -321,7 +321,7 @@ const char *file_descr_get (const char *file_dir)
   dir    = _file;
   fname [-1] = '\0';
 
-  DEBUGF (2, "dir: %s, fname: %s, is_dir: %d\n", dir, fname, is_dir);
+  TRACE (2, "dir: %s, fname: %s, is_dir: %d\n", dir, fname, is_dir);
 
   descr = all_descr_lookup (dir, fname, &empty);
   if (empty)

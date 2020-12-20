@@ -273,8 +273,8 @@ static smartlist_t *py_programs;
                                             #f, pi->dll_name);                       \
                                       goto failed;                                   \
                                     }                                                \
-                                    DEBUGF (3, "Function %s(): %*s 0x%p.\n",         \
-                                               #f, 23-(int)strlen(#f), "", f);       \
+                                    TRACE (3, "Function %s(): %*s 0x%p.\n",          \
+                                           #f, 23-(int)strlen(#f), "", f);           \
                                   } while (0)
 
 /**
@@ -283,13 +283,13 @@ static smartlist_t *py_programs;
  *   \param pi   the `struct python_info` to work on.
  *   \param ptr  the name of the variable (without any `"`).
  */
-#define LOAD_INT_PTR(pi, ptr)  do {                                                         \
-                                 ptr = (int*) GetProcAddress (pi->dll_hnd, #ptr);           \
-                                 if (!ptr)                                                  \
-                                      DEBUGF (2, "Failed to find \"%s\" in %s.\n",          \
-                                              #ptr, pi->dll_name);                          \
-                                 else DEBUGF (3, "Variable %s: %*s 0x%p = %d.\n",           \
-                                              #ptr, 25-(int)strlen(#ptr), "", ptr, *(ptr)); \
+#define LOAD_INT_PTR(pi, ptr)  do {                                                        \
+                                 ptr = (int*) GetProcAddress (pi->dll_hnd, #ptr);          \
+                                 if (!ptr)                                                 \
+                                      TRACE (2, "Failed to find \"%s\" in %s.\n",          \
+                                             #ptr, pi->dll_name);                          \
+                                 else TRACE (3, "Variable %s: %*s 0x%p = %d.\n",           \
+                                             #ptr, 25-(int)strlen(#ptr), "", ptr, *(ptr)); \
                                } while (0)
 
 /**
@@ -451,9 +451,9 @@ const char **py_get_variants (void)
 
   result [j++] = "all";
 
-  DEBUGF (3, "j: %d\n", j);
+  TRACE (3, "j: %d\n", j);
   for (i = 0; i < DIM(result); i++)
-     DEBUGF (3, "py_get_variants(); result[%d] = %s\n", i, result[i]);
+     TRACE (3, "py_get_variants(); result[%d] = %s\n", i, result[i]);
 
   qsort (&result[0], j, sizeof(char*), compare_strings);
 
@@ -466,9 +466,9 @@ const char **py_get_variants (void)
       j--;
     }
 
-  DEBUGF (3, "\n");
+  TRACE_NL (3);
   for (i = 0; i < j; i++)
-     DEBUGF (3, "py_get_variants(); result[%d] = %s\n", i, result[i]);
+     TRACE (3, "py_get_variants(); result[%d] = %s\n", i, result[i]);
 
   j = i;
   ASSERT (j < DIM(result));
@@ -495,11 +495,11 @@ static struct python_info *py_select (enum python_variants which)
 
     if ((which == DEFAULT_PYTHON && pi->is_default) || which == pi->variant)
     {
-      DEBUGF (1, "py_select (%d); \"%s\" -> \"%s\"\n", which, py_variant_name(pi->variant), pi->exe_name);
+      TRACE (1, "py_select (%d); \"%s\" -> \"%s\"\n", which, py_variant_name(pi->variant), pi->exe_name);
       return (pi);
     }
   }
-  DEBUGF (1, "py_select (%d); \"%s\" not possible.\n", which, py_variant_name(which));
+  TRACE (1, "py_select (%d); \"%s\" not possible.\n", which, py_variant_name(which));
   return (NULL);
 }
 
@@ -735,7 +735,7 @@ static void py_exit_embedding (struct python_info *pi)
     Py_InspectFlag = NULL;
     if (Py_Finalize)
     {
-      DEBUGF (4, "Calling Py_Finalize().\n");
+      TRACE (4, "Calling Py_Finalize().\n");
       (*Py_Finalize)();
     }
     if (!IsDebuggerPresent())
@@ -866,8 +866,8 @@ static PyObject *setup_stdout_catcher (void)
   int       rc  = (*PyRun_SimpleString) (code);                /* invoke code to redirect */
   PyObject *obj = (*PyObject_GetAttrString) (mod, "catcher");  /* get a reference to `catcher` created above */
 
-  DEBUGF (5, "code: '%s'\n", code);
-  DEBUGF (4, "mod: %p, rc: %d, obj: %p\n", mod, rc, obj);
+  TRACE (5, "code: '%s'\n", code);
+  TRACE (4, "mod: %p, rc: %d, obj: %p\n", mod, rc, obj);
   return (obj);
 }
 
@@ -893,7 +893,7 @@ static BOOL py_init_embedding (struct python_info *pi)
     return (FALSE);
   }
 
-  DEBUGF (2, "Full DLL name: \"%s\". Handle: 0x%p\n", pi->dll_name, pi->dll_hnd);
+  TRACE (2, "Full DLL name: \"%s\". Handle: 0x%p\n", pi->dll_name, pi->dll_hnd);
 
   LOAD_FUNC (pi, 0, Py_InitializeEx);
   LOAD_FUNC (pi, 0, Py_IsInitialized);
@@ -931,18 +931,18 @@ static BOOL py_init_embedding (struct python_info *pi)
     PyString_AsString = PyBytes_AsString;
     PyString_Size     = PyBytes_Size;
 
-    DEBUGF (2, "Py_SetProgramName (\"%" WIDESTR_FMT "\")\n", pi->prog_w);
+    TRACE (2, "Py_SetProgramName (\"%" WIDESTR_FMT "\")\n", pi->prog_w);
     (*Py_SetProgramName) ((char*)pi->prog_w);
 
-    DEBUGF (2, "Py_SetPythonHome (\"%" WIDESTR_FMT "\")\n", pi->home_w);
+    TRACE (2, "Py_SetPythonHome (\"%" WIDESTR_FMT "\")\n", pi->home_w);
     (*Py_SetPythonHome) (pi->home_w);
   }
   else
   {
-    DEBUGF (2, "Py_SetProgramName (\"%s\")\n", pi->prog_a);
+    TRACE (2, "Py_SetProgramName (\"%s\")\n", pi->prog_a);
     (*Py_SetProgramName) (pi->prog_a);
 
-    DEBUGF (2, "Py_SetPythonHome (\"%s\")\n", pi->home_a);
+    TRACE (2, "Py_SetPythonHome (\"%s\")\n", pi->home_a);
     (*Py_SetPythonHome) (pi->home_a);
   }
 
@@ -1029,7 +1029,7 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
   rc = (*PyRun_SimpleString) (prog);
 
   err = (*PyErr_Occurred)();
-  DEBUGF (2, "rc: %d, err: %p\n", rc, err);
+  TRACE (2, "rc: %d, err: %p\n", rc, err);
 
   if (rc < 0)
   {
@@ -1042,7 +1042,7 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
    */
   obj = (*PyObject_GetAttrString) (pi->catcher, "value");
 
-  DEBUGF (4, "rc: %d, obj: %p\n", rc, obj);
+  TRACE (4, "rc: %d, obj: %p\n", rc, obj);
 
   if (rc == 0 && obj)
   {
@@ -1055,7 +1055,7 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
      */
     (*PyObject_CallMethod) (pi->catcher, "reset", NULL);
   }
-  DEBUGF (3, "PyString_Size(): %ld, output:\n%s\n", size, str);
+  TRACE (3, "PyString_Size(): %ld, output:\n%s\n", size, str);
 
   /* Count the lines in the output `str` and compare `size` against what
    * a DOS-ified string-size would become (`dos_size`).
@@ -1075,8 +1075,8 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
 
     FREE (copy);
     okay = (dos_size == size+lines);
-    DEBUGF (3, "dos_size: %ld, size+lines: %ld, lines: %d; %s\n",
-            dos_size, size+lines, lines, okay ? "OK" : "discrepancy in dos_size");
+    TRACE (3, "dos_size: %ld, size+lines: %ld, lines: %d; %s\n",
+           dos_size, size+lines, lines, okay ? "OK" : "discrepancy in dos_size");
   }
   return (str);
 }
@@ -1190,8 +1190,8 @@ static int popen_append_out (char *str, int index)
     popen_out = REALLOC (popen_out, popen_out_sz);
   }
 
-  DEBUGF (2, "index: %d, strlen(popen_out): %d, popen_out_sz: %d\n",
-          index, (int)strlen(popen_out), (int)popen_out_sz);
+  TRACE (2, "index: %d, strlen(popen_out): %d, popen_out_sz: %d\n",
+         index, (int)strlen(popen_out), (int)popen_out_sz);
 
   if (index == 0)
      popen_out[0] = '\0';
@@ -1488,7 +1488,7 @@ static void py_get_module_info (struct python_info *pi)
   char *tok_end;
 
   if (opt.use_cache && smartlist_len(pi->modules) > 0)
-     DEBUGF (1, "Calling %s() with a cache should not be neccesary.\n", __FUNCTION__);
+     TRACE (1, "Calling %s() with a cache should not be neccesary.\n", __FUNCTION__);
 
   if (pi->is_embeddable)
   {
@@ -1554,7 +1554,7 @@ static void py_get_module_info (struct python_info *pi)
         py_add_module (pi, &m);
       }
       else
-        DEBUGF (1, "Suspicious line: num: %d, '%s'\n", num, line);
+        TRACE (1, "Suspicious line: num: %d, '%s'\n", num, line);
     }
   }
   if (str == popen_out)
@@ -1639,9 +1639,9 @@ static int report_zip_file (const char *zip_file, char *output)
   if (mtime == -1)
   {
     WARN (" (4) Unexpected timestamp: \"%.*s\".\n", (int)(space-p), p);
-    DEBUGF (1, "parsed tm: %04u%02u%02u.%02u%02u%02u. num: %d\n",
-            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-            tm.tm_hour, tm.tm_min, tm.tm_sec, num);
+    TRACE (1, "parsed tm: %04u%02u%02u.%02u%02u%02u. num: %d\n",
+           tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+           tm.tm_hour, tm.tm_min, tm.tm_sec, num);
     return (0);
   }
 
@@ -1743,7 +1743,7 @@ static int process_zip (struct python_info *pi, const char *zfile)
          line;
          line = _strtok_r(NULL,"\n",&tok_end), found++)
     {
-      DEBUGF (2, "line: \"%s\", found: %d\n", line, found);
+      TRACE (2, "line: \"%s\", found: %d\n", line, found);
 
       if (!strncmp(line,"str: ",5))   /* if opt.debug >= 3; ignore these from stderr */
          continue;
@@ -1758,7 +1758,7 @@ static int process_zip (struct python_info *pi, const char *zfile)
   popen_append_clear();
 
   if (str && found == 0)
-     DEBUGF (1, "No matches in %s for %s.\n", zfile, opt.file_spec);
+     TRACE (1, "No matches in %s for %s.\n", zfile, opt.file_spec);
 
   FREE (str);
   return (found);
@@ -1794,7 +1794,7 @@ static BOOL py_add_module (struct python_info *pi, const struct python_module *m
     smartlist_add (pi->modules, m2);
     return (TRUE);
   }
-  DEBUGF (1, "module '%s' for '%s' already added!\n", m->name, pi->program);
+  TRACE (1, "module '%s' for '%s' already added!\n", m->name, pi->program);
   return (FALSE);
 }
 
@@ -1857,14 +1857,14 @@ static int build_sys_path (char *str, int index)
 
     for (index = 0; tok; index++)
     {
-      DEBUGF (2, "index: %d: \"%s\"\n", index, tok);
+      TRACE (2, "index: %d: \"%s\"\n", index, tok);
       add_sys_path (tok);
       tok = _strtok_r (NULL, "\n", &tok_end);
     }
   }
   else
   {
-    DEBUGF (2, "index: %d: \"%s\"\n", index, str);
+    TRACE (2, "index: %d: \"%s\"\n", index, str);
     add_sys_path (str);
   }
   return (1);
@@ -1983,9 +1983,9 @@ static int get_dll_name (struct python_info *pi, const char **libs)
       dll2[0] = '\0';
     }
 
-    DEBUGF (1, "checking for:\n"
-               "             dll1: \"%s\"\n"
-               "             dll2: \"%s\"\n", dll1, dll2);
+    TRACE (1, "checking for:\n"
+              "             dll1: \"%s\"\n"
+              "             dll2: \"%s\"\n", dll1, dll2);
 
     if (dll1[0] && FILE_EXISTS(dll1))
     {
@@ -2026,7 +2026,7 @@ static int get_dll_name (struct python_info *pi, const char **libs)
   if (newest)
   {
     pi->dll_name = _fix_path (newest, NULL);
-    DEBUGF (1, "Found newest DLL: \"%s\", %s\n", newest, get_time_str(use_st->st_mtime));
+    TRACE (1, "Found newest DLL: \"%s\", %s\n", newest, get_time_str(use_st->st_mtime));
   }
   return (newest != NULL);
 }
@@ -2047,7 +2047,7 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
 
   ASSERT (pi == g_pi);
 
-  DEBUGF (1, "pi->variant: %d.\n", pi->variant);
+  TRACE (1, "pi->variant: %d.\n", pi->variant);
 
   if (pi->is_embeddable)
   {
@@ -2115,7 +2115,7 @@ static struct python_info *py_select_next (enum python_variants which)
 
   if (py_index == -1)
   {
-    DEBUGF (1, "py_index: -1.\n");
+    TRACE (1, "py_index: -1.\n");
     return (NULL);
   }
 
@@ -2131,8 +2131,8 @@ static struct python_info *py_select_next (enum python_variants which)
     if (which == ALL_PYTHONS)    /* select the `ALL_PYTHONS` only once */
        which = pi->variant;
 
-    DEBUGF (1, "py_index: %d: which: %d/%s, pi->variant: %d/%s, okay: %d.\n",
-            py_index, which, py_variant_name(which), pi->variant, pi->exe_name, okay);
+    TRACE (1, "py_index: %d: which: %d/%s, pi->variant: %d/%s, okay: %d.\n",
+           py_index, which, py_variant_name(which), pi->variant, pi->exe_name, okay);
 
     if (okay)
        break;
@@ -2282,8 +2282,8 @@ static int match_python_exe (const char *dir)
          continue;
 
       found++;
-      DEBUGF (1, "de->d_name: %s matches: '%s', variant: %d\n",
-              de->d_name, all_pi->program, all_pi->variant);
+      TRACE (1, "de->d_name: %s matches: '%s', variant: %d\n",
+             de->d_name, all_pi->program, all_pi->variant);
 
       pi = add_python (all_pi, de->d_name);
 
@@ -2332,7 +2332,7 @@ static int get_modules_from_cache (struct python_info *pi)
 
     snprintf (format, sizeof(format), "python_modules%d_%d = %%s,%%s,%%d,%%s,%%s", pi->py_index, i);
     rc = cache_getf (SECTION_PYTHON, format, &mod_name, &mod_version, &is_zip, &location, &meta_path);
-    DEBUGF (2, "rc: %d.\n", rc);
+    TRACE (2, "rc: %d.\n", rc);
 
     if (rc < 5)
        break;
@@ -2380,15 +2380,15 @@ static BOOL get_pythons_from_cache (void)
     if (rc1 != 10)
        break;
 
-    DEBUGF (1, "rc1: %d\n     py_prog: '%s', py_exe: '%s', py_dll: '%s', variant: %d, "
-               "is_default: %d, num_modules: %d, is_embeddable: %d, bitness: %d, version: '%s', user_site: '%s'.\n",
-            rc1, py_prog, py_exe, py_dll, variant, is_default, num_modules, is_embeddable, bitness, version, user_site);
+    TRACE (1, "rc1: %d\n     py_prog: '%s', py_exe: '%s', py_dll: '%s', variant: %d, "
+              "is_default: %d, num_modules: %d, is_embeddable: %d, bitness: %d, version: '%s', user_site: '%s'.\n",
+           rc1, py_prog, py_exe, py_dll, variant, is_default, num_modules, is_embeddable, bitness, version, user_site);
 
     found++;
 
     pi = CALLOC (sizeof(*pi), 1);
     rc2 = sscanf (version, "(%d.%d.%d)", &pi->ver_major, &pi->ver_minor, &pi->ver_micro);
-    DEBUGF (1, "rc2: %d. ver: %d.%d.%d\n", rc2, pi->ver_major, pi->ver_minor, pi->ver_micro);
+    TRACE (1, "rc2: %d. ver: %d.%d.%d\n", rc2, pi->ver_major, pi->ver_minor, pi->ver_micro);
 
     base = basename (py_exe);
     _strlcpy (pi->exe_dir, py_exe, base - py_exe);
@@ -2491,7 +2491,7 @@ static void write_to_cache (const struct python_info *pi)
   max = smartlist_len (pi->sys_path);
   if (max == 0)
   {
-    DEBUGF (2, "No cached sys_path[] for %s.\n", pi->exe_name);
+    TRACE (2, "No cached sys_path[] for %s.\n", pi->exe_name);
     g_pi = (struct python_info*) pi;
     get_sys_path (pi);
   }
@@ -2589,7 +2589,7 @@ static int report_py_version_cb (char *output, int line)
 
   if (line == 1)  /* the 2nd line */
   {
-    DEBUGF (1, "line: %d, output: '%s'\n", line, output);
+    TRACE (1, "line: %d, output: '%s'\n", line, output);
     _strlcpy (tmp_user_site, output, sizeof(tmp_user_site));
     return (1);
   }
@@ -2602,7 +2602,7 @@ static int report_py_version_cb (char *output, int line)
 
   num = sscanf (output, "(major=%d, minor=%d, micro=%d",
                 &tmp_ver_major, &tmp_ver_minor, &tmp_ver_micro);
-  DEBUGF (1, "Python ver: %d.%d.%d\n", tmp_ver_major, tmp_ver_minor, tmp_ver_micro);
+  TRACE (1, "Python ver: %d.%d.%d\n", tmp_ver_major, tmp_ver_minor, tmp_ver_micro);
   return  (num >= 2);
 }
 
@@ -2718,8 +2718,8 @@ static void get_install_path (const struct python_info *pi, const char *key_name
     if (type != REG_SZ)
        continue;
 
-    DEBUGF (2, "   value: \"%s\", data: \"%s\"\n",
-            value[0] ? value : "(Standard)", data[0] ? data : "(no data)");
+    TRACE (2, "   value: \"%s\", data: \"%s\"\n",
+           value[0] ? value : "(Standard)", data[0] ? data : "(no data)");
 
     if (value[0] && data[0] && !stricmp(value,"ExecutablePath"))
     {
@@ -2776,7 +2776,7 @@ void enum_python_in_registry (const char *key_name)
 
   rc = RegOpenKeyEx (HKEY_LOCAL_MACHINE, key_name, 0, reg_read_access(), &key);
 
-  DEBUGF (2, "RegOpenKeyEx (HKLM\\%s)\n", key_name);
+  TRACE (2, "RegOpenKeyEx (HKLM\\%s)\n", key_name);
 
   while (rc == ERROR_SUCCESS)
   {
@@ -2790,16 +2790,16 @@ void enum_python_in_registry (const char *key_name)
        break;
 
     snprintf (sub_key, sizeof(sub_key), "%s\\%s", key_name, value);
-    DEBUGF (2, " rec_level %d, num %lu, value: '%s'\n"
-               "                     sub_key: '%s'\n",
-            rec_level, (unsigned long)num-1, value, sub_key);
+    TRACE (2, " rec_level %d, num %lu, value: '%s'\n"
+              "                     sub_key: '%s'\n",
+           rec_level, (unsigned long)num-1, value, sub_key);
 
     if (sscanf(value,"%d.%d-%2s", &pi.ver_major, &pi.ver_minor, bitness) >= 2)
     {
       if (bitness[0] == '6' && bitness[1] == '4' )
            pi.bitness = bit_64;
       else pi.bitness = bit_32;
-      DEBUGF (2, " ver: %d.%d, bitness:s %d\n", pi.ver_major, pi.ver_major, pi.bitness);
+      TRACE (2, " ver: %d.%d, bitness:s %d\n", pi.ver_major, pi.ver_major, pi.bitness);
     }
     else
     if (!stricmp(value,"InstallPath"))
@@ -2839,7 +2839,7 @@ void py_init (void)
   {
     exc_hnd = LoadLibrary ("exc-abort.dll");
     GetLastError();
-    DEBUGF (2, "LoadLibrary (\"exc-abort.dll\"): hnd: %p\n", exc_hnd);
+    TRACE (2, "LoadLibrary (\"exc-abort.dll\"): hnd: %p\n", exc_hnd);
   }
 #endif
 
@@ -2852,8 +2852,8 @@ void py_init (void)
   enum_python_in_registry ("Software\\Python\\PythonCore");
 #endif
 
-  DEBUGF (1, "------------------------------------------------------------------\n"
-          "py_which: %d/%s\n\n", py_which, py_variant_name(py_which));
+  TRACE (1, "------------------------------------------------------------------\n"
+         "py_which: %d/%s\n\n", py_which, py_variant_name(py_which));
 
   max = smartlist_len (py_programs);
 
@@ -2892,22 +2892,22 @@ void py_init (void)
     else
       num_mod = "<N/A>";
 
-    DEBUGF (1, "%u: %-*s -> \"%s\".  ver: %s\n"
-               "%*sDLL:         -> \"%s\"\n"
-               "%*suser_site:   -> %s\n"
-               "%*sVariant:     -> %s%s\n"
-               "%*snum_mod:     -> %s\n",
-            i, 2+longest_py_program, pi->program, pi->exe_name, version,
-            indent+longest_py_program, "", pi->dll_name,
-            indent+longest_py_program, "", pi->user_site_path ? pi->user_site_path : "<None>",
-            indent+longest_py_program, "", py_variant_name(pi->variant), pi->is_default ? " (Default)" : "",
-            indent+longest_py_program, "", num_mod);
+    TRACE (1, "%u: %-*s -> \"%s\".  ver: %s\n"
+              "%*sDLL:         -> \"%s\"\n"
+              "%*suser_site:   -> %s\n"
+              "%*sVariant:     -> %s%s\n"
+              "%*snum_mod:     -> %s\n",
+           i, 2+longest_py_program, pi->program, pi->exe_name, version,
+           indent+longest_py_program, "", pi->dll_name,
+           indent+longest_py_program, "", pi->user_site_path ? pi->user_site_path : "<None>",
+           indent+longest_py_program, "", py_variant_name(pi->variant), pi->is_default ? " (Default)" : "",
+           indent+longest_py_program, "", num_mod);
 
     write_to_cache (pi);
   }
 
-  DEBUGF (1, "py_init() finished\n"
-          "------------------------------------------------------------------\n");
+  TRACE (1, "py_init() finished\n"
+         "------------------------------------------------------------------\n");
   global_indent = longest_py_version + longest_py_program;
 }
 
@@ -2945,12 +2945,12 @@ static int make_arg_vector (arg_vector *av, const char **argv, BOOL wide)
     else av->ascii[i] = STRDUP (argv[i]);
   }
 
-  DEBUGF (1, "av->argc: %d\n", av->argc);
+  TRACE (1, "av->argc: %d\n", av->argc);
   for (i = 0; i <= av->argc; i++)
   {
     if (wide)
-         DEBUGF (1, "av->wide[%d]: %" WIDESTR_FMT "\n", i, av->wide[i]);
-    else DEBUGF (1, "av->ascii[%d]: %s\n", i, av->ascii[i]);
+         TRACE (1, "av->wide[%d]: %" WIDESTR_FMT "\n", i, av->wide[i]);
+    else TRACE (1, "av->ascii[%d]: %s\n", i, av->ascii[i]);
   }
   return (i);
 }
@@ -3027,7 +3027,7 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
 
   if (!py_init_embedding(pi))
   {
-    DEBUGF (1, "py_init_embedding() failed.\n");
+    TRACE (1, "py_init_embedding() failed.\n");
     return (NULL);
   }
 
@@ -3062,7 +3062,7 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
    *
    * Otherwise, if `capture == FALSE`, the `str` should now be NULL.
    */
-  DEBUGF (2, "capture: %d, str:\n'%s'\n", capture, str ? str : "<none>");
+  TRACE (2, "capture: %d, str:\n'%s'\n", capture, str ? str : "<none>");
 
   free_arg_vector (&av);
   return (str);
@@ -3111,7 +3111,7 @@ char *py_execfile (const char **py_argv, BOOL capture)
   }
 
   ret = str_join (array, "");
-  DEBUGF (2, "str_join(): '%s'.\n", ret);
+  TRACE (2, "str_join(): '%s'.\n", ret);
 
   for (i = 0; i < j; i++)
       FREE (array[i]);

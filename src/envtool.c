@@ -271,7 +271,7 @@ static void get_evry_bitness (HWND wnd)
    */
   e_tid = GetWindowThreadProcessId (wnd, &e_pid);
 
-  DEBUGF (2, "e_pid: %lu, e_tid: %lu.\n", (unsigned long)e_pid, (unsigned long)e_tid);
+  TRACE (2, "e_pid: %lu, e_tid: %lu.\n", (unsigned long)e_pid, (unsigned long)e_tid);
 
   hnd = OpenProcess (PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, e_pid);
   if (!hnd)
@@ -281,7 +281,7 @@ static void get_evry_bitness (HWND wnd)
      evry_bitness = bits;
 
   CloseHandle (hnd);
-  DEBUGF (2, "fname: %s, evry_bitness: %d.\n", fname, evry_bitness);
+  TRACE (2, "fname: %s, evry_bitness: %d.\n", fname, evry_bitness);
 }
 
 /**
@@ -378,7 +378,7 @@ static void show_ext_versions (void)
     C_flush();
 
     num1 = vcpkg_get_num_installed();
-    num2 = vcpkg_get_num_CONTROLS();
+    num2 = vcpkg_get_num_CONTROLS() + vcpkg_get_num_JSON();
 
     C_printf ("\r%-*s -> ~6%s~0", pad_len, found[3], slashify(vcpkg_exe, slash));
     if (num1 >= 1)
@@ -413,7 +413,7 @@ static int show_version (void)
   {
     struct ver_info evry_ver;
 
-    if (get_evry_version(wnd,&evry_ver))
+    if (get_evry_version(wnd, &evry_ver))
          show_evry_version (wnd, &evry_ver);
     else C_printf ("  Everything search engine not responding.\n");
   }
@@ -453,10 +453,10 @@ static int show_version (void)
     py_searchpaths();
 
     num = pkg_config_list_installed();
-    DEBUGF (2, "pkg_config_list_installed(): %u.\n", num);
+    TRACE (2, "pkg_config_list_installed(): %u.\n", num);
 
     num = vcpkg_list_installed (opt.do_version >= 3);
-    DEBUGF (2, "vcpkg_list_installed(): %u.\n", num);
+    TRACE (2, "vcpkg_list_installed(): %u.\n", num);
   }
   return (0);
 }
@@ -673,13 +673,13 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
   if (d->is_native && !d->exist)  /* No access to this directory from WIN64; ignore */
   {
     d->exist = d->is_dir = TRUE;
-    DEBUGF (2, "Ignore native dir '%s'.\n", dir);
+    TRACE (2, "Ignore native dir '%s'.\n", dir);
   }
 #else
   if (d->is_native && !have_sys_native_dir)
-     DEBUGF (2, "Native dir '%s' doesn't exist.\n", dir);
+     TRACE (2, "Native dir '%s' doesn't exist.\n", dir);
   else if (!d->exist)
-     DEBUGF (2, "'%s' doesn't exist.\n", dir);
+     TRACE (2, "'%s' doesn't exist.\n", dir);
 #endif
 
 #if defined(__CYGWIN__)
@@ -689,7 +689,7 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
 
     if (rc == 0)
        d->cyg_dir = STRDUP (cyg_dir);
-    DEBUGF (2, "cygwin_conv_path(): rc: %d, '%s'\n", rc, cyg_dir);
+    TRACE (2, "cygwin_conv_path(): rc: %d, '%s'\n", rc, cyg_dir);
   }
 #endif
 
@@ -724,18 +724,18 @@ static int dir_array_dump (const char *where, const char *note)
 {
   int i, max;
 
-  DEBUGF (2, "%s now%s:\n", where, note);
+  TRACE (2, "%s now%s:\n", where, note);
 
   max = smartlist_len (dir_array);
   for (i = 0; i < max; i++)
   {
     const struct directory_array *dir = smartlist_get (dir_array, i);
 
-    DEBUGF (2, "  dir_array[%d]: exist:%d, num_dup:%d, %s\n",
+    TRACE (2, "  dir_array[%d]: exist:%d, num_dup:%d, %s\n",
             (int)i, dir->exist, dir->num_dup, dir->dir);
 
 #ifdef __CYGWIN__
-    DEBUGF (2, "%53s%s\n", "", dir->cyg_dir);
+    TRACE (2, "%53s%s\n", "", dir->cyg_dir);
 #endif
   }
   return (max);
@@ -848,7 +848,7 @@ void reg_array_add (HKEY key, const char *fname, const char *fqfn)
   base = basename (fqfn);
   if (base == fqfn)
   {
-    DEBUGF (1, "fqfn (%s) contains no '\\' or '/'\n", fqfn);
+    TRACE (1, "fqfn (%s) contains no '\\' or '/'\n", fqfn);
     return;
   }
 
@@ -893,13 +893,13 @@ static void reg_array_print (const char *intro)
   const struct registry_array *reg;
   int   i, max, slash = (opt.show_unix_paths ? '/' : '\\');
 
-  DEBUGF (3, intro);
+  TRACE (3, intro);
 
   max = smartlist_len (reg_array);
   for (i = 0; i < max; i++)
   {
     reg = smartlist_get (reg_array, i);
-    DEBUGF (3, "%2d: FQFN: %s%c%s.\n", i, reg->path, slash, reg->real_fname);
+    TRACE (3, "%2d: FQFN: %s%c%s.\n", i, reg->path, slash, reg->real_fname);
   }
 }
 
@@ -976,7 +976,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
 
   if (!value)
   {
-    DEBUGF (1, "split_env_var(\"%s\", NULL)' called!\n", env_name);
+    TRACE (1, "split_env_var(\"%s\", NULL)' called!\n", env_name);
     return (NULL);
   }
 
@@ -1000,7 +1000,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   tok = _strtok_r (val, sep, &_end);
   is_cwd = !strcmp(val,".") || !strcmp(val,".\\") || !strcmp(val,"./");
 
-  DEBUGF (1, "'val': \"%s\". 'tok': \"%s\", is_cwd: %d\n", val, tok, is_cwd);
+  TRACE (1, "'val': \"%s\". 'tok': \"%s\", is_cwd: %d\n", val, tok, is_cwd);
 
  /*
   * If `val` doesn't start with ".\" or "./", we should possibly add that
@@ -1057,7 +1057,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
       char buf [_MAX_PATH];
 
       snprintf (buf, sizeof(buf), "%c:/%s", tok[10], tok+12);
-      DEBUGF (1, "CygPath conv: '%s' -> '%s'\n", tok, buf);
+      TRACE (1, "CygPath conv: '%s' -> '%s'\n", tok, buf);
       tok = buf;
     }
 #endif
@@ -1159,7 +1159,7 @@ static char *fix_filespec (char **sub_dir)
     memcpy (&subdir, fspec, p-fspec);
     *sub_dir = subdir;
     fspec = p;
-    DEBUGF (2, "fspec: '%s', *sub_dir: '%s'\n", fspec, *sub_dir);
+    TRACE (2, "fspec: '%s', *sub_dir: '%s'\n", fspec, *sub_dir);
   }
 
   /**
@@ -1175,7 +1175,7 @@ static char *fix_filespec (char **sub_dir)
     subdir [p-fspec+1] = '\0';
     *sub_dir = subdir;
     fspec = p+1;
-    DEBUGF (2, "fspec: '%s', *sub_dir: '%s'\n", fspec, *sub_dir);
+    TRACE (2, "fspec: '%s', *sub_dir: '%s'\n", fspec, *sub_dir);
   }
 
  /**
@@ -1195,7 +1195,7 @@ static char *fix_filespec (char **sub_dir)
     _strlcpy (lbracket+1, rbracket+1, strlen(rbracket));
   }
 
-  DEBUGF (1, "fspec: %s, *sub_dir: %s\n", fspec, *sub_dir);
+  TRACE (1, "fspec: %s, *sub_dir: %s\n", fspec, *sub_dir);
 
   if (*sub_dir && strpbrk(*sub_dir, "[]*?"))
   {
@@ -1247,7 +1247,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
   *ret = NULL;
   rc = RegOpenKeyEx (top_key, key_name, 0, acc, &key);
 
-  DEBUGF (1, "  RegOpenKeyEx (%s\\%s, %s):\n                  %s\n",
+  TRACE (1, "  RegOpenKeyEx (%s\\%s, %s):\n                  %s\n",
           reg_top_key_name(top_key), key_name, reg_access_name(acc), win_strerror(rc));
 
   if (rc != ERROR_SUCCESS)
@@ -1283,7 +1283,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
       case REG_SZ:
       case REG_EXPAND_SZ:
       case REG_MULTI_SZ:
-           DEBUGF (1, "    num: %lu, %s, value: \"%s\", data: \"%s\"\n",
+           TRACE (1, "    num: %lu, %s, value: \"%s\", data: \"%s\"\n",
                       num, reg_type_name(type),
                       value[0] ? value : "(no value)",
                       data[0]  ? data  : "(no data)");
@@ -1300,7 +1300,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
            break;
 
       case REG_LINK:
-           DEBUGF (1, "    num: %lu, REG_LINK, value: \"%" WIDESTR_FMT "\", data: \"%" WIDESTR_FMT "\"\n",
+           TRACE (1, "    num: %lu, REG_LINK, value: \"%" WIDESTR_FMT "\", data: \"%" WIDESTR_FMT "\"\n",
                       num, (wchar_t*)value, (wchar_t*)data);
            break;
 
@@ -1310,12 +1310,12 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
            FALLTHROUGH()
 
       case REG_DWORD:
-           DEBUGF (1, "    num: %lu, %s, value: \"%s\", data: %lu\n",
+           TRACE (1, "    num: %lu, %s, value: \"%s\", data: %lu\n",
                       num, reg_type_name(type), value[0] ? value : "(no value)", (u_long)val32);
            break;
 
       case REG_QWORD:
-           DEBUGF (1, "    num: %lu, REG_QWORD, value: \"%s\", data: %" S64_FMT "\n",
+           TRACE (1, "    num: %lu, REG_QWORD, value: \"%s\", data: %" S64_FMT "\n",
                       num, value[0] ? value : "(no value)", val64);
            break;
 
@@ -1323,7 +1323,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
            break;
 
       default:
-           DEBUGF (1, "    num: %lu, unknown REG_type %lu\n", num, (u_long)type);
+           TRACE (1, "    num: %lu, unknown REG_type %lu\n", num, (u_long)type);
            break;
     }
   }
@@ -1350,7 +1350,7 @@ static void build_reg_array_app_path (HKEY top_key)
   REGSAM acc = reg_read_access();
   DWORD  rc  = RegOpenKeyEx (top_key, REG_APP_PATH, 0, acc, &key);
 
-  DEBUGF (1, "  RegOpenKeyEx (%s\\%s, %s):\n                   %s\n",
+  TRACE (1, "  RegOpenKeyEx (%s\\%s, %s):\n                   %s\n",
           reg_top_key_name(top_key), REG_APP_PATH, reg_access_name(acc), win_strerror(rc));
 
   for (num = 0; rc == ERROR_SUCCESS; num++)
@@ -1364,7 +1364,7 @@ static void build_reg_array_app_path (HKEY top_key)
     if (rc == ERROR_NO_MORE_ITEMS)
        break;
 
-    DEBUGF (1, "  RegEnumKeyEx(): num %d: %s\n", num, fname);
+    TRACE (1, "  RegEnumKeyEx(): num %d: %s\n", num, fname);
 
     snprintf (sub_key, sizeof(sub_key), "%s\\%s", REG_APP_PATH, fname);
 
@@ -1398,7 +1398,7 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
   REGSAM acc = reg_read_access();
   DWORD  num, rc = RegOpenKeyEx (top_key, sub_key, 0, acc, &key);
 
-  DEBUGF (1, "RegOpenKeyEx (%s\\%s, %s):\n                 %s\n",
+  TRACE (1, "RegOpenKeyEx (%s\\%s, %s):\n                 %s\n",
           reg_top_key_name(top_key), sub_key, reg_access_name(acc), win_strerror(rc));
 
   for (num = 0; rc == ERROR_SUCCESS; num++)
@@ -1426,18 +1426,18 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
        *lib = STRDUP (value);
 
 #if 0
-    DEBUGF (1, "num %2lu, %s, %s=%.40s%s\n",
+    TRACE (1, "num %2lu, %s, %s=%.40s%s\n",
             (u_long)num, reg_type_name(type), name, value,
             strlen(value) > 40 ? "..." : "");
 #else
-    DEBUGF (1, "num %2lu, %s, %s=%s\n",
+    TRACE (1, "num %2lu, %s, %s=%s\n",
             (u_long)num, reg_type_name(type), name, value);
 #endif
   }
   if (key)
      RegCloseKey (key);
 
-  DEBUGF (1, "\n");
+  TRACE (1, "\n");
 }
 
 static int do_check_env2 (HKEY key, const char *env, const char *value)
@@ -1515,7 +1515,7 @@ static int report_registry (const char *reg_key)
     char  fqfn [_MAX_PATH];
     int   match = FNM_NOMATCH;
 
-    DEBUGF (1, "i=%2d: exist=%d, match=%d, key=%s, fname=%s, path=%s\n",
+    TRACE (1, "i=%2d: exist=%d, match=%d, key=%s, fname=%s, path=%s\n",
             i, arr->exist, match, reg_top_key_name(arr->key), arr->fname, arr->path);
 
     if (!arr->exist)
@@ -1590,7 +1590,7 @@ static BOOL dir_is_empty (const char *dir)
   }
   while (num_entries == 0 && FindNextFile(handle, &ff_data));
 
-  DEBUGF (3, "%s(): at least %d entries in '%s'.\n", __FUNCTION__, num_entries, dir);
+  TRACE (3, "%s(): at least %d entries in '%s'.\n", __FUNCTION__, num_entries, dir);
   FindClose (handle);
   return (num_entries == 0);
 }
@@ -1602,7 +1602,7 @@ static BOOL regex_match (const char *str)
 {
   memset (&re_matches, '\0', sizeof(re_matches));
   re_err = regexec (&re_hnd, str, DIM(re_matches), re_matches, 0);
-  DEBUGF (3, "regex() pattern '%s' against '%s'. re_err: %d\n", opt.file_spec, str, re_err);
+  TRACE (3, "regex() pattern '%s' against '%s'. re_err: %d\n", opt.file_spec, str, re_err);
 
   if (re_err == REG_NOMATCH)
      return (FALSE);
@@ -1611,7 +1611,7 @@ static BOOL regex_match (const char *str)
      return (TRUE);
 
   regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
-  DEBUGF (0, "Error while matching \"%s\": %d\n", str, re_err);
+  TRACE (0, "Error while matching \"%s\": %d\n", str, re_err);
   return (FALSE);
 }
 
@@ -1661,7 +1661,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
 
   if (!opt.file_spec)
   {
-    DEBUGF (1, "\n");
+    TRACE (1, "\n");
     return (0);
   }
 
@@ -1675,7 +1675,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   handle = FindFirstFile (fqfn, &ff_data);
   if (handle == INVALID_HANDLE_VALUE)
   {
-    DEBUGF (1, "\"%s\" not found.\n", fqfn);
+    TRACE (1, "\"%s\" not found.\n", fqfn);
     return (0);
   }
 
@@ -1688,7 +1688,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     BOOL   ignore = ((file[0] == '.' && file[1] == '\0') ||                   /* current dir entry */
                      (file[0] == '.' && file[1] == '.' && file[2] == '\0'));  /* parent dir entry */
 
-    DEBUGF (1, "ff_data.cFileName \"%s\", ff_data.dwFileAttributes: 0x%08lX, ignore: %d.\n",
+    TRACE (1, "ff_data.cFileName \"%s\", ff_data.dwFileAttributes: 0x%08lX, ignore: %d.\n",
             ff_data.cFileName, ff_data.dwFileAttributes, ignore);
 
     if (ignore)
@@ -1729,7 +1729,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
 #if 0
     if (opt.man_mode)
     {
-      DEBUGF (2, "opt.file_spec: \"%s\", base: \"%s\".\n", opt.file_spec, base);
+      TRACE (2, "opt.file_spec: \"%s\", base: \"%s\".\n", opt.file_spec, base);
       if (match == FNM_NOMATCH)
          continue;
     }
@@ -1759,7 +1759,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     if (is_dir && opt.do_lib)  /* A directory is never a match for a library */
        match = FNM_NOMATCH;
 
-    DEBUGF (2, "Testing \"%s\". is_dir: %d, is_junction: %d, %s\n",
+    TRACE (2, "Testing \"%s\". is_dir: %d, is_junction: %d, %s\n",
             file, is_dir, is_junction, fnmatch_res(match));
 
     if (match == FNM_MATCH && safe_stat(file, &st, NULL) == 0)
@@ -1821,8 +1821,8 @@ static void check_sys_dir (const char *dir, const char *name, BOOL *have_it)
                  (attr & FILE_ATTRIBUTE_DIRECTORY);
 
   if (is_dir)
-       DEBUGF (1, "%s: '%s' okay\n", name, dir);
-  else DEBUGF (1, "%s: '%s', GetLastError(): %lu\n", name, dir, (unsigned long)GetLastError());
+       TRACE (1, "%s: '%s' okay\n", name, dir);
+  else TRACE (1, "%s: '%s', GetLastError(): %lu\n", name, dir, (unsigned long)GetLastError());
 
   if (have_it)
      *have_it = is_dir;
@@ -1924,7 +1924,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
     file2 = get_sysnative_file (file, &st);
     if (file2 != file)
     {
-      DEBUGF (1, "shadow: '%s' -> '%s'\n", file, file2);
+      TRACE (1, "shadow: '%s' -> '%s'\n", file, file2);
       *is_shadow = TRUE;
     }
     file = file2;
@@ -1963,7 +1963,7 @@ static BOOL evry_is_db_loaded (HWND wnd)
 {
   BOOL loaded = (BOOL) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_LOADED, 0);
 
-  DEBUGF (1, "wnd: %p, loaded: %d.\n", wnd, loaded);
+  TRACE (1, "wnd: %p, loaded: %d.\n", wnd, loaded);
   return (loaded);
 }
 
@@ -1974,7 +1974,7 @@ static BOOL evry_is_busy (HWND wnd)
 {
   BOOL busy = (BOOL) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_BUSY, 0);
 
-  DEBUGF (1, "wnd: %p, busy: %d.\n", wnd, busy);
+  TRACE (1, "wnd: %p, busy: %d.\n", wnd, busy);
   return (busy);
 }
 
@@ -2027,10 +2027,10 @@ static int do_check_evry (void)
   if (evry_bitness == bit_unknown)
      get_evry_bitness (wnd);
 
-  if (get_evry_version(wnd,&evry_ver))
+  if (get_evry_version(wnd, &evry_ver))
      version = (evry_ver.val_1 << 16) + (evry_ver.val_2 << 8) + evry_ver.val_3;
 
-  DEBUGF (1, "version %u.%u.%u, build: %u\n",
+  TRACE (1, "version %u.%u.%u, build: %u\n",
           evry_ver.val_1,
           evry_ver.val_2,
           evry_ver.val_3,
@@ -2057,7 +2057,7 @@ static int do_check_evry (void)
     if (opt.dir_mode && !opt.use_regex)
     {
       len = snprintf (query_buf, sizeof(query_buf), "regex:\"^%s$\" folder:", translate_shell_pattern(opt.file_spec));
-      DEBUGF (2, "Simple directory mode: '%s'\n", query_buf);
+      TRACE (2, "Simple directory mode: '%s'\n", query_buf);
     }
     else
     {
@@ -2083,7 +2083,7 @@ static int do_check_evry (void)
      */
     if (opt.grep.content && len > 0)
     {
-      DEBUGF (1, "opt.grep.content: '%s'\n", opt.grep.content);
+      TRACE (1, "opt.grep.content: '%s'\n", opt.grep.content);
       // snprintf (query_buf+len, sizeof(query_buf)-len, "content: %s", opt.grep.content);
     }
 
@@ -2111,7 +2111,7 @@ static int do_check_evry (void)
          break;
   }
 
-  DEBUGF (1, "Everything_SetSearch (\"%s\").\n"
+  TRACE (1, "Everything_SetSearch (\"%s\").\n"
              "                 Everything_SetMatchCase (%d).\n",
              query, opt.case_sensitive);
 
@@ -2144,7 +2144,7 @@ static int do_check_evry (void)
   end_time = GetTickCount();
 
   err = Everything_GetLastError();
-  DEBUGF (1, "Everything_Query: %s\n", evry_strerror(err));
+  TRACE (1, "Everything_Query: %s\n", evry_strerror(err));
 
   if (halt_flag > 0)
      return (0);
@@ -2177,7 +2177,7 @@ static int do_check_evry (void)
   }
 
   num = Everything_GetNumResults();
-  DEBUGF (1, "Everything_GetNumResults() num: %lu, err: %s\n",
+  TRACE (1, "Everything_GetNumResults() num: %lu, err: %s\n",
           (u_long)num, evry_strerror(Everything_GetLastError()));
 
   if (opt.beep.enable && end_time >= start_time && (end_time - start_time) >= opt.beep.limit)
@@ -2202,7 +2202,7 @@ static int do_check_evry (void)
   err = Everything_GetLastError();
   if (err != EVERYTHING_OK)
   {
-    DEBUGF (2, "Everything_SortResultsByPath(), err: %s\n", evry_strerror(err));
+    TRACE (2, "Everything_SortResultsByPath(), err: %s\n", evry_strerror(err));
     Everything_SetLastError (EVERYTHING_OK);
   }
 
@@ -2222,14 +2222,14 @@ static int do_check_evry (void)
     err = Everything_GetLastError();
     if (len == 0 || err != EVERYTHING_OK)
     {
-      DEBUGF (2, "Everything_GetResultFullPathName(), err: %s\n",
+      TRACE (2, "Everything_GetResultFullPathName(), err: %s\n",
               evry_strerror(err));
       len = 0;
       break;
     }
 
     ignore = cfg_ignore_lookup ("[EveryThing]", file);
-    DEBUGF (3, "cfg_ignore_lookup(\"[EveryThing]\", \"%s\") -> %d\n", file, ignore);
+    TRACE (3, "cfg_ignore_lookup(\"[EveryThing]\", \"%s\") -> %d\n", file, ignore);
     if (ignore)
     {
       num_evry_ignored++;
@@ -2246,13 +2246,13 @@ static int do_check_evry (void)
       {
         response_flags |= EVERYTHING_REQUEST_DATE_MODIFIED;
         mtime = FILETIME_to_time_t (&ft);
-        DEBUGF (2, "%3lu: Everything_GetResultDateModified(), mtime: %.24s\n",
+        TRACE (2, "%3lu: Everything_GetResultDateModified(), mtime: %.24s\n",
                 i, mtime ? ctime(&mtime) : "<N/A>");
       }
       else
       {
         err = Everything_GetLastError();
-        DEBUGF (2, "%3lu: Everything_GetResultDateModified(), err: %s\n",
+        TRACE (2, "%3lu: Everything_GetResultDateModified(), err: %s\n",
                 i, evry_strerror(err));
       }
     }
@@ -2264,13 +2264,13 @@ static int do_check_evry (void)
       {
         response_flags |= EVERYTHING_REQUEST_SIZE;
         fsize = ((UINT64)fs.u.HighPart << 32) + fs.u.LowPart;
-        DEBUGF (2, "%3lu: Everything_GetResultSize(), %s\n",
+        TRACE (2, "%3lu: Everything_GetResultSize(), %s\n",
                 i, get_file_size_str(fsize));
       }
       else
       {
         err = Everything_GetLastError();
-        DEBUGF (2, "%3lu: Everything_GetResultSize(), err: %s\n",
+        TRACE (2, "%3lu: Everything_GetResultSize(), err: %s\n",
                 i, evry_strerror(err));
       }
     }
@@ -2318,7 +2318,7 @@ static int do_check_env (const char *env_name, BOOL recursive)
 
   if (!orig_e)
   {
-    DEBUGF (1, "Env-var %s not defined.\n", env_name);
+    TRACE (1, "Env-var %s not defined.\n", env_name);
     return (0);
   }
 
@@ -2340,7 +2340,7 @@ static int do_check_env (const char *env_name, BOOL recursive)
        arr->check_empty = check_empty;
 
     if (arr->is_cwd)
-       DEBUGF (1, "arr->dir: '%s', arr->is_cwd: 1\n", arr->dir);
+       TRACE (1, "arr->dir: '%s', arr->is_cwd: 1\n", arr->dir);
 
     if (!arr->done)
        found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
@@ -2364,7 +2364,7 @@ static int check_man_dir (const char *dir, const char *env_name)
        _dir = current_dir;
   else _dir = dir;
 
-  DEBUGF (1, "Looking for \"%s\" in \"%s\".\n", opt.file_spec, _dir);
+  TRACE (1, "Looking for \"%s\" in \"%s\".\n", opt.file_spec, _dir);
   return process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
 }
 
@@ -2523,7 +2523,7 @@ static BOOL cmake_get_info (char **exe, struct ver_info *ver)
     return (TRUE);
   }
 
-  DEBUGF (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+  TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
 
   cache_getf (SECTION_CMAKE, "cmake_exe = %s", &cmake_exe);
   cache_getf (SECTION_CMAKE, "cmake_version = %d,%d,%d", &cmake_ver.val_1, &cmake_ver.val_2, &cmake_ver.val_3);
@@ -2550,7 +2550,7 @@ static BOOL cmake_get_info (char **exe, struct ver_info *ver)
      cache_putf (SECTION_CMAKE, "cmake_version = %d,%d,%d", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
 
   *ver = cmake_ver;
-  DEBUGF (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+  TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
   return (cmake_exe && VALID_VER(cmake_ver));
 }
 
@@ -2572,7 +2572,7 @@ static int do_check_cmake (void)
   snprintf (modules_dir, sizeof(modules_dir), "%s\\..\\share\\cmake-%d.%d\\Modules", root, ver.val_1, ver.val_2);
   _fix_path (modules_dir, modules_dir);
 
-  DEBUGF (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
+  TRACE (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
           ver.val_1, ver.val_2, ver.val_3, modules_dir);
 
   report_header_set ("Matches among built-in Cmake modules:\n");
@@ -2701,7 +2701,7 @@ static void compiler_check_ignore (compiler_info *cc)
   if (!ignore)
      ignore = cfg_ignore_lookup ("[Compiler]", cc->short_name);
 
-  DEBUGF (1, "Checking %s (%s), ignore: %d.\n",
+  TRACE (1, "Checking %s (%s), ignore: %d.\n",
           cc->short_name, cc->full_name ? cc->full_name : "<not found>", ignore);
 
   cc->ignore = ignore;
@@ -2748,7 +2748,7 @@ static int get_all_cc_from_cache (void)
     found++;
     i++;
   }
-  DEBUGF (1, "Found %d cached compilers.\n", found);
+  TRACE (1, "Found %d cached compilers.\n", found);
   return (found);
 }
 
@@ -2781,7 +2781,7 @@ static int get_inc_dirs_from_cache (const compiler_info *cc)
     found++;
     i++;
   }
-  DEBUGF (1, "Found %d cached inc-dirs for '%s'.\n", found, cc->short_name);
+  TRACE (1, "Found %d cached inc-dirs for '%s'.\n", found, cc->short_name);
   return (found);
 }
 
@@ -2799,7 +2799,7 @@ static int get_lib_dirs_from_cache (const compiler_info *cc)
     found++;
     i++;
   }
-  DEBUGF (1, "Found %d cached lib-dirs for '%s'.\n", found, cc->short_name);
+  TRACE (1, "Found %d cached lib-dirs for '%s'.\n", found, cc->short_name);
   return (found);
 }
 
@@ -2848,7 +2848,7 @@ static void check_if_cygwin (const char *path)
   if (!memcmp(path, &cyg_usr, sizeof(cyg_usr)-1) || !memcmp(path, &cyg_drv, sizeof(cyg_drv)-1))
   {
     looks_like_cygwin = TRUE;
-    DEBUGF (2, "looks_like_cygwin = %d, cygwin_root: '%s'\n", looks_like_cygwin, cygwin_root);
+    TRACE (2, "looks_like_cygwin = %d, cygwin_root: '%s'\n", looks_like_cygwin, cygwin_root);
   }
 }
 
@@ -2911,7 +2911,7 @@ static int find_include_path_cb (char *buf, int index)
 
       if (rc == 0)
       {
-        DEBUGF (2, "CygWin path detected. Converting '%s' -> '%s'\n", p, result);
+        TRACE (2, "CygWin path detected. Converting '%s' -> '%s'\n", p, result);
         p = _fix_drive (result);
       }
       /* otherwise add 'p' as-is */
@@ -2933,7 +2933,7 @@ static int find_include_path_cb (char *buf, int index)
     }
 
     dir_array_add (p, !stricmp(current_dir,p));
-    DEBUGF (3, "line: '%s'\n", p);
+    TRACE (3, "line: '%s'\n", p);
     return (1);
   }
 
@@ -2992,7 +2992,7 @@ static int find_library_path_cb (char *buf, int index)
       }
     }
     dir_array_add (rc, FALSE);
-    DEBUGF (3, "tok %d: '%s'\n", i, rc);
+    TRACE (3, "tok %d: '%s'\n", i, rc);
   }
   ARGSUSED (index);
   return (i);
@@ -3065,7 +3065,7 @@ static int setup_gcc_includes (const compiler_info *cc)
 
   if (!gcc)
   {
-    DEBUGF (1, "'gcc == NULL'!\n");
+    TRACE (1, "'gcc == NULL'!\n");
     return (0);
   }
 
@@ -3091,7 +3091,7 @@ static int setup_gcc_includes (const compiler_info *cc)
 
   if (found > 0)
   {
-    DEBUGF (1, "found %d include paths for %s.\n", found, gcc);
+    TRACE (1, "found %d include paths for %s.\n", found, gcc);
     if (cc->type == CC_GNU_GXX)
        gnu_add_gpp_path();
   }
@@ -3100,7 +3100,7 @@ static int setup_gcc_includes (const compiler_info *cc)
 
   duplicates = dir_array_make_unique ("C_INCLUDE_PATH");
   if (duplicates > 0)
-     DEBUGF (1, "found %d duplicates in `%%C_INCLUDE_PATH%%` for %s.\n", duplicates, gcc);
+     TRACE (1, "found %d duplicates in `%%C_INCLUDE_PATH%%` for %s.\n", duplicates, gcc);
 
   return put_inc_dirs_to_cache (cc);
 }
@@ -3112,7 +3112,7 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
 
   if (!gcc)
   {
-    DEBUGF (1, "'gcc == NULL'!\n");
+    TRACE (1, "'gcc == NULL'!\n");
     return (0);
   }
 
@@ -3146,7 +3146,7 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
     return (found);
   }
 
-  DEBUGF (1, "found %d library paths for %s.\n", found, gcc);
+  TRACE (1, "found %d library paths for %s.\n", found, gcc);
 
 #if defined(__CYGWIN__)
   /*
@@ -3166,7 +3166,7 @@ static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
 
   duplicates = dir_array_make_unique ("library paths");
   if (duplicates > 0)
-     DEBUGF (1, "found %d duplicates in library paths for %s.\n", duplicates, gcc);
+     TRACE (1, "found %d duplicates in library paths for %s.\n", duplicates, gcc);
 
   return put_lib_dirs_to_cache (cc);
 }
@@ -3185,7 +3185,7 @@ static int process_gcc_dirs (const char *gcc, int *num_dirs)
     char  dir [_MAX_PATH];
 
     _fix_path (arr->dir, dir);
-    DEBUGF (2, "dir: %s\n", dir);
+    TRACE (2, "dir: %s\n", dir);
     found += process_dir (dir, arr->num_dup, arr->exist, arr->check_empty,
                           arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE, FALSE);
   }
@@ -3363,13 +3363,13 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
     slashify2 (copy[i], copy[i], slash);
   }
   copy[i] = NULL;
-  DEBUGF (3, "Made a 'copy[]' of %d directories.\n", max);
+  TRACE (3, "Made a 'copy[]' of %d directories.\n", max);
 
   dir_array_free();
 
   list = split_env_var (env_name, env_value);
   max  = list ? smartlist_len (list) : 0;
-  DEBUGF (3, "smartlist for '%s' have %d entries.\n", env_name, max);
+  TRACE (3, "smartlist for '%s' have %d entries.\n", env_name, max);
 
   for (i = 0; copy[i]; i++)
   {
@@ -3525,7 +3525,7 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
   ignore_all_gpp   = ignore_all_gnus (CC_GNU_GXX);
   ignore_all_clang = ignore_all_clangs (CC_CLANG_CL);
 
-  DEBUGF (1, "ignore_all_gcc: %d, ignore_all_gpp: %d.\n", ignore_all_gcc, ignore_all_gpp);
+  TRACE (1, "ignore_all_gcc: %d, ignore_all_gpp: %d.\n", ignore_all_gcc, ignore_all_gpp);
 
   put_all_cc_to_cache();
 
@@ -3654,7 +3654,7 @@ static int process_clang_dirs (const char *cc, int *num_dirs)
   {
     const struct directory_array *arr = smartlist_get (dir_array, i);
 
-    DEBUGF (2, "dir: %s\n", arr->dir);
+    TRACE (2, "dir: %s\n", arr->dir);
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
                           arr->is_dir, arr->exp_ok, cc, HKEY_INC_LIB_FILE, FALSE);
   }
@@ -3693,7 +3693,7 @@ static int setup_clang_includes (const compiler_info *cc)
 
     found = popen_run (find_include_path_cb, clang, CLANG_DUMP_FMT);
     if (found > 0)
-         DEBUGF (1, "found %d include paths for %s.\n", found, clang);
+         TRACE (1, "found %d include paths for %s.\n", found, clang);
     else clang_popen_warn (cc, found);
   }
   return put_inc_dirs_to_cache (cc);
@@ -3724,10 +3724,10 @@ static int find_clang_library_path_cb (char *buf, int index)
     _fix_path (buf1, buf1);
     _fix_path (buf2, buf2);
 
-    DEBUGF (2, "buf1: '%s'\n", buf1);
+    TRACE (2, "buf1: '%s'\n", buf1);
     dir_array_add (buf1, FALSE);
 
-    DEBUGF (2, "buf2: '%s'\n", buf2);
+    TRACE (2, "buf2: '%s'\n", buf2);
     dir_array_add (buf2, FALSE);
   }
   ARGSUSED (index);
@@ -3751,7 +3751,7 @@ static int setup_clang_library_path (const compiler_info *cc)
   if (found == 0)
      found = popen_run (find_clang_library_path_cb, cc->full_name, "-print-search-dirs");
   if (found > 0)
-       DEBUGF (1, "found %d library paths for %s.\n", found, cc->full_name);
+       TRACE (1, "found %d library paths for %s.\n", found, cc->full_name);
   else clang_popen_warn (cc, found);
 
   return put_lib_dirs_to_cache (cc);
@@ -3834,19 +3834,19 @@ static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *di
 
   if (found == 0)
   {
-    DEBUGF (1, "No Watcom compilers found.\n");
+    TRACE (1, "No Watcom compilers found.\n");
     return (0);
   }
 
   if (ignored >= found)
   {
-    DEBUGF (1, "All Watcom compilers were ignored.\n");
+    TRACE (1, "All Watcom compilers were ignored.\n");
     return (0);
   }
 
   if (!getenv("WATCOM"))
   {
-    DEBUGF (1, "%%WATCOM%% not defined.\n");
+    TRACE (1, "%%WATCOM%% not defined.\n");
     return (0);
   }
 
@@ -3899,7 +3899,7 @@ static int do_check_watcom_includes (void)
   watcom_dir[3] = getenv_expand ("%NT_INCLUDE%");
 
   if (!watcom_dir[3])
-       DEBUGF (1, "Env-var %s not defined.\n", "%NT_INCLUDE%");
+       TRACE (1, "Env-var %s not defined.\n", "%NT_INCLUDE%");
   else split_env_var ("%NT_INCLUDE%", watcom_dir[3]);
 
   /* This will append to what was inserted in `dir_array` above.
@@ -3989,14 +3989,14 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
   const char *isystem = "-isystem @\\..\\";
 
   line = str_strip_nl (str_ltrim(line));
-  DEBUGF (2, "line: %s.\n", line);
+  TRACE (2, "line: %s.\n", line);
 
   if (!strnicmp(line,isystem,strlen(isystem)))
   {
     char dir [MAX_PATH];
 
     snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(isystem));
-    DEBUGF (2, "dir: %s.\n", dir);
+    TRACE (2, "dir: %s.\n", dir);
     dir_array_add (dir, FALSE);
   }
   else if (!strncmp(line,"-I",2))
@@ -4024,14 +4024,14 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
   const char *Ldir = "-L@\\..\\";
 
   line = str_strip_nl (str_ltrim(line));
-  DEBUGF (2, "line: %s.\n", line);
+  TRACE (2, "line: %s.\n", line);
 
   if (!strnicmp(line,Ldir,strlen(Ldir)))
   {
     char dir [MAX_PATH];
 
     snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(Ldir));
-    DEBUGF (2, "dir: %s.\n", dir);
+    TRACE (2, "dir: %s.\n", dir);
     dir_array_add (dir, FALSE);
   }
   else if (!strncmp(line,"-L",2))
@@ -4059,7 +4059,7 @@ static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
   if (bin_dir)
      *bin_dir = '\0';
 
-  DEBUGF (2, "bcc_root: %s, short_name: %s\n", bcc_root, cc->short_name);
+  TRACE (2, "bcc_root: %s, short_name: %s\n", bcc_root, cc->short_name);
 
   /* Get the `bcc*.cfg` filename:
    * <bcc_root>\bccX.exe -> <bcc_root>\bccX.cfg
@@ -4067,7 +4067,7 @@ static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
   snprintf (bcc_cfg, sizeof(bcc_cfg), "%s\\bin\\%.*s.cfg",
             bcc_root, strrchr(cc->short_name,'.') - cc->short_name, cc->short_name);
 
-  DEBUGF (2, "bcc_cfg: %s.\n", bcc_cfg);
+  TRACE (2, "bcc_cfg: %s.\n", bcc_cfg);
 
   dir_list = smartlist_read_file (bcc_cfg, (smartlist_parse_func)parser);
   if (!dir_list)
@@ -4106,7 +4106,7 @@ static int do_check_borland_inc_lib (const char *inc_lib, const char *matches, b
       {
         struct directory_array *arr = smartlist_get (dir_array, j);
 
-        DEBUGF (1, "arr->dir: %s.\n", arr->dir);
+        TRACE (1, "arr->dir: %s.\n", arr->dir);
 
         found += process_dir (arr->dir, arr->num_dup, arr->exist, TRUE,
                               arr->is_dir, arr->exp_ok, inc_lib,
@@ -4119,12 +4119,12 @@ static int do_check_borland_inc_lib (const char *inc_lib, const char *matches, b
 
   if (bcc_found == 0)
   {
-    DEBUGF (1, "No Borland compilers found.\n");
+    TRACE (1, "No Borland compilers found.\n");
     return (0);
   }
   if (ignored >= bcc_found)
   {
-    DEBUGF (1, "All Borland compilers were ignored.\n");
+    TRACE (1, "All Borland compilers were ignored.\n");
     return (0);
   }
   return (found);
@@ -4259,7 +4259,7 @@ static void set_python_variant (const char *arg)
   unsigned     v  = UNKNOWN_PYTHON;
   int          i;
 
-  DEBUGF (2, "optarg: '%s'\n", arg);
+  TRACE (2, "optarg: '%s'\n", arg);
   ASSERT (arg);
 
   for (i = 0; py[i]; i++)
@@ -4295,7 +4295,7 @@ static void set_python_variant (const char *arg)
  */
 static void set_vcpkg_options (const char *arg)
 {
-  DEBUGF (2, "optarg: '%s'\n", arg);
+  TRACE (2, "optarg: '%s'\n", arg);
   ASSERT (arg);
   if (!strcmp(arg,"all"))
        vcpkg_set_only_installed (FALSE);
@@ -4339,7 +4339,7 @@ static void set_signed_options (const char *arg)
        opt.signed_status = SIGN_CHECK_UNSIGNED;
   }
 
-  DEBUGF (2, "got long option \"--signed %s\" -> opt.signed_status: %s\n",
+  TRACE (2, "got long option \"--signed %s\" -> opt.signed_status: %s\n",
           arg, list_lookup_name(opt.signed_status,sign_status, DIM(sign_status)));
 }
 
@@ -4370,7 +4370,7 @@ static void set_short_option (int o, const char *arg)
 {
   char *err_opt;
 
-  DEBUGF (2, "got short option '%c' (%d).\n", o, o);
+  TRACE (2, "got short option '%c' (%d).\n", o, o);
 
   switch (o)
   {
@@ -4449,7 +4449,7 @@ static void set_long_option (int o, const char *arg)
   ASSERT (values_tab[o]);
   ASSERT (long_options[o].name);
 
-  DEBUGF (2, "got long option \"--%s\" with argument \"%s\".\n",
+  TRACE (2, "got long option \"--%s\" with argument \"%s\".\n",
           long_options[o].name, arg);
 
   if (!strcmp("evry",long_options[o].name))
@@ -4512,7 +4512,7 @@ static void set_long_option (int o, const char *arg)
     val_ptr = values_tab [o];
     new_value = *val_ptr + 1;
 
-    DEBUGF (2, "got long option \"--%s\". Setting value %d -> %d. o: %d.\n",
+    TRACE (2, "got long option \"--%s\". Setting value %d -> %d. o: %d.\n",
             long_options[o].name, *val_ptr, new_value, o);
 
     *val_ptr = new_value;
@@ -4546,9 +4546,9 @@ static void parse_cmdline (int _argc, const char **_argv)
     opt.evry_raw  = TRUE;
   }
 
-  DEBUGF (2, "c->argc0:      %d\n", c->argc0);
-  DEBUGF (2, "opt.file_spec: '%s'\n", opt.file_spec);
-  DEBUGF (2, "opt.evry_raw:  %d\n", opt.evry_raw);
+  TRACE (2, "c->argc0:      %d\n", c->argc0);
+  TRACE (2, "opt.file_spec: '%s'\n", opt.file_spec);
+  TRACE (2, "opt.evry_raw:  %d\n", opt.evry_raw);
 }
 
 /**
@@ -4795,9 +4795,9 @@ static void shadow_ignore_handler (const char *section, const char *key, const c
     ULONGLONG val = _strtoi64 (value, &end, 10);
 
     if (end == value || *end != '\0' || val == _I64_MAX || val == _I64_MIN)
-         DEBUGF (1, "illegal dtime: '%s'\n", value);
+         TRACE (1, "illegal dtime: '%s'\n", value);
     else opt.shadow_dtime = 10000000ULL * val;        /* Convert to 100 nsec file-time units */
-    DEBUGF (1, "opt.shadow_dtime: %0.f sec.\n", (double)opt.shadow_dtime/1E7);
+    TRACE (1, "opt.shadow_dtime: %0.f sec.\n", (double)opt.shadow_dtime/1E7);
   }
   else
     cfg_ignore_handler (section, key, value);
@@ -4811,22 +4811,22 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
 {
   if (!strnicmp(key,"beep.",5))
   {
-    DEBUGF (2, "%s: Calling 'cfg_beep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
+    TRACE (2, "%s: Calling 'cfg_beep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
     cfg_beep_handler (key+5, value);
   }
   else if (!strnicmp(key,"cache.",6))
   {
-    DEBUGF (2, "%s: Calling 'cache_config (\"%s\", \"%s\")'.\n", section, key+6, value);
+    TRACE (2, "%s: Calling 'cache_config (\"%s\", \"%s\")'.\n", section, key+6, value);
     cache_config (key+6, value);
   }
   else if (!strnicmp(key,"ETP.",4))
   {
-    DEBUGF (2, "%s: Calling 'cfg_ETP_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
+    TRACE (2, "%s: Calling 'cfg_ETP_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
     cfg_ETP_handler (key+4, value);
   }
   else if (!strnicmp(key,"grep.",5))
   {
-    DEBUGF (2, "%s: Calling 'cfg_grep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
+    TRACE (2, "%s: Calling 'cfg_grep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
     cfg_grep_handler (key+5, value);
   }
 }
@@ -4932,7 +4932,7 @@ int MS_CDECL main (int argc, const char **argv)
             "\"--man\", \"--path\", \"--pkg\", \"--vcpkg\" and/or \"--python\".\n");
 
   if (!opt.file_spec)
-     usage ("You must give a ~1filespec~0 to search for.\n");
+     usage ("You must give a filespec to search for.\n");
 
   if (!opt.evry_raw && !opt.dir_mode)
   {
@@ -4973,7 +4973,7 @@ int MS_CDECL main (int argc, const char **argv)
     }
   }
 
-  DEBUGF (1, "opt.file_spec: '%s'\n", opt.file_spec);
+  TRACE (1, "opt.file_spec: '%s'\n", opt.file_spec);
 
   if (!opt.no_sys_env)
      found += scan_system_env();
@@ -5102,7 +5102,7 @@ static struct dirent2 *copy_de (const struct dirent2 *de)
 {
   struct dirent2 *copy = MALLOC (sizeof(*copy));
 
-  DEBUGF (2, "Adding '%s'\n", de->d_name);
+  TRACE (2, "Adding '%s'\n", de->d_name);
   memcpy (copy, de, sizeof(*copy));
   copy->d_link = NULL;
   copy->d_name = STRDUP (de->d_name);
@@ -5168,7 +5168,7 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
       cfg_ignore_lookup("[Shadow]", this_de->d_name) ||
       cfg_ignore_lookup("[Shadow]", prev_de->d_name))
   {
-    DEBUGF (2, "Ignoring file '%s' and '%s'.\n", this_de->d_name, prev_de->d_name);
+    TRACE (2, "Ignoring file '%s' and '%s'.\n", this_de->d_name, prev_de->d_name);
     return (FALSE);
   }
 
@@ -5178,7 +5178,7 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
 
   if (this_ft && this_ft < prev_ft && diff > opt.shadow_dtime)
   {
-    DEBUGF (1, "Write-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
+    TRACE (1, "Write-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
     *newest = prev_de->d_time_write;
     *oldest = this_de->d_time_write;
     return (TRUE);
@@ -5191,7 +5191,7 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
 
   if (this_ft && this_ft < prev_ft && diff > opt.shadow_dtime)
   {
-    DEBUGF (1, "Creation-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
+    TRACE (1, "Creation-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
     *newest = prev_de->d_time_create;
     *oldest = this_de->d_time_create;
     return (TRUE);
@@ -5281,7 +5281,7 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
     for (j = max-1; j > i; j--)
     {
       arr_j = smartlist_get (dir_list, j);
-      DEBUGF (1, "i/j: %2d/%2d: %-50.50s / %-50.50s\n", i, j, arr_i->dir, arr_j->dir);
+      TRACE (1, "i/j: %2d/%2d: %-50.50s / %-50.50s\n", i, j, arr_i->dir, arr_j->dir);
 
       if (arr_i->dirent2 && arr_j->dirent2)
          check_shadow_files (arr_i->dirent2, arr_j->dirent2, shadows);
@@ -5368,7 +5368,7 @@ static int get_dirlist_from_cache (const char *env_var)
     dir_array_add (dir, str_equal(dir,current_dir));
     i++;
   }
-  DEBUGF (1, "Found %d cached 'env_dir_x'.\n", i);
+  TRACE (1, "Found %d cached 'env_dir_x'.\n", i);
   return (i);
 }
 
@@ -5738,7 +5738,7 @@ static void do_check_user_sys_env (void)
     return;
   }
 
-  DEBUGF (1, "C_screen_width(): %zd\n", C_screen_width());
+  TRACE (1, "C_screen_width(): %zd\n", C_screen_width());
   max = smartlist_len (list);
   for (i = 0; i < max; i++)
   {

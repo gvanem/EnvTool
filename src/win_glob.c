@@ -128,7 +128,7 @@ static DWORD glob_new2 (const char *dir,
   else
     ++dir_end;
 
-  DEBUGF (2, "search_spec: '%s', dir_end: '%s', path: '%s'.\n", search_spec, dir_end, path);
+  TRACE (2, "search_spec: '%s', dir_end: '%s', path: '%s'.\n", search_spec, dir_end, path);
 
   done = find_first (search_spec, &ff);
 
@@ -174,7 +174,7 @@ static DWORD glob_new2 (const char *dir,
   rc = GetLastError();
 
 quit:
-  DEBUGF (1, "GetLastError(): %s.\n", win_strerror(rc));
+  TRACE (1, "GetLastError(): %s.\n", win_strerror(rc));
 
   /* Normal case: tree exhausted
    */
@@ -244,13 +244,13 @@ static DWORD find_first (const char *file_spec, struct ffblk *ffblk)
              FindFirstFile (file_spec, &ff_data);
 
 
-  DEBUGF (3, "find_first (\"%s\") -> %" ADDR_FMT "\n", file_spec, ADDR_CAST(handle));
+  TRACE (3, "find_first (\"%s\") -> %" ADDR_FMT "\n", file_spec, ADDR_CAST(handle));
 
   if (handle == INVALID_HANDLE_VALUE)
   {
     rc = GetLastError();
-    DEBUGF (1, "recursion_level: %lu, GetLastError(): %s.\n",
-            (unsigned long)recursion_level, win_strerror(rc));
+    TRACE (1, "recursion_level: %lu, GetLastError(): %s.\n",
+           (unsigned long)recursion_level, win_strerror(rc));
 
     /*
      * We get "access denied" for a directory-name which is a Junction.
@@ -295,7 +295,7 @@ static DWORD find_next (struct ffblk *ffblk)
   if (!FindNextFile(ffblk->ff_handle, &ff_data))
   {
     rc = GetLastError();
-    DEBUGF (3, "find_next() -> %s\n", win_strerror(rc));
+    TRACE (3, "find_next() -> %s\n", win_strerror(rc));
     FindClose (ffblk->ff_handle);
     ffblk->ff_handle = NULL;
   }
@@ -343,7 +343,7 @@ static int glob_add (const char *path, BOOL is_dir, unsigned line)
     BOOL rc = get_reparse_point (path, result, sizeof(result));
 
     if (!rc)
-         DEBUGF (1, "get_reparse_point(): %s\n", last_reparse_err);
+         TRACE (1, "get_reparse_point(): %s\n", last_reparse_err);
     else path = result;
   }
 
@@ -353,7 +353,7 @@ static int glob_add (const char *path, BOOL is_dir, unsigned line)
     FREE (sp);
     return (0);
   }
-  DEBUGF (2, "add: '%s' (from line %u)\n", sp->entry, line);
+  TRACE (2, "add: '%s' (from line %u)\n", sp->entry, line);
 
   sp->prev = save_list;
   save_list = sp;
@@ -367,8 +367,8 @@ static int glob_dirs (const char *rest, char *epathbuf,
   struct ffblk ff;
   int    done;
 
-  DEBUGF (2, "glob_dirs[%lu]: rest='%s' %c epathbuf='%s' %c pathbuf='%s'\n",
-          (unsigned long)recursion_level, rest, *rest, epathbuf, *epathbuf, pathbuf);
+  TRACE (2, "glob_dirs[%lu]: rest='%s' %c epathbuf='%s' %c pathbuf='%s'\n",
+         (unsigned long)recursion_level, rest, *rest, epathbuf, *epathbuf, pathbuf);
 
   if (first)
   {
@@ -382,7 +382,7 @@ static int glob_dirs (const char *rest, char *epathbuf,
       char sl = epathbuf[-1];
 
       *epathbuf = '\0';
-      DEBUGF (2, "end, checking '%s'\n", pathbuf);
+      TRACE (2, "end, checking '%s'\n", pathbuf);
       if (epathbuf == pathbuf)
       {
         epathbuf[0] = '.';
@@ -408,7 +408,7 @@ static int glob_dirs (const char *rest, char *epathbuf,
     {
       char *tp;
 
-      DEBUGF (1, "found '%s' '%s'\n", pathbuf, ff.ff_name);
+      TRACE (1, "found '%s' '%s'\n", pathbuf, ff.ff_name);
 
       strcpy (epathbuf, ff.ff_name);
       tp = strchr (epathbuf, '\0');
@@ -475,7 +475,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
       {
         if (*pp != ':')
            slash = *pp;
-        DEBUGF (2, "glob2: dots at '%s'\n", pp);
+        TRACE (2, "glob2: dots at '%s'\n", pp);
         *bp++ = *pp++;
         break;
       }
@@ -499,7 +499,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   if (bp >= pathbuf_end && *pp)
      return (0);
 
-  DEBUGF (2, "glob2: pp: '%s'\n", pp);
+  TRACE (2, "glob2: pp: '%s'\n", pp);
 
   if (*pp == 0) /* end of pattern? */
   {
@@ -527,8 +527,8 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
     return (0);
   }
 
-  DEBUGF (2, "glob2(): initial segment is '%s', recursion_level: %lu\n",
-          pathbuf, (unsigned long)recursion_level);
+  TRACE (2, "glob2(): initial segment is '%s', recursion_level: %lu\n",
+         pathbuf, (unsigned long)recursion_level);
 
   if (recursion_level)
   {
@@ -549,7 +549,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   my_pattern = alloca (pslash - pp + 1);
   _strlcpy (my_pattern, pp, pslash - pp + 1);
 
-  DEBUGF (1, "glob2(): pathbuf: '%s', my_pattern: '%s'\n", pathbuf, my_pattern);
+  TRACE (1, "glob2(): pathbuf: '%s', my_pattern: '%s'\n", pathbuf, my_pattern);
 
   if (!strcmp(my_pattern, "..."))
   {
@@ -576,7 +576,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
 
           *tp++ = *pslash;
           *tp = 0;
-          DEBUGF (2, "nest: '%s' '%s'\n", pslash+1, pathbuf);
+          TRACE (2, "nest: '%s' '%s'\n", pslash+1, pathbuf);
           recursion_level++;
           if (glob2(pslash+1, tp) == GLOB_NOSPACE)
              return (GLOB_NOSPACE);
@@ -586,8 +586,8 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
         {
           BOOL is_dir;
 
-          DEBUGF (1, "ffmatch: '%s' matching '%s', add '%s'\n",
-                     ff.ff_name, my_pattern, pathbuf);
+          TRACE (1, "ffmatch: '%s' matching '%s', add '%s'\n",
+                 ff.ff_name, my_pattern, pathbuf);
 
           is_dir = ff.ff_attrib & FILE_ATTRIBUTE_DIRECTORY;
           if (is_dir && (glob_flags & GLOB_MARK))
@@ -641,7 +641,7 @@ int glob (const char *_pattern, int flags,
 
   path_buffer[1] = '\0';
 
-  DEBUGF (1, "glob_flags: %s\n", glob_flags_str(glob_flags));
+  TRACE (1, "glob_flags: %s\n", glob_flags_str(glob_flags));
 
   memset (_pglob, 0, sizeof(*_pglob));
 
@@ -757,7 +757,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
 
   if (spec && fnmatch(spec, base, fn_flags) == FNM_NOMATCH)
   {
-    DEBUGF (2, "fnmatch (\"%s\", \"%s\") failed.\n", spec, base);
+    TRACE (2, "fnmatch (\"%s\", \"%s\") failed.\n", spec, base);
     return (0);
   }
 
@@ -908,8 +908,8 @@ static void do_glob_new (const char *spec)
   total_files = total_dirs = total_reparse_points = total_size = 0;
   recursion_level = num_ignored_errors = 0;
 
-  DEBUGF (1, "dir: '%s', global_spec: '%s', orig_spec: '%s', dot_spec: '%s'\n",
-          dir, global_spec, orig_spec, dot_spec);
+  TRACE (1, "dir: '%s', global_spec: '%s', orig_spec: '%s', dot_spec: '%s'\n",
+         dir, global_spec, orig_spec, dot_spec);
 
   printf ("Depth         Size  Attr          Path\n"
           "-------------------------------------------"

@@ -91,7 +91,7 @@ void test_posix_to_win_cygwin (void)
     char  result [_MAX_PATH];
 
     rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, dir, result, sizeof(result));
-    DEBUGF (2, "cygwin_conv_path(CCP_POSIX_TO_WIN_A): rc: %d, '%s'\n", rc, result);
+    TRACE (2, "cygwin_conv_path(CCP_POSIX_TO_WIN_A): rc: %d, '%s'\n", rc, result);
 
     file = slashify2 (result, result, opt.show_unix_paths ? '/' : '\\');
     raw = C_setraw (1);
@@ -687,7 +687,7 @@ static void test_libssp (void)
 
 static int cmake_version_cb (char *buf, int index)
 {
-  DEBUGF (2, "buf: '%s', index: %d.\n", buf, index);
+  TRACE (2, "buf: '%s', index: %d.\n", buf, index);
   return (0);
 }
 

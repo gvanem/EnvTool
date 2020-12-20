@@ -96,7 +96,7 @@ static unsigned config_get_line (CFG_FILE *cf)
     if (sscanf(p, fmt, cf->keyword, cf->value) != 2)
     {
       cf->line++;
-      DEBUGF (3, "line %u: keyword: '%s', value: '%s'\n", cf->line, cf->keyword, cf->value);
+      TRACE (3, "line %u: keyword: '%s', value: '%s'\n", cf->line, cf->keyword, cf->value);
       continue;
     }
 
@@ -136,7 +136,7 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
   {
     if (section && !stricmp(section, cf->sections[i]))
     {
-      DEBUGF (3, "Matched section '%s' at index %d.\n", cf->sections[i], i);
+      TRACE (3, "Matched section '%s' at index %d.\n", cf->sections[i], i);
       return (cf->handlers[i]);
     }
   }
@@ -151,7 +151,7 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
  */
 static void parse_config_file (CFG_FILE *cf)
 {
-  DEBUGF (3, "file: %s.\n", cf->fname);
+  TRACE (3, "file: %s.\n", cf->fname);
 
   while (1)
   {
@@ -166,8 +166,8 @@ static void parse_config_file (CFG_FILE *cf)
     if (!cf->section[0])
        strcpy (cf->section, "<None>");
 
-    DEBUGF (3, "line %2u: [%s]: %s = %s\n",
-            cf->line, cf->section, cf->keyword, cf->value);
+    TRACE (3, "line %2u: [%s]: %s = %s\n",
+           cf->line, cf->section, cf->keyword, cf->value);
 
     /* Ignore "foo = <empty value>"
      */
@@ -191,11 +191,11 @@ static void parse_config_file (CFG_FILE *cf)
     else
     {
       if (!cfg->section || cfg->section[0] == '\0')
-         DEBUGF (3, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
-                 cf->fname, cf->line, cfg->key, cfg->value);
+         TRACE (3, "%s(%u): Keyword '%s' = '%s' in the CFG_GLOBAL section.\n",
+                cf->fname, cf->line, cfg->key, cfg->value);
       else
-         DEBUGF (3, "%s(%u): Keyword '%s' = '%s' in unknown section '%s'.\n",
-                 cf->fname, cf->line, cfg->key, cfg->value, cfg->section);
+         TRACE (3, "%s(%u): Keyword '%s' = '%s' in unknown section '%s'.\n",
+                cf->fname, cf->line, cfg->key, cfg->value, cfg->section);
     }
   }
 }

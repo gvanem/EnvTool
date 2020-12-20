@@ -248,13 +248,13 @@ void init_misc (void)
 
   if (!kernel32_hnd || kernel32_hnd == INVALID_HANDLE_VALUE)
   {
-    DEBUGF (1, "Failed to load kernel32.dll; %s\n", win_strerror(GetLastError()));
+    TRACE (1, "Failed to load kernel32.dll; %s\n", win_strerror(GetLastError()));
     kernel32_hnd = NULL;
   }
 
   if (!userenv_hnd || userenv_hnd == INVALID_HANDLE_VALUE)
   {
-    DEBUGF (1, "Failed to load userenv.dll; %s\n", win_strerror(GetLastError()));
+    TRACE (1, "Failed to load userenv.dll; %s\n", win_strerror(GetLastError()));
     userenv_hnd = NULL;
   }
 
@@ -359,7 +359,7 @@ const char *check_if_shebang (const char *fname)
   if (strncmp(shebang, "#!/usr/bin/env ",15) && p)
      *p = '\0';
 
-  DEBUGF (1, "shebang: \"%s\"\n", shebang);
+  TRACE (1, "shebang: \"%s\"\n", shebang);
   return (shebang);
 }
 
@@ -388,7 +388,7 @@ int check_if_zip (const char *fname)
     fclose (f);
   }
   if (rc)
-     DEBUGF (1, "\"%s\" is a ZIP-file.\n", fname);
+     TRACE (1, "\"%s\" is a ZIP-file.\n", fname);
   return (rc);
 }
 
@@ -416,8 +416,8 @@ int check_if_gzip (const char *fname)
 
   if (!is_gzip && !is_tgz)
   {
-    DEBUG_NL (2);
-    DEBUGF (2, "\"%s\" does have wrong extension: '%s'.\n", fname, ext);
+    TRACE_NL (2);
+    TRACE (2, "\"%s\" does have wrong extension: '%s'.\n", fname, ext);
     return (0);
   }
 
@@ -429,8 +429,8 @@ int check_if_gzip (const char *fname)
        rc = 1;
     fclose (f);
   }
-  DEBUG_NL (2);
-  DEBUGF (2, "\"%s\" is %sa GZIP-file.\n", fname, rc == 1 ? "": "not ");
+  TRACE_NL (2);
+  TRACE (2, "\"%s\" is %sa GZIP-file.\n", fname, rc == 1 ? "": "not ");
   return (rc);
 }
 
@@ -485,7 +485,7 @@ const char *get_gzip_link (const char *file)
 
   if (popen_run(gzip_cb, gzip_exe, "-cd %s 2> %s", f, DEV_NULL) > 0)
   {
-    DEBUGF (2, "gzip_link_name: \"%s\".\n", gzip_link_name);
+    TRACE (2, "gzip_link_name: \"%s\".\n", gzip_link_name);
     return slashify2 (gzip_link_name, gzip_link_name, opt.show_unix_paths ? '/' : '\\');
   }
   return (NULL);
@@ -514,8 +514,8 @@ const char *get_man_link (const char *file)
     const char *base = basename (str_strip_nl(buf+4));
 
     fclose (f);
-    DEBUG_NL (1);
-    DEBUGF (1, "get_man_link: \"%s\", dir_name: \"%s\".\n", base, dir_name);
+    TRACE_NL (1);
+    TRACE (1, "get_man_link: \"%s\", dir_name: \"%s\".\n", base, dir_name);
     snprintf (fqfn_name, sizeof(fqfn_name), "%s%c%s", dir_name, DIR_SEP, base);
     FREE (dir_name);
     if (opt.show_unix_paths)
@@ -550,9 +550,9 @@ const char *get_sym_link (const char *file)
     const char *base = basename (str_strip_nl(buf+10));
 
     fclose (f);
-    DEBUG_NL (1);
+    TRACE_NL (1);
     snprintf (fqfn_name, sizeof(fqfn_name), "%s%c%s", dir_name, DIR_SEP, base);
-    DEBUGF (1, "get_sym_link: \"%s\"\n", fqfn_name);
+    TRACE (1, "get_sym_link: \"%s\"\n", fqfn_name);
     FREE (dir_name);
     if (opt.show_unix_paths)
        return slashify2 (fqfn_name, fqfn_name, '/');
@@ -607,14 +607,14 @@ int check_if_PE (const char *fname, enum Bitness *bits)
 
   if (len < sizeof(file_buf))
   {
-    DEBUGF (3, "%s: failed fread(). errno: %d\n", fname, errno);
+    TRACE (3, "%s: failed fread(). errno: %d\n", fname, errno);
     return (FALSE);
   }
 
   dos = (const IMAGE_DOS_HEADER*) file_buf;
   nt  = (const IMAGE_NT_HEADERS*) ((const BYTE*)file_buf + dos->e_lfanew);
 
-  DEBUG_NL (3);
+  TRACE_NL (3);
 
   /* Probably not a PE-file at all.
    * Check `nt < file_buf` too in case `e_lfanew` folds `nt` to a negative value.
@@ -622,7 +622,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   if ( (char*)nt > file_buf + sizeof(file_buf) ||
        (char*)nt < file_buf )
   {
-    DEBUGF (3, "%s: NT-header at wild offset.\n", fname);
+    TRACE (3, "%s: NT-header at wild offset.\n", fname);
     return (FALSE);
   }
 
@@ -652,8 +652,8 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   if (bits)
      *bits = last_bitness;
 
-  DEBUGF (3, "%s: is_exe: %d, is_pe: %d, is_32Bit: %d, is_64Bit: %d.\n",
-          fname, is_exe, is_pe, is_32Bit, is_64Bit);
+  TRACE (3, "%s: is_exe: %d, is_pe: %d, is_32Bit: %d, is_64Bit: %d.\n",
+         fname, is_exe, is_pe, is_32Bit, is_64Bit);
   return (is_exe && is_pe);
 }
 
@@ -679,12 +679,12 @@ int verify_PE_checksum (const char *fname)
   else
     return (FALSE);
 
-  DEBUGF (1, "last_bitness: %u, Opt magic: 0x%04X, file_sum: 0x%08lX\n",
-             last_bitness, nt->OptionalHeader.Magic, (u_long)file_sum);
+  TRACE (1, "last_bitness: %u, Opt magic: 0x%04X, file_sum: 0x%08lX\n",
+         last_bitness, nt->OptionalHeader.Magic, (u_long)file_sum);
 
   rc = MapFileAndCheckSum ((PTSTR)fname, &header_sum, &calc_chk_sum);
-  DEBUGF (1, "rc: %lu, 0x%08lX, 0x%08lX\n",
-          (u_long)rc, (u_long)header_sum, (u_long)calc_chk_sum);
+  TRACE (1, "rc: %lu, 0x%08lX, 0x%08lX\n",
+         (u_long)rc, (u_long)header_sum, (u_long)calc_chk_sum);
   return (file_sum == 0 || header_sum == calc_chk_sum);
 }
 
@@ -708,7 +708,7 @@ BOOL is_wow64_active (void)
     rc = wow64;
 #endif
 
-  DEBUGF (2, "IsWow64Process(): rc: %d, wow64: %d.\n", rc, wow64);
+  TRACE (2, "IsWow64Process(): rc: %d, wow64: %d.\n", rc, wow64);
   return (rc);
 }
 
@@ -775,7 +775,7 @@ char *evry_raw_query (void)
   {
     snprintf (query, sizeof(query), "%.*s content:\"%s\"",
               content-opt.file_spec, opt.file_spec, content+cont_len);
-    DEBUGF (2, "Creating quoted 'content:' query: '%s'\n", query);
+    TRACE (2, "Creating quoted 'content:' query: '%s'\n", query);
     return (query);
   }
   return (opt.file_spec);
@@ -807,7 +807,7 @@ static const char *sid_owner_cache (PSID sid)
       ConvertSidToStringSid (sid, &sid_str);
       if (sid_str && strlen(sid_str) < sizeof(sid_buf2))
          strcpy (sid_buf2, sid_str);
-      DEBUGF (1, "sid_buf2: '%s', EqualSid(): %s.\n", sid_buf2, EqualSid(sid_buf1,sid) ? "Yes" : "No");
+      TRACE (1, "sid_buf2: '%s', EqualSid(): %s.\n", sid_buf2, EqualSid(sid_buf1,sid) ? "Yes" : "No");
       LocalFree (sid_str);
     }
   }
@@ -895,7 +895,7 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
   if (hnd == INVALID_HANDLE_VALUE)
   {
     *account_name_p = STRDUP ("<No access>");
-    DEBUGF (1, "CreateFile (\"%s\") error = %s\n", file, win_strerror(GetLastError()));
+    TRACE (1, "CreateFile (\"%s\") error = %s\n", file, win_strerror(GetLastError()));
     return (FALSE);
   }
 
@@ -911,7 +911,7 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
    */
   if (rc != ERROR_SUCCESS)
   {
-    DEBUGF (1, "GetSecurityInfo error = %s\n", win_strerror(GetLastError()));
+    TRACE (1, "GetSecurityInfo error = %s\n", win_strerror(GetLastError()));
     return (FALSE);
   }
 
@@ -922,14 +922,14 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
                           NULL, (DWORD*)&domain_name_sz,
                           &sid_use);
 
-  DEBUGF (2, "sid_use: %d\n", sid_use);
+  TRACE (2, "sid_use: %d\n", sid_use);
 
   if (!rc2)
   {
     err = GetLastError();
     if (err != ERROR_INSUFFICIENT_BUFFER)
     {
-      DEBUGF (1, "(1): Error in LookupAccountSid(): %s.\n", win_strerror(err));
+      TRACE (1, "(1): Error in LookupAccountSid(): %s.\n", win_strerror(err));
 
 #if (_WIN32_WINNT >= 0x0500)
       /**
@@ -979,8 +979,8 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
   {
     err = GetLastError();
     if (err == ERROR_NONE_MAPPED)
-         DEBUGF (1, "Account owner not found for specified SID.\n");
-    else DEBUGF (1, "(2) Error in LookupAccountSid(): %s.\n", win_strerror(err));
+         TRACE (1, "Account owner not found for specified SID.\n");
+    else TRACE (1, "(2) Error in LookupAccountSid(): %s.\n", win_strerror(err));
     FREE (domain_name);
     FREE (account_name);
     return (FALSE);
@@ -1895,7 +1895,7 @@ char *_fix_path (const char *path, char *result)
 {
   if (!path || !*path)
   {
-    DEBUGF (1, "given a bogus 'path': '%s'\n", path);
+    TRACE (1, "given a bogus 'path': '%s'\n", path);
     errno = EINVAL;
     return (NULL);
   }
@@ -1913,8 +1913,8 @@ char *_fix_path (const char *path, char *result)
   */
   slashify2 (result, path, '\\');
   if (!GetFullPathName(result, _MAX_PATH, result, NULL))
-     DEBUGF (2, "GetFullPathName(\"%s\") failed: %s\n",
-             path, win_strerror(GetLastError()));
+     TRACE (2, "GetFullPathName(\"%s\") failed: %s\n",
+            path, win_strerror(GetLastError()));
 
   return _fix_drive (result);
 }
@@ -1982,7 +1982,7 @@ BOOL is_directory (const char *path)
   if (safe_stat(buf, &st, NULL) == 0)
      return (_S_ISDIR(st.st_mode));
 
-  DEBUGF (2, "safe_stat (\"%s\"/) fail, errno: %d\n", path, errno);
+  TRACE (2, "safe_stat (\"%s\"/) fail, errno: %d\n", path, errno);
 #else
   if (safe_stat(path, &st, NULL) == 0)
      return (_S_ISDIR(st.st_mode));
@@ -2061,8 +2061,8 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
       err = GetLastError();
   }
 
-  DEBUGF (1, "file: '%s', attr: 0x%08lX, hnd: %p, err: %lu, mtime: %" U64_FMT " fsize: %s\n",
-          file, (unsigned long)attr, hnd, err, (UINT64)st->st_mtime, get_file_size_str(st->st_size));
+  TRACE (1, "file: '%s', attr: 0x%08lX, hnd: %p, err: %lu, mtime: %" U64_FMT " fsize: %s\n",
+         file, (unsigned long)attr, hnd, err, (UINT64)st->st_mtime, get_file_size_str(st->st_size));
 
   if (win_err)
      *win_err = err;
@@ -2089,11 +2089,11 @@ char *create_temp_file (void)
   {
     char *t = STRDUP (tmp);
 
-    DEBUGF (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
+    TRACE (2, " %s() tmp: '%s'\n", __FUNCTION__, tmp);
     free (tmp);     /* Free CRT data */
     return (t);     /* Caller must FREE() this */
   }
-  DEBUGF (2, " %s() %s failed: %s\n", __FUNCTION__, T_FUNC, strerror(errno));
+  TRACE (2, " %s() %s failed: %s\n", __FUNCTION__, T_FUNC, strerror(errno));
   return (NULL);
 }
 
@@ -2117,8 +2117,8 @@ void set_error_mode (int restore)
     if (restore)
          rc = (*p_SetThreadErrorMode) (mode, NULL);
     else rc = (*p_SetThreadErrorMode) (mode, &old_mode);
-    DEBUGF (2, "restore: %d, SetThreadErrorMode (0x%04lX), rc: %d.\n",
-            restore, (unsigned long)mode, rc);
+    TRACE (2, "restore: %d, SetThreadErrorMode (0x%04lX), rc: %d.\n",
+           restore, (unsigned long)mode, rc);
   }
   else
   {
@@ -2128,7 +2128,7 @@ void set_error_mode (int restore)
     if (restore)
          SetErrorMode (mode);
     else old_mode = SetErrorMode (mode);
-    DEBUGF (2, "restore: %d, SetErrorMode (0x%04X).\n", restore, mode);
+    TRACE (2, "restore: %d, SetErrorMode (0x%04X).\n", restore, mode);
   }
 }
 
@@ -2180,9 +2180,9 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
     rc = TRUE;
   }
 
-  DEBUGF (1, "GetDiskFreeSpace(): sect_per_cluster: %lu, bytes_per_sector: %lu, total_clusters: %lu, error: %s\n",
-          (unsigned long)sect_per_cluster, (unsigned long)bytes_per_sector, (unsigned long)total_clusters,
-          err);
+  TRACE (1, "GetDiskFreeSpace(): sect_per_cluster: %lu, bytes_per_sector: %lu, total_clusters: %lu, error: %s\n",
+         (unsigned long)sect_per_cluster, (unsigned long)bytes_per_sector, (unsigned long)total_clusters,
+         err);
 
   if (rc && size)
     *size = cluster_size[i];
@@ -2259,12 +2259,12 @@ UINT64 get_directory_size (const char *dir)
     if (is_junction)
     {
       link = namelist[i]->d_link ? namelist[i]->d_link : "?";
-      DEBUGF (1, "Not recursing into junction \"%s\"\n", link);
+      TRACE (1, "Not recursing into junction \"%s\"\n", link);
       size += get_file_alloc_size (dir, (UINT64)-1);
     }
     else if (is_dir)
     {
-      DEBUGF (1, "Recursing into \"%s\"\n", namelist[i]->d_name);
+      TRACE (1, "Recursing into \"%s\"\n", namelist[i]->d_name);
       size += get_file_alloc_size (namelist[i]->d_name, (UINT64)-1);
       size += get_directory_size (namelist[i]->d_name);
     }
@@ -2299,8 +2299,8 @@ UINT get_disk_type (int disk)
   root[0] = (char) disk;
   type = GetDriveType (root);
 
-  DEBUGF (1, "GetDriveType (\"%s\"): type: %s (%d).\n",
-          root, list_lookup_name(type, disk_types, DIM(disk_types)), type);
+  TRACE (1, "GetDriveType (\"%s\"): type: %s (%d).\n",
+         root, list_lookup_name(type, disk_types, DIM(disk_types)), type);
   return (type);
 }
 
@@ -2321,8 +2321,8 @@ BOOL get_volume_path (int disk, char **mount)
 
   if (rc && mount)
      *mount = res;
-  DEBUGF (2, "GetVolumePathName (\"%s\"): error: %s, res: \"%s\"\n",
-          root, err, rc ? res : "N/A");
+  TRACE (2, "GetVolumePathName (\"%s\"): error: %s, res: \"%s\"\n",
+         root, err, rc ? res : "N/A");
   return (rc);
 }
 
@@ -2339,7 +2339,7 @@ int disk_ready (int disk)
   snprintf (path, sizeof(path), "\\\\.\\%c:", TOUPPER(disk));
   set_error_mode (0);
 
-  DEBUGF (2, "Calling CreateFile (\"%s\").\n", path);
+  TRACE (2, "Calling CreateFile (\"%s\").\n", path);
   hnd = CreateFile (path, GENERIC_READ | FILE_LIST_DIRECTORY,
                     FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                     OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
@@ -2348,7 +2348,7 @@ int disk_ready (int disk)
   {
     DWORD err = GetLastError();
 
-    DEBUGF (2, "  failed: %s\n", win_strerror(err));
+    TRACE (2, "  failed: %s\n", win_strerror(err));
 
     /* A lack of privilege mean the device "\\\\.\\x:" exists
      */
@@ -2372,17 +2372,17 @@ int disk_ready (int disk)
 
     if (!rd_change)
     {
-      DEBUGF (2, "ReadDirectoryChanges(): failed: %s\n", win_strerror(GetLastError()));
+      TRACE (2, "ReadDirectoryChanges(): failed: %s\n", win_strerror(GetLastError()));
       rc2 = 0;
     }
     else
     {
       const FILE_NOTIFY_INFORMATION *fni = (const FILE_NOTIFY_INFORMATION*) &buf;
 
-      DEBUGF (2, "fni->NextEntryOffset: %lu\n", fni->NextEntryOffset);
-      DEBUGF (2, "fni->Action:          %lu\n", fni->Action);
-      DEBUGF (2, "fni->FileNameLength:  %lu\n", fni->FileNameLength);
-      DEBUGF (2, "fni->FileName:        \"%.*S\"\n", (int)fni->FileNameLength, fni->FileName);
+      TRACE (2, "fni->NextEntryOffset: %lu\n", fni->NextEntryOffset);
+      TRACE (2, "fni->Action:          %lu\n", fni->Action);
+      TRACE (2, "fni->FileNameLength:  %lu\n", fni->FileNameLength);
+      TRACE (2, "fni->FileName:        \"%.*S\"\n", (int)fni->FileNameLength, fni->FileName);
       rc2 = 1;
     }
   }
@@ -2428,7 +2428,7 @@ BOOL chk_disk_ready (int disk)
 
       set_error_mode (1);
     }
-    DEBUGF (3, "drive: %c, status: %d.\n", disk, status[i]);
+    TRACE (3, "drive: %c, status: %d.\n", disk, status[i]);
   }
   checked [i] = TRUE;
   return (status[i] >= 1);
@@ -2441,7 +2441,7 @@ int _file_exists (const char *file)
 {
   if (_has_drive(file) && !chk_disk_ready((int)file[0]))
   {
-    DEBUGF (2, "Disk %c: not ready.\n", file[0]);
+    TRACE (2, "Disk %c: not ready.\n", file[0]);
     return (0);
   }
   if (GetFileAttributes(file) != INVALID_FILE_ATTRIBUTES)
@@ -2451,7 +2451,7 @@ int _file_exists (const char *file)
   struct stat st;
   return (safe_stat(file, &st, NULL) == 0 && st.st_mtime);
 #else
-  DEBUGF (2, "No attributes for File '%s'.\n", file);
+  TRACE (2, "No attributes for File '%s'.\n", file);
   return (0);
 #endif
 }
@@ -2514,7 +2514,7 @@ cleanup:
   if (admin_group)
      FreeSid (admin_group);
 
-  DEBUGF (1, "is_user_admin2(): rc: %lu, %s\n", rc, is_admin? "yes" : "no");
+  TRACE (1, "is_user_admin2(): rc: %lu, %s\n", rc, is_admin? "yes" : "no");
   return (is_admin);
 }
 
@@ -2562,6 +2562,10 @@ const char *get_user_name (void)
 /**
  * Similar to `strncpy()`, but always returns `dst` with 0-termination.
  * Does *not* return a `size_t` as Posix `strlcpy()` does.
+ *
+ * \param[in] dst  the destination buffer to copy to.
+ * \param[in] src  the source buffer to copy from.
+ * \param[in] len  the max size of `dst` buffer (including final 0-termination).
  */
 char *_strlcpy (char *dst, const char *src, size_t len)
 {
@@ -3648,7 +3652,7 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
 }
 
 /**
- * The var-arg print function used in e.g. the `DEBUGF()` macro.
+ * The var-arg print function used in e.g. the `TRACE()` macro.
  */
 int debug_printf (const char *format, ...)
 {
@@ -3705,7 +3709,7 @@ static char *popen_setup (const char *cmd)
    */
   if (env)
   {
-    DEBUGF (3, "%%COMSPEC: %s.\n", env);
+    TRACE (3, "%%COMSPEC: %s.\n", env);
 #if !defined(__WATCOMC__)
     env = strlwr (basename(env));
     if (!strcmp(env, "4nt.exe") || !strcmp(env, "tcc.exe"))
@@ -3765,7 +3769,7 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
      cmd = cmd_copy;
 #endif
 
-  DEBUGF (2, "cmd: '%s'.\n", cmd);
+  TRACE (2, "cmd: '%s'.\n", cmd);
 
   p = cmd_buf;
   left = sizeof(cmd_buf) - 1;
@@ -3800,7 +3804,7 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
     left -= vsnprintf (p, left, arg, args);
     va_end (args);
   }
-  DEBUGF (2, "left: %d, cmd_buf: '%s'.\n", (int)left, cmd_buf);
+  TRACE (2, "left: %d, cmd_buf: '%s'.\n", (int)left, cmd_buf);
 
   cmd2 = popen_setup (cmd_buf);
   if (!cmd2)
@@ -3808,12 +3812,12 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
 
   *popen_last_line() = '\0';
 
-  DEBUGF (3, "Trying to run '%s'\n", cmd2);
+  TRACE (3, "Trying to run '%s'\n", cmd2);
 
   f = _popen (cmd2, "r");
   if (!f)
   {
-    DEBUGF (1, "failed to call _popen(); errno=%d.\n", errno);
+    TRACE (1, "failed to call _popen(); errno=%d.\n", errno);
     FREE (cmd2);
     return (-1);
   }
@@ -3822,7 +3826,7 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
   while (fgets(line_buf, sizeof(line_buf)-1, f))
   {
     str_strip_nl (line_buf);
-    DEBUGF (3, " _popen() line_buf: '%s'\n", line_buf);
+    TRACE (3, " _popen() line_buf: '%s'\n", line_buf);
     _strlcpy (popen_last, line_buf, sizeof(popen_last));
     if (!line_buf[0] || !callback)
        continue;
@@ -3834,8 +3838,8 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
   }
   rc = _pclose (f);
   if (rc == -1)
-       DEBUGF (2, " _pclose(): -1, errno: %d.\n", errno);
-  else DEBUGF (2, " _pclose(): %d.\n", rc);
+       TRACE (2, " _pclose(): -1, errno: %d.\n", errno);
+  else TRACE (2, " _pclose(): %d.\n", rc);
   FREE (cmd2);
   return (i);
 }
@@ -3878,7 +3882,7 @@ char *getenv_expand (const char *variable)
   }
 
   rc = (env && env[0]) ? STRDUP(env) : NULL;
-  DEBUGF (3, "env: '%s', expanded: '%s'\n", orig_var, rc);
+  TRACE (3, "env: '%s', expanded: '%s'\n", orig_var, rc);
   return (rc);
 }
 
@@ -3916,19 +3920,19 @@ char *getenv_expand_sys (const char *variable)
 
   if (!p_ExpandEnvironmentStringsForUserA)
   {
-    DEBUGF (1, "p_ExpandEnvironmentStringsForUserA not available. Using ExpandEnvironmentStrings() instead.\n");
+    TRACE (1, "p_ExpandEnvironmentStringsForUserA not available. Using ExpandEnvironmentStrings() instead.\n");
     rc = getenv_expand (variable);
   }
   else
   {
     size = (*p_ExpandEnvironmentStringsForUserA) (NULL, variable, buf, sizeof(buf));
     if (size == 0)
-       DEBUGF (1, "ExpandEnvironmentStringsForUser() failed: %s.\n",
+       TRACE (1, "ExpandEnvironmentStringsForUser() failed: %s.\n",
                win_strerror(GetLastError()));
 
     if (size > 0)
        rc = STRDUP (buf);
-    DEBUGF (3, "variable: '%s', expanded: '%s'\n", variable, rc);
+    TRACE (3, "variable: '%s', expanded: '%s'\n", variable, rc);
   }
   return (rc);
 }
@@ -3952,13 +3956,13 @@ BOOL getenv_system (smartlist_t **sl)
 
   if (!p_CreateEnvironmentBlock || !p_DestroyEnvironmentBlock)
   {
-    DEBUGF (1, "p_CreateEnvironmentBlock and/or p_DestroyEnvironmentBlock not available.\n");
+    TRACE (1, "p_CreateEnvironmentBlock and/or p_DestroyEnvironmentBlock not available.\n");
     return (FALSE);
   }
 
   if (!(*p_CreateEnvironmentBlock)(&env_blk, NULL, FALSE) || !env_blk)
   {
-    DEBUGF (1, "CreateEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
+    TRACE (1, "CreateEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
     return (FALSE);
   }
 
@@ -3970,7 +3974,7 @@ BOOL getenv_system (smartlist_t **sl)
     size_t len = 1 + wcslen (e);
     char  *str = MALLOC (len);
 
-    DEBUGF (2, "e: '%" WIDESTR_FMT "'.\n", e);
+    TRACE (2, "e: '%" WIDESTR_FMT "'.\n", e);
     if (!wchar_to_mbchar(str, len, e))
     {
       FREE (str);
@@ -3983,7 +3987,7 @@ BOOL getenv_system (smartlist_t **sl)
   }
 
   if (!(*p_DestroyEnvironmentBlock) (env_blk))
-     DEBUGF (1, "DestroyEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
+     TRACE (1, "DestroyEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
   *sl = list;
   return (TRUE);
 }
@@ -4332,7 +4336,7 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
   vsnprintf (err_buf, sizeof(err_buf), fmt, args);
   va_end (args);
   last_reparse_err = err_buf;
-  DEBUGF (dbg_level, last_reparse_err);
+  TRACE (dbg_level, last_reparse_err);
   return (FALSE);
 }
 
@@ -4387,7 +4391,7 @@ BOOL wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
 
   WIDECHAR_ERR (0, NULL); /* clear any previous error */
 
-  DEBUGF (2, "rc: %d, result: '%s'\n", rc, result);
+  TRACE (2, "rc: %d, result: '%s'\n", rc, result);
   return (TRUE);
 }
 
@@ -4411,7 +4415,7 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
   *result = '\0';
   reparse_err (0, NULL);
 
-  DEBUGF (2, "Finding target of dir: '%s'.\n", dir);
+  TRACE (2, "Finding target of dir: '%s'.\n", dir);
 
   share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
   flags = FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT;
@@ -4438,7 +4442,7 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
 
   if (rdata->ReparseTag == IO_REPARSE_TAG_SYMLINK)
   {
-    DEBUGF (2, "Symbolic-Link\n");
+    TRACE (2, "Symbolic-Link\n");
 
     slen     = rdata->SymbolicLinkReparseBuffer.SubstituteNameLength;
     ofs      = rdata->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(wchar_t);
@@ -4450,7 +4454,7 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
   }
   else if (rdata->ReparseTag == IO_REPARSE_TAG_MOUNT_POINT)
   {
-    DEBUGF (2, "Mount-Point\n");
+    TRACE (2, "Mount-Point\n");
 
     slen     = rdata->MountPointReparseBuffer.SubstituteNameLength;
     ofs      = rdata->MountPointReparseBuffer.SubstituteNameOffset / sizeof(wchar_t);
@@ -4462,7 +4466,7 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
   }
   else
   {
-    DEBUGF (2, "ReparseTag: 0x%08lX??\n", (unsigned long)rdata->ReparseTag);
+    TRACE (2, "ReparseTag: 0x%08lX??\n", (unsigned long)rdata->ReparseTag);
     return reparse_err (1, "Not a Mount-Point nor a Symbolic-Link; ReparseTag: 0x%08lX??\n",
                         (unsigned long)rdata->ReparseTag);
   }
@@ -4475,15 +4479,15 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
   sub_name [slen/2] = L'\0';
   print_name [plen/2] = L'\0';
 
-  DEBUGF (2, "SubstitutionName: '%S'\n", sub_name);
-  DEBUGF (2, "PrintName:        '%S'\n", print_name);
+  TRACE (2, "SubstitutionName: '%S'\n", sub_name);
+  TRACE (2, "PrintName:        '%S'\n", print_name);
 
   if (opt.debug >= 3)
   {
-    DEBUGF (3, "hex-dump sub_name:\n");
+    TRACE (3, "hex-dump sub_name:\n");
     hex_dump (sub_name, slen);
 
-    DEBUGF (3, "hex-dump print_name:\n");
+    TRACE (3, "hex-dump print_name:\n");
     hex_dump (print_name, plen);
   }
 
@@ -4676,7 +4680,7 @@ int is_cygwin_tty (int fd)
   h_fd = _get_osfhandle (fd);
   if (!h_fd || h_fd == (intptr_t)INVALID_HANDLE_VALUE)
   {
-    DEBUGF (2, "_get_osfhandle (%d) failed\n", fd);
+    TRACE (2, "_get_osfhandle (%d) failed\n", fd);
     errno = EBADF;
     return (0);
   }
@@ -4684,7 +4688,7 @@ int is_cygwin_tty (int fd)
   p_NtQueryObject = (func_NtQueryObject) GetProcAddress (GetModuleHandle("ntdll.dll"), "NtQueryObject");
   if (!p_NtQueryObject)
   {
-    DEBUGF (2, "NtQueryObject() not found in ntdll.dll.\n");
+    TRACE (2, "NtQueryObject() not found in ntdll.dll.\n");
     goto no_tty;
   }
 
@@ -4693,7 +4697,7 @@ int is_cygwin_tty (int fd)
 
   if (!NT_SUCCESS(status))
   {
-    DEBUGF (2, "NtQueryObject() failed.\n");
+    TRACE (2, "NtQueryObject() failed.\n");
 
     /* If it is not NUL (i.e. `\Device\Null`, which would succeed),
      * then normal `isatty()` could be consulted.
@@ -4710,7 +4714,7 @@ int is_cygwin_tty (int fd)
    */
   if (wcsncmp(s, L"\\Device\\NamedPipe\\", 18))
   {
-    DEBUGF (2, "Not a Cygwin pipe: '%" WIDESTR_FMT "'.\n", s);
+    TRACE (2, "Not a Cygwin pipe: '%" WIDESTR_FMT "'.\n", s);
     goto no_tty;
   }
 
@@ -4804,7 +4808,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   p_GetCoreTempInfoAlt = (func_GetCoreTempInfo) GetProcAddress (ct_dll, "fnGetCoreTempInfoAlt");
   if (!p_GetCoreTempInfoAlt)
   {
-    DEBUGF (1, "\nError: The function \"fnGetCoreTempInfo\" in \"GetCoreTempInfo.dll\" could not be found.\n");
+    TRACE (1, "\nError: The function \"fnGetCoreTempInfo\" in \"GetCoreTempInfo.dll\" could not be found.\n");
     FreeLibrary (ct_dll);
     return (FALSE);
   }
@@ -4850,8 +4854,8 @@ BOOL print_core_temp_info (void)
 {
   CORE_TEMP_SHARED_DATA ct_data;
 
- /* Try to open the 'Core Temp' mutex
-  */
+  /* Try to open the 'Core Temp' mutex
+   */
   HANDLE ev = CreateEvent (NULL, FALSE, FALSE, "Local\\PowerInfoMutex");
   BOOL   is_running = (ev == NULL && GetLastError() == ERROR_INVALID_HANDLE);
 

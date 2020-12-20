@@ -52,21 +52,21 @@ static char *_searchpath (const char *file, const char *env_var, char *found)
 
   if (!file || !*file)
   {
-    DEBUGF (1, "given a bogus 'file': '%s'\n", file);
+    TRACE (1, "given a bogus 'file': '%s'\n", file);
     errno = EINVAL;
     return (NULL);
   }
 
   if (!strncmp(file,"\\\\.\\",4))
   {
-    DEBUGF (1, "Not handling UNC-names: '%s'\n", file);
+    TRACE (1, "Not handling UNC-names: '%s'\n", file);
     errno = EINVAL;
     return (NULL);
   }
 
   if (!env_var || !*env_var)
   {
-    DEBUGF (1, "given a bogus 'env_var'\n");
+    TRACE (1, "given a bogus 'env_var'\n");
     errno = EINVAL;
     return (NULL);
   }
@@ -90,7 +90,7 @@ static char *_searchpath (const char *file, const char *env_var, char *found)
 
   if (!path)
   {
-    DEBUGF (1, "calloc() failed");
+    TRACE (1, "calloc() failed");
     FREE (env);
     errno = ENOMEM;
     return (NULL);
@@ -111,7 +111,7 @@ static char *_searchpath (const char *file, const char *env_var, char *found)
   else if (env_dir)
      strcpy (_path, env_dir);
 
-  DEBUGF (2, "Looking for _file: '%s' in path: '%s'\n", _file, path);
+  TRACE (2, "Looking for _file: '%s' in path: '%s'\n", _file, path);
 
   tok = _strtok_r (path, ";", &end);
   while (tok)

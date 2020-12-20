@@ -20,6 +20,7 @@
 #include <objbase.h>
 #include <shobjidl.h>
 
+#include "color.h"
 #include "envtool.h"
 
 #if defined(_MSC_VER) /* Rest of file */
@@ -62,7 +63,7 @@ static void print_and_compare_guid_str (const GUID *guid, const char *in)
     if (len == 0)
        strcpy (a_result, "{??}");
   }
-  DEBUGF (1, "GUID: %s, %sthe same.\n", a_result, strcmp(in,a_result) ? "not " : "");
+  TRACE (1, "GUID: %s, %sthe same.\n", a_result, strcmp(in,a_result) ? "not " : "");
 }
 
 static void build_GUIDs (void)
@@ -82,19 +83,19 @@ static void build_GUIDs (void)
   SET_GUID ("{177F0C4A-1CD3-4DE7-A32C-71DBBB9FA36D}");
   hr = CLSIDFromString (w_str, &CLSID_SetupConfiguration);
   if (FAILED(hr))
-       DEBUGF (1, "hr: %s\n", win_strerror(hr));
+       TRACE (1, "hr: %s\n", win_strerror(hr));
   else print_and_compare_guid_str (&CLSID_SetupConfiguration, a_str);
 
   SET_GUID ("{42843719-DB4C-46C2-8E7C-64F1816EFD5B}");
   hr = IIDFromString (w_str, &IID_ISetupConfiguration);
   if (FAILED(hr))
-       DEBUGF (1, "hr: %s\n", win_strerror(hr));
+       TRACE (1, "hr: %s\n", win_strerror(hr));
   else print_and_compare_guid_str (&IID_ISetupConfiguration, a_str);
 
   SET_GUID ("{26AAB78C-4A60-49D6-AF3B-3C35BC93365D}");
   hr = IIDFromString (w_str, &IID_ISetupConfiguration2);
   if (FAILED(hr))
-       DEBUGF (1, "hr: %s\n", win_strerror(hr));
+       TRACE (1, "hr: %s\n", win_strerror(hr));
   else print_and_compare_guid_str (&IID_ISetupConfiguration2, a_str);
 
   #undef  _T
@@ -231,10 +232,10 @@ static BOOL get_install_name (ISetupInstance2 *inst)
 
   if (FAILED(hr))
   {
-    DEBUGF (1, "hr: %s\n", win_strerror(hr));
+    TRACE (1, "hr: %s\n", win_strerror(hr));
     return (FALSE);
   }
-  DEBUGF (1, "name: %" WIDESTR_FMT "\n", name);
+  TRACE (1, "name: %" WIDESTR_FMT "\n", name);
   wchar_to_mbchar (str, sizeof(str), name);
   SysFreeString (name);
   return (TRUE);
@@ -247,10 +248,10 @@ static BOOL get_install_version (ISetupInstance *inst)
 
   if (FAILED(hr))
   {
-    DEBUGF (1, "hr: %s\n", win_strerror(hr));
+    TRACE (1, "hr: %s\n", win_strerror(hr));
     return (FALSE);
   }
-  DEBUGF (1, "ver: %" WIDESTR_FMT "\n", ver);
+  TRACE (1, "ver: %" WIDESTR_FMT "\n", ver);
   wchar_to_mbchar (str, sizeof(str), ver);
   SysFreeString (ver);
   return (TRUE);
@@ -263,10 +264,10 @@ static BOOL get_install_path (ISetupInstance *inst)
 
   if (FAILED(hr))
   {
-    DEBUGF (1, "hr: %s\n", win_strerror(hr));
+    TRACE (1, "hr: %s\n", win_strerror(hr));
     return (FALSE);
   }
-  DEBUGF (1, "path: %" WIDESTR_FMT "\n", path);
+  TRACE (1, "path: %" WIDESTR_FMT "\n", path);
   wchar_to_mbchar (str, sizeof(str), path);
   SysFreeString (path);
   return (TRUE);
@@ -282,21 +283,21 @@ static BOOL get_installed_packages (ISetupInstance2 *inst)
 
   if (FAILED(hr))
   {
-    DEBUGF (1, "hr: %s\n", win_strerror(hr));
+    TRACE (1, "hr: %s\n", win_strerror(hr));
     goto error;
   }
 
   hr = SafeArrayAccessData (sa_packages, (void**)&packages);
   if (FAILED(hr))
   {
-    DEBUGF (1, "hr: %s\n", win_strerror(hr));
+    TRACE (1, "hr: %s\n", win_strerror(hr));
     goto error;
   }
 
   if (FAILED(SafeArrayGetUBound(sa_packages, 1, &ub)))
   {
-    DEBUGF (1, "SafeArrayGetUBound() failed\n");
-    DEBUGF (1, "hr: %s\n", win_strerror(hr));
+    TRACE (1, "SafeArrayGetUBound() failed\n");
+    TRACE (1, "hr: %s\n", win_strerror(hr));
     goto error;
   }
 
@@ -309,22 +310,22 @@ static BOOL get_installed_packages (ISetupInstance2 *inst)
     hr = (*packages[i]->lpVtbl->QueryInterface) (g_this, g_iid, (void**)&package);
     if (FAILED(hr))
     {
-      DEBUGF (1, "QueryInterface() for package %ld failed\n", i);
-      DEBUGF (1, "hr: %s\n", win_strerror(hr));
+      TRACE (1, "QueryInterface() for package %ld failed\n", i);
+      TRACE (1, "hr: %s\n", win_strerror(hr));
       goto error;
     }
 
     hr = (*package->lpVtbl->GetId) (g_this, &id);
     if (FAILED(hr))
     {
-      DEBUGF (1, "GetId() for package %ld failed\n", i);
-      DEBUGF (1, "hr: %s\n", win_strerror(hr));
+      TRACE (1, "GetId() for package %ld failed\n", i);
+      TRACE (1, "hr: %s\n", win_strerror(hr));
       goto error;
     }
 
     wchar_to_mbchar (str, sizeof(str), id);
     SysFreeString (id);
-    DEBUGF (1, "id: %s\n", str);
+    TRACE (1, "id: %s\n", str);
 
     (*package->lpVtbl->Release) (package);
   }
@@ -359,20 +360,20 @@ static BOOL find_all_instances (void)
 
   if (FAILED(hr))
   {
-    DEBUGF (1, "hr: %s\n", win_strerror(hr));
+    TRACE (1, "hr: %s\n", win_strerror(hr));
     goto error;
   }
 
   hr = (*sc2->lpVtbl->EnumAllInstances) (g_this, &enm);
   if (FAILED(hr))
   {
-    DEBUGF (1, "hr: %s\n", win_strerror(hr));
+    TRACE (1, "hr: %s\n", win_strerror(hr));
     goto error;
   }
   if (enm == NULL)
   {
-    DEBUGF (1, "sc2->lpVtbl->EnumAllInstances() failed, hr: %s\n",
-            win_strerror(hr));
+    TRACE (1, "sc2->lpVtbl->EnumAllInstances() failed, hr: %s\n",
+           win_strerror(hr));
     goto error;
   }
 
@@ -429,14 +430,14 @@ BOOL find_vstudio_init (void)
   build_GUIDs();
   g_iid = &IID_ISetupConfiguration;
 
-  DEBUGF (1, "\n");
+  TRACE_NL (1);
 
   if (hr == RPC_E_CHANGED_MODE)
      hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED);
 
   if (FAILED(hr))
   {
-    DEBUGF (1, "hr: %s\n", win_strerror(hr));
+    TRACE (1, "hr: %s\n", win_strerror(hr));
     return (FALSE);
   }
 
@@ -448,18 +449,18 @@ BOOL find_vstudio_init (void)
   if (FAILED(hr))
   {
     if (hr == REGDB_E_CLASSNOTREG)
-         DEBUGF (1, "hr: REGDB_E_CLASSNOTREG\n");
-    else DEBUGF (1, "hr: %s\n", win_strerror(hr));
+         TRACE (1, "hr: REGDB_E_CLASSNOTREG\n");
+    else TRACE (1, "hr: %s\n", win_strerror(hr));
   }
   else
   {
     ISetupConfiguration *_g_this = (ISetupConfiguration*) g_this;
 
-    DEBUGF (1, "_g_this->lpVtbl: 0x%p\n", _g_this->lpVtbl);
+    TRACE (1, "_g_this->lpVtbl: 0x%p\n", _g_this->lpVtbl);
     rc = find_all_instances();
   }
 
-  DEBUGF (1, "\n");
+  TRACE_NL (1);
   CoUninitialize();
   return (rc);
 }
