@@ -25,6 +25,7 @@ OBJECTS = auth.obj           &
           get_file_assoc.obj &
           getopt_long.obj    &
           ignore.obj         &
+          json.obj           &
           misc.obj           &
           pkg-config.obj     &
           regex.obj          &
