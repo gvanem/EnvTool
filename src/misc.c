@@ -1393,18 +1393,24 @@ char *str_replace2 (int ch, const char *replace, char *str, size_t max_size)
 }
 
 /**
- * Remote quotes (`"`) inside or around a string `str`.
+ * Remote quotes (`"`) around a string `str`.
  */
 char *str_unquote (char *str)
 {
-  char *p = str, *q;
-  char *copy = alloca (strlen(str)+1);
+  char *p, *q;
 
-  for (q = copy; *p; p++)
-      if (*p != '"')
-         *q++ = *p;
+  p = str;
+  if (*p == '"')
+     p++;
+
+  q = strchr (p, '\0');
+  if (q[-1] == '"')
+     q--;
   *q = '\0';
-  return memcpy (str, copy, strlen(copy)+1);
+  if (q > p)
+       memmove (str, p, q - p + 1);
+  else *str = '\0';       /* `str` is an empty string or quoted like `""` */
+  return (str);
 }
 
 /**
@@ -3154,10 +3160,12 @@ void crtdbug_exit (void)
      return;
 
   _CrtCheckMemory();
-
+  _CrtSetDbgFlag (0);
+#if 0
   if (opt.debug)
        _CrtMemDumpStatistics (&last_state);
   else _CrtMemDumpAllObjectsSince (&last_state);
+#endif
   _CrtDumpMemoryLeaks();
 }
 
@@ -3198,12 +3206,8 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
   const DWORD *marker;
   char        *end;
 
-  va_start (args, format);
-  if (fmt_len >= fmt_buf->buffer_size)
-  {
-    int size = (int) (fmt_buf->buffer_size + 2*fmt_len);
-    FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", size);
-  }
+  if (fmt_len >= fmt_buf->buffer_left)
+     FATAL ("'fmt_buf->buffer_left' too small.\n");
 
   marker = (const DWORD*) fmt_buf->buffer;
   if (*marker != FMT_BUF_MARKER)
@@ -3218,7 +3222,9 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
    */
   *(fmt_buf->buffer_start + fmt_buf->buffer_size - 1) = '\0';
 
+  va_start (args, format);
   vsnprintf (fmt_buf->buffer_pos, fmt_buf->buffer_left, format, args);
+  va_end (args);
 
   /* Do not assume POSIX compliance of above `vnsprintf()` function.
    * Force next call to `buf_printf()` to append at the 'end' position.
@@ -3230,8 +3236,6 @@ int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
    */
   fmt_buf->buffer_left -= len;
   fmt_buf->buffer_pos  += len;
-
-  va_end (args);
   return (len);
 }
 
@@ -4279,6 +4283,7 @@ int kbhit (void)
        break;
     if (is_real_key(&r))
        break;
+
     /* flush out mouse, window, and key up events
      */
     ReadConsoleInput (stdin_hnd, &r, 1, &num);
@@ -4496,7 +4501,6 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
   return wchar_to_mbchar (result, result_size, print_name);
 }
 
-
 static char cc_info_buf[40];
 
 #if defined(__POCC__)
@@ -4556,9 +4560,12 @@ static char cc_info_buf[40];
        _ultoa (patch, buf+1, 10);
 
   #if defined(_MSC_BUILD)
-    end = strrchr (buf, '\0');
-    *end++ = '.';
-    _itoa (_MSC_BUILD, end, 10);
+    if (_MSC_BUILD > 0)
+    {
+      end = strrchr (buf, '\0');
+      *end++ = '.';
+      _itoa (_MSC_BUILD, end, 10);
+    }
   #endif
     return (buf);
   }
@@ -4628,8 +4635,8 @@ static char cc_info_buf[40];
 
 /**
  * Check if a file-descriptor is coming from CygWin.
- * Applications now could call `is_cygwin_tty(STDIN_FILENO)` in order to detect
- * whether they are running from Cygwin/MSys terminal.
+ * Applications now could call `is_cygwin_tty(STDIN_FILENO)` in order
+ * to detect whether they are running from Cygwin/MSys terminal.
  *
  * By Mihail Konev `<k.mvc@ya.ru>` for the MinGW-w64 project.
  */
