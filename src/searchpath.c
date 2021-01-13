@@ -57,7 +57,7 @@ static char *_searchpath (const char *file, const char *env_var, char *found)
     return (NULL);
   }
 
-  if (!strncmp(file,"\\\\.\\",4))
+  if (!strncmp(file, "\\\\.\\", 4))
   {
     TRACE (1, "Not handling UNC-names: '%s'\n", file);
     errno = EINVAL;
@@ -118,7 +118,7 @@ static char *_searchpath (const char *file, const char *env_var, char *found)
   {
     last_pos++;
 
-    snprintf (found, _MAX_PATH, "%s\\%s", tok, _file);
+    snprintf (found, _MAX_PATH, "%s\\%s", str_unquote(tok), _file);
     if (FILE_EXISTS(found))
        goto was_found;
 

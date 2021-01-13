@@ -1,6 +1,6 @@
 /**\file    tests.c
  * \ingroup Misc
- * \brief   Functions for testing vaious features.
+ * \brief   Functions for testing various features.
  */
 #include <stdio.h>
 #include <stdlib.h>

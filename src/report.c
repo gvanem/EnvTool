@@ -599,7 +599,8 @@ int report_file2 (struct report *r)
 void report_header_print (void)
 {
   if (report_header[0])
-     C_printf ("~3%s~0", report_header);
+     C_printf ("~3%s", report_header);
+  C_puts ("~0");
   report_header[0] = '\0';
   longest_file_so_far = 0;
 }

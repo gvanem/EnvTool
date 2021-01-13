@@ -981,9 +981,9 @@ static char *py_prog_dump (FILE *out, const char *py_prog, unsigned where)
   fprintf (out, "py_prog at line %u:\n"
                 "---------------------------\n", where);
 
-  for (line = 1, chunk = _strtok_r(prog,"\n",&tok_end);
+  for (line = 1, chunk = _strtok_r(prog, "\n", &tok_end);
        chunk;
-       chunk = _strtok_r(NULL,"\n",&tok_end), line++)
+       chunk = _strtok_r(NULL, "\n", &tok_end), line++)
   {
     fprintf (out, "%2d: %s\n", line, chunk);
     if (*tok_end == '\n')
@@ -1068,9 +1068,9 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
     int        okay, lines = 0;
     Py_ssize_t dos_size = 0;
 
-    for (chunk = _strtok_r(copy,"\n",&tok_end);
+    for (chunk = _strtok_r(copy, "\n", &tok_end);
          chunk;
-         chunk = _strtok_r(NULL,"\n",&tok_end), lines++)
+         chunk = _strtok_r(NULL, "\n", &tok_end), lines++)
         dos_size += strlen(chunk) + 2;   /* 2 for "\r\n" line-endings */
 
     FREE (copy);
@@ -1516,7 +1516,8 @@ static void py_get_module_info (struct python_info *pi)
 
   if (str)
   {
-    for (line = _strtok_r(str, "\n", &tok_end); line; line = _strtok_r(NULL, "\n", &tok_end))
+    for (line = _strtok_r(str, "\n", &tok_end); line;
+         line = _strtok_r(NULL, "\n", &tok_end))
     {
       /** The `print()` statement from `PY_LIST_MODULES()` should look like this:
        *  \code
@@ -1739,9 +1740,9 @@ static int process_zip (struct python_info *pi, const char *zfile)
 
   if (str)
   {
-    for (found = 0, line = _strtok_r(str,"\n",&tok_end);
+    for (found = 0, line = _strtok_r(str, "\n", &tok_end);
          line;
-         line = _strtok_r(NULL,"\n",&tok_end), found++)
+         line = _strtok_r(NULL, "\n", &tok_end), found++)
     {
       TRACE (2, "line: \"%s\", found: %d\n", line, found);
 

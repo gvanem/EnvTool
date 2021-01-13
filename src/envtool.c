@@ -364,7 +364,7 @@ static void show_ext_versions (void)
 
     C_printf ("%-*s -> ~6%s~0", pad_len, found[2], slashify(pkg_config_exe, slash));
     if (num >= 1)
-       C_printf (" (%u packages installed).", num);
+       C_printf (" (%u .pc files installed).", num);
     C_putc ('\n');
   }
   else
@@ -562,7 +562,7 @@ static int show_help (void)
           "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
           "\n"
           "      To perform raw searches, append a modifier like:\n"
-          "        envtool ~6--evry~0 ~3*.exe~0 rc:today                     - find today's changes of all ~3*.exe~0 files.\n"
+          "        envtool ~6--evry~0 ~3*.exe~0 rc:today                     - find all ~3*.exe~0 files changed today.\n"
           "        envtool ~6--evry~0 ~3*.mp3~0 title:Hello                  - find all ~3*.mp3~0 files with a title starting with Hello.\n"
           "        envtool ~6--evry~0 ~3f*~0 empty:                          - find all empty directories matching ~3f*~0.\n"
           "        envtool ~6--evry~0 ~3Makefile.am~0 content:pod2man        - find all ~3Makefile.am~0 containing ~3pod2man~0.\n"
@@ -5354,9 +5354,9 @@ static void put_dirlist_to_cache (const char *env_var, smartlist_t *dirs)
  */
 static int get_dirlist_from_cache (const char *env_var)
 {
-  int i = 0;
+  int i;
 
-  while (1)
+  for (i = 0;; i++)
   {
     char dir [_MAX_PATH];
     char format [50];
@@ -5366,7 +5366,6 @@ static int get_dirlist_from_cache (const char *env_var)
        break;
 
     dir_array_add (dir, str_equal(dir,current_dir));
-    i++;
   }
   TRACE (1, "Found %d cached 'env_dir_x'.\n", i);
   return (i);
