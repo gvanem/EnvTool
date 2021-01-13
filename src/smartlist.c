@@ -335,7 +335,7 @@ smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
   {
     char buf[5000], *p;
 
-    if (!fgets(buf,sizeof(buf)-1,f))   /* EOF */
+    if (!fgets(buf, sizeof(buf)-1, f))   /* EOF */
        break;
 
     p = str_ltrim (buf);
@@ -533,8 +533,7 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
   lo = 0;
   hi = len - 1;
 
-  /*
-   * These invariants are always true:
+  /* These invariants are always true:
    *
    * For all i such that 0 <= i < lo, sl[i] < key
    * For all i such that hi < i <= len, sl[i] > key
@@ -544,13 +543,12 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
   {
     diff = hi - lo;
 
-    /*
-     * We want mid = (lo + hi) / 2, but that could lead to overflow, so
+    /* We want mid = (lo + hi) / 2, but that could lead to overflow, so
      * instead diff = hi - lo (non-negative because of loop condition), and
      * then hi = lo + diff, mid = (lo + lo + diff) / 2 = lo + (diff / 2).
      */
     mid = lo + (diff / 2);
-    cmp = (*compare) (key, (const void**) &(sl->list[mid]));
+    cmp = (*compare) (key, (const void**) &sl->list[mid]);
     if (cmp == 0)
     {
       /* sl[mid] == key; we found it
@@ -560,13 +558,11 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
     }
     if (cmp > 0)
     {
-      /*
-       * key > sl[mid] and an index i such that sl[i] == key must
+      /* key > sl[mid] and an index i such that sl[i] == key must
        * have i > mid if it exists.
        */
 
-      /*
-       * Since lo <= mid <= hi, hi can only decrease on each iteration (by
+      /* Since lo <= mid <= hi, hi can only decrease on each iteration (by
        * being set to mid - 1) and hi is initially len - 1, mid < len should
        * always hold, and this is not symmetric with the left end of list
        * mid > 0 test below.  A key greater than the right end of the list
@@ -587,14 +583,14 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
        */
       ASSERT (cmp < 0);
 
-      /*
-       * key < sl[mid] and an index i such that sl[i] == key must
+      /* key < sl[mid] and an index i such that sl[i] == key must
        * have i < mid if it exists.
        */
 
       if (mid > 0)
       {
-        /* Normal case, move hi to the element immediately before sl[mid] */
+        /* Normal case, move hi to the element immediately before sl[mid]
+         */
         hi = mid - 1;
       }
       else
@@ -604,8 +600,7 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
         ASSERT (mid == lo);
         ASSERT (mid == 0);
 
-        /*
-         * We were at the beginning of the list and concluded that every
+        /* We were at the beginning of the list and concluded that every
          * element e compares e > key.
          */
         *found_out = 0;
@@ -614,8 +609,7 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
     }
   }
 
-  /*
-   * lo > hi; we have no element matching key but we have elements falling
+  /* lo > hi; we have no element matching key but we have elements falling
    * on both sides of it.  The lo index points to the first element > key.
    */
   ASSERT (lo == hi + 1);  /* All other cases should have been handled */
@@ -626,12 +620,12 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
 
   if (lo < len)
   {
-    cmp = (*compare) (key, (const void**) &(sl->list[lo]));
+    cmp = (*compare) (key, (const void**) &sl->list[lo]);
     ASSERT (cmp < 0);
   }
   else
   {
-    cmp = (*compare) (key, (const void**) &(sl->list[len-1]));
+    cmp = (*compare) (key, (const void**) &sl->list[len-1]);
     ASSERT (cmp > 0);
   }
 
@@ -654,6 +648,90 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
   int found, idx = smartlist_bsearch_idx (sl, key, compare, &found);
 
   return (found ? smartlist_get(sl, idx) : NULL);
+}
+
+/*
+ * Taken a `char *` string separated by a character in `sep` and returns
+ * a new `smartlist_t *` containing a list of `char *`.
+ *
+ * \param[in] val   the string to split.
+ * \param[in] sep   the string-separator to use for `strtok_r()`.
+ *
+ * Examples:
+ * \code
+ *  smartlist_t *sl = smartlist_split_str ("a", ",");
+ * \endcode
+ * will return a `sl` with 1 element: \n
+ *  \li `smartlist_get (sl, 0)` -> `"a"`.
+ *
+ * \code
+ *  smartlist_t *sl = smartlist_split_str ("a,b, c", ", ");
+ * \endcode
+ * will return a `sl` with 3 elements: \n
+ *  \li `smartlist_get (sl, 0)` -> `"a"`.
+ *  \li `smartlist_get (sl, 1)` -> `"b"`.
+ *  \li `smartlist_get (sl, 2)` -> `"c"`. The space in `" c"` is ignored since sep == `" ,"`.
+ */
+smartlist_t *smartlist_split_str (const char *val, const char *sep)
+{
+  smartlist_t *sl = smartlist_new();
+  char        *p, *tok_end;
+  char        *_val = STRDUP (val);
+
+  str_unquote (_val);
+  for (p = _strtok_r(_val, sep, &tok_end); p;
+       p = _strtok_r(NULL, sep, &tok_end))
+     smartlist_add (sl, STRDUP(p));
+  FREE (_val);
+  return (sl);
+}
+
+/**
+ * Takes a smartlist `sl` containing a list of `char *` and
+ * join these into a malloced string.
+ *
+ * \param[in] sl   the smartlist to join strings from.
+ * \param[in] sep  the optional separator appended to each string; except the last.
+ *
+ * Example:
+ * \code
+ *   smartlist_t *sl = smartlist_new();
+ *   smartlist_add (sl, "hello");
+ *   smartlist_add (sl, "world");
+ *   res = smartlist_join_str (sl, " "); // res becomes "hello world"
+ *   ...
+ *   FREE (res);
+ * \endcode
+ */
+char *smartlist_join_str (smartlist_t *sl, const char *sep)
+{
+  char  *ret, *p, *q;
+  size_t len, sep_len = sep ? strlen (sep) : 0;
+  int    i, max;
+
+  if (!sl || smartlist_len(sl) == 0)
+     return (NULL);
+
+  max = smartlist_len (sl);
+  len = 0;
+  for (i = 0; i < max; i++)
+      len += strlen ((const char*)smartlist_get(sl, i)) + sep_len;
+
+  ret = p = MALLOC (len+1);
+  for (i = 0; i < max; i++)
+  {
+    q = smartlist_get (sl, i);
+    len = strlen (q);
+    memcpy (p, q, len);
+    p += len;
+    if (i < max-1 && sep)
+    {
+      strcpy (p, sep);
+      p += sep_len;
+    }
+  }
+  *p = '\0';
+  return (ret);
 }
 
 #ifdef _DEBUG

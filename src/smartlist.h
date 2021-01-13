@@ -51,6 +51,9 @@ smartlist_t *smartlist_read_file (const char *file,
 
 int smartlist_write_file (smartlist_t *sl, const char *file);
 
+smartlist_t *smartlist_split_str (const char *val, const char *sep);
+char        *smartlist_join_str (smartlist_t *sl, const char *sep);
+
 #ifdef _DEBUG
   /*
    * Some helpful bug-hunter versions and macros.
