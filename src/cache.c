@@ -10,7 +10,7 @@
 #include "color.h"
 #include "cache.h"
 
-// #define USE_ADD_AND_SORT
+#define USE_ADD_AND_SORT 0
 
 /** \def CACHE_HEADER
  * Cache-file header.
@@ -28,6 +28,11 @@
  * The maximum length of a key.
  */
 #define CACHE_MAX_KEY  100
+
+/** \def CACHE_MAX_ARGS
+ * The number of arguments supported in `cache_vgetf()`
+ */
+#define CACHE_MAX_ARGS   12
 
 /** \def CACHE_STATES
  * The number of states used by `cache_vgetf()`
@@ -64,16 +69,16 @@ typedef struct cache_node {
  * Each call to `cache_vgetf()` uses this state-information.
  */
 typedef struct vgetf_state {
-        char **vec   [12];   /**< 12 args should be enough */
-        int    d_val [12];   /**< decimal values for a `%d` parameter are stored here */
-        char  *s_val [12];   /**< string values for a `%s` parameter are stored here */
-        char  *value;        /**< A string-value returned from `cache_vgetf()` */
+        char **vec   [CACHE_MAX_ARGS];   /**< `CACHE_MAX_ARGS` args should be enough? */
+        int    d_val [CACHE_MAX_ARGS];   /**< decimal values for a `%d` parameter are stored here */
+        char  *s_val [CACHE_MAX_ARGS];   /**< string values for a `%s` parameter are stored here */
+        char  *value;                    /**< A string-value returned from `cache_vgetf()` */
       } vgetf_state;
 
 /**
  * \typedef cache
  *
- * Collect all module globals in this structure.
+ * Keep all module globals in this structure.
  */
 typedef struct CACHE {
         char        *filename;               /**< File-name to write `cache.entries` to in `cache_write()`. */
@@ -109,10 +114,8 @@ void cache_init (void)
   FILE *f;
   int   n;
 
-  if (cache.entries)    /* Already done this */
-     return;
-
-  if (!cache.filename)  /* cache_config() not called or key/value was missing */
+  if (cache.entries ||    /* Already done this */
+      !cache.filename)    /* cache_config() not called or key/value was missing */
      return;
 
   n = CACHE_STATES;
@@ -165,17 +168,16 @@ void cache_exit (void)
 
 /**
  * The `envtool.cfg` handler called from `envtool_cfg_handler()` in envtool.c.
- * Calls `cache_init()` if `"cache.enable = 1"` (i.e. `opt.use_cache` gets set).
  */
 void cache_config (const char *key, const char *value)
 {
-  if (!stricmp(key,"filename"))
+  if (!stricmp(key, "filename"))
      cache.filename = getenv_expand2 (value);
 
-  else if (!stricmp(key,"filename_prev"))
+  else if (!stricmp(key, "filename_prev"))
      cache.filename_prev = getenv_expand2 (value);
 
-  else if (!stricmp(key,"enable"))
+  else if (!stricmp(key, "enable"))
      opt.use_cache = atoi (value);
 }
 
@@ -264,10 +266,10 @@ static void cache_parse (FILE *f)
  */
 static void cache_report (int num)
 {
-  TRACE (1, "cache.entries:  %4lu, cache.hits:    %4lu, cache.misses:  %4lu.\n",
+  TRACE (1, "cache.entries:  %5lu, cache.hits:    %5lu, cache.misses:  %5lu.\n",
          (unsigned long)num, cache.hits, cache.misses);
 
-  TRACE (1, "cache.inserted: %4lu, cache.deleted: %4lu, cache.changed: %4lu.\n",
+  TRACE (1, "cache.inserted: %5lu, cache.deleted: %5lu, cache.changed: %5lu.\n",
          cache.inserted, cache.deleted, cache.changed);
 
   if (cache.bsearches)
@@ -390,7 +392,16 @@ static int compare_on_section_key2 (const void *_key, const void **member)
 static cache_node *cache_bsearch (CacheSections section, const char *key, int *idx_p)
 {
   cache_node c, *ret;
-  int   found, idx;
+  int   found, idx = 0;
+
+  if (idx_p)
+     *idx_p = idx;
+
+  if (!cache.entries || smartlist_len(cache.entries) == 0)
+  {
+    TRACE (1, "No cache.entries.\n");
+    return (NULL);
+  }
 
   /**< \todo make this into a ring-buffer to generate some more valuable statistics
    */
@@ -414,9 +425,6 @@ void cache_del (CacheSections section, const char *key)
 {
   cache_node *c;
   int   idx;
-
-  if (!cache.entries || smartlist_len(cache.entries) == 0)
-     return;
 
   if ((int)section < SECTION_FIRST || section >= SECTION_LAST)
   {
@@ -498,13 +506,17 @@ static void cache_append (CacheSections section, const char *key, const char *va
  */
 static void cache_insert (CacheSections section, const char *key, const char *value, int idx)
 {
-  cache_node *c = cache_new_node (section, key, value);
+  cache_node *c;
 
+  if (!cache.entries)
+     return;
+
+  c = cache_new_node (section, key, value);
   if (c)
   {
     int old_idx = idx;
 
-#if defined(USE_ADD_AND_SORT)
+#if USE_ADD_AND_SORT
     smartlist_add (cache.entries, c);
     cache_sort();
     idx = smartlist_pos (cache.entries, c); /* this should be the idx of the last element */
@@ -513,7 +525,7 @@ static void cache_insert (CacheSections section, const char *key, const char *va
 #endif
 
     cache.inserted++;
-    TRACE (2, "Inserting key: '%s', value: '%s', section: '%s' at idx: %d/%d.\n",
+    TRACE (3, "Inserting key: '%s', value: '%s', section: '%s' at idx: %d/%d.\n",
            c->key, c->value, sections[section].name, idx, old_idx);
   }
 }
@@ -535,14 +547,14 @@ void cache_put (CacheSections section, const char *key, const char *value)
     return;
   }
 
-  if (c->value == value ||       /* Seldom the case */
-      !strcmp(value,c->value))   /* This more is common */
+  if (c->value == value ||        /* Seldom the case */
+      !strcmp(value, c->value))   /* This more is common */
      return;
 
   /* Replace a node with a smaller or larger `value`.
    */
   cache.changed++;
-  TRACE (2, "key: '%s', current value: '%s', new value: '%s'.\n", c->key, c->value, value);
+  TRACE (1, "key: '%s', current value: '%s', new value: '%s'.\n", c->key, c->value, value);
 
   if (strlen(c->value) >= strlen(value))
      strcpy (c->value, value);
@@ -583,25 +595,19 @@ void cache_putf (CacheSections section, const char *fmt, ...)
 }
 
 /**
- * Lookup a `key` and return the value if found.
- * Sets `*value == NULL` if `key` was not found in `section`.
+ * Lookup a `key` in `section` and return the value if found.
+ * Returns `NULL` if `key` was not found in `section`.
  */
-static int cache_get (CacheSections section, const char *key, const char **value)
+const char *cache_get (CacheSections section, const char *key)
 {
   const cache_node *c = cache_bsearch (section, key, NULL);
 
-  if (c)
-  {
-    *value = c->value;
-    return (1);
-  }
-  *value = NULL;
-  return (0);
+  return (c ? c->value : NULL);
 }
 
 /*
  * Similar to `vsscanf()` but arguments for `%s` MUST be `char **`.
- * Only `%d` and `%s`  arguments are allowed here.
+ * Only `%d` and `%s` arguments are allowed here.
  *
  * It is called with a state; `state->vec[]`, `state->s_val[]` and `state->d_val[]` arrays
  * are used in round-robin (`idx = [0 ... CACHE_STATES-1]`) to be able to call this
@@ -634,7 +640,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
   {
     state->vec[i]   = va_arg (args, char **);
     state->d_val[i] = 0;
-    TRACE (2, "vec[%d]: 0x%p\n", i, state->vec[i]);
+    TRACE (3, "vec[%d]: 0x%p\n", i, state->vec[i]);
   }
 
   fmt_copy = STRDUP (fmt);
@@ -648,18 +654,19 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
 
   p  = strchr (fmt_copy, ' ');
   *p = '\0';
-  TRACE (2, "fmt_copy: '%s'.\n", fmt_copy);
-  value = NULL;
-  if (cache_get(section, fmt_copy, &value) == 0)
+  TRACE (3, "fmt_copy: '%s'.\n", fmt_copy);
+
+  value = cache_get (section, fmt_copy);
+  if (!value)
   {
-    TRACE (2, "No value for fmt_copy: '%s'.\n", fmt_copy);
+    TRACE (2, "No value for fmt_copy: '%s' (end of list?).\n", fmt_copy);
     FREE (fmt_copy);
     return (0);
   }
 
   p = str_ltrim (p+2);
   fmt_copy = STRDUP (p);
-  TRACE (2, "fmt_copy: '%s', value: '%s'.\n", fmt_copy, value);
+  TRACE (3, "fmt_copy: '%s', value: '%s'.\n", fmt_copy, value);
   FREE (v);
 
   state->value = STRDUP (value);
@@ -670,17 +677,25 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
   {
     if (*tok_end == '"')   /* handle a quoted string */
     {
-      p = strchr (tok_end+1, '"');
+      p = strrchr (tok_end+1, '"');
       if (!p)
-         FATAL ("%s(): value (%s) is missing the right '\"' in 'fmt: '%s'" , __FUNCTION__, value, fmt);
+      {
+        TRACE (1, "%s(): value (%s) is missing the right '\"' in 'fmt: '%s'" , __FUNCTION__, value, fmt);
+        p = tok_end;
+      }
 
       state->s_val [i++] = v;
-      TRACE (2, "i: %d, v: '%s'\n", i-1, v);
+      TRACE (3, "i: %d, v: '%s'\n", i-1, v);
       v = tok_end;
       tok_end = p + 1;
     }
     state->s_val[i] = v;
-    TRACE (2, "i: %d, v: '%s'\n", i, v);
+    TRACE (3, "i: %d, v: '%s'\n", i, v);
+    if (i == DIM(state->vec) - 1)
+    {
+      TRACE (2, "too many fields: %d\n", i);
+      break;
+    }
   }
 
   i = 0;
@@ -696,15 +711,20 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
          TRACE (2, "EINVAL; s_val[%d]: '%s'\n", i, state->s_val[i]);
       else
       {
-        TRACE (2, "s_val[%d]: '%s' (%d).\n", i, state->s_val[i], state->d_val[i]);
+        TRACE (3, "s_val[%d]: '%s' (%d).\n", i, state->s_val[i], state->d_val[i]);
         *state->vec[i] = (char*) state->d_val[i];
       }
       i++;
     }
     else if (!strcmp(v, "%s"))
     {
-      TRACE (2, "s_val[%d]: '%s'\n", i, state->s_val[i]);
+      TRACE (3, "s_val[%d]: '%s'\n", i, state->s_val[i]);
       *state->vec[i] = state->s_val[i];
+      i++;
+    }
+    else
+    {
+      TRACE (0, "Unsupported format '%s'\n", v);
       i++;
     }
   }
@@ -715,31 +735,52 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
 }
 
 /*
+ * Increment the state-inex and free it's oldest value.
+ */
+static int cache_next_idx_state (int rc, int idx)
+{
+  int new_idx, oldest_idx;
+
+  new_idx = idx + 1;
+  new_idx &= (CACHE_STATES-1);
+  oldest_idx = (new_idx + 1) & (CACHE_STATES - 1);
+
+  /* Ensure the LRU distance is 1 or 'number of states - 1'.
+   */
+  ASSERT ((oldest_idx - new_idx == 1) || (new_idx - oldest_idx) == CACHE_STATES-1);
+
+  TRACE (3, "rc: %d, new_idx: %d, oldest_idx: %d, oldest_val: '%.10s'\n",
+         rc, new_idx, oldest_idx, cache.state[oldest_idx].value);
+  FREE (cache.state[oldest_idx].value);     /* Free the oldest value */
+  return (new_idx);
+}
+
+/*
  * The public interface for `cache_vgetf()`.
  */
 int cache_getf (CacheSections section, const char *fmt, ...)
 {
   static  int idx = 0;
-  int     rc, oldest_idx;
+  int     rc, save_dbg = 0;
   va_list args;
 
   if (!cache.entries || smartlist_len(cache.entries) == 0)
      return (0);
 
+  if (!strncmp(fmt, "port_deps_", 10))
+  {
+    save_dbg = opt.debug;
+    opt.debug = 3;
+  }
+
   va_start (args, fmt);
   rc = cache_vgetf (section, fmt, args, &cache.state[idx]);
   va_end (args);
 
-  idx++;
-  idx &= (CACHE_STATES-1);
-  oldest_idx = (idx+1) & (CACHE_STATES-1);
+  idx = cache_next_idx_state (rc, idx);
 
-  /* Ensure the LRU distance is 1 or 'number of states - 1'.
-   */
-  ASSERT ((oldest_idx - idx == 1) || (idx - oldest_idx) == CACHE_STATES-1);
-
-  TRACE (2, "rc: %d, new-idx: %d, oldest_idx: %d\n", rc, idx, oldest_idx);
-  FREE (cache.state[oldest_idx].value);     /* Free the oldest value */
+  if (save_dbg)
+     opt.debug = save_dbg;
   return (rc);
 }
 
@@ -760,7 +801,9 @@ int cache_getf2 (CacheSections section, const char *fmt, ...)
   p  = strchr (fmt_copy, ' ');
   *p = '\0';
   fmt_values = str_ltrim (p+2);
-  if (cache_get(section, fmt_copy, &value) == 0)
+
+  value = cache_get (section, fmt_copy);
+  if (!value)
   {
     FREE (fmt_copy);
     return (0);
@@ -813,15 +856,7 @@ void cache_test (void)
   int   d_val30, d_val31, d_val32;
   char *s_val00 = NULL, *s_val10 = NULL, *s_val20 = NULL, *s_val30 = NULL;
 
-  cache_node *c;
-
-  if (!cache.entries || smartlist_len(cache.entries) == 0)
-  {
-    TRACE (0, "No cache.entries.\n");
-    return;
-  }
-
-  c = cache_bsearch (SECTION_VCPKG, "ports_node_0", NULL);
+  cache_node *c = cache_bsearch (SECTION_VCPKG, "ports_node_0", NULL);
 
   TRACE (0, "c->value: '%s', comparisions: %lu\n", c ? c->value : "<None>", cache.bsearches_per_key);
 
