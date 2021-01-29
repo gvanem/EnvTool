@@ -705,7 +705,7 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
   {
     const struct directory_array *d2 = smartlist_get (dir_array, i);
 
-    if (str_equal(dir,d2->dir))
+    if (str_equal(dir, d2->dir))
        d->num_dup++;
   }
 }
@@ -938,7 +938,7 @@ static void check_component (const char *env_name, char *tok, int is_cwd)
     /*
      * Check for missing drive-letter (`x:`) in component.
      */
-    if (!is_cwd && IS_SLASH(tok[0]) && !str_equal_n(tok,"/cygdrive/",10))
+    if (!is_cwd && IS_SLASH(tok[0]) && !str_equal_n(tok, "/cygdrive/", 10))
        WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
 #else
     ARGSUSED (is_cwd);
@@ -984,7 +984,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   dir_array_free();
 
 #if !defined(__CYGWIN__)
-  if (str_equal_n(val,"/cygdrive/",10))
+  if (str_equal_n(val, "/cygdrive/", 10))
   {
     const char *p = strchr (val, ';');
 
@@ -1043,7 +1043,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
 
     /* _stati64(".") doesn't work. Hence turn "." into `current_dir`.
      */
-    is_cwd = !strcmp(tok,".") || !strcmp(tok,".\\") || !strcmp(tok,"./");
+    is_cwd = !strcmp(tok, ".") || !strcmp(tok, ".\\") || !strcmp(tok, "./");
     if (is_cwd)
     {
       if (i > 0 && !opt.under_conemu)
@@ -1052,7 +1052,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
       tok = current_dir;
     }
 #if !defined(__CYGWIN__)
-    else if (strlen(tok) >= 12 && str_equal_n(tok,"/cygdrive/",10))
+    else if (strlen(tok) >= 12 && str_equal_n(tok, "/cygdrive/", 10))
     {
       char buf [_MAX_PATH];
 
@@ -1062,7 +1062,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
     }
 #endif
 
-    if (str_equal(tok,current_dir))
+    if (str_equal(tok, current_dir))
     {
       if (!cwd_added)
          dir_array_add (tok, 1);
@@ -1627,37 +1627,44 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   WIN32_FIND_DATA ff_data;
   BOOL            ff_more;
   char            fqfn  [_MAX_PATH];  /* Fully qualified file-name */
+  char            _path [_MAX_PATH];  /* Copy of 'path' */
   int             found = 0;
+  char           *end;
 
   /* We need to set these only once; `opt.file_spec` is constant throughout the program.
    */
   static char *fspec  = NULL;
   static char *subdir = NULL;  /* Looking for a `opt.file_spec` with a sub-dir part in it. */
 
+  _strlcpy (_path, path, sizeof(_path));
+  end = strrchr (_path, '\0');
+  if (end > _path && IS_SLASH(end[-1]))
+     end[-1] = '\0';
+
   if (num_dup > 0)
   {
 #if 0     /* \todo */
-    WARN ("%s: directory \"%s\" is duplicated at position %d. Skipping.\n", prefix, path, dup_pos);
+    WARN ("%s: directory \"%s\" is duplicated at position %d. Skipping.\n", prefix, _path, dup_pos);
 #else
-    WARN ("%s: directory \"%s\" is duplicated. Skipping.\n", prefix, path);
+    WARN ("%s: directory \"%s\" is duplicated. Skipping.\n", prefix, _path);
 #endif
     return (0);
   }
 
   if (!exp_ok)
   {
-    WARN ("%s: directory \"%s\" has an unexpanded value.\n", prefix, path);
+    WARN ("%s: directory \"%s\" has an unexpanded value.\n", prefix, _path);
     return (0);
   }
 
   if (!exist)
   {
-    WARN ("%s: directory \"%s\" doesn't exist.\n", prefix, path);
+    WARN ("%s: directory \"%s\" doesn't exist.\n", prefix, _path);
     return (0);
   }
 
   if (!is_dir)
-     WARN ("%s: directory \"%s\" isn't a directory.\n", prefix, path);
+     WARN ("%s: directory \"%s\" isn't a directory.\n", prefix, _path);
 
   if (!opt.file_spec)
   {
@@ -1665,13 +1672,13 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     return (0);
   }
 
-  if (check_empty && is_dir && dir_is_empty(path))
-     WARN ("%s: directory \"%s\" is empty.\n", prefix, path);
+  if (check_empty && is_dir && dir_is_empty(_path))
+     WARN ("%s: directory \"%s\" is empty.\n", prefix, _path);
 
   if (!fspec)
      fspec = (opt.use_regex ? "*" : fix_filespec(&subdir));
 
-  snprintf (fqfn, sizeof(fqfn), "%s%c%s%s", path, DIR_SEP, subdir ? subdir : "", fspec);
+  snprintf (fqfn, sizeof(fqfn), "%s%c%s%s", _path, DIR_SEP, subdir ? subdir : "", fspec);
   handle = FindFirstFile (fqfn, &ff_data);
   if (handle == INVALID_HANDLE_VALUE)
   {
@@ -1694,7 +1701,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     if (ignore)
        continue;
 
-    len  = snprintf (fqfn, sizeof(fqfn), "%s%c", path, DIR_SEP);
+    len  = snprintf (fqfn, sizeof(fqfn), "%s%c", _path, DIR_SEP);
     base = fqfn + len;
     snprintf (base, sizeof(fqfn)-len, "%s%s", subdir ? subdir : "", file);
 
@@ -1734,7 +1741,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
          continue;
     }
 
-    if (match == FNM_NOMATCH && strchr(opt.file_spec,'~'))
+    if (match == FNM_NOMATCH && strchr(opt.file_spec, '~'))
     {
       /* The case where `opt.file_spec` is a SFN, `fnmatch()` doesn't work.
        * What to do?
@@ -1751,7 +1758,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
        */
       if (!is_dir && !opt.dir_mode && !opt.man_mode)
       {
-        if (str_equal_n(base,opt.file_spec,strlen(base)))
+        if (str_equal_n(base, opt.file_spec, strlen(base)))
            match = FNM_MATCH;
       }
     }
@@ -1760,7 +1767,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
        match = FNM_NOMATCH;
 
     TRACE (2, "Testing \"%s\". is_dir: %d, is_junction: %d, %s\n",
-            file, is_dir, is_junction, fnmatch_res(match));
+           file, is_dir, is_junction, fnmatch_res(match));
 
     if (match == FNM_MATCH && safe_stat(file, &st, NULL) == 0)
     {
@@ -1846,7 +1853,7 @@ static void check_sys_dirs (void)
 static const char *get_sysnative_file (const char *file, struct stat *st)
 {
 #if (IS_WIN64 == 0)
-  if (str_equal_n(sys_dir,file,strlen(sys_dir)) && sys_native_dir[0])
+  if (str_equal_n(sys_dir, file, strlen(sys_dir)) && sys_native_dir[0])
   {
     static char shadow [_MAX_PATH+2];
     struct stat st2;
@@ -2165,7 +2172,7 @@ static int do_check_evry (void)
   {
     if (wnd && opt.evry_busy_wait)
     {
-      WARN ("Everything is busy loading it's database. Waiting %u sec.", opt.evry_busy_wait);
+      WARN ("Everything is busy loading it's database. Waiting %u sec. ", opt.evry_busy_wait);
       if (!evry_busy_wait(wnd, opt.evry_busy_wait))
          return (0);
     }
@@ -2360,7 +2367,7 @@ static int check_man_dir (const char *dir, const char *env_name)
 {
   const char *_dir;
 
-  if (!strcmp(dir,"\\"))
+  if (!strcmp(dir, "\\"))
        _dir = current_dir;
   else _dir = dir;
 
@@ -2388,7 +2395,8 @@ static int do_check_manpath (void)
    *   This should be all directories matching "man?[pn]" or "cat?[pn]".
    *   Make this array into a smartlist too?
    */
-  static const char *sub_dirs[] = { "cat0", "cat1", "cat2", "cat3", "cat4",
+  static const char *sub_dirs[] = { "",
+                                    "cat0", "cat1", "cat2", "cat3", "cat4",
                                     "cat5", "cat6", "cat7", "cat8", "cat9",
                                     "man0", "man1", "man2", "man3", "man4",
                                     "man5", "man6", "man7", "man8", "man9", "mann"
@@ -4709,6 +4717,9 @@ static void init_all (const char *argv0)
   opt.under_conemu = C_conemu_detected();
   opt.under_appveyor = (stricmp(get_user_name(),"APPVYR-WIN\\appveyor") == 0);
   opt.evry_busy_wait = 2;
+#ifdef __CYGWIN__
+  opt.under_cygwin = 1;
+#endif
 
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
@@ -4866,7 +4877,7 @@ int MS_CDECL main (int argc, const char **argv)
   /* Use ANSI-sequences under ConEmu, AppVeyor or if "%COLOUR_TRACE >= 2" (for testing).
    * Nullifies the "--no-ansi" option.
    */
-  if (opt.under_conemu || opt.under_appveyor || C_trace_level() >= 2)
+  if (opt.under_conemu || opt.under_appveyor || opt.under_cygwin || C_trace_level() >= 2)
      C_use_ansi_colours = 1;
 
   if (opt.no_colours)
@@ -5352,6 +5363,7 @@ static void put_dirlist_to_cache (const char *env_var, smartlist_t *dirs)
  *
  * NB. Not used yet.
  */
+_WUNUSED_FUNC_OFF()
 static int get_dirlist_from_cache (const char *env_var)
 {
   int i;
@@ -5370,6 +5382,7 @@ static int get_dirlist_from_cache (const char *env_var)
   TRACE (1, "Found %d cached 'env_dir_x'.\n", i);
   return (i);
 }
+_WUNUSED_FUNC_POP()
 
 /**
  * Expand and check a single env-var for missing directories
@@ -5737,7 +5750,7 @@ static void do_check_user_sys_env (void)
     return;
   }
 
-  TRACE (1, "C_screen_width(): %zd\n", C_screen_width());
+  TRACE (1, "C_screen_width(): %d\n", (int)C_screen_width());
   max = smartlist_len (list);
   for (i = 0; i < max; i++)
   {
