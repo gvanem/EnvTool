@@ -11,9 +11,8 @@
 #include "cache.h"
 #include "dirlist.h"
 #include "regex.h"
+#include "json.h"
 #include "vcpkg.h"
-
-#define USE_str_to_utf8 0
 
 /**
  * \def BUF_INIT_SIZE
@@ -27,19 +26,16 @@
 #define VALID_CH(c)   ((c) >= -1 && (c) <= 255)
 
 /**
- * `CONTROL` or `status` file keywords we look for:
+ * `CONTROL` files keywords we look for:
  *
- * \def CONTROL_PACKAGE
- *      "Package:" - The name of the package follows this.
+ * \def CONTROL_BUILD_DEPENDS
+ *      "Build-Depends:" the list of build dependencies for this package (?).
  *
  * \def CONTROL_DESCRIPTION
  *      "Description:" - The descriptions of a package follows this.
  *
- * \def CONTROL_FEATURE
- *      "Feature:" - What features/options are there for this node?
- *
  * \def CONTROL_DEFAULT_FEATURES
- *      "Default-Features:" - What features are there for this package?
+ *      "Default-Features:" - What features/options are there for this node?
  *
  * \def CONTROL_HOMEPAGE
  *      "Homepage:" - The URL of it's home-page.
@@ -47,54 +43,71 @@
  * \def CONTROL_SOURCE
  *      "Source:" - The source-name is the name of a package following this.
  *
+ * \def CONTROL_SUPPORTS
+ *      "Supports:" - The supported platform(s). Not used yet.
+
  * \def CONTROL_VERSION
  *      "Version:" - The version-info of a package follows this.
+ */
+#define CONTROL_BUILD_DEPENDS      "Build-Depends:"
+#define CONTROL_DESCRIPTION        "Description:"
+#define CONTROL_DEFAULT_FEATURES   "Default-Features:"
+#define CONTROL_HOMEPAGE           "Homepage:"
+#define CONTROL_SOURCE             "Source:"
+#define CONTROL_SUPPORTS           "Supports:"
+#define CONTROL_VERSION            "Version:"
+
+/**
+ * `<vcpkg_root>/installed/status` file keywords we look for:
  *
- * \def CONTROL_BUILD_DEPENDS
- *      "Build-Depends:" the list of build dependencies for this package (?).
+ * \def STATUS_ABI
+ *      "Abi:" Some kind of hash value (SHA1, SHA256 or SHA512?) for the installed package.
  *
- * \def CONTROL_DEPENDS
- *      "Depends:" the list of installed dependencies for this package.
- *
- * \def CONTROL_STATUS
- *      "Status:" the install status for this package.
- *
- * \def CONTROL_ARCH
+ * \def STATUS_ARCH
  *      "Architecture:" the architecture (x86/x64/arm etc.) for this package.
  *
- * \def CONTROL_ABI
- *      "Abi:" Some kind of hash value (SHA1, SHA256 or SHA512?) for the installed package.
+ * \def STATUS_DEFAULT_FEATURES
+ *      "Default-Features:" - What features are there for this package?
+ *
+ * \def STATUS_DEPENDS
+ *      "Depends:" the list of installed dependencies for this package.
+ *
+ * \def STATUS_PACKAGE
+ *      "Package:" - The name of the package follows this.
+ *
+ * \def STATUS_STATUS
+ *      "Status:" the install status for this package.
+ *
+ * \def STATUS_VERSION
+ *      "Version:" - The version-info of a package follows this.
  */
-#define CONTROL_PACKAGE           "Package:"
-#define CONTROL_DESCRIPTION       "Description:"
-#define CONTROL_FEATURE           "Feature:"
-#define CONTROL_DEFAULT_FEATURES  "Default-Features:"
-#define CONTROL_HOMEPAGE          "Homepage:"
-#define CONTROL_SOURCE            "Source:"
-#define CONTROL_VERSION           "Version:"
-#define CONTROL_BUILD_DEPENDS     "Build-Depends:"
-#define CONTROL_DEPENDS           "Depends:"
-#define CONTROL_STATUS            "Status:"
-#define CONTROL_ARCH              "Architecture:"
-#define CONTROL_ABI               "Abi:"
+#define STATUS_ABI               "Abi:"
+#define STATUS_ARCH              "Architecture:"
+#define STATUS_DEFAULT_FEATURES  "Default-Features:"
+#define STATUS_DEPENDS           "Depends:"
+#define STATUS_PACKAGE           "Package:"
+#define STATUS_STATUS            "Status:"
+#define STATUS_VERSION           "Version:"
 
 /**
  * \def VCPKG_MAX_NAME
  * \def VCPKG_MAX_VERSION
  * \def VCPKG_MAX_URL
+ * \def VCPKG_MAX_PLAT
  */
-#define VCPKG_MAX_NAME      30   /**< Max size of a `port_node::package` entry. */
-#define VCPKG_MAX_VERSION   30   /**< Max size of a `port_node::version` entry. */
+#define VCPKG_MAX_NAME      30   /**< Max size of a `port_node::package` or `vcpkg_package::package` entry. */
+#define VCPKG_MAX_VERSION   30   /**< Max size of a `port_node::version` or `vcpkg_package::version` entry. */
 #define VCPKG_MAX_URL      200   /**< Max size of a `port_node::homepage` entry. */
 #define VCPKG_MAX_PLAT      10   /**< Max number of `port_node::platforms[]` */
-#define VCPKG_MAX_VECTOR   200   /**< Max number of strings to handle in `comma_string_to_vector()` */
+#define VCPKG_MAX_STATUS    30
+#define VCPKG_MAX_ARCH      30
 
 /**
  * \enum VCPKG_platform
  * The platform enumeration.
  *
  * If a package is *not* e.g. `x86`, the stored value in `VCPKG_plat_list`
- * is `VCPKG_plat_x86 | 1`.
+ * is `VCPKG_plat_x86 + 1`.
  */
 typedef enum VCPKG_platform {
         VCPKG_plat_ALL     = 0,        /**< Package is for all supported OSes. */
@@ -111,12 +124,14 @@ typedef enum VCPKG_platform {
 
 /**
  * \typedef VCPKG_plat_list
+ *
  * A list of `VCPKG_platform` values supported for a package.
  */
 typedef VCPKG_platform VCPKG_plat_list [VCPKG_MAX_PLAT];
 
 /**
  * \typedef port_node
+ *
  * The structure of a single VCPKG package entry in the `ports_list`.
  */
 typedef struct port_node {
@@ -127,37 +142,29 @@ typedef struct port_node {
         BOOL            have_CONTROL;                 /**< TRUE if this is a CONTROL-node. */
         BOOL            have_JSON;                    /**< TRUE if this is a JSON-node. */
         VCPKG_plat_list platforms;                    /**< The supported platform(s) and "static" status */
-
-        /** The dependencies; a smartlist of `struct vcpkg_package`.
-         */
-        smartlist_t *deps;
-
-        /** The supported platform(s) and "static" status; a smartlist of `enum VCPKG_platform`.
-         */
-        smartlist_t *supports;
-
-        /** The features; a smartlist of `char *`.
-         */
-        smartlist_t *features;
+        smartlist_t    *features;                     /**< The features; a smartlist of `char *`. */
+        smartlist_t    *depends;                      /**< The dependencies; a smartlist of `char *`. */
+        smartlist_t    *supports;                     /**< The supported platform(s) and "static" status; a smartlist of `enum VCPKG_platform`.  */
       } port_node;
 
 /**
  * \typedef vcpkg_package
+ *
  * The structure of a single installed VCPKG package or the
  * structure of a package-dependency.
  */
 typedef struct vcpkg_package {
-        char            *package;       /**< The package name */
-        char            *version;       /**< The version */
-        char            *status;        /**< The install/purge status */
-        char            *depends;       /**< What package(s) it depends on */
-        char            *arch;          /**< The OS/CPU and ("-static") */
-        VCPKG_plat_list  platforms;     /**< The supported platform(s) and "static" status */
-        BOOL             installed;     /**< At least 1 combination is installed */
-        BOOL             purged;        /**< Not installed; ready to be removed/updated */
-        const port_node *link;          /**< A link to the corresponding CONTROL/JSON node */
-        smartlist_t     *install_info;  /**< A list of `/bin`, `/lib` and `/include` files installed. This is never written/read to/from cache-file */
-        smartlist_t     *features;      /**< The features; a smartlist of `char *` */
+        char             package [VCPKG_MAX_NAME];    /**< The package name. */
+        char             version [VCPKG_MAX_VERSION]; /**< The version. */
+        char             status  [VCPKG_MAX_STATUS];  /**< The install/purge status. */
+        char             arch    [VCPKG_MAX_ARCH];    /**< The OS/CPU and ("-static"). */
+        VCPKG_plat_list  platforms;                   /**< The supported platform(s) and "static" status */
+        BOOL             installed;                   /**< At least 1 combination is installed */
+        BOOL             purged;                      /**< Not installed; ready to be removed/updated */
+        const port_node *link;                        /**< A link to the corresponding CONTROL/JSON node */
+        smartlist_t     *depends;                     /**< What package(s) it depends on; a smartlist of `char *` */
+        smartlist_t     *install_info;                /**< A list of `/bin`, `/lib` and `/include` files installed. This is never written/read to/from cache-file */
+        smartlist_t     *features;                    /**< The features; a smartlist of `char *` */
       } vcpkg_package;
 
 /**
@@ -167,9 +174,8 @@ typedef struct vcpkg_package {
 static smartlist_t *ports_list;
 
 /**
- * A list of available and installable packages found in `CONTROL` files
- * under `<vcpkg_root>/ports`.
- * A smartlist of `vcpkg_package`.
+ * A list of available packages found in `CONTROL` or `vcpkg.json` files
+ * under `<vcpkg_root>/ports`. A smartlist of `vcpkg_package`.
  */
 static smartlist_t *available_packages;
 
@@ -231,8 +237,6 @@ static const struct search_list platforms [] = {
                               { VCPKG_plat_STATIC,  "static"  }
                             };
 
-#if !defined(JSON_TEST)
-
 static BOOL        get_control_node (int *index_p, const port_node **node_p, const char *package_spec);
 static const char *get_platform_name (const VCPKG_plat_list p);
 static BOOL        get_depend_name (const VCPKG_plat_list p_list, const char **name);
@@ -247,15 +251,15 @@ static BOOL  is_x64_supported (const VCPKG_plat_list p_list);
 static BOOL  is_windows_supported (const VCPKG_plat_list p_list);
 static BOOL  is_uwp_supported (const VCPKG_plat_list p_list);
 static BOOL  is_static_supported (const VCPKG_plat_list p_list);
-static int   compare_node (const void **_a, const void **_b);
+static int   compare_port_node (const void **_a, const void **_b);
 static int   compare_package (const void **_a, const void **_b);
-static void *find_package (smartlist_t *sl, const char *pkg_name);
-static void *find_package_from_idx (int *index_p, const char *pkg_name);
+static void *find_available_package (const char *pkg_name);
+static void *find_installed_package (int *index_p, const char *pkg_name, const char *arch);
 static void *find_or_alloc_package_dependency (const vcpkg_package *package);
 static int   print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int indent);
 static int   print_sub_dependencies (FMT_buf *fmt_buf, const port_node *node, int indent, smartlist_t *sub_package_list);
 static BOOL  print_install_info     (FMT_buf *fmt_buf, const char *package, int indent1);
-static int   JSON_parse_file        (port_node *node, const char *file);
+static int   json_parse_file (port_node *node, const char *file);
 
 /**
  * regex stuff
@@ -266,8 +270,18 @@ static int        re_err;         /**< last regex error-code */
 static char       re_errbuf[10];  /**< regex error-buffer */
 
 /**
+ * Free the memory allocated to `re_hnd`.
+ */
+static void regex_free (void)
+{
+  if (re_hnd.buffer)
+     regfree (&re_hnd);
+}
+
+/**
  * Print the sub expressions in `re_matches[]`.
  */
+_WUNUSED_FUNC_OFF()
 static void regex_print (const regex_t *re, const regmatch_t *rm, const char *str)
 {
   size_t i, j;
@@ -285,15 +299,6 @@ static void regex_print (const regex_t *re, const regmatch_t *rm, const char *st
   if (i == 0)
      C_puts ("None");
   C_putc ('\n');
-}
-
-/**
- * Free the memory allocated to `re_hnd`.
- */
-static void regex_free (void)
-{
-  if (re_hnd.buffer)
-     regfree (&re_hnd);
 }
 
 /**
@@ -327,28 +332,7 @@ static BOOL regex_match (const char *str, const char *pattern)
   TRACE (1, "Error while matching \"%s\": %s (%d)\n", str, re_errbuf, re_err);
   return (FALSE);
 }
-
-static void regex_test (const char *str, const char *pattern)
-{
-  if (regex_match(str, pattern))
-     regex_print (&re_hnd, re_matches, str);
-}
-
-#if USE_str_to_utf8
-static wchar_t *str_to_utf8 (const char *text, wchar_t *w_out, size_t w_out_size)
-{
-  int      w_size = MultiByteToWideChar (CP_UTF8, MB_PRECOMPOSED | MB_USEGLYPHCHARS, text, -1, NULL, 0);
-  wchar_t *w_buf = alloca (w_out_size);
-
-  if (w_size == 0 || w_size > w_out_size)
-     return (NULL);
-
-  if (!MultiByteToWideChar(CP_UTF8, 0, text, -1, w_buf, w_size))
-     return (NULL);
-  NormalizeString (NormalizationKC, w_buf, -1, w_out, w_size);
-  return (w_out);
-}
-#endif
+_WUNUSED_FUNC_POP()
 
 /**
  * Return the value of `only_installed`
@@ -496,25 +480,9 @@ static unsigned vcpkg_find_internal (FMT_buf *fmt_buf, const char *package_spec,
     if (sub_level == 0)
     {
       indent = buf_printf (fmt_buf, "  ~6%s~0: %*s", package, padding, "") - 4;
-
-#if USE_str_to_utf8
-      if (node->description)
-      {
-        char     buf [1000];
-        wchar_t  wbuf [1000];
-        wchar_t *utf8 = str_to_utf8 (node->description, wbuf, DIM(wbuf));
-
-        snprintf (buf, sizeof(buf), "%S", utf8 ? utf8 : L"??");
-        buf_puts_long_line (fmt_buf, buf, indent);
-      }
-      else
-        buf_puts_long_line (fmt_buf, "<none>", indent);
-#else
       buf_puts_long_line (fmt_buf, node->description ? node->description : "<none>", indent);
-#endif
-
       buf_printf (fmt_buf, "  %-*s%s%s\n", indent-2, "version: ", node->version[0] ? node->version : "<none>", node->have_JSON ? " (have_JSON)" : "");
-      buf_printf (fmt_buf, "  %-*s%s\n", indent-2, "homepage:", node->homepage[0] == '-' ? "<none>" : node->homepage);
+      buf_printf (fmt_buf, "  %-*s%s\n", indent-2, "homepage:", node->homepage[0] ? node->homepage : "<none>");
     }
     else
     {
@@ -529,7 +497,7 @@ static unsigned vcpkg_find_internal (FMT_buf *fmt_buf, const char *package_spec,
 
     if (sub_level == 0)
     {
-      if (print_install_info(fmt_buf, package, indent-2))
+      if (print_install_info(fmt_buf, package, indent-2) || num_deps == 0)
            C_puts (fmt_buf->buffer_start);
       else matches--;
 
@@ -566,28 +534,28 @@ static int print_sub_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
 {
   int i, i_max, j, j_max, found;
 
-  if (!node->deps || smartlist_len(node->deps) == 0)
+  if (!node->depends || smartlist_len(node->depends) == 0)
   {
     if (sub_level == 0)
        buf_printf (fmt_buf, "%-*s<none>\n", indent, "");
     return (0);
   }
 
-  i_max = smartlist_len (node->deps);
+  i_max = smartlist_len (node->depends);
   j_max = smartlist_len (available_packages);
 
   for (i = found = 0; i < i_max; i++)
   {
-    const char *dep1 = smartlist_get (node->deps, i);
+    const char *dep1 = smartlist_get (node->depends, i);
 
     for (j = 0; j < j_max; j++)
     {
       const vcpkg_package *dep2 = smartlist_get (available_packages, j);
 
-      if (strcmp(dep1, dep2->package))  /* 'dep2->package' is not in dependencies of 'node->deps' */
+      if (strcmp(dep1, dep2->package))  /* 'dep2->package' is not in dependencies of 'node->depends' */
          continue;
 
-      if (sub_package_found(dep1, sub_package_list))   /* already shown dependencies of for this 'node->deps' */
+      if (sub_package_found(dep1, sub_package_list))   /* already shown dependencies of for this 'node->depends' */
          continue;
 
       /* Will call 'get_control_node()' only once
@@ -617,26 +585,26 @@ static int print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
 
   if (sub_level > 0)
   {
-    if (!node->deps)
+    if (!node->depends || smartlist_len(node->depends) == 0)
        return (0);
   }
   else
   {
     buf_printf (fmt_buf, "  %-*s", indent, "dependencies:");
-    if (!node->deps)
+    if (!node->depends || smartlist_len(node->depends) == 0)
     {
       buf_puts (fmt_buf, "<none>\n");
       return (0);
     }
   }
 
-  max = smartlist_len (node->deps);
+  max = smartlist_len (node->depends);
 
   /* First, get the value for 'longest_package'
    */
   for (i = 0; i < max; i++)
   {
-    pkg_name = smartlist_get (node->deps, i);
+    pkg_name = smartlist_get (node->depends, i);
     longest_package = max (strlen(pkg_name), longest_package);
   }
 
@@ -646,8 +614,8 @@ static int print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
     const char *name;
     BOOL        supported;
 
-    pkg_name = smartlist_get (node->deps, i);
-    package = find_package (available_packages, pkg_name);
+    pkg_name = smartlist_get (node->depends, i);
+    package = find_available_package (pkg_name);
 
     if (sub_level > 0)
        buf_printf (fmt_buf, "%-*s%s;\n", indent + 2*sub_level, "", pkg_name);
@@ -718,12 +686,11 @@ static BOOL make_package_platform (vcpkg_package *package, const char *platform,
   {
     char *tok_end, *tok, *copy = strdupa (platform);
 
-    tok = _strtok_r (copy, "-", &tok_end);
-    while (tok)
+    for (tok = _strtok_r(copy, "-", &tok_end); tok;
+         tok = _strtok_r(NULL, "-", &tok_end))
     {
       if (make_package_platform(package, tok, i, FALSE))
          ++i;
-      tok = _strtok_r (NULL, "-", &tok_end);
     }
   }
   return (FALSE);
@@ -769,14 +736,14 @@ quit:
  *   "openssl (!uwp&!windows)" and "curl (!uwp&!windows)".
  *
  * If a token contains a "(xx)" part, pass that to `CONTROL_add_dependency_platform()`
- * which recursively figures out the platforms for the package.
+ * which recursively figures out the platform(s) for the package.
  *
  * Add a package-dependency to `node` as long as there are more ","
  * tokens in `str` to parse.
  */
 static void CONTROL_add_dependencies (port_node *node, char *str)
 {
-  char *tok, *tok_end, *p;
+  char *tok, *tok_end;
   int   str0 = str[0];
 
   if (strchr(str, ')') > strchr(str, '('))
@@ -788,17 +755,13 @@ static void CONTROL_add_dependencies (port_node *node, char *str)
     return;
   }
 
-  ASSERT (node->deps == NULL);
-  node->deps = smartlist_new();
-
-  tok = _strtok_r (str, ",", &tok_end);
-
-  while (tok)
+  for (tok = _strtok_r(str,  ",", &tok_end); tok;
+       tok = _strtok_r(NULL, ",", &tok_end))
   {
     vcpkg_package package;
     char  pkg_name [2*VCPKG_MAX_NAME];
-    char  platform [51];
-    char *l_paren;
+    char  platform [50+1];
+    char *p, *l_paren;
 
     memset (&package, '\0', sizeof(package));
 
@@ -813,10 +776,7 @@ static void CONTROL_add_dependencies (port_node *node, char *str)
       TRACE (2, "platform: '%s', tok: '%s', tok_end: '%s'\n", platform, tok, tok_end);
       CONTROL_add_dependency_platform (&package, platform, 0, TRUE);
     }
-    package.package = p;
-    smartlist_add (node->deps, STRDUP(package.package));  // !! fixme: the 'package.platform[]' is lost now
-
-    tok = _strtok_r (NULL, ",", &tok_end);
+    smartlist_add (node->depends, STRDUP(p));  // !! fixme: the 'package.platform[]' is now lost
   }
 }
 
@@ -826,7 +786,7 @@ static void CONTROL_add_dependencies (port_node *node, char *str)
 static int CONTROL_parse (port_node *node, const char *file)
 {
   FILE *f = fopen (file, "r");
-  char *p, buf [3000];   /* Enough? */
+  char *p, *next, buf [3000];   /* Enough? */
   int   num = 0;
 
   if (!f)
@@ -844,40 +804,43 @@ static int CONTROL_parse (port_node *node, const char *file)
 
     /* In case 'node->homepage' etc. contains a '~', replace with "~~".
      */
-    if (!node->description && str_match(p, CONTROL_DESCRIPTION, &p))
+    if (!node->description && str_match(p, CONTROL_DESCRIPTION, &next))
     {
-      node->description = STRDUP (p);
-      str_replace2 ('~', "~~", node->description, sizeof(node->description));
+      str_replace2 ('~', "~~", next, sizeof(buf) - (next - p));
+      node->description = STRDUP (next);
       num++;
     }
-    else if (!node->version[0] && str_match(p, CONTROL_VERSION, &p))
+    else if (!node->version[0] && str_match(p, CONTROL_VERSION, &next))
     {
-      _strlcpy (node->version, p, sizeof(node->version));
-      str_replace2 ('~', "~~", node->version, sizeof(node->version));
+      str_replace2 ('~', "~~", next, sizeof(buf) - (next - p));
+      _strlcpy (node->version, next, sizeof(node->version));
       num++;
     }
-    else if (str_match(p, CONTROL_HOMEPAGE, &p))
+    else if (!node->homepage[0] && str_match(p, CONTROL_HOMEPAGE, &next))
     {
-      _strlcpy (node->homepage, p, sizeof(node->homepage));
-      str_replace2 ('~', "~~", node->homepage, sizeof(node->homepage));
+      str_replace2 ('~', "~~", next, sizeof(buf) - (next - p));
+      _strlcpy (node->homepage, next, sizeof(node->homepage));
       num++;
     }
-    else if (str_match(p, CONTROL_FEATURE, &p))
+    else if (str_match(p, CONTROL_DEFAULT_FEATURES, &next))
     {
-      if (!node->features)
-         node->features = smartlist_new();
-      TRACE (3, "Adding feature: '%s'\n", p);
-      smartlist_add (node->features, STRDUP(p));
+      ASSERT (node->features == NULL);
+      node->features = smartlist_split_str (next, ", ");
+      TRACE (3, "Adding feature(s): '%s'\n", next);
       num++;
     }
-    else if (!node->deps && str_match(p, CONTROL_BUILD_DEPENDS, &p))
+    else if (str_match(p, CONTROL_BUILD_DEPENDS, &next))
     {
-      strtok (p, "[");
-      if (opt.debug >= 10)
-         regex_test (p, "[[:alnum:]_-]+");
-      CONTROL_add_dependencies (node, p);
+      CONTROL_add_dependencies (node, next);
       num++;
     }
+#if 0
+    else if (str_match(p, CONTROL_SUPPORTS, &next))
+    {
+      smartlist_addu (node->supports, get_supported_platform_from_str(next));
+      num++;
+    }
+#endif
   }
   fclose (f);
   return (num);
@@ -898,13 +861,15 @@ static int portfile_cmake_parse (port_node *node, const char *file)
  * Traverse a `dir` relative to `vcpkg_root` looking for sub-directories
  * (first level only).
  *
- * \return A smartlist of sub-directories.
- *         All these are relative to `vcpkg_root` to save some memory.
+ * \param[in] dir_list       The smartlist to add a directory to. All directories are relative
+ *                           to `vcpkg_root` to save some memory.
+ * \param[in] dir            The directory to build `dir_list` from.
+ * \param[in] check_CONTROL  Check for a `CONTROL` in each directory.
+ *                           If it's missing, do not add the directory to `dir_list`.
  */
-static smartlist_t *build_dir_list (const char *dir)
+static void build_dir_list (smartlist_t *dir_list, const char *dir, BOOL check_CONTROL)
 {
   struct dirent2 *de;
-  smartlist_t    *dir_list;
   DIR2           *dp;
   char            abs_dir [_MAX_PATH];
   size_t          ofs = strlen (vcpkg_root) + 1;
@@ -913,36 +878,45 @@ static smartlist_t *build_dir_list (const char *dir)
   if (!is_directory(abs_dir) || (dp = opendir2(abs_dir)) == NULL)
   {
     snprintf (last_err_str, sizeof(last_err_str), "No such directory %s", abs_dir);
-    return (NULL);
+    return;
   }
-
-  dir_list = smartlist_new();
 
   while ((de = readdir2(dp)) != NULL)
   {
     if (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY)
     {
       const char *d = de->d_name + ofs;
+      char  CONTROL_file [_MAX_PATH];
 
+      /* Check for a `CONTROL` file in this directory?
+       */
+      if (check_CONTROL)
+      {
+        snprintf (CONTROL_file, sizeof(CONTROL_file), "%s\\CONTROL", de->d_name);
+        if (!FILE_EXISTS(CONTROL_file))
+        {
+          TRACE (0, "Missing '%s'\n", CONTROL_file);
+          continue;
+        }
+      }
       TRACE (2, "Adding '%s'\n", d);
       smartlist_add (dir_list, STRDUP(d));
     }
   }
   closedir2 (dp);
-  return (dir_list);
 }
 
 /**
- * Look in `<vcpkg_root>\\ports\\dir\\` for `CONTROL`, `vcpkg.json` or `portfile.cmake` files
+ * Look in `<vcpkg_root>\\ports\\<dir>\\` for `CONTROL`, `vcpkg.json` or `portfile.cmake` files
  * and add the parsed results to `ports_list`.
  */
-static void build_ports_list_from_disk (const char *dir, int ports_index)
+static void get_port_info_from_disk (const char *port_dir, int ports_index)
 {
   port_node  *node;
   char        CONTROL_file [_MAX_PATH];
   char        JSON_file [_MAX_PATH];
   char        port_file [_MAX_PATH];
-  const char *package_name = dir + strlen ("ports\\");
+  const char *package_name = port_dir + strlen ("ports\\");
 
   snprintf (CONTROL_file, sizeof(CONTROL_file), "%s\\ports\\%s\\CONTROL", vcpkg_root, package_name);
   snprintf (JSON_file, sizeof(JSON_file), "%s\\ports\\%s\\vcpkg.json", vcpkg_root, package_name);
@@ -954,11 +928,10 @@ static void build_ports_list_from_disk (const char *dir, int ports_index)
 
     node = CALLOC (sizeof(*node), 1);
     node->have_CONTROL = TRUE;
+    node->depends  = smartlist_new();
     node->supports = smartlist_new();
     smartlist_addu (node->supports, VCPKG_plat_ALL);
-
     _strlcpy (node->package, package_name, sizeof(node->package));
-    strcpy (node->homepage, "-");
 
     CONTROL_parse (node, CONTROL_file);
     smartlist_add (ports_list, node);
@@ -968,55 +941,69 @@ static void build_ports_list_from_disk (const char *dir, int ports_index)
   }
   else if (FILE_EXISTS(JSON_file))
   {
-    TRACE (2, "%d: Building JSON port-node for %s.\n", ports_index, JSON_file);
+    TRACE (1, "%d: Building JSON port-node for %s.\n", ports_index, JSON_file);
 
     node = CALLOC (sizeof(*node), 1);
     node->have_JSON = TRUE;
+    node->depends  = smartlist_new();
+    node->features = smartlist_new();
     node->supports = smartlist_new();
     smartlist_addu (node->supports, VCPKG_plat_ALL);
 
     _strlcpy (node->package, package_name, sizeof(node->package));
-    strcpy (node->homepage, "-");
 
-    if (!JSON_parse_file (node, JSON_file))
-         TRACE (1, "JSON_parse_file (\"%s\") failed.\n", JSON_file);
-    else smartlist_add (ports_list, node);
+    if (!json_parse_file(node, JSON_file))
+       TRACE (1, "parse_JSON_file (\"%s\") failed.\n", JSON_file);
+    smartlist_add (ports_list, node);
   }
 
   if (FILE_EXISTS(port_file))
   {
     TRACE (2, "%d: Building port-node for %s.\n", ports_index, port_file);
 
+#if 0   // Not ready for this code
     node = CALLOC (sizeof(*node), 1);
     _strlcpy (node->package, package_name, sizeof(node->package));
     strcpy (node->homepage, "-");
-
     portfile_cmake_parse (node, port_file);
     smartlist_add (ports_list, node);
+#else
+    node = NULL;
+    portfile_cmake_parse (node, port_file);
+#endif
   }
 }
 
 /**
  * Build the `ports_list` smartlist from file-cache.
  */
-static int build_ports_list_from_cache (void)
+static int get_ports_list_from_cache (void)
 {
   port_node *node;
   int  i;
 
   for (i = 0;; i++)
   {
-    char  format [1000];  /* Room for e.g. 'port_node_0 = 3fd,2.6.2-3,-,1,"C++ Framework For Fast Development"' */
-    char *package = NULL, *version = NULL, *homepage = NULL, *description = NULL;
-    int   have_CONTROL = 0;
-    int   have_JSON = 0;
-    int   rc;
+    char format [100], *package, *version, *homepage, *description;
+    int  have_CONTROL, have_JSON, rc;
 
-    snprintf (format, sizeof(format), "port_node_%d = %%s,%%s,%%d,%%d,%%s,%%s", i);
-    rc = cache_getf (SECTION_VCPKG, format, &package, &version, &have_CONTROL, &have_JSON, &homepage, &description);
-    TRACE (2, "port_node from cache (%s\\%s):\n"
-               "     package: '%s', version: '%s', have_CONTROL: %d, have_JSON: %d, homepage: '%s', description: '%s'.\n",
-            vcpkg_root, package, package, version, have_CONTROL, have_JSON, homepage, description);
+    /*
+     * Parse a cache-line like:
+     * port_node_0 = 3fd, 0, 1, 2.6.3, -, "C++ Framework For Fast Development"
+     *                ^   ^  ^  ^      ^  ^
+     *     package ___|   |  |  |      |  |__description
+     *                    |  |  |      |____ homepage
+     *                    |  |  |____ version
+     *                    |  |_______ have_JSON
+     *                    |___________have_CONTROL
+     *
+     *
+     */
+    snprintf (format, sizeof(format), "port_node_%d = %%s,%%d,%%d,%%s,%%s,%%s", i);
+    rc = cache_getf (SECTION_VCPKG, format, &package, &have_CONTROL, &have_JSON, &version, &homepage, &description);
+    TRACE (2, "port_node from cache, rc: %d: (%s\\%s):\n"
+               "     package: '%s', have_CONTROL: %d, have_JSON: %d, version: '%s', homepage: '%s', description: '%s'.\n",
+            rc, vcpkg_root, package, package, have_CONTROL, have_JSON, version, homepage, description);
 
     if (rc != 6)
       break;
@@ -1024,101 +1011,47 @@ static int build_ports_list_from_cache (void)
     node = CALLOC (sizeof(*node), 1);
     node->have_CONTROL = have_CONTROL;
     node->have_JSON    = have_JSON;
-    node->description = STRDUP (str_unquote(description));
+    node->description  = STRDUP (str_unquote(description));
     _strlcpy (node->package, package, sizeof(node->package));
-    _strlcpy (node->homepage, homepage, sizeof(node->homepage));
     _strlcpy (node->version, version, sizeof(node->version));
+    _strlcpy (node->homepage, homepage, sizeof(node->homepage));
     smartlist_add (ports_list, node);
   }
-  smartlist_sort (ports_list, compare_node);
+  smartlist_sort (ports_list, compare_port_node);
   return (i);
 }
 
-static char **comma_string_to_vector (char *value)
-{
-  static char *vector [VCPKG_MAX_VECTOR+1];
-  char  *p, *tok_end;
-  int    i;
-
-  vector[0] = value;
-  p = _strtok_r (value, ", ", &tok_end);
-  for (i = 1; p && i < DIM(vector)-1; i++)
-  {
-    vector[i] = p;
-    p = _strtok_r (NULL, ", ", &tok_end);
-  }
-  vector[i] = NULL;
-  if (p)
-     TRACE (1, "Too many commas in 'value'.\n");
-  return (vector);
-}
-
 /**
- * Return a malloced string `"a, b, c"` as `"a,b,c"`.
- */
-static char *comma_string_strip (char *value)
-{
-  char   *p, *q, **array = comma_string_to_vector (value);
-  size_t  i, len;
-
-  if (!array[1])
-     return STRDUP (array[0]);
-
-  for (i = len = 0; array[i]; i++)
-     len += strlen (array[i]) + 1;
-
-  p = q = MALLOC (len+1);
-  for (i = 0; array[i]; i++)
-  {
-    len = strlen (array[i]);
-    memcpy (p, array[i], len);
-    p += len;
-    *p++ = ',';
-  }
-  p[-1] = '\0';
-  return (q);
-}
-
-/**
- * Build each `node->deps` from file-cache and add to
+ * Build each `node->depends` from file-cache and add to
  * correct place in `ports_list`.
  *
  * \eg.
- *   A "port_deps_10 = ilmbase,hdf5" should add "ilmbase" and "hdf5" to `node->deps`
+ *   A `port_deps_10 = "ilmbase,hdf5"` should add `ilmbase` and `hdf5` to `node->depends`
  *   for the 10th entry in `ports_list`.
  *
- *   And a "port_deps_11 = -" should keep `node->deps == NULL`.
+ *   And a `port_deps_11 = -` should keep `node->depends == NULL`.
  */
-static int build_port_deps_from_cache (int max)
+static int get_port_deps_from_cache (int max)
 {
   port_node *node;
   int  i;
 
   for (i = 0; i < max; i++)
   {
-    char format[100], *value = "-", **deps;
-    int  rc, j;
+    char key[100], *value;
 
-    snprintf (format, sizeof(format), "port_deps_%d = %%s", i);
-    rc = cache_getf (SECTION_VCPKG, format, &value);
-    if (rc < 1)
+    snprintf (key, sizeof(key), "port_deps_%d", i);
+    value = (char*) cache_get (SECTION_VCPKG, key);
+    TRACE (2, "port_deps_%d from cache: '%s'\n", i, value);
+    if (!value)
        break;
 
-    if (*value  == '-')
+    if (*value == '\0' || *value == '-')
        continue;
 
     node = smartlist_get (ports_list, i);
-
-#if 0
-    CONTROL_add_dependencies (node, value);
-#else
-    ASSERT (node->deps == NULL);
-    node->deps = smartlist_new();
-
-    deps = comma_string_to_vector (value);
-    for (j = 0; deps[j]; j++)
-        smartlist_add (node->deps, STRDUP(deps[i]));
-#endif
+    ASSERT (node->depends == NULL);
+    node->depends = smartlist_split_str (value, ", ");
   }
   return (i);
 }
@@ -1130,32 +1063,27 @@ static int build_port_deps_from_cache (int max)
  *   means 'realsense2' has this feature-string in cache:
  *   "port_features_1057 = tools,openni2,tm2"
  */
-static int build_port_features_from_cache (int max)
+static int get_port_features_from_cache (int max)
 {
   port_node *node;
   int  i;
 
   for (i = 0; i < max; i++)
   {
-    char   format[1000], *value = "-";  /* defaults to no features */
-    char **features;
-    int    rc, j;
+    char key[1000], *value;  /* defaults to no features */
 
-    snprintf (format, sizeof(format), "port_features_%d = %%s", i);
-    rc = cache_getf (SECTION_VCPKG, format, &value);
-    if (rc < 1)
+    snprintf (key, sizeof(key), "port_features_%d", i);
+    value = (char*) cache_get (SECTION_VCPKG, key);
+    TRACE (2, "port_features_%d from cache: '%s'\n", i, value);
+    if (!value)
        break;
 
-    if (*value == '-')
+    if (*value == '-' || *value == '\0')
        continue;
 
     node = smartlist_get (ports_list, i);
     ASSERT (node->features == NULL);
-    node->features = smartlist_new();
-
-    features = comma_string_to_vector (value);
-    for (j = 0; features[j]; j++)
-        smartlist_add (node->features, STRDUP(features[j]));
+    node->features = smartlist_split_str (value, ", ");
   }
   return (i);
 }
@@ -1170,28 +1098,16 @@ const char *vcpkg_last_error (void)
 }
 
 /**
- * Print the description for a `port_node`.
+ * Print the description for a node in `ports_list`.
  */
-static void dump_node_description (const port_node *node)
+static void dump_port_description (const port_node *node, const char *indent)
 {
-  int len  = C_puts ("     ~6description:~0  ") - 2;
+  int len  = C_puts (indent) + C_puts ("~6description:~0  ") - 2;
   int save = C_setraw (1);
 
   if (node->description)
-  {
-#if USE_str_to_utf8
-    char     buf [1000];
-    wchar_t  wbuf [1000];
-    wchar_t *utf8 = str_to_utf8 (node->description, wbuf, DIM(wbuf));
-
-    snprintf (buf, sizeof(buf), "%S", utf8 ? utf8 : L"??");
-    C_puts_long_line (buf, len);
-#else
-    C_puts_long_line (node->description, len);
-#endif
-   }
-  else
-    C_puts ("<none>\n");
+       C_puts_long_line (node->description, len);
+  else C_puts ("<none>\n");
   C_setraw (save);
 }
 
@@ -1204,23 +1120,22 @@ static void dump_node_description (const port_node *node)
  * If a dependency is for all platforms, print the dependency simply like: \n
  *    `boost, `.
  */
-static void dump_node_dependencies (const port_node *node, size_t width)
+static void dump_port_dependencies (const port_node *node, const char *indent)
 {
-  int i, max = node->deps ? smartlist_len (node->deps) : 0;
-  int len, len0 = C_puts ("     ~6dependencies:~0 ") - 2;
+  int   i, len, max;
+  char *depencencies;
 
-  len = len0;
+  len = C_puts (indent) + C_puts ("~6dependencies:~0 ") - 2;
+  max = node->depends ? smartlist_len (node->depends) : 0;
   for (i = 0; i < max; i++)
   {
-    const vcpkg_package *dep = find_package (available_packages, smartlist_get(node->deps, i));
-    const vcpkg_package *next_dep;
+    const vcpkg_package *dep = find_available_package (smartlist_get(node->depends, i));
     const char *name;
-    BOOL   supported;
-    size_t next_len = 0;
+    BOOL  supported;
 
     if (!dep)
-       continue;
-
+       break;
+#if 0
     len += C_puts (dep->package);
     supported = get_depend_name (dep->platforms, &name);
     if (strcmp(name, "all"))
@@ -1229,68 +1144,40 @@ static void dump_node_dependencies (const port_node *node, size_t width)
            len += C_printf (" (%s)", name);
       else len += C_printf (" !(%s)", name);
     }
-
-    if (i < max-1)
-    {
-      len += C_putc (',');
-      next_dep = find_package (available_packages, smartlist_get (node->deps, i+1));
-      get_depend_name (next_dep->platforms, &name);
-      next_len = 2 + strlen (next_dep->package) + strlen (name);
-      if (len + next_len >= width)
-      {
-        C_putc ('\n');
-        len = C_puts (str_repeat(' ', len0));
-      }
-      else
-        C_putc (' ');
-    }
+#else
+  ARGSUSED (name);
+  ARGSUSED (supported);
+#endif
   }
-  if (i == 0)
-     C_puts ("<none>");
-  C_putc ('\n');
+
+  depencencies = smartlist_join_str (node->depends, ", ");
+  C_puts_long_line (depencencies ? depencencies : "<none>", len);
+  FREE (depencencies);
 }
 
 /**
- * Dump the features for a `port_node`.
+ * Dump the features for a node in `ports_list`.
  */
-static void dump_node_features (const port_node *node, size_t width)
+static void dump_port_features (const port_node *node, const char *indent)
 {
-  int i, max = node->features ? smartlist_len (node->features) : 0;
-  int len0 = C_puts ("     ~6features:~0     ") - 2;
-  int len = len0;
+  int   len = C_puts (indent) + C_puts ("~6features:~0     ") - 2;
+  char *features = smartlist_join_str (node->features, ", ");
 
-  for (i = 0; i < max; i++)
-  {
-    size_t next_len = 0;
-
-    len += C_puts (smartlist_get(node->features, i));
-    if (i < max-1)
-    {
-      len += C_puts (", ");
-      next_len = 2 + strlen (smartlist_get(node->features, i+1));
-      if (len + next_len >= width)
-      {
-        C_putc ('\n');
-        len = C_puts (str_repeat(' ', len0));
-      }
-    }
-  }
-  if (i == 0)
-     C_puts ("<none>");
-  C_putc ('\n');
+  C_puts_long_line (features ? features : "<none>", len);
+  FREE (features);
 }
 
 /**
- * Dump the `supports` field of a `port_node`.
+ * Dump the `supports` field of a node in `ports_list`.
  */
-static void dump_node_supports (const port_node *node)
+static void dump_port_supports (const port_node *node, const char *indent)
 {
   int i, num, max = node->supports ? smartlist_len (node->supports) : 0;
-  int len0 = C_puts ("     ~6supports:~0     ") - 2;
+  int len = C_puts (indent) + C_puts ("~6supports:~0     ") - 2;
 
   if (max == 0)
   {
-    C_puts ("none!\n");
+    C_puts ("<none>\n");
     return;
   }
   for (i = num = 0; i < max; i++)
@@ -1300,7 +1187,7 @@ static void dump_node_supports (const port_node *node)
     int         supported = get_plat_value (value, i, &name);
 
     if (i > 0)
-       C_printf ("%*s", len0, "");
+       C_printf ("%*s", len, "");
     if (supported >= 0)
     {
       C_printf ("0x%04X: %s%s\n", value, supported ? "" : "!", name);
@@ -1314,16 +1201,18 @@ static void dump_node_supports (const port_node *node)
 /**
  * Iterate over all installed package files and get the total file-size as a string.
  */
-static const char *get_package_files_size (const vcpkg_package *package)
+static const char *get_package_files_size (vcpkg_package *package)
 {
-  UINT64   f_size = 0;
-  unsigned i, max = package->install_info ? smartlist_len (package->install_info) : 0;
+  UINT64 f_size = 0;
+  int    i, max = package->install_info ? smartlist_len (package->install_info) : 0;
 
   for (i = 0; i < max; i++)
   {
     struct stat st;
     char        path [_MAX_PATH];
     const char *file = smartlist_get (package->install_info, i);
+
+    ASSERT (file[0]);
 
     snprintf (path, sizeof(path), "%s\\installed\\%s", vcpkg_root, file);
     if (safe_stat(path, &st, NULL) == 0)
@@ -1334,9 +1223,9 @@ static const char *get_package_files_size (const vcpkg_package *package)
 }
 
 /**
- * Print information for an installed package in `ports_list`.
+ * Print information for an installed package in `installed_packages`.
  */
-static void pkg_dump_file_info (const vcpkg_package *package, const char *indent)
+static void print_installed_package_info (vcpkg_package *package, const char *indent)
 {
   const char *dir = get_installed_dir (package);
   unsigned    num = smartlist_len (package->install_info);
@@ -1345,15 +1234,15 @@ static void pkg_dump_file_info (const vcpkg_package *package, const char *indent
   C_printf ("%s~6location:     %s~0, %u files", indent, dir, num);
 
   if (opt.show_size)
-     C_printf (", %s", get_package_files_size(package));
+     C_puts (get_package_files_size(package));
   C_puts ("\n\n");
 }
 
 /**
- * Print information for a not installed package in `ports_list`.
+ * Print information for a not installed package in `installed_packages`.
  * Normally a package with "Status: purge ok not-installed".
  */
-static void pkg_dump_purge_info (const vcpkg_package *package, const char *indent)
+static void print_installed_package_purge_info (const vcpkg_package *package, const char *indent)
 {
   C_printf ("%s~6installed:    NO~0\n", indent);
   C_printf ("%s~6status:       %s~0\n\n", indent, package->status);
@@ -1362,24 +1251,24 @@ static void pkg_dump_purge_info (const vcpkg_package *package, const char *inden
 /**
  * Dump the parsed information from `ports_list`.
  */
-static void dump_nodes (void)
+static void dump_ports_list (void)
 {
-  const char *indent = "     ";
-  int    i, num, max = smartlist_len (ports_list);
-  size_t width = C_screen_width();
+  const char *indent = "      ";
+  int    num_available = 0, num_installed = 0;
+  int    i, max = smartlist_len (ports_list);
 
   /* Print a simple header.
    */
-  C_printf ("~6Num  ~3Package~0 / ~6Version\n");
+  C_printf ("%d nodes in 'ports_list':\n~6Index ~3Package~0 / ~6Version\n", max);
   C_puts (str_repeat('=', 100));
   C_putc ('\n');
 
-  for (i = num = 0; i < max; i++)
+  for (i = 0; i < max; i++)
   {
-    const port_node     *node = smartlist_get (ports_list, i);
-    const vcpkg_package *package;
-    const char *version = node->version;
-    int         zero = 0;
+    const port_node *node = smartlist_get (ports_list, i);
+    const char      *version = node->version;
+    vcpkg_package   *package;
+    int              zero = 0;
 
     if (!node->have_CONTROL && !node->have_JSON)
        continue;
@@ -1387,53 +1276,60 @@ static void dump_nodes (void)
     if (*version == '\0' || *version == ' ')
        version = "<unknown>";
 
-    C_printf ("~7%4d ~3%s~0 / ~6%s~0%s\n", ++num, node->package, version, node->have_JSON ? " (have_JSON)" : "");
+    C_printf ("~7%4d  ~3%s~0 / ~6%s~0%s\n", num_available, node->package, version, node->have_JSON ? " (have_JSON)" : "");
 
-    dump_node_description (node);
-    C_printf ("%s~6homepage:~0     %s\n", indent, node->homepage[0] == '-' ? "<none>" : node->homepage);
+    dump_port_description (node, indent);
+    C_printf ("%s~6homepage:~0     %s\n", indent, node->homepage[0] ? node->homepage : "<none>");
 
-    dump_node_dependencies (node, width);
-    dump_node_features (node, width);
-    dump_node_supports (node);
+    dump_port_dependencies (node, indent);
+    dump_port_features (node, indent);
+    dump_port_supports (node, indent);
 
-    package = find_package_from_idx (&zero, node->package);
-    if (package)
+    num_available++;
+
+    /* \todo: iterate to find all installed packages matching these architectures:
+     *        'x86-windows', 'x86-windows-static', 'x64-windows', 'x64-windows-static',
+     */
+    package = find_installed_package (&zero, node->package, NULL);
+    if (!package)
     {
-      if (package->install_info)
-           pkg_dump_file_info (package, indent);
-      else pkg_dump_purge_info (package, indent);
-    }
-    else
       C_printf ("%s~6installed:    NO~0\n\n", indent);
+      continue;
+    }
+    num_installed++;
+
+    if (package->install_info)
+         print_installed_package_info (package, indent);
+    else print_installed_package_purge_info (package, indent);
   }
-  C_puts (str_repeat('=', 100));
-  C_puts ("\n\n");
+  C_printf ("num_available: %4d\n"
+            "num_installed: %4d\n\n", num_available, num_installed);
 }
 
 /**
- * Dump the parsed information from `installed_packages`.
+ * Dump the information for `installed_packages`.
  */
-static void dump_packages (void)
+static void dump_installed_packages (void)
 {
   int i, i_max = smartlist_len (installed_packages);
 
-  C_printf ("~3Package~0                Version              Architecture        "
-            "install_info   link       Platforms             Features\n");
   C_puts (str_repeat('=', 120));
-  C_putc ('\n');
+  C_printf ("\n%d packages in 'installed_packages' (disregarding different architectures):\n"
+            "Package                Version            Architecture        "
+            "install_info   link       Platforms             Features\n", i_max);
 
   for (i = 0; i < i_max; i++)
   {
     const vcpkg_package *package = smartlist_get (installed_packages, i);
     const char          *Platforms = "-";
-    const char          *Features  = "-";
+    char                *features;
 
     if (package->link)
     {
       const port_node *node = package->link;
       char             buf[10000], *p = buf;
       int              left = (int) sizeof(buf);
-      int              j, len, j_max = smartlist_len (node->supports);
+      int              j, len, j_max = node->supports ? smartlist_len (node->supports) : 0;
       unsigned         value;
 
       strcpy (p, "all");
@@ -1450,33 +1346,14 @@ static void dump_packages (void)
         p[-2] = '\0';
       }
     }
-    if (package->features)
-    {
-      const char *feature;
-      char        buf[10000], *p = buf;
-      int         left = (int) sizeof(buf);
-      int         len, j, j_max;
+    C_printf ("%-20.20s   %-18s %-18s  ", package->package, package->version, package->arch);
+    C_printf ("%p       %p   %-20s  ", package->install_info, package->link, Platforms);
 
-      j_max = smartlist_len (package->features);
-      left  = (int) sizeof(buf);
-      for (j = 0; j < j_max && left > 3; j++)
-      {
-        feature = smartlist_get (package->features, j);
-        len   = snprintf (p, left, "%s, ", feature);
-        left -= len;
-        p    += len;
-      }
-      if (j > 0)
-      {
-        Features = buf;
-        p[-2] = '\0';
-      }
-    }
-    C_printf ("~3%-20.20s~0   %-20s %-18s  %p       %p   %-20s  %s\n",
-              package->package, package->version, package->arch, package->install_info,
-              package->link, Platforms, Features);
+    features = smartlist_join_str (package->features, ", ");
+    C_puts (features ? features : "-");
+    FREE (features);
+    C_putc ('\n');
   }
-  C_puts (str_repeat('=', 120));
   C_puts ("\n\n");
 }
 
@@ -1505,24 +1382,30 @@ static unsigned vcpkg_get_num (BOOL have_CONTROL, BOOL have_JSON)
  * Build the smartlist `ports_list *` representing all available VCPKG packages
  * (ignoring whether a package is installed or not).
  *
- * \param[in] dirs  The `smartlist_t*` of the directories to build the
- *                  `port_node*` list from.
- * \retval          The number of all node types.
+ * \param[in] port_dirs   The `smartlist_t*` of the directories to build the `port_node*` list
+ *                        from if `from_cache` is FALSE.
+ * \param[in] from_cache  Build the `ports_list` from cache only.
+ *
+ * \retval The length of the `ports_list`.
  */
-static unsigned get_all_available (const smartlist_t *dirs, BOOL from_cache)
+static int get_all_available (const smartlist_t *port_dirs, BOOL from_cache)
 {
-  unsigned num;
+  int i, max;
 
-  if (dirs)
+  if (port_dirs)
   {
-    int i, max = smartlist_len (dirs);
+    max = smartlist_len (port_dirs);
 
     if (from_cache)
     {
       TRACE (2, "Found %d cached VCPKG port directories.\n", max);
-      num = build_ports_list_from_cache();
-      build_port_deps_from_cache (num);
-      build_port_features_from_cache (num);
+      max = get_ports_list_from_cache();
+      get_port_deps_from_cache (max);
+      get_port_features_from_cache (max);
+
+      /* The 'available_packages' list should already been built
+       * by 'get_available_packages_from_cache()'.
+       */
     }
     else
     {
@@ -1530,21 +1413,21 @@ static unsigned get_all_available (const smartlist_t *dirs, BOOL from_cache)
       for (i = 0; i < max; i++)
       {
         vcpkg_package *package  = CALLOC (sizeof(*package), 1);
-        char          *dir      = smartlist_get (dirs, i);
-        const char    *pkg_name = dir + strlen ("ports\\");
+        char          *port_dir = smartlist_get (port_dirs, i);
+        const char    *pkg_name = port_dir + strlen ("ports\\");
 
-        build_ports_list_from_disk (dir, i);
-        package->package = STRDUP (pkg_name);
+        get_port_info_from_disk (port_dir, i);
+        _strlcpy (package->package, pkg_name, sizeof(package->package));
         smartlist_add (available_packages, package);
       }
       smartlist_sort (available_packages, compare_package);
     }
   }
-  num = smartlist_len (ports_list);
-  if (num == 0)
+  max = smartlist_len (ports_list);
+  if (max == 0)
      snprintf (last_err_str, sizeof(last_err_str), "No ~6VCPKG~0 packages found%s",
                from_cache ? " in cache" : "");
-  return (num);
+  return (max);
 }
 
 /**
@@ -1613,7 +1496,7 @@ static BOOL get_base_exe (const char *exe)
  */
 static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p)
 {
-  char *p, *eol, *line;
+  char *next, *eol, *line;
 
   line = *line_p;
   eol = strchr (line, '\n');
@@ -1630,50 +1513,39 @@ static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p)
 
   TRACE (2, "line: '%.50s'.\n", line);
 
-  if (str_match(line, CONTROL_PACKAGE, &p))
+  if (str_match(line, STATUS_PACKAGE, &next))
   {
-    package->package = STRDUP (p);
+    _strlcpy (package->package, next, sizeof(package->package));
     return (1);
   }
-
-  if (str_match(line, CONTROL_VERSION, &p))
+  if (str_match(line, STATUS_ARCH, &next))
   {
-    package->version = STRDUP (p);
+    _strlcpy (package->arch, next, sizeof(package->arch));
+    return (1);
+  }
+  if (str_match(line, STATUS_VERSION, &next))
+  {
+    _strlcpy (package->version, next, sizeof(package->version));
     str_replace2 ('~', "~~", package->version, sizeof(package->version));
     return (1);
   }
-
-  if (str_match(line, CONTROL_DEPENDS, &p))
+  if (str_match(line, STATUS_DEPENDS, &next))
   {
-    package->depends = comma_string_strip (p);
+    ASSERT (package->depends == NULL);
+    package->depends = smartlist_split_str (next, ", ");
     return (1);
   }
-
-  if (str_match(line, CONTROL_STATUS, &p))
+  if (str_match(line, STATUS_DEFAULT_FEATURES, &next))
   {
-    package->status = STRDUP (p);
-    return (1);
-  }
-
-  if (str_match(line, CONTROL_DEFAULT_FEATURES, &p))
-  {
-    if (!package->features)
-       package->features = smartlist_new();
-    TRACE (0, "Adding default-features: '%s' for package: '%s'\n", p, package->package);
-    smartlist_add (package->features, STRDUP(p));
-    return (1);
-  }
-
-  if (str_match(line, CONTROL_ARCH, &p))
-  {
-    package->arch = STRDUP (p);
+    ASSERT (package->features == NULL);
+    package->features = smartlist_split_str (next, ", ");
     return (1);
   }
   return (0);
 }
 
 /**
- * Compare 2 `vcpkg_package` records on name and architecture.
+ * Compare 2 `vcpkg_package *` records on name, architecture and version.
  */
 static int compare_package (const void **_a, const void **_b)
 {
@@ -1685,17 +1557,14 @@ static int compare_package (const void **_a, const void **_b)
      rc = stricmp (a->arch, b->arch);
 
   if (rc == 0)  /* same name and arch */
-  {
-    if (a->version && b->version)
-       rc = stricmp (a->version, b->version);
-  }
+     rc = stricmp (a->version, b->version);
   return (rc);
 }
 
 /**
- * Compare 2 `port_node` records on name.
+ * Compare 2 `port_node *` records on name.
  */
-static int compare_node (const void **_a, const void **_b)
+static int compare_port_node (const void **_a, const void **_b)
 {
   const port_node *a = *_a;
   const port_node *b = *_b;
@@ -1703,58 +1572,81 @@ static int compare_node (const void **_a, const void **_b)
   return stricmp (a->package, b->package);
 }
 
+/**
+ * Free memory for a single `package *` structure.
+ */
 static void free_package (vcpkg_package *package, BOOL free_package)
 {
-  FREE (package->package);
-  FREE (package->version);
-  FREE (package->depends);
-  FREE (package->status);
-  FREE (package->arch);
   smartlist_free_all (package->install_info);
+  smartlist_free_all (package->depends);
   smartlist_free_all (package->features);
+  package->install_info = package->depends = package->features = NULL;
   if (free_package)
      FREE (package);
 }
 
-static BOOL compare_features (smartlist_t *features1, smartlist_t *features2)
+/*
+ * Compare the package features of 2 packages given by `features1 *` and `features2 *`.
+ */
+static BOOL equal_features (smartlist_t *features1, smartlist_t *features2)
 {
-  const char *feature1, *feature2;
-  int         i, max1, max2;
+  char *feature1, *feature2;
+  BOOL  rc;
 
   if (!features1 && !features2)
      return (TRUE);
 
+#if 0
   if ((features1 && !features2) || (!features1 && features2))
      return (FALSE);
-
-  max1 = smartlist_len (features1);
-  max2 = smartlist_len (features2);
-  if (max1 != max2)
+#else
+  if (!((BOOL)features1 ^ (BOOL)features2))
      return (FALSE);
+#endif
 
-  for (i = 0; i < max1; i++)
-  {
-    feature1 = smartlist_get (features1, i);
-    feature2 = smartlist_get (features2, i);
-    if (strcmp(feature1, feature2))
-       return (FALSE);
-  }
-  return (TRUE);
+  feature1 = smartlist_join_str (features1, ",");
+  feature2 = smartlist_join_str (features2, ",");
+  rc = (strcmp (feature1, feature2) == 0);
+  FREE (features1);
+  FREE (features2);
+  return (rc);
 }
 
 /**
  * Check for any duplicates before adding another package to `installed_packages`.
  * We ignore all with the same name and older versions.
  */
-static BOOL add_this_package (vcpkg_package *package)
+static BOOL add_this_package (vcpkg_package *package, char **why_not)
 {
   int i, max;
 
-  if (!str_startswith(package->status, "install ok"))
-     return (FALSE);
+  *why_not = "-";
 
-  if (!package->version)
-     return (FALSE);
+  if (package->status[0] && !str_startswith(package->status, "install ok"))
+  {
+    *why_not = "wrong status";
+    return (FALSE);
+  }
+  if (!package->version[0] || package->version[0] == '?')
+  {
+    *why_not = "missing version";
+    return (FALSE);
+  }
+  if (!package->arch[0])
+  {
+    *why_not = "missing arch";
+    return (FALSE);
+  }
+  if (!get_installed_info(package))
+  {
+    *why_not = "missing info .list files";
+    return (FALSE);
+  }
+  if (!get_packages_dir(package))
+  {
+    *why_not = "missing package dir";
+    return (FALSE);
+  }
 
   max = smartlist_len (installed_packages);
   for (i = 0; i < max; i++)
@@ -1765,17 +1657,20 @@ static BOOL add_this_package (vcpkg_package *package)
        continue;
     if (strcmp(This->arch, package->arch))                          /* different architecture */
        continue;
-    if (!compare_features(This->features, package->features))       /* different features */
+    if (!equal_features(This->features, package->features))         /* different features */
        continue;
-
     if (strcmp(This->version, package->version))                    /* different version */
     {
-      TRACE (0, "Removing previous package '%s' at index: %d, version: %s', newer version: %s', arch: %s/%s\n",
-              This->package, i, This->version, package->version, This->arch, package->arch);
-      free_package (This, TRUE);
-      smartlist_del_keeporder (installed_packages, i);  /* delete this assuming 'package->version' is newer */
+      TRACE (0, "This->version: '%s', package->version: %s'\n", This->version, package->version);
       break;
     }
+  }
+  // if (i == max)
+
+  if (!get_installed_info(package))
+  {
+    *why_not = "missing info .list files";
+    return (FALSE);
   }
   return (TRUE);
 }
@@ -1791,10 +1686,10 @@ static BOOL add_this_package (vcpkg_package *package)
 static int vcpkg_parse_status_file (void)
 {
   struct stat   st;
-  vcpkg_package package, *copy;
+  vcpkg_package package, *package2;
   FILE         *f;
   char          file [_MAX_PATH];
-  char         *f_end, *f_ptr, *f_status_mem;
+  char         *f_end, *f_ptr, *f_status_mem, *why_not;
   size_t        f_size, f_read;
   int           num_parsed = 0;  /* number of parsed lines in current record */
   int           num_total = 0;   /* number of total packages parsed */
@@ -1841,11 +1736,12 @@ static int vcpkg_parse_status_file (void)
   TRACE (2, "Building 'installed_packages' from %s (%u bytes).\n", file, (unsigned)f_size);
 
   memset (&package, '\0', sizeof(package));
+  package.version[0] = '?';
 
   for (f_ptr = f_status_mem; f_ptr <= f_end; )
   {
     num_parsed += vcpkg_parse_status_line (&package, &f_ptr);
-    if (*f_ptr == '\r' || *f_ptr == '\n')
+    if (*f_ptr == '\r' || *f_ptr == '\n')  /* An empty line ends this record */
     {
       f_ptr++;
       num_total++;
@@ -1853,7 +1749,7 @@ static int vcpkg_parse_status_file (void)
               package.package, num_parsed, num_total);
     }
     else
-      continue;
+      continue;   /* continue parsing the same record */
 
     if (str_endswith(package.arch, "-static"))
     {
@@ -1861,21 +1757,24 @@ static int vcpkg_parse_status_file (void)
       // !! todo clear any 'VCPKG_plat_STATIC' values in 'platform->platforms[]' list
     }
 
-    if (add_this_package(&package))
+    if (add_this_package(&package, &why_not))
     {
-      package.installed = TRUE;
-      copy = CALLOC (sizeof(*copy), 1);
-      *copy = package;
-      smartlist_add (installed_packages, copy);
-      get_packages_dir (copy);
-      get_installed_info (copy);
+      TRACE (0, "Adding package: '%s', arch: '%s'\n", package.package, package.arch);
+      package2 = MALLOC (sizeof(*package2));
+      memcpy (package2, &package, sizeof(*package2));
+      package2->installed = TRUE;
+      smartlist_add (installed_packages, package2);
     }
     else
+    {
+      TRACE (0, "Ignoring package: '%s'; %s\n", package.package, why_not);
       free_package (&package, FALSE);
+    }
 
     /* Ready for the next record of another package
      */
     memset (&package, '\0', sizeof(package));
+    package.version[0] = '?';
     num_parsed = 0;
   }
 
@@ -1900,51 +1799,27 @@ static int vcpkg_version_cb (char *buf, int index)
 
 /*
  * Write all collected information back to the file-cache.
+ *
+ * First the nodes in the `ports_list`.
  */
-static void put_dependencies_to_cache (const port_node *node, int port_num)
+static void put_port_deps_to_cache (const port_node *node, int port_num)
 {
-  int   i, max = node->deps ? smartlist_len (node->deps) : 0;
-  char  value [10000] = "-";  /* defaults to no dependencies for this port-node */
-  char  format [100];
-  char *p    = value;
-  char *end  = value + sizeof(value) - 1;
-  int   left = sizeof(value);
+  char format [100], *dependencies;
 
   snprintf (format, sizeof(format), "port_deps_%d = %%s", port_num);
-
-  for (i = 0; i < max && left > 3; i++)
-  {
-    const char *pkg_name = smartlist_get (node->deps, i);
-
-    p += snprintf (p, left, "%s,", pkg_name);
-    left = (int) (end - p);
-  }
-  if (p > value && p[-1] == ',')
-     p[-1] = '\0';
-  cache_putf (SECTION_VCPKG, format, value);
+  dependencies = smartlist_join_str (node->depends, ",");
+  cache_putf (SECTION_VCPKG, format, dependencies ? dependencies : "-");
+  FREE (dependencies);
 }
 
-static void put_features_to_cache (const port_node *node, int port_num)
+static void put_port_features_to_cache (const port_node *node, int port_num)
 {
-  int   i, max = node->features ? smartlist_len (node->features) : 0;
-  char  value [10000] = "-";
-  char  format [1000];
-  char *p    = value;
-  char *end  = value + sizeof(value) - 1;
-  int   left = sizeof(value);
+  char format [1000], *features;
 
   snprintf (format, sizeof(format), "port_features_%d = %%s", port_num);
-
-  for (i = 0; i < max && left > 3; i++)
-  {
-    const char *feature = smartlist_get (node->features, i);
-
-    p += snprintf (p, left, "%s,", feature);
-    left = (int) (end - p);
-  }
-  if (p > value && p[-1] == ',')
-     p[-1] = '\0';
-  cache_putf (SECTION_VCPKG, format, value);
+  features = smartlist_join_str (node->features, ",");
+  cache_putf (SECTION_VCPKG, format, features ? features : "-");
+  FREE (features);
 }
 
 static void put_port_dirs_to_cache (smartlist_t *dirs)
@@ -1952,7 +1827,7 @@ static void put_port_dirs_to_cache (smartlist_t *dirs)
   int i, max = smartlist_len (dirs);
 
   for (i = 0; i < max; i++)
-     cache_putf (SECTION_VCPKG, "port_dir_%d = %s", i, smartlist_get(dirs, i));
+     cache_putf (SECTION_VCPKG, "port_dir_%d = %s", i, (const char*)smartlist_get(dirs, i));
 }
 
 static void put_packages_dirs_to_cache (smartlist_t *dirs)
@@ -1960,70 +1835,76 @@ static void put_packages_dirs_to_cache (smartlist_t *dirs)
   int i, max = smartlist_len (dirs);
 
   for (i = 0; i < max; i++)
-     cache_putf (SECTION_VCPKG, "packages_dir_%d = %s", i, smartlist_get(dirs, i));
+     cache_putf (SECTION_VCPKG, "packages_dir_%d = %s", i, (const char*)smartlist_get(dirs, i));
 }
 
-static void put_all_to_cache (void)
+static void put_available_packages_to_cache (void)
 {
-  const vcpkg_package *package, *installed_package;
-  const port_node     *node;
-  int   i, max, installed;
+  int i, max = available_packages ? smartlist_len (available_packages) : 0;
 
-  if (!opt.use_cache || !vcpkg_root)
-     return;
-
-  cache_putf (SECTION_VCPKG, "vcpkg_root = %s", vcpkg_root);
-
-  max = available_packages ? smartlist_len (available_packages) : 0;
   for (i = 0; i < max; i++)
   {
-    int zero = 0;
+    const vcpkg_package *package = smartlist_get (available_packages, i);
+    const vcpkg_package *inst_package;
+    char *dependencies;
+    int   zero = 0;
+    int   installed = 1;
 
-    package = smartlist_get (available_packages, i);
+    inst_package = find_installed_package (&zero, package->package, NULL);
+    if (inst_package && !strnicmp(inst_package->status, "purge", 5))
+       installed = 0;
 
-    installed_package = find_package_from_idx (&zero, package->package);
-    if (installed_package && strnicmp(installed_package->status, "purge", 5))
-         installed = 1;
-    else installed = 0;
-
+    dependencies = smartlist_join_str (package->depends, ",");
     cache_putf (SECTION_VCPKG, "available_package_%d = %s,%d,%s,%s,%s,\"%s\"", i,
                 package->package, installed,
-                package->version ? package->version : "-",
-                package->status  ? package->status  : "-",
-                package->arch    ? package->arch    : "-",
-                package->depends ? package->depends : "-");
+                package->version[0] ? package->version : "-",
+                package->status[0]  ? package->status  : "-",
+                package->arch[0]    ? package->arch    : "-",
+                dependencies        ? dependencies     : "-");
+    FREE (dependencies);
   }
+}
 
-  max = installed_packages ? smartlist_len (installed_packages) : 0;
+static void put_installed_packages_to_cache (void)
+{
+  int i, max = installed_packages ? smartlist_len (installed_packages) : 0;
+
   for (i = 0; i < max; i++)
   {
-    package = smartlist_get (installed_packages, i);
+    const vcpkg_package *package = smartlist_get (installed_packages, i);
+    char *dependencies;
+    int   installed = 1;
 
-    if (package && strnicmp(package->status, "purge", 5))
-         installed = 1;
-    else installed = 0;
+    if (!strnicmp(package->status, "purge", 5))
+       installed = 0;
 
+    dependencies = smartlist_join_str (package->depends, ",");
     cache_putf (SECTION_VCPKG, "installed_package_%d = %s,%d,%s,%s,%s,\"%s\"", i,
                 package->package, installed,
-                package->version ? package->version : "-",
-                package->status  ? package->status  : "-",
-                package->arch    ? package->arch    : "-",
-                package->depends ? package->depends : "-");
+                package->version[0] ? package->version : "-",
+                package->status[0]  ? package->status  : "-",
+                package->arch[0]    ? package->arch    : "-",
+                dependencies        ? dependencies     : "-");
+    FREE (dependencies);
   }
+}
 
-  max = ports_list ? smartlist_len (ports_list) : 0;
+static void put_ports_list_to_cache (void)
+{
+  int i, max = ports_list ? smartlist_len (ports_list) : 0;
+
   for (i = 0; i < max; i++)
   {
-    node = smartlist_get (ports_list, i);
-    if (node->have_CONTROL || node->have_JSON)
-         cache_putf (SECTION_VCPKG, "port_node_%d = %s,%s,%d,%d,%s,\"%s\"",
-                     i, node->package, node->version,
-                     node->have_CONTROL, node->have_JSON,
-                     node->homepage, node->description);
-    else cache_putf (SECTION_VCPKG, "port_cmake_%d = %s", i, node->package);  /* not used yet */
+    const port_node *node = smartlist_get (ports_list, i);
 
-    put_dependencies_to_cache (node, i);
-    put_features_to_cache (node, i);
+    if (node->have_CONTROL || node->have_JSON)
+       cache_putf (SECTION_VCPKG, "port_node_%d = %s,%d,%d,%s,%s,\"%s\"", i,
+                   node->package, node->have_CONTROL, node->have_JSON,
+                   node->version[0]  ? node->version     : "-",
+                   node->homepage[0] ? node->homepage    : "-",
+                   node->description ? node->description : "-");
+    put_port_deps_to_cache (node, i);
+    put_port_features_to_cache (node, i);
   }
 }
 
@@ -2082,11 +1963,11 @@ BOOL vcpkg_get_info (char **exe, struct ver_info *ver)
 /**
  * Build the `ports_dirs` smartlist from file-cache.
  */
-static int build_ports_dirs_from_cache (smartlist_t **ports_dirs)
+static int get_ports_dirs_from_cache (smartlist_t **ports_dirs)
 {
-  smartlist_t *sl = NULL;
   int i;
 
+  *ports_dirs = smartlist_new();
   for (i = 0;; i++)
   {
     char format[100], *dir;
@@ -2094,23 +1975,19 @@ static int build_ports_dirs_from_cache (smartlist_t **ports_dirs)
     snprintf (format, sizeof(format), "port_dir_%d = %%s", i);
     if (cache_getf(SECTION_VCPKG, format, &dir) != 1)
        break;
-
-    if (!sl)
-       sl = smartlist_new();
-    smartlist_add (sl, STRDUP(dir));
+    smartlist_add (*ports_dirs, STRDUP(dir));
   }
-  *ports_dirs = sl;
   return (i);
 }
 
 /**
  * Build the `packages_dirs` smartlist from file-cache.
  */
-static int build_packages_dirs_from_cache (smartlist_t **packages_dirs)
+static int get_packages_dirs_from_cache (smartlist_t **packages_dirs)
 {
-  smartlist_t *sl = NULL;
   int i;
 
+  *packages_dirs = smartlist_new();
   for (i = 0;; i++)
   {
     char format[100], *dir;
@@ -2118,100 +1995,88 @@ static int build_packages_dirs_from_cache (smartlist_t **packages_dirs)
     snprintf (format, sizeof(format), "packages_dir_%d = %%s", i);
     if (cache_getf(SECTION_VCPKG, format, &dir) != 1)
        break;
-
-    if (!sl)
-       sl = smartlist_new();
-    smartlist_add (sl, STRDUP(dir));
+    smartlist_add (*packages_dirs, STRDUP(dir));
   }
-  *packages_dirs = sl;
   return (i);
 }
 
 /**
  * Build the `installed_packages` smartlist from file-cache.
  */
-static int build_installed_packages_from_cache (void)
+static int get_installed_packages_from_cache (void)
 {
   int i;
 
   for (i = 0;; i++)
   {
-    vcpkg_package package, *copy;
-    char  format [100];
-    int   rc;
+    vcpkg_package *package;
+    char  format [100], *pkg_name, *version, *status, *arch, *dependencies;
+    int   rc, installed;
 
-    memset (&package, '\0', sizeof(package));
     snprintf (format, sizeof(format), "installed_package_%d = %%s,%%d,%%s,%%s,%%s,%%s", i);
-    rc = cache_getf (SECTION_VCPKG, format,
-                     &package.package, &package.installed, &package.version, &package.status,
-                     &package.arch, &package.depends);
+    rc = cache_getf (SECTION_VCPKG, format, &pkg_name, &installed, &version, &status, &arch, &dependencies);
     if (rc != 6)
        break;
 
-    if (!get_installed_info(&package))
+    if (!installed || *arch == '-')
        continue;
 
-    copy = CALLOC (sizeof(*copy), 1);
-    copy->package = STRDUP (package.package);
+    package = CALLOC (sizeof(*package), 1);
+    _strlcpy (package->package, pkg_name, sizeof(package->package));
+    _strlcpy (package->arch, arch, sizeof(package->arch));
 
-    if (*package.version != '-')
-       copy->version = STRDUP (package.version);
+    if (*version != '-')
+       _strlcpy (package->version, version, sizeof(package->version));
 
-    if (*package.status != '-')
-       copy->status = STRDUP (package.status);
+    if (*status != '-')
+       _strlcpy (package->status, status, sizeof(package->status));
 
-    if (*package.arch != '-')
-       copy->arch = STRDUP (package.arch);
+    if (strcmp(dependencies, "\"-\""))
+       package->depends = smartlist_split_str (dependencies, ", ");
 
-    if (strcmp(package.depends, "\"-\""))
-       copy->depends = STRDUP (str_unquote(package.depends));
-
-    smartlist_add (installed_packages, copy);
+    get_installed_info (package);
+    smartlist_add (installed_packages, package);
   }
-  smartlist_sort (installed_packages, compare_package);
   return smartlist_len (installed_packages);
 }
 
 /**
  * Build the `available_packages` smartlist from file-cache.
  */
-static int build_available_packages_from_cache (void)
+static int get_available_packages_from_cache (void)
 {
   int i;
 
   for (i = 0;; i++)
   {
-    vcpkg_package package, *copy;
-    char  format [100];
-    int   rc;
+    vcpkg_package *package;
+    char  format [100], *pkg_name, *version, *status, *arch, *dependencies;
+    int   rc, installed;
 
-    memset (&package, '\0', sizeof(package));
     snprintf (format, sizeof(format), "available_package_%d = %%s,%%d,%%s,%%s,%%s,%%s", i);
-    rc = cache_getf (SECTION_VCPKG, format,
-                     &package.package, &package.installed, &package.version,
-                     &package.status, &package.arch, &package.depends);
+    rc = cache_getf (SECTION_VCPKG, format, &pkg_name, &installed, &version, &status, &arch, &dependencies);
     if (rc != 6)
        break;
 
-    copy = CALLOC (sizeof(*copy), 1);
-    copy->package = STRDUP (package.package);
+    package = CALLOC (sizeof(*package), 1);
+    _strlcpy (package->package, pkg_name, sizeof(package->package));
 
-    if (*package.version != '-')
-       copy->version = STRDUP (package.version);
+    if (*version != '-')
+       _strlcpy (package->version, version, sizeof(package->version));
 
-    if (*package.status != '-')
-       copy->status = STRDUP (package.status);
+    if (*status != '-')
+       _strlcpy (package->status, status, sizeof(package->status));
 
-    if (*package.arch != '-')
-       copy->arch = STRDUP (package.arch);
+    if (*arch != '-')
+       _strlcpy (package->arch, arch, sizeof(package->arch));
 
-    if (strcmp(package.depends, "\"-\""))
-       copy->depends = STRDUP (str_unquote(package.depends));
+    if (strcmp(dependencies, "\"-\""))
+       package->depends = smartlist_split_str (dependencies, ", ");
 
-    smartlist_add (available_packages, copy);
+    smartlist_add (available_packages, package);
   }
   smartlist_sort (available_packages, compare_package);
-  return (i);
+  return smartlist_len (available_packages);
 }
 
 /**
@@ -2261,30 +2126,29 @@ void vcpkg_init (void)
 
   last_err_str[0] = '\0';   /* clear any error-string set */
 
-  num_cached_available_packages = build_available_packages_from_cache();
-  num_cached_packages_dirs      = build_packages_dirs_from_cache (&packages_dirs);
-  num_cached_ports_dirs         = build_ports_dirs_from_cache (&ports_dirs);
-  num_cached_installed_packages = build_installed_packages_from_cache();
+  num_cached_available_packages = get_available_packages_from_cache();
+  num_cached_packages_dirs      = get_packages_dirs_from_cache (&packages_dirs);
+  num_cached_ports_dirs         = get_ports_dirs_from_cache (&ports_dirs);
+  num_cached_installed_packages = get_installed_packages_from_cache();
 
   /* If not from cache, build a dirlist using readdir2().
    * And then put that to cache.
    */
-  if (!ports_dirs || smartlist_len(ports_dirs) == 0)
+  if (smartlist_len(ports_dirs) == 0)
   {
-    ports_dirs = build_dir_list ("ports");
+    build_dir_list (ports_dirs, "ports", FALSE);
     put_port_dirs_to_cache (ports_dirs);
   }
 
-  if (!packages_dirs || smartlist_len(packages_dirs) == 0)
+  if (smartlist_len(packages_dirs) == 0)
   {
-    packages_dirs = build_dir_list ("packages");
+    build_dir_list (packages_dirs, "packages", TRUE);
     put_packages_dirs_to_cache (packages_dirs);
   }
 
   get_all_available (ports_dirs, num_cached_ports_dirs + num_cached_installed_packages > 0);
 
-  if (ports_dirs)
-     smartlist_free_all (ports_dirs);
+  smartlist_free_all (ports_dirs);
 
   /**
    * If we have no `<vcpkg_root>\\installed` directory. Hence no installed packages nor
@@ -2313,6 +2177,7 @@ void vcpkg_init (void)
    * and figure out which belongs to the `installed_packages` list.
    * I.e. under `<vcpkg_root>\\installed\\`
    *
+   * Handle only non-empty directories.
    * No need to do this if we have read the cached `installed_packages`.
    */
   for (i = 0; i < max; i++)
@@ -2335,7 +2200,7 @@ void vcpkg_init (void)
       j = 0;
       package = CALLOC (sizeof(*package), 1);
       *q = '\0';
-      package->package = p;
+      _strlcpy (package->package, p, sizeof(package->package));
       make_package_platform (package, q+1, 0, TRUE);
       get_control_node (&j, &package->link, package->package);
       smartlist_add (installed_packages, package);
@@ -2344,7 +2209,7 @@ void vcpkg_init (void)
            homepage = package->link->homepage;
       else homepage = "?";
 
-      TRACE (0, "package: %-20s  %-50s  platform: 0x%04X (%s).\n",
+      TRACE (1, "package: %-20s  %-50s  platform: 0x%04X (%s).\n",
               package->package, homepage, package->platforms[0],
               flags_decode(package->platforms[0], platforms, DIM(platforms)));
     }
@@ -2355,8 +2220,8 @@ void vcpkg_init (void)
 
   if (opt.verbose >= 3)
   {
-    dump_nodes();
-    dump_packages();
+    dump_ports_list();
+    dump_installed_packages();
   }
 }
 
@@ -2474,8 +2339,8 @@ static BOOL get_depend_name (const VCPKG_plat_list p_list, const char **name)
  *  \li package->package:      "sqlite3"
  *  \li package->platforms[0]: `VCPKG_plat_x86`
  *  \li package->platforms[1]: `VCPKG_plat_WINDOWS`
- *  \li returns:               "<vcpkg_root>\\installed\\x86-windows"
- *                             (or "<vcpkg_root>/installed/x86-windows")
+ *  \li returns:               `"<vcpkg_root>\\installed\\x86-windows"`
+ *                             (or `"<vcpkg_root>\\installed\\x86-windows"`)
  */
 static const char *get_installed_dir (const vcpkg_package *package)
 {
@@ -2494,12 +2359,12 @@ static const char *get_installed_dir (const vcpkg_package *package)
     snprintf (last_err_str, sizeof(last_err_str), "No status directory '%s'", dir);
     return (NULL);
   }
+
   if (opt.show_unix_paths)
      slashify2 (dir, dir, '/');
   return (dir);
 }
 
-#if defined(NOT_NEEDED) || 1
 /**
  * Construct an relative directory-name for an built package.
  *
@@ -2517,7 +2382,7 @@ static const char *get_packages_dir (const vcpkg_package *package)
   snprintf (dir, sizeof(dir), "%s\\packages\\%s_%s",
             vcpkg_root, package->package, package->arch);
 
-  TRACE (0, "architecture: '%s', dir: '%s'\n", package->arch, dir);
+  TRACE (2, "architecture: '%s', dir: '%s'\n", package->arch, dir);
 
   if (!is_directory(dir))
   {
@@ -2526,7 +2391,6 @@ static const char *get_packages_dir (const vcpkg_package *package)
   }
   return (dir + strlen(vcpkg_root) + 1);
 }
-#endif
 
 /**
  * For a `package`, print the information obtained from `get_installed_info()`.
@@ -2542,16 +2406,9 @@ static const char *get_packages_dir (const vcpkg_package *package)
  */
 static void print_package_info (vcpkg_package *package, FMT_buf *fmt_buf, int indent)
 {
-  char slash, path [_MAX_PATH];
-  int  i, max;
+  char path [_MAX_PATH];
+  int  i, max = smartlist_len (package->install_info);
 
-  if (!get_installed_info(package))
-  {
-    buf_printf (fmt_buf, "%s; (orphaned?)\n", package->status);
-    return;
-  }
-
-  max = smartlist_len (package->install_info);
   for (i = 0; i < max; i++)
   {
     buf_printf (fmt_buf, "%*s%s\n", i > 0 ? indent : 0, "",
@@ -2563,7 +2420,8 @@ static void print_package_info (vcpkg_package *package, FMT_buf *fmt_buf, int in
 
   if (max == 0)
   {
-    slash = (opt.show_unix_paths ? '/' : '\\');
+    char slash = (opt.show_unix_paths ? '/' : '\\');
+
     snprintf (path, sizeof(path), "%s\\installed\\%s\\", vcpkg_root, package->arch);
     buf_printf (fmt_buf, "%*sNo entries for package `%s` under\n%*s%s.",
                 indent, "", package->package, indent, "", slashify2(path, path, slash));
@@ -2588,6 +2446,18 @@ static void print_package_brief (const vcpkg_package *package, FMT_buf *fmt_buf,
 
 /**
  * Parser for a single `*.list` file for a specific package.
+ *
+ * Extract lines looking like these:
+ * \code
+ *  x86-windows-static/include/
+ *  x86-windows-static/include/zconf.h
+ *  x86-windows-static/include/zlib.h
+ *  x86-windows-static/lib/
+ *  x86-windows-static/lib/pkgconfig/
+ *  x86-windows-static/lib/pkgconfig/zlib.pc
+ *  x86-windows-static/lib/zlib.lib
+ * \endcode
+ *
  * Add wanted `char *` elements to this smartlist as we parse the file.
  */
 static const char *wanted_arch;
@@ -2599,12 +2469,15 @@ static void info_parse (smartlist_t *sl, char *buf)
   str_strip_nl (buf);
   q = strchr (p, '\0') - 1;
 
-  if (!str_startswith(buf, wanted_arch) || *q == '/')
+  if (!str_startswith(buf, wanted_arch) ||  /* Does not match "x86-windows-static" */
+      *q == '/')                            /* Ignore directory lines like "x86-windows-static/" */
      return;
 
   q = p + strlen (wanted_arch);
-  if (str_startswith(q, "/bin")     || str_startswith(q, "/lib") ||
-      str_startswith(q, "/include") || str_startswith(q, "/share"))
+
+  /* Add only files matching "x86-windows-static/bin", "x86-windows-static/lib" and "x86-windows-static/include"
+   */
+  if (str_startswith(q, "/bin") || str_startswith(q, "/lib") || str_startswith(q, "/include"))
   {
     if (!opt.show_unix_paths)
        p = slashify2 (p, p, '\\');
@@ -2639,8 +2512,8 @@ static BOOL get_installed_info (vcpkg_package *package)
       return (FALSE);
     }
 
-    TRACE (2, "Getting package information from '%s'.\n", file);
     wanted_arch = package->arch;
+    TRACE (1, "Getting package information from '%s' (arch: %s).\n", file, wanted_arch);
 
     package->install_info = smartlist_read_file (file, (smartlist_parse_func)info_parse);
     make_package_platform (package, package->arch, 0, TRUE);
@@ -2695,6 +2568,7 @@ unsigned vcpkg_list_installed (BOOL detailed)
       num_ignored++;
       continue;
     }
+
     if (!package->install_info)
     {
       TRACE (1, "%d: No install_info for '%s'; arch: '%s'\n", i, package->package, package->arch);
@@ -2728,7 +2602,7 @@ unsigned vcpkg_list_installed (BOOL detailed)
 /**
  * Free the memory allocated for `ports_list`.
  */
-static void free_nodes (void)
+static void free_ports_list (void)
 {
   int i, max = ports_list ? smartlist_len (ports_list) : 0;
 
@@ -2736,7 +2610,7 @@ static void free_nodes (void)
   {
     port_node *node = smartlist_get (ports_list, i);
 
-    smartlist_free_all (node->deps);
+    smartlist_free_all (node->depends);
     smartlist_free_all (node->features);
     smartlist_free (node->supports);
     FREE (node->description);
@@ -2753,16 +2627,15 @@ static void free_nodes (void)
 void vcpkg_exit (void)
 {
   vcpkg_package *package;
-  int   i, max = available_packages ? smartlist_len (available_packages) : 0;
+  int   i, max;
 
-  put_all_to_cache();
-
-  for (i = 0; i < max; i++)
+  if (opt.use_cache && vcpkg_root)
   {
-    package = smartlist_get (available_packages, i);
-    FREE (package->package);
+    cache_putf (SECTION_VCPKG, "vcpkg_root = %s", vcpkg_root);
+    put_available_packages_to_cache();
+    put_installed_packages_to_cache();
+    put_ports_list_to_cache();
   }
-  smartlist_free_all (available_packages);
 
   max = installed_packages ? smartlist_len (installed_packages) : 0;
   for (i = 0; i < max; i++)
@@ -2770,13 +2643,21 @@ void vcpkg_exit (void)
     package = smartlist_get (installed_packages, i);
     free_package (package, TRUE);
   }
-  if (installed_packages)
-     smartlist_free (installed_packages);
 
-  free_nodes();
-  regex_free();
+  max = available_packages ? smartlist_len (available_packages) : 0;
+  for (i = 0; i < max; i++)
+  {
+    package = smartlist_get (available_packages, i);
+    free_package (package, TRUE);
+  }
+  smartlist_free (available_packages);
+  smartlist_free (installed_packages);
 
   installed_packages = available_packages = NULL;
+
+  free_ports_list();
+  regex_free();
+
   FREE (vcpkg_exe);
   FREE (vcpkg_root);
 }
@@ -2798,7 +2679,7 @@ static BOOL get_control_node (int *index_p, const port_node **node_p, const char
     if ((node->have_CONTROL || node->have_JSON) &&
         fnmatch(package_spec, node->package, fnmatch_case(0)) == FNM_MATCH)
     {
-      TRACE (2, "i=%d, index=%d, package: %s\n", i, index, node->package);
+      TRACE (2, "index=%d, i=%d, package: %s\n", index, i, node->package);
       *node_p  = node;
       *index_p = i + 1;
       return (TRUE);
@@ -2823,13 +2704,13 @@ static BOOL get_control_node (int *index_p, const port_node **node_p, const char
  */
 static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int indent1)
 {
-  const vcpkg_package *package = NULL;
-  const char          *dir, *yes_no, *cpu = NULL;
-  unsigned             num_installed = vcpkg_get_num_installed();
-  unsigned             num_ignored = 0;
-  int                  found, index = 0;
+  const char    *dir, *yes_no, *cpu = NULL;
+  unsigned       num_installed = vcpkg_get_num_installed();
+  unsigned       num_ignored = 0;
+  int            found, index = 0;
+  vcpkg_package *package = NULL;
 
-  if (num_installed == 0 || (package = find_package_from_idx(&index, package_name)) == NULL)
+  if (num_installed == 0 || (package = find_installed_package(&index, package_name, NULL)) == NULL)
        yes_no = C_BR_RED   "NO\n";
   else yes_no = C_BR_GREEN "YES: ";
 
@@ -2846,7 +2727,7 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
   else if (opt.only_64bit)
      cpu = "x64";
 
-  for (found = 0; package; package = find_package_from_idx(&index, package_name))
+  for (found = 0; package; package = find_installed_package(&index, package_name, NULL))
   {
     if (opt.only_32bit && !(package->platforms[0] & VCPKG_plat_x86))
     {
@@ -2866,8 +2747,8 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
        buf_printf (fmt_buf, "%s, %u files", package->arch, smartlist_len(package->install_info));
 
     if (opt.show_size)
-         buf_printf (fmt_buf, ", %s\n", get_package_files_size(package));
-    else buf_putc (fmt_buf, '\n');
+       buf_printf (fmt_buf, " %s", get_package_files_size(package));
+    buf_putc (fmt_buf, '\n');
 
     dir = get_installed_dir (package);
     if (dir)
@@ -2885,19 +2766,18 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
   buf_putc (fmt_buf, '\n');
   return (TRUE);
 }
-#endif  /* !JSON_TEST */
 
 /**
- * Search in either `available_packages` or `installed_packages` for a matching `pkg_name`.
+ * Search in `available_packages` for a matching `pkg_name`.
  * Return a pointer to it or NULL.
  */
-static void *find_package (smartlist_t *sl, const char *pkg_name)
+static void *find_available_package (const char *pkg_name)
 {
-  int i, max = sl ? smartlist_len (sl) : 0;
+  int i, max = available_packages ? smartlist_len (available_packages) : 0;
 
   for (i = 0; i < max; i++)
   {
-    vcpkg_package *package = smartlist_get (sl, i);
+    vcpkg_package *package = smartlist_get (available_packages, i);
 
     if (!strcmp(pkg_name, package->package))
        return (package);
@@ -2907,17 +2787,17 @@ static void *find_package (smartlist_t *sl, const char *pkg_name)
 
 /**
  * Return a `vcpkg_package*` structure for an installed package matching `pkg_name`.
- * There can be 2 (or more) packages with the same name but for different bitness.
+ * There can be 2 (or more) packages with the same name but for different architectures.
  *
  * \eg. `package->platforms[]` contains `VCPKG_plat_WINDOWS` and `VCPKG_plat_x86` or
  *      `package->platforms[]` contains `VCPKG_plat_UWP` and `VCPKG_plat_x64` etc.
  *
- * \param[in,out] index_p  A pointer to a value used as the first and next index to search from.
- *                         This value is set on exit from this function.
- *
- * \param[in] pkg_name     The package name to search for among the installed VCPKG packages.
+ * \param[in,out]   index_p   A pointer to a value used as the first and next index to search from.
+ *                            This value is set on exit from this function.
+ * \param[in]       pkg_name  The package name to search for among the installed VCPKG packages.
+ * \param[in]       arch      The architecture to check for if `pkg_name` matches. Optional.
  */
-static void *find_package_from_idx (int *index_p, const char *pkg_name)
+static void *find_installed_package (int *index_p, const char *pkg_name, const char *arch)
 {
   vcpkg_package *package;
   int   i, max = smartlist_len (installed_packages);
@@ -2927,6 +2807,9 @@ static void *find_package_from_idx (int *index_p, const char *pkg_name)
     package = smartlist_get (installed_packages, i);
     if (!strcmp(package->package, pkg_name))
     {
+      if (arch && strcmp(package->arch, arch))
+         continue;
+
       *index_p = i + 1;
       return (package);
     }
@@ -2934,7 +2817,6 @@ static void *find_package_from_idx (int *index_p, const char *pkg_name)
   return (NULL);
 }
 
-_WUNUSED_FUNC_OFF()
 /**
  * Search the global `available_packages` for a matching `package->package`.
  * If found return a pointer to it.
@@ -2946,15 +2828,15 @@ _WUNUSED_FUNC_OFF()
  * entry in the list. Hence many `port_node::deps` entries will have a pointer to
  * the same location.
  */
+_WUNUSED_FUNC_OFF()
 static void *find_or_alloc_package_dependency (const vcpkg_package *package)
 {
-  vcpkg_package *package2 = find_package (available_packages, package->package);
+  vcpkg_package *package2 = find_available_package (package->package);
 
   if (!package2)
   {
     package2 = MALLOC (sizeof(*package2));
     *package2 = *package;
-    package2->package = STRDUP (package->package);
     smartlist_add (available_packages, package2);
   }
   return (package2);
@@ -3026,461 +2908,10 @@ static BOOL is_static_supported (const VCPKG_plat_list p_list)
 }
 
 /**
- * This JSON parser is based on these files:
- *   https://github.com/zserge/jsmn/blob/master/jsmn.h
- *   https://github.com/zserge/jsmn/blob/master/example/simple.c
- *
- * \typedef JSON_type_t
- *
- * JSON type identifier. Basic types are:
- *  o Object
- *  o Array
- *  o String
- *  o Other primitive: number, boolean (true/false) or null
- */
-typedef enum JSON_type_t {
-        JSON_UNDEFINED = 0,
-        JSON_OBJECT    = 1,
-        JSON_ARRAY     = 2,
-        JSON_STRING    = 3,
-        JSON_PRIMITIVE = 4
-      } JSON_type_t;
-
-/**
- * \typedef JSON_err
- *
- * Error status from `JSON_parse()`
- */
-typedef enum JSON_err {
-        JSON_ERROR_NO_TOK = -1,   /**< Not enough tokens were provided in `JSON_parse()` */
-        JSON_ERROR_INVAL  = -2,   /**< Invalid character inside JSON string */
-        JSON_ERROR_PART   = -3    /**< The string is not a full JSON packet, more bytes expected */
-      } JSON_err;
-
-/**
- * \typedef JSON_tok_t
- *
- * JSON token description.
- * type     type (object, array, string etc.)
- * start    start position in JSON data string
- * end      end position in JSON data string
- */
-typedef struct {
-        JSON_type_t type;
-        int         start;
-        int         end;
-        int         size;
-        int         is_key;
-      } JSON_tok_t;
-
-/**
- * \typedef JSON_parser
- *
- * Contains an array of token blocks available. Also stores
- * the string being parsed now and current position in that string.
- */
-typedef struct JSON_parser {
-        uint32_t      pos;        /**< Offset in the JSON string */
-        uint32_t      tok_next;   /**< Next token to allocate */
-        int           tok_super;  /**< Superior token node, e.g parent object or array */
-    //  uint32_t      line;       /**< Current parser line of input (unreliable, does not work) */
-    //  uint32_t      column;     /**< Current parser column of input (unreliable, does not work) */
-      } JSON_parser;
-
-/**
- * Returns a string naming token type `t`.
- */
-static const char *JSON_typestr (JSON_type_t t)
-{
-  return (t == JSON_UNDEFINED ? "UNDEFINED" :
-          t == JSON_OBJECT    ? "OBJECT"    :
-          t == JSON_ARRAY     ? "ARRAY"     :
-          t == JSON_STRING    ? "STRING"    :
-          t == JSON_PRIMITIVE ? "PRIMITIVE" : "?");
-}
-
-/**
- * Returns an error-string for error `e`.
- */
-static const char *JSON_strerr (JSON_err e)
-{
-  return (e == JSON_ERROR_NO_TOK ? "JSON_ERROR_NO_TOK" :
-          e == JSON_ERROR_INVAL  ? "JSON_ERROR_INVAL"  :
-          e == JSON_ERROR_PART   ? "JSON_ERROR_PART"   : "?");
-}
-
-/**
- * Allocates a fresh unused token from the token pool.
- */
-static JSON_tok_t *JSON_alloc_token (JSON_parser *parser, JSON_tok_t *tokens, size_t num_tokens)
-{
-  JSON_tok_t *tok;
-
-  if (parser->tok_next >= num_tokens)
-     return (NULL);
-
-  tok = &tokens [parser->tok_next++];
-  tok->start = tok->end = -1;
-  tok->size = 0;
-  tok->is_key = 0;
-  return (tok);
-}
-
-/**
- * Fills token type and set boundaries.
- */
-static void JSON_fill_token (JSON_tok_t *token, JSON_type_t type, int start, int end)
-{
-  token->type  = type;
-  token->start = start;
-  token->end   = end;
-  token->size  = 0;
-}
-
-/**
- * Fills next available token with JSON primitive.
- */
-static int JSON_parse_primitive (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, size_t num_tokens)
-{
-  JSON_tok_t *token;
-  int         start = parser->pos;
-
-  for ( ; parser->pos < len && js[parser->pos]; parser->pos++)
-  {
-    switch (js[parser->pos])
-    {
-      case ':':
-      case '\t':
-      case '\r':
-      case '\n':
-      case ' ':
-      case ',':
-      case ']':
-      case '}':
-           goto found;
-    }
-    if (js[parser->pos] < 32 || js[parser->pos] >= 127)
-    {
-      parser->pos = start;
-      return (JSON_ERROR_INVAL);
-    }
-  }
-
-found:
-  if (!tokens)
-  {
-    parser->pos--;
-    return (0);
-  }
-  token = JSON_alloc_token (parser, tokens, num_tokens);
-  if (!token)
-  {
-    parser->pos = start;
-    TRACE (1, "No more tokens\n");
-    return (JSON_ERROR_NO_TOK);
-  }
-  JSON_fill_token (token, JSON_PRIMITIVE, start, parser->pos);
-  parser->pos--;
-  return (0);
-}
-
-/**
- * Fills next token with JSON string.
- */
-static int JSON_parse_string (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, size_t num_tokens)
-{
-  JSON_tok_t *token;
-  int         i, start = parser->pos;
-  char        c;
-
-  parser->pos++;
-
-  /* Skip starting quote
-   */
-  for ( ; parser->pos < len && js[parser->pos]; parser->pos++)
-  {
-    c = js[parser->pos];
-
-    if (c == '\"')   /* Quote: end of string */
-    {
-      if (!tokens)
-         return (0);
-
-      token = JSON_alloc_token (parser, tokens, num_tokens);
-      if (!token)
-      {
-        parser->pos = start;
-        return (JSON_ERROR_NO_TOK);
-      }
-      JSON_fill_token (token, JSON_STRING, start+1, parser->pos);
-      return (0);
-    }
-
-    if (c == '\\' && parser->pos + 1 < len)  /* Backslash: Quoted symbol expected */
-    {
-      parser->pos++;
-      switch (js[parser->pos])
-      {
-        /* Allowed escaped symbols */
-        case '\"':
-        case '/':
-        case '\\':
-        case 'b':
-        case 'f':
-        case 'r':
-        case 'n':
-        case 't':
-             break;
-
-        /* Allows escaped symbol '\uXXXX' */
-        case 'u':
-             parser->pos++;
-             for(i = 0; i < 4 && parser->pos < len && js[parser->pos]; i++)
-             {
-               /* If it isn't a hex character we have an error */
-               if (!((js[parser->pos] >= 48 && js[parser->pos] <= 57) ||  /* 0-9 */
-                     (js[parser->pos] >= 65 && js[parser->pos] <= 70) ||  /* A-F */
-                     (js[parser->pos] >= 97 && js[parser->pos] <= 102)))  /* a-f */
-               {
-                 parser->pos = start;
-                 return (JSON_ERROR_INVAL);
-               }
-               parser->pos++;
-             }
-             parser->pos--;
-             break;
-
-        /* Unexpected symbol */
-        default:
-             parser->pos = start;
-             return (JSON_ERROR_INVAL);
-      }
-    }
-  }
-  parser->pos = start;
-  return (JSON_ERROR_PART);
-}
-
-/**
- * Run JSON parser. It parses a JSON data string into and array of tokens, each describing
- * a single JSON object.
- */
-static int JSON_parse (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, unsigned int num_tokens)
-{
-  JSON_tok_t *token;
-  int         r, i, count = parser->tok_next;
-
-  for (; parser->pos < len && js[parser->pos]; parser->pos++)
-  {
-    JSON_type_t type;
-    char c = js [parser->pos];
-
-    switch (c)
-    {
-      case '{':
-      case '[':
-           count++;
-           if (!tokens)
-              break;
-
-           token = JSON_alloc_token (parser, tokens, num_tokens);
-           if (!token)
-           {
-             return (JSON_ERROR_NO_TOK);
-             TRACE (1, "No more tokens\n");
-           }
-           if (parser->tok_super != -1)
-              tokens[parser->tok_super].size++;
-
-           token->type = (c == '{' ? JSON_OBJECT : JSON_ARRAY);
-           token->start = parser->pos;
-           parser->tok_super = parser->tok_next - 1;
-           break;
-
-      case '}':
-      case ']':
-           if (!tokens)
-              break;
-           type = (c == '}' ? JSON_OBJECT : JSON_ARRAY);
-           for (i = parser->tok_next - 1; i >= 0; i--)
-           {
-             token = &tokens[i];
-             if (token->start != -1 && token->end == -1)
-             {
-               if (token->type != type)
-                  return (JSON_ERROR_INVAL);
-
-               parser->tok_super = -1;
-               token->end = parser->pos + 1;
-               break;
-             }
-           }
-           /* Error if unmatched closing bracket */
-           if (i == -1)
-              return (JSON_ERROR_INVAL);
-           for (; i >= 0; i--)
-           {
-             token = &tokens[i];
-             if (token->start != -1 && token->end == -1)
-             {
-               parser->tok_super = i;
-               break;
-             }
-           }
-           break;
-
-      case '\"':
-           r = JSON_parse_string (parser, js, len, tokens, num_tokens);
-           if (r < 0)
-              return (r);
-           count++;
-           if (parser->tok_super != -1 && tokens)
-              tokens[parser->tok_super].size++;
-           break;
-
-      case '\n':
-      case '\t':
-      case '\r':
-      case ' ':
-           break;
-
-      case ':':
-           if (tokens && parser->tok_next >= 1)
-           {
-             JSON_tok_t *key = &tokens [parser->tok_next-1];
-
-             if (key && key->type == JSON_STRING)
-                key->is_key = 1;
-           }
-           parser->tok_super = parser->tok_next - 1;
-           break;
-
-      case ',':
-           if (tokens && parser->tok_super != -1 &&
-               tokens[parser->tok_super].type != JSON_ARRAY &&
-               tokens[parser->tok_super].type != JSON_OBJECT)
-           {
-             for (i = parser->tok_next - 1; i >= 0; i--)
-             {
-               if (tokens[i].type == JSON_ARRAY || tokens[i].type == JSON_OBJECT)
-               {
-                 if (tokens[i].start != -1 && tokens[i].end == -1)
-                 {
-                   parser->tok_super = i;
-                   break;
-                 }
-               }
-             }
-           }
-           break;
-
-      /* In non-strict mode every unquoted value is a primitive */
-      default:
-           r = JSON_parse_primitive (parser, js, len, tokens, num_tokens);
-           if (r < 0)
-              return (r);
-           count++;
-           if (tokens && parser->tok_super != -1)
-              tokens[parser->tok_super].size++;
-           break;
-    }
-  }
-
-  if (tokens)
-  {
-    for (i = parser->tok_next - 1; i >= 0; i--)
-    {
-      /* Unmatched opened object or array
-       */
-      if (tokens[i].start != -1 && tokens[i].end == -1)
-         return (JSON_ERROR_PART);
-    }
-  }
-  return (count);
-}
-
-/**
- * Creates a new parser based over a given  buffer with an array of tokens
- * available.
- */
-static void JSON_init (JSON_parser *parser)
-{
-  memset (parser, '\0', sizeof(*parser));
-  parser->tok_super = -1;
-}
-
-static int JSON_eq (const JSON_tok_t *tok, const char *buf, const char *str)
-{
-  if (tok->type == JSON_STRING && (int)strlen(str) == tok->end - tok->start &&
-      !strnicmp(buf + tok->start, str, tok->end - tok->start))
-     return (1);
-  return (0);
-}
-
-/**
- * Scraped from https://github.com/zserge/jsmn/pull/166/files
- * By Maxim Menshikov
- *
- * Get the size (in tokens) consumed by token and its children.
- */
-size_t JSON_get_total_size (const JSON_tok_t *token)
-{
-  int      rc = 0;
-  unsigned i, j;
-  const JSON_tok_t *key;
-
-  if (token->type == JSON_PRIMITIVE || token->type == JSON_STRING)
-  {
-    rc = 1;
-  }
-  else if (token->type == JSON_OBJECT)
-  {
-    for (i = j = 0; i < token->size; i++)
-    {
-      key = token + 1 + j;
-      j += JSON_get_total_size (key);
-      if (key->size > 0)
-         j += JSON_get_total_size (token + 1 + j);
-    }
-    rc = j + 1;
-  }
-  else if (token->type == JSON_ARRAY)
-  {
-    for (i = j = 0; i < token->size; i++)
-        j += JSON_get_total_size (token + 1 + j);
-    rc = j + 1;
-  }
-  return (rc);
-}
-
-/**
- * Get token with a given index inside the JSON_ARRAY or JSON_OBJECT defined by 'token' parameter.
- */
-const JSON_tok_t *JSON_get_token_by_index (const JSON_tok_t *token, JSON_type_t type, int index)
-{
-  const JSON_tok_t *token2;
-  int   i, total_size;
-
-  if (token->type != type)
-     return (NULL);
-
-  total_size = JSON_get_total_size (token);
-  for (i = 1; i < total_size; i++)
-  {
-    token2 = token + i;
-    if (index == 0)
-       return (token2);
-    i += JSON_get_total_size (token2) - 1;
-    --index;
-  }
-  return (NULL);
-}
-
-/**
  * Add all package dependencies for this `*node`.
- * This function MUST be used after the `available_packages` list is ready.
+ * This function MUST only be used after the `available_packages` list is ready.
  */
-static void JSON_add_dependencies (port_node *node, const char *buf, const JSON_tok_t *token)
+static void json_add_dependencies (port_node *node, const char *buf, const JSON_tok_t *token)
 {
   const JSON_tok_t *token2;
   int   i;
@@ -3495,16 +2926,9 @@ static void JSON_add_dependencies (port_node *node, const char *buf, const JSON_
     {
       const char   *str = buf + token2->start;
       int           len = token2->end - token2->start;  /* do not add +1 since the string should be quoted */
-      char          pkg_name [VCPKG_MAX_NAME];
-      vcpkg_package package;
 
       TRACE (1, "%2d: dependency: '%.*s'\n", i, len, str);
-      if (!node->deps)
-         node->deps = smartlist_new();
-
-      memset (&package, '\0', sizeof(package));
-      package.package = _strlcpy (pkg_name, str, min(len+1, sizeof(pkg_name)));
-      smartlist_add (node->deps, STRDUP(package.package)); // find_or_alloc_package_dependency(&package));
+      smartlist_add (node->depends, str_ndup(str, len));
     }
   }
 }
@@ -3512,7 +2936,7 @@ static void JSON_add_dependencies (port_node *node, const char *buf, const JSON_
 /**
  * Add all package features for this `*node`.
  */
-static void JSON_add_features (port_node *node, char *buf, const JSON_tok_t *token)
+static void json_add_features (port_node *node, char *buf, const JSON_tok_t *token)
 {
   const JSON_tok_t *token2;
   int   i;
@@ -3529,8 +2953,6 @@ static void JSON_add_features (port_node *node, char *buf, const JSON_tok_t *tok
       int         len = token2->end - token2->start;  /* do not add +1 since the string should be quoted */
 
       TRACE (1, "%2d: feature: '%.*s'\n", i, len, str);
-      if (!node->features)
-         node->features = smartlist_new();
       smartlist_add (node->features, str_ndup(str, len));
     }
   }
@@ -3539,11 +2961,11 @@ static void JSON_add_features (port_node *node, char *buf, const JSON_tok_t *tok
 /**
  * A package description in a `vcpkg.json` file is normally a simple `JSON_STRING`.
  * But in the case of long descriptions, it can be split up in a `JSON_ARRAY`.
- * In the latter case we use a fixed `merged_buf[]` to convert it into a char string.
+ * In the latter case we use a fixed `merger*` smartlist to convert it into a char string.
  */
-static void JSON_add_description (port_node *node, char *buf, const JSON_tok_t *token)
+static void json_add_description (port_node *node, char *buf, const JSON_tok_t *token)
 {
-  char  *str, merged_buf [1000];
+  char  *str;
   size_t len;
   int    i;
 
@@ -3552,31 +2974,29 @@ static void JSON_add_description (port_node *node, char *buf, const JSON_tok_t *
 
   if (token->type == JSON_ARRAY)
   {
-    merged_buf [0] = '\0';
+    smartlist_t *merger = smartlist_new();
+
     for (i = 0; i < token->size; i++)
     {
       const JSON_tok_t *token2 = token + i + 1;
 
       str = buf + token2->start;
       len = token2->end - token2->start;  /* do not use +1 since the string should be quoted */
-      if (i > 0)                          /* add a space before next array token */
-         str_cat (merged_buf, sizeof(merged_buf), " ");
-      str[len] = '\0';
-      str_cat (merged_buf, sizeof(merged_buf), str);
+
+      smartlist_add (merger, str_ndup(str, len));
+      str_replace2 ('~', "~~", str, sizeof(node->description));
       TRACE (2, "  descr[%d]: '%.*s'\n", i, len, str);
     }
-    TRACE (2, "  merged_buf: '%s'\n", merged_buf);
+    node->description = smartlist_join_str (merger, NULL);
+    smartlist_free_all (merger);
   }
   else
   {
-    len = token->end - token->start + 1;
-    len = min (len, sizeof(merged_buf));
-    _strlcpy (merged_buf, buf + token->start, len);
+    str = buf + token->start;
+    len = token->end - token->start;
+    node->description = str_unquote (str_ndup(str, len));
+    str_replace2 ('~', "~~", node->description, sizeof(node->description));
   }
-
-  node->description = STRDUP (merged_buf);
-  str_unquote (node->description);
-  str_replace2 ('~', "~~", node->description, sizeof(node->description));
   TRACE (1, "description: '%s'\n", node->description);
 }
 
@@ -3584,7 +3004,7 @@ static void JSON_add_description (port_node *node, char *buf, const JSON_tok_t *
  * Split a string like "(x64 | arm64) & (linux | osx | windows)" into tokens
  * and set the `VCPKG_plat_list[]` value for them.
  */
-static BOOL JSON_make_supports (port_node *node, const char *buf, int i, BOOL recurse)
+static BOOL json_make_supports (port_node *node, const char *buf, int i, BOOL recurse)
 {
   static unsigned Not = 0;
   BOOL     next_and = FALSE;
@@ -3599,7 +3019,7 @@ static BOOL JSON_make_supports (port_node *node, const char *buf, int i, BOOL re
   if (sscanf(platform, "(%100[^)])", or_group) == 1)
   {
     TRACE (1, "or_group: '%s'\n", or_group);
-    if (JSON_make_supports (node, or_group, i, recurse))
+    if (json_make_supports (node, or_group, i, recurse))
        ++i;
     strcpy (platform, or_group + strlen(or_group));
   }
@@ -3625,7 +3045,7 @@ static BOOL JSON_make_supports (port_node *node, const char *buf, int i, BOOL re
       else if (*tok_end == '|')
          next_or = TRUE;
 
-      if (JSON_make_supports (node, tok, i, *tok_end ? TRUE : FALSE))
+      if (json_make_supports (node, tok, i, *tok_end ? TRUE : FALSE))
          ++i;
       tok = _strtok_r (NULL, "&| ", &tok_end);
     }
@@ -3650,7 +3070,7 @@ static BOOL JSON_make_supports (port_node *node, const char *buf, int i, BOOL re
  *
  * \note This function can be called recursively.
  */
-static int JSON_parse_buf (port_node *node, const char *file, char *buf, size_t buf_len)
+int json_parse_buf (port_node *node, const char *file, char *buf, size_t buf_len)
 {
   JSON_parser p;
   JSON_tok_t  t[200];   /* We expect no more tokens than this per OBJECT */
@@ -3666,7 +3086,7 @@ static int JSON_parse_buf (port_node *node, const char *file, char *buf, size_t 
   rc = JSON_parse (&p, buf, buf_len, t, DIM(t));
   if (rc < 0)
   {
-    TRACE (1, "Failed to parse '%s': %s\n", file, JSON_strerr(rc));
+    TRACE (1, "Failed to parse '%s': %d/%s\n", file, rc, JSON_strerror(rc));
     return (0);
   }
 
@@ -3681,38 +3101,42 @@ static int JSON_parse_buf (port_node *node, const char *file, char *buf, size_t 
    */
   for (i = 1; i < rc; i++)
   {
-    if (JSON_eq(&t[i], buf, "name"))
+    if (JSON_str_eq(&t[i], buf, "name"))
     {
       str = buf + t[i+1].start;
       len = t[i+1].end - t[i+1].start + 1;
-      _strlcpy (node->package, str, len);
+      len = min (len, sizeof(node->package));
+      if (!node->package[0])
+          _strlcpy (node->package, str, len);
       TRACE (1, "package:     '%s'\n", node->package);
       i += t[i+1].size + 1;
     }
-    else if (JSON_eq(&t[i], buf, "version-string"))
+    else if (JSON_str_eq(&t[i], buf, "version-string"))
     {
       str = buf + t[i+1].start;
       len = t[i+1].end - t[i+1].start + 1;
+      len = min (len, sizeof(node->version));
       _strlcpy (node->version, str, len);
       str_replace2 ('~', "~~", node->version, sizeof(node->version));
       TRACE (1, "version:     '%s'\n", node->version);
       i += t[i+1].size + 1;
     }
-    else if (JSON_eq(&t[i], buf, "description"))
+    else if (JSON_str_eq(&t[i], buf, "description"))
     {
-      JSON_add_description (node, buf, &t[i+1]);
+      json_add_description (node, buf, &t[i+1]);
       i += t[i+1].size + 1;
     }
-    else if (JSON_eq(&t[i], buf, "homepage"))
+    else if (JSON_str_eq(&t[i], buf, "homepage"))
     {
       str = buf + t[i+1].start;
       len = t[i+1].end - t[i+1].start + 1;
+      len = min (len, sizeof(node->homepage));
       _strlcpy (node->homepage, str, len);
       str_replace2 ('~', "~~", node->homepage, sizeof(node->homepage));
       TRACE (1, "homepage:    '%s'\n", node->homepage);
       i += t[i+1].size + 1;
     }
-    else if (JSON_eq(&t[i], buf, "supports"))
+    else if (JSON_str_eq(&t[i], buf, "supports"))
     {
       if (smartlist_getu(node->supports, 0) == VCPKG_plat_ALL)
          smartlist_del (node->supports, 0);
@@ -3723,7 +3147,7 @@ static int JSON_parse_buf (port_node *node, const char *file, char *buf, size_t 
 
       TRACE (1, "supports:    '%.*s'\n", len, str);
       str_copy = str_ndup (str, len);
-      JSON_make_supports (node, str_copy, 0, TRUE);
+      json_make_supports (node, str_copy, 0, TRUE);
       FREE (str_copy);
       for (j = 0; node->platforms[j] != VCPKG_plat_ALL; j++)
           smartlist_addu (node->supports, node->platforms[j]);
@@ -3741,7 +3165,7 @@ static int JSON_parse_buf (port_node *node, const char *file, char *buf, size_t 
 
         C_putc ('\n');
         TRACE (1, "test_string: '%s'\n", test_string[j]);
-        JSON_make_supports (node, test_string[j], 0, TRUE);
+        json_make_supports (node, test_string[j], 0, TRUE);
 
         for (k = 0; node->platforms[k] != VCPKG_plat_ALL; k++)
            smartlist_addu (node->supports, node->platforms[k]);
@@ -3749,14 +3173,14 @@ static int JSON_parse_buf (port_node *node, const char *file, char *buf, size_t 
 #endif
       i += t[i+1].size + 1;
     }
-    else if (JSON_eq(&t[i], buf, "dependencies"))
+    else if (JSON_str_eq(&t[i], buf, "dependencies"))
     {
-      JSON_add_dependencies (node, buf, &t[i+1]);
+      json_add_dependencies (node, buf, &t[i+1]);
       i += t[i+1].size + 1;
     }
-    else if (JSON_eq(&t[i], buf, "features"))
+    else if (JSON_str_eq(&t[i], buf, "features"))
     {
-      JSON_add_features (node, buf, &t[i+1]);
+      json_add_features (node, buf, &t[i+1]);
       i += t[i+1].size + 1;
       break;                /* We're finished since "features" is always last */
     }
@@ -3771,7 +3195,7 @@ static int JSON_parse_buf (port_node *node, const char *file, char *buf, size_t 
   return (rc);
 }
 
-static int JSON_parse_file (port_node *node, const char *file)
+static int json_parse_file (port_node *node, const char *file)
 {
   struct stat st;
   char   *f_mem = NULL;
@@ -3806,13 +3230,12 @@ static int JSON_parse_file (port_node *node, const char *file)
   }
 
   f_mem [f_read] = '\0';
-  r = JSON_parse_buf (node, file, f_mem, f_read);
+  r = json_parse_buf (node, file, f_mem, f_read);
   FREE (f_mem);
   return (r);
 }
 
-#ifdef JSON_TEST
-static void JSON_node_dump (const port_node *node)
+static void json_node_dump (const port_node *node)
 {
   int i, len, len0, save, width, max;
 
@@ -3857,26 +3280,26 @@ static void JSON_node_dump (const port_node *node)
        C_printf ("0x%04X: %s%s\n", val, supported ? "" : "!", name);
   }
   if (i == 0)
-     C_puts ("none!\n");
+     C_puts ("<none>\n");
 
   //-------------------------------------------------------------------------
 
   width = C_screen_width();
   len0 = C_puts ("~3  dependencies:~0 ") - 2;
   len = len0;
-  max = smartlist_len (node->deps);
+  max = smartlist_len (node->depends);
   for (i = 0; i < max; i++)
   {
-    const char *pkg_name = smartlist_get (node->deps, i);
+    const char *pkg_name = smartlist_get (node->depends, i);
 
     len += C_printf ("%s", pkg_name);
     if (i < max-1)  /* Check if the next package name fits on this line */
     {
-      const char *next_pkg = smartlist_get (node->deps, i+1);
+      const char *next_pkg = smartlist_get (node->depends, i+1);
       size_t      next_len = strlen (next_pkg);
 
       len += C_puts (", ");
-      if (len + next_len >= width)
+      if (len + (int)next_len >= width)
          len = C_printf ("\n%*s", len0, "");
     }
   }
@@ -3885,62 +3308,27 @@ static void JSON_node_dump (const port_node *node)
   C_putc ('\n');
 }
 
-struct prog_options opt;
-
-int MS_CDECL main (int argc, char **argv)
+/*
+ * Called from test.c if 'opt.do_vcpkg > 0'.
+ */
+int test_vcpkg_json_parser (void)
 {
   port_node node = { "" };
-  int  i, max;
-
-  ARGSUSED (ports_list);
-  ARGSUSED (available_packages);
-  ARGSUSED (installed_packages);
-  ARGSUSED (vcpkg_root);
-  ARGSUSED (vcpkg_exe);
-  ARGSUSED (last_err_str);
-  ARGSUSED (sub_level);
-  ARGSUSED (only_installed);
-  ARGSUSED (vcpkg_ver);
-  ARGSUSED (is_x86_supported);
-  ARGSUSED (is_x64_supported);
-  ARGSUSED (is_windows_supported);
-  ARGSUSED (is_uwp_supported);
-  ARGSUSED (is_static_supported);
-  ARGSUSED (find_package_from_idx);
-  ARGSUSED (find_or_alloc_package_dependency);
-
-  opt.debug = 1;
-  if (argc == 2 && !strcmp(argv[1], "-d"))
-     opt.debug++;
-
-  crtdbug_init();
-  C_use_colours = 1;
-  C_init();
 
   available_packages = smartlist_new();
-  node.deps = smartlist_new();
+  node.depends = smartlist_new();
   node.features = smartlist_new();
   node.supports = smartlist_new();
   smartlist_addu (node.supports, VCPKG_plat_ALL);
 
-  JSON_parse_file (&node, "test.json");
-  JSON_node_dump (&node);
+  json_parse_file (&node, "test.json");
+  json_node_dump (&node);
 
-  smartlist_free_all (node.deps);
+  smartlist_free_all (node.depends);
   FREE (node.description);
   smartlist_free_all (node.features);
   smartlist_free (node.supports);
-
-  max = smartlist_len (available_packages);
-  for (i = 0; i < max; i++)
-  {
-    vcpkg_package *package = smartlist_get (available_packages, i);
-    FREE (package->package);
-  }
   smartlist_free_all (available_packages);
-
-  crtdbug_exit();
-  mem_report();
   return (0);
 }
-#endif
+
