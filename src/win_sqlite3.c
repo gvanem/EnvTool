@@ -93,7 +93,7 @@ DEF_FUNC (int,          sqlite3_exec, (sqlite3 *db, const char *statement,
 static BOOL sql3_load (void)
 {
   dll_hnd = LoadLibrary (SQLITE_DLL_NAME);
-  if (!dll_hnd || dll_hnd == INVALID_HANDLE_VALUE)
+  if (!dll_hnd)
   {
     WARN ("  Failed to load %s; %s\n", SQLITE_DLL_NAME, win_strerror(GetLastError()));
     return (FALSE);

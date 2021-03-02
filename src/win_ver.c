@@ -48,7 +48,7 @@ BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level
   BYTE                 *data;
   BOOL                  rc = FALSE;
 
-  if (hnd == INVALID_HANDLE_VALUE)
+  if (!hnd)
      return (rc);
 
   p_NetWkstaGetInfo  = (func_NetWkstaGetInfo)  GetProcAddress (hnd, "NetWkstaGetInfo");
@@ -105,7 +105,7 @@ BOOL get_rtdll_version (OSVERSIONINFOEXW *os)
   func_RtlGetVersion p_RtlGetVersion;
   BOOL               rc = FALSE;
 
-  if (hnd == INVALID_HANDLE_VALUE)
+  if (!hnd)
      return (rc);
 
   p_RtlGetVersion = (func_RtlGetVersion) GetProcAddress (hnd, "RtlGetVersion");
@@ -316,8 +316,17 @@ static const char *get_registry_value (const char *wanted_value, DWORD wanted_ty
   return (ret_buf);
 }
 
+/*
+ * Not all Windows have a "DisplayVersion" in Registry.
+ * But on "Windows 20H2", the "ReleaseId" is confusingly "2009".
+ * So return "DisplayVersion" instead if found.
+ */
 const char *os_release_id (void)
 {
+  const char *disp = get_registry_value ("DisplayVersion", REG_SZ);
+
+  if (disp)
+     return (disp);
   return get_registry_value ("ReleaseId", REG_SZ);
 }
 

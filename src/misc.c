@@ -246,17 +246,11 @@ void init_misc (void)
   kernel32_hnd = LoadLibrary ("kernel32.dll");
   userenv_hnd  = LoadLibrary ("userenv.dll");
 
-  if (!kernel32_hnd || kernel32_hnd == INVALID_HANDLE_VALUE)
-  {
-    TRACE (1, "Failed to load kernel32.dll; %s\n", win_strerror(GetLastError()));
-    kernel32_hnd = NULL;
-  }
+  if (!kernel32_hnd)
+     TRACE (1, "Failed to load kernel32.dll; %s\n", win_strerror(GetLastError()));
 
-  if (!userenv_hnd || userenv_hnd == INVALID_HANDLE_VALUE)
-  {
-    TRACE (1, "Failed to load userenv.dll; %s\n", win_strerror(GetLastError()));
-    userenv_hnd = NULL;
-  }
+  if (!userenv_hnd)
+     TRACE (1, "Failed to load userenv.dll; %s\n", win_strerror(GetLastError()));
 
   if (kernel32_hnd)
   {
@@ -2477,7 +2471,7 @@ BOOL is_user_admin (void)
 
   /* This function isn't guaranteed to be available.
    */
-  if (!shell32 || shell32 == INVALID_HANDLE_VALUE)
+  if (!shell32)
      return (FALSE);
 
   p_IsUserAnAdmin = (func_IsUserAnAdmin) GetProcAddress (shell32, "IsUserAnAdmin");
@@ -2551,7 +2545,7 @@ const char *get_user_name (void)
   /* This function isn't guaranteed to be available (and it can't hurt
    * to leave the library loaded)
    */
-  if (secur32 && secur32 != INVALID_HANDLE_VALUE)
+  if (secur32)
   {
     p_GetUserNameEx = (func_GetUserNameEx) GetProcAddress (secur32, "GetUserNameExA");
     if (p_GetUserNameEx)
