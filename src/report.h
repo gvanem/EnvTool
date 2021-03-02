@@ -10,6 +10,7 @@ struct report {
        UINT64      fsize;
        BOOL        is_dir;
        BOOL        is_junction;
+       BOOL        is_cwd;
        HKEY        key;
        const char *filler;
        const char *content;

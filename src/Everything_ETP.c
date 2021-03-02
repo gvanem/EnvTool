@@ -364,6 +364,7 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
       r.fsize       = ctx->fsize;
       r.is_dir      = is_dir;
       r.is_junction = FALSE;
+      r.is_cwd      = FALSE;
       r.key         = HKEY_EVERYTHING_ETP;
       report_file (&r);
     }

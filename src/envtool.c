@@ -1539,6 +1539,7 @@ static int report_registry (const char *reg_key)
         r.fsize       = arr->fsize;
         r.is_dir      = FALSE;
         r.is_junction = FALSE;
+        r.is_cwd      = FALSE;
         r.key         = arr->key;
         if (report_file(&r))
            found++;
@@ -1959,6 +1960,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
   r.fsize       = is_dir ? (__int64)-1 : fsize;
   r.is_dir      = is_dir;
   r.is_junction = FALSE;
+  r.is_cwd      = FALSE;   // !!
   r.key         = HKEY_EVERYTHING;
   return report_file (&r);
 }
@@ -2940,7 +2942,7 @@ static int find_include_path_cb (char *buf, int index)
         p = _fix_path (str_trim(buf), buf2);
     }
 
-    dir_array_add (p, !stricmp(current_dir,p));
+    dir_array_add (p, !stricmp(current_dir, p));
     TRACE (3, "line: '%s'\n", p);
     return (1);
   }
@@ -4742,7 +4744,7 @@ static void init_all (const char *argv0)
   getcwd (current_dir, sizeof(current_dir));
 
   sys_dir[0] = sys_native_dir[0] = '\0';
-  if (GetSystemDirectory(sys_dir,sizeof(sys_dir)))
+  if (GetSystemDirectory(sys_dir, sizeof(sys_dir)))
   {
     const char *rslash = strrchr (sys_dir,'\\');
 
@@ -5377,7 +5379,7 @@ static int get_dirlist_from_cache (const char *env_var)
     if (cache_getf(SECTION_ENV_DIR, format, dir) != 1)
        break;
 
-    dir_array_add (dir, str_equal(dir,current_dir));
+    dir_array_add (dir, str_equal(dir, current_dir));
   }
   TRACE (1, "Found %d cached 'env_dir_x'.\n", i);
   return (i);

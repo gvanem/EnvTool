@@ -303,12 +303,12 @@ int report_file (struct report *r)
     found_in_hkey_local_machine++;
     note = " (2)  ";
   }
-  else if (r->key == HKEY_CURRENT_USER_ENV)
+  else if (r->key == HKEY_CURRENT_USER_ENV && !r->is_cwd)
   {
     found_in_hkey_current_user_env++;
     note = " (3)  ";
   }
-  else if (r->key == HKEY_LOCAL_MACHINE_SESSION_MAN)
+  else if (r->key == HKEY_LOCAL_MACHINE_SESSION_MAN && !r->is_cwd)
   {
     found_in_hkey_local_machine_sess_man++;
     note = " (4)  ";
