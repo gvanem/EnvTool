@@ -105,14 +105,14 @@ extern int is_cygwin_tty (int fd);
 #endif
 
 /**
- * The app using color.c must set to \b 1 prior to
- * calling the below C_printf() or C_puts() functions.
- * For CygWin, if this is \b !0, it will set C_use_ansi_colours.
+ * The app using color.c must set this prior to
+ * calling the below C_printf() or `C_puts()` functions.
+ * For CygWin, if this is 1, it will set `C_use_ansi_colours` too.
  */
 int C_use_colours = 0;
 
 /**
- * For CygWin or if we detect we're running under \b mintty.exe (or some other program
+ * For CygWin or if we detect we're running under `mintty.exe` (or some other program
  * lacking WinCon support), this variable means we must use ANSI-sequences to set colours.
  *
  * If running under ConEmu (detecting a valid `%ConEmuHWND%` window and `%ConEmuANSI=ON`),
@@ -121,7 +121,7 @@ int C_use_colours = 0;
 int C_use_ansi_colours = 0;
 
 /**
- * When this is set to \b 1, CygWin / ConEmu will not use ANSI-sequences for colours.
+ * When this is set, CygWin / ConEmu will not use ANSI-sequences for colours.
  * But use WinCon API to set colours.
  */
 int C_no_ansi = 0;
@@ -191,7 +191,7 @@ int C_conemu_detected (void)
 
   if (!conemu_hwnd || !conemu_ansi)
      return (FALSE);
-  if (!stricmp(conemu_ansi,"ON"))
+  if (!stricmp(conemu_ansi, "ON"))
      return (TRUE);
   return (FALSE);
 }
@@ -218,7 +218,7 @@ int C_VT_detected (int cmd_only)
   if (env)
   {
     env = strrchr (env, '\\');
-    is_cmd = (env && stricmp(env,"\\cmd.exe") == 0);
+    is_cmd = (env && stricmp(env, "\\cmd.exe") == 0);
     if (cmd_only && !is_cmd)
        value = 0;
   }
@@ -371,7 +371,7 @@ void C_init (void)
           GetConsoleScreenBufferInfo(console_hnd, &console_info) &&
           GetFileType(console_hnd) == FILE_TYPE_CHAR);
 
-#if defined(__CYGWIN__)
+#if defined(__CYGWIN__) && 0
    if (!okay)     /* Use ANSI-colours even if stdout is redirected */
    {
      console_info.wAttributes = 0x1F;   /* Bright white on blue background */
@@ -380,7 +380,7 @@ void C_init (void)
    }
 #endif
 
-  if (okay || C_use_ansi_colours) /* force using ANSI colours */
+  if (okay || C_use_ansi_colours)   /* force using ANSI colours */
   {
     WORD bg = console_info.wAttributes & ~7;
 
@@ -402,9 +402,6 @@ void C_init (void)
 
   if (C_no_ansi == 0 && C_use_colours)
   {
-#if defined(__CYGWIN__)
-    C_use_ansi_colours = 1;
-#endif
     if (C_conemu_detected())
        C_use_ansi_colours = 1;
     else if (C_VT_detected(1))
