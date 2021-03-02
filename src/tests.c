@@ -16,8 +16,10 @@
 #include "envtool_py.h"
 #include "envtool.h"
 #include "cache.h"
+#include "vcpkg.h"
 
 extern BOOL find_vstudio_init (void);
+extern int  test_vcpkg_json_parser (void);
 
 /**
  * Test non-Cygwin env-var splitting in split_env_var().
@@ -67,6 +69,11 @@ static void test_split_env (const char *env)
   C_printf ("  ~3%d elements~0\n\n", i);
 }
 
+static int cmake_version_cb (char *buf, int index)
+{
+  TRACE (2, "buf: '%s', index: %d.\n", buf, index);
+  return (0);
+}
 
 #if defined(__CYGWIN__)
 /**
@@ -685,12 +692,6 @@ static void test_libssp (void)
 #endif /* (_FORTIFY_SOURCE > 0) */
 }
 
-static int cmake_version_cb (char *buf, int index)
-{
-  TRACE (2, "buf: '%s', index: %d.\n", buf, index);
-  return (0);
-}
-
 /**
  * This should run when user-name is `APPVYR-WIN\appveyor`.
  *
@@ -778,6 +779,9 @@ int do_tests (void)
 
   if (opt.do_python)
      return test_python_funcs();
+
+  if (opt.do_vcpkg)
+     return test_vcpkg_json_parser();
 
   test_split_env ("PATH");
   test_split_env ("MANPATH");
