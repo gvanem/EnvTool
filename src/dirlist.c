@@ -117,20 +117,17 @@ int make_dir_spec (const char *arg, char *dir, char *spec)
 {
   struct stat st;
   const char *p, *_arg;
-  char *end, *p2, *a_copy;
+  char *end, *a_copy;
   BOOL  unc, safe;
 
   /* First, remove any enclosing `"` given in `arg`.
    */
   a_copy = STRDUP (arg);
-  if (*a_copy == '"')
-     a_copy++;
-  end = strchr (a_copy, '\0');
-  if (end > a_copy && end[-1] == '"')
-     end[-1] = '\0';
+  str_unquote (a_copy);
+
   TRACE (3, "a_copy: '%s'\n", a_copy);
 
-  unc  = (strncmp(a_copy,"\\\\",2) == 0);
+  unc  = (strncmp(a_copy, "\\\\", 2) == 0);
   safe = safe_to_access (a_copy);
 
   /* Check if `arg` is simply a directory.
@@ -161,10 +158,6 @@ int make_dir_spec (const char *arg, char *dir, char *spec)
 
   if (end - _arg > 0)
      _strlcpy (spec, _arg, end - _arg + 1);
-
-  p2 = strchr (dir, '\0');
-  if (IS_SLASH(p2[-1]))
-     p2[-1] = '\0';
 
 quit:
   FREE (a_copy);
@@ -452,7 +445,7 @@ int scandir2 (const char       *dirname,
 
     memcpy (namelist[num], de, sizeof(struct dirent2));
     p = (char*) namelist[num] + sizeof(struct dirent2);
-    strncpy (p, de->d_name, _MAX_PATH);
+    _strlcpy (p, de->d_name, _MAX_PATH);
     namelist [num]->d_name = p;
 
     if (++num == max_cnt)
@@ -781,7 +774,7 @@ static void print_dirent2 (const struct dirent2 *de, int idx, const struct od2x_
   }
 }
 
-static void final_report (const char *spec)
+static void final_report (const char *dir_buf)
 {
   #define ADD_VALUE(v)  { v, #v }
 
@@ -804,12 +797,13 @@ static void final_report (const char *spec)
                ADD_VALUE (FILE_VOLUME_IS_COMPRESSED),
                ADD_VALUE (FILE_VOLUME_QUOTAS)
              };
+  char  fs_name [20];
   char  root [4];
   char  volume [_MAX_PATH];
   DWORD volume_sn = 0;
   DWORD max_component_length = 0;
   DWORD fs_flag = 0;
-  char  fs_name [20];
+  BOOL  missing_slash;
 
   C_printf ("  Num files:        %lu\n", (unsigned long)num_files);
   C_printf ("  Num directories:  %lu\n", (unsigned long)num_directories);
@@ -821,11 +815,23 @@ static void final_report (const char *spec)
        C_printf (" compressed: %s)\n", qword_str(total_size_compr));
   else C_printf (" no compressed files)\n");
 
-  C_puts ("  Volume info: ");
+  missing_slash = (strlen(dir_buf) == 2 && isalpha((int)dir_buf[0]) && dir_buf[1] == ':');
 
-  if (_has_drive(spec))
-       strncpy (root, spec, 3);
-  else strcpy (root, "\\");
+  if (_has_drive(dir_buf) || missing_slash) /* Test for 'x:\\' or 'x:' */
+  {
+    root[0] =  dir_buf[0];
+    root[1] =  ':';
+    root[2] = '\\';
+    root[3] = '\0';
+    TRACE (2, "dir_buf: '%s', root: '%s'\n", dir_buf, root);
+  }
+  else  /* Assume it's the root of current drive */
+  {
+    strcpy (root, "\\");
+    TRACE (2, "dir_buf: '%s', root: '%s'\n", dir_buf, root);
+  }
+
+  C_puts ("  Volume info: ");
 
   if (!GetVolumeInformation (root, volume, sizeof(volume), &volume_sn, &max_component_length,
                              &fs_flag, fs_name, sizeof(fs_name)))
@@ -1050,7 +1056,7 @@ int MS_CDECL main (int argc, char **argv)
        do_scandir2 (dir_buf, &opts);
   else do_dirent2 (dir_buf, &opts);
 
-  final_report (spec_buf);
+  final_report (dir_buf);
   crtdbug_exit();
   mem_report();
   return (0);
