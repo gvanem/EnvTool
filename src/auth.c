@@ -19,7 +19,8 @@
  * either `~/.netrc`, `~/.authinfo` or `~/envtool.cfg`.
  */
 typedef enum login_source {
-        LOGIN_NETRC = 1,
+        LOGIN_NONE,
+        LOGIN_NETRC,
         LOGIN_AUTHINFO,
         LOGIN_ENVTOOL_CFG,
       } login_source;
@@ -45,7 +46,8 @@ static smartlist_t *login_list = NULL;
  */
 static const char *login_src_name (enum login_source src)
 {
-  return ((src == LOGIN_NETRC)       ? "NETRC"       :
+  return ((src == LOGIN_NONE)        ? "none!?"      :
+          (src == LOGIN_NETRC)       ? "NETRC"       :
           (src == LOGIN_AUTHINFO)    ? "AUTHINFO"    :
           (src == LOGIN_ENVTOOL_CFG) ? "ENVTOOL_CFG" : "?");
 }
@@ -104,14 +106,13 @@ static void common_exit (enum login_source src)
        continue;
 
     if (li->src != LOGIN_ENVTOOL_CFG)
-      FREE (li->host);
+       FREE (li->host);
 
     FREE (li->user);
     FREE (li->passw);
     FREE (li);
     smartlist_del (login_list, i);
-    max--;
-    i--;
+    max = smartlist_len (login_list);
   }
 
   TRACE (3, "length of list now: %d\n", smartlist_len(login_list));
