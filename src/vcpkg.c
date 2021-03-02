@@ -895,7 +895,7 @@ static void build_dir_list (smartlist_t *dir_list, const char *dir, BOOL check_C
         snprintf (CONTROL_file, sizeof(CONTROL_file), "%s\\CONTROL", de->d_name);
         if (!FILE_EXISTS(CONTROL_file))
         {
-          TRACE (0, "Missing '%s'\n", CONTROL_file);
+          TRACE (1, "Missing '%s'\n", CONTROL_file);
           continue;
         }
       }
@@ -1661,7 +1661,7 @@ static BOOL add_this_package (vcpkg_package *package, char **why_not)
        continue;
     if (strcmp(This->version, package->version))                    /* different version */
     {
-      TRACE (0, "This->version: '%s', package->version: %s'\n", This->version, package->version);
+      TRACE (1, "This->version: '%s', package->version: %s'\n", This->version, package->version);
       break;
     }
   }
@@ -1759,7 +1759,7 @@ static int vcpkg_parse_status_file (void)
 
     if (add_this_package(&package, &why_not))
     {
-      TRACE (0, "Adding package: '%s', arch: '%s'\n", package.package, package.arch);
+      TRACE (1, "Adding package: '%s', arch: '%s'\n", package.package, package.arch);
       package2 = MALLOC (sizeof(*package2));
       memcpy (package2, &package, sizeof(*package2));
       package2->installed = TRUE;
@@ -1767,7 +1767,7 @@ static int vcpkg_parse_status_file (void)
     }
     else
     {
-      TRACE (0, "Ignoring package: '%s'; %s\n", package.package, why_not);
+      TRACE (1, "Ignoring package: '%s'; %s\n", package.package, why_not);
       free_package (&package, FALSE);
     }
 
