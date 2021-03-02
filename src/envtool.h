@@ -459,6 +459,7 @@ struct prog_options {
        int             keep_temp;         /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
        int             under_conemu;      /**< TRUE if running under ConEmu console-emulator */
        int             under_appveyor;    /**< TRUE if running under AppVeyor */
+       int             under_cygwin;      /**< TRUE if Cygwin compiled */
        enum SortMethod sort_methods[10];  /**< the specified sort methods */
        BOOL            evry_raw;          /**< use raw non-regex searches */
        UINT            evry_busy_wait;    /**< max number of seconds to wait for a busy EveryThing */
@@ -500,7 +501,7 @@ extern smartlist_t *split_env_var (const char *env_name, const char *value);
  */
 struct directory_array {
        char        *dir;         /**< FQFN of this entry */
-       char        *cyg_dir;     /**< The Cygwin POSIX form of the above */
+       char        *cyg_dir;     /**< the Cygwin POSIX form of the above */
        int          exist;       /**< does it exist? */
        int          is_native;   /**< and is it a native dir; like `%WinDir\sysnative` */
        int          is_dir;      /**< and is it a dir; `_S_ISDIR()` */
