@@ -886,7 +886,7 @@ static BOOL py_init_embedding (struct python_info *pi)
   }
 
   pi->dll_hnd = LoadLibrary (dll);
-  if (!pi->dll_hnd || pi->dll_hnd == INVALID_HANDLE_VALUE)
+  if (!pi->dll_hnd)
   {
     WARN ("Failed to load %s; %s\n", dll, win_strerror(GetLastError()));
     pi->is_embeddable = FALSE;  /* Do not do this again */
@@ -1661,6 +1661,7 @@ static int report_zip_file (const char *zip_file, char *output)
   r.fsize       = fsize;
   r.is_dir      = FALSE;
   r.is_junction = FALSE;
+  r.is_cwd      = FALSE;
   r.key         = HKEY_PYTHON_EGG;
   report_file (&r);
   return (1);
