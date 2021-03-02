@@ -998,7 +998,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   sep[1] = '\0';
 
   tok = _strtok_r (val, sep, &_end);
-  is_cwd = !strcmp(val,".") || !strcmp(val,".\\") || !strcmp(val,"./");
+  is_cwd = (!strcmp(val, ".") || !strcmp(val, ".\\") || !strcmp(val ,"./"));
 
   TRACE (1, "'val': \"%s\". 'tok': \"%s\", is_cwd: %d\n", val, tok, is_cwd);
 
@@ -1043,7 +1043,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
 
     /* _stati64(".") doesn't work. Hence turn "." into `current_dir`.
      */
-    is_cwd = !strcmp(tok, ".") || !strcmp(tok, ".\\") || !strcmp(tok, "./");
+    is_cwd = (!strcmp(tok, ".") || !strcmp(tok, ".\\") || !strcmp(tok, "./"));
     if (is_cwd)
     {
       if (i > 0 && !opt.under_conemu)
@@ -1586,7 +1586,7 @@ static BOOL dir_is_empty (const char *dir)
 
   do
   {
-    if (strcmp(ff_data.cFileName,".") && strcmp(ff_data.cFileName,".."))
+    if (strcmp(ff_data.cFileName, ".") && strcmp(ff_data.cFileName, ".."))
        num_entries++;
   }
   while (num_entries == 0 && FindNextFile(handle, &ff_data));
@@ -2331,12 +2331,12 @@ static int do_check_env (const char *env_name, BOOL recursive)
     return (0);
   }
 
-  if (!strcmp(env_name,"PATH") ||
-      !strcmp(env_name,"LIB") ||
-      !strcmp(env_name,"LIBRARY_PATH") ||
-      !strcmp(env_name,"INCLUDE") ||
-      !strcmp(env_name,"C_INCLUDE_PATH") ||
-      !strcmp(env_name,"CPLUS_INCLUDE_PATH"))
+  if (!strcmp(env_name, "PATH") ||
+      !strcmp(env_name, "LIB") ||
+      !strcmp(env_name, "LIBRARY_PATH") ||
+      !strcmp(env_name, "INCLUDE") ||
+      !strcmp(env_name, "C_INCLUDE_PATH") ||
+      !strcmp(env_name, "CPLUS_INCLUDE_PATH"))
     check_empty = TRUE;
 
   list = split_env_var (env_name, orig_e);
@@ -4307,7 +4307,7 @@ static void set_vcpkg_options (const char *arg)
 {
   TRACE (2, "optarg: '%s'\n", arg);
   ASSERT (arg);
-  if (!strcmp(arg,"all"))
+  if (!strcmp(arg, "all"))
        vcpkg_set_only_installed (FALSE);
   else usage ("Illegal '--vcpkg' option: '%s'.\n"
               "Use '--vcpkg' or 'vcpkg=all'.\n", arg);
@@ -4462,36 +4462,36 @@ static void set_long_option (int o, const char *arg)
   TRACE (2, "got long option \"--%s\" with argument \"%s\".\n",
           long_options[o].name, arg);
 
-  if (!strcmp("evry",long_options[o].name))
+  if (!strcmp("evry", long_options[o].name))
   {
     set_evry_options (arg);
     opt.do_evry = 1;
     return;
   }
 
-  if (!strcmp("signed",long_options[o].name))
+  if (!strcmp("signed", long_options[o].name))
   {
     set_signed_options (arg);
     return;
   }
 
-  if (!strcmp("sort",long_options[o].name))
+  if (!strcmp("sort", long_options[o].name))
   {
     char *err_opt;
 
-    if (!set_sort_method(arg,&err_opt))
+    if (!set_sort_method(arg, &err_opt))
        usage ("Illegal \"--sort\" method '%s'. Use a combination of: %s\n",
               err_opt, get_sort_methods());
     return;
   }
 
-  if (!strcmp("owner",long_options[o].name))
+  if (!strcmp("owner", long_options[o].name))
   {
     set_owner_options (arg);
     return;
   }
 
-  if (!strcmp("grep",long_options[o].name))
+  if (!strcmp("grep", long_options[o].name))
   {
     opt.grep.content = STRDUP (arg);
     return;
@@ -4499,22 +4499,22 @@ static void set_long_option (int o, const char *arg)
 
   if (arg)
   {
-    if (!strcmp("python",long_options[o].name))
+    if (!strcmp("python", long_options[o].name))
     {
       opt.do_python++;
       set_python_variant (arg);
     }
 
-    else if (!strcmp("vcpkg",long_options[o].name))
+    else if (!strcmp("vcpkg", long_options[o].name))
     {
       opt.do_vcpkg++;
       set_vcpkg_options (arg);
     }
 
-    else if (!strcmp("debug",long_options[o].name))
+    else if (!strcmp("debug", long_options[o].name))
       opt.debug = atoi (arg);
 
-    else if (!strcmp("host",long_options[o].name))
+    else if (!strcmp("host", long_options[o].name))
       set_evry_options (arg);
   }
   else
