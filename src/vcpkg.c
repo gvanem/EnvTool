@@ -1794,6 +1794,12 @@ static int vcpkg_version_cb (char *buf, int index)
     memcpy (&vcpkg_ver, &ver, sizeof(vcpkg_ver));
     return (1);
   }
+  if (sscanf(buf, "Vcpkg package management program version %d-%d-%d",
+             &ver.val_1, &ver.val_2, &ver.val_3) >= 2)
+  {
+    memcpy (&vcpkg_ver, &ver, sizeof(vcpkg_ver));
+    return (1);
+  }
   return (0);
 }
 
