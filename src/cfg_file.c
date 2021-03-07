@@ -178,7 +178,7 @@ static void parse_config_file (CFG_FILE *cf)
     p = (char*) (cfg + 1);
     cfg->section = p;
 
-    snprintf (cfg->section, p_size, "[%s] %s", cf->section, cf->keyword);
+    snprintf (cfg->section, p_size - sizeof(*cfg), "[%s] %s", cf->section, cf->keyword);
     p = strchr (cfg->section, ']');
     p[1] = '\0';
     cfg->key   = p + 2;
@@ -187,7 +187,7 @@ static void parse_config_file (CFG_FILE *cf)
 
     handler = lookup_section_handler (cf, cfg->section);
     if (handler)
-       (*handler) (cfg->section, cfg->key, cfg->value);
+      (*handler) (cfg->section, cfg->key, cfg->value);
     else
     {
       if (!cfg->section || cfg->section[0] == '\0')
