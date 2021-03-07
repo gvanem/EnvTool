@@ -48,6 +48,10 @@ exit /b 1
   call :create_auth_files
 
   cd %APPDATA%\src
+  ::
+  :: Delete the quite limited Msys based Python; doesn't even have a 'pip' module
+  ::
+  del /q c:\msys64\MinGW64\bin\python.exe
 
   echo on
 
