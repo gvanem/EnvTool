@@ -221,6 +221,7 @@ CFG_FILE *cfg_init (const char *fname, const char *section, ...)
   cf->file  = fopen (cf->fname, "rt");
   if (!cf->file)
   {
+    WARN ("Failed to open \"%s\" (%s).\n", cf->fname, strerror(errno));
     cfg_exit (cf);
     return (NULL);
   }
