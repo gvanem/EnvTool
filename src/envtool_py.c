@@ -971,7 +971,7 @@ failed:
  * \param[in] py_prog  the Python program to dump.
  * \param[in] where    the line-number where the `py_prog` was executed.
  */
-static char *py_prog_dump (FILE *out, const char *py_prog, unsigned where)
+static void py_prog_dump (FILE *out, const char *py_prog, unsigned where)
 {
   char *chunk, *tok_end;
   char *prog = STRDUP (py_prog);
@@ -995,7 +995,6 @@ static char *py_prog_dump (FILE *out, const char *py_prog, unsigned where)
   fputs ("---------------------------\n", out);
   fflush (out);
   FREE (prog);
-  return (NULL);
 }
 
 /**
@@ -1039,7 +1038,7 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
     if (warn_on_py_fail)
     {
       WARN ("Failed script (%s): ", pi->exe_name);
-      return py_prog_dump (stderr, prog, line);
+      py_prog_dump (stderr, prog, line);
     }
     return (NULL);
   }
@@ -1384,7 +1383,7 @@ static void py_get_meta_info (struct python_module *m)
         "  try:\n"                                                                     \
         "    import pip\n"                                                             \
         "    packages = pip.get_installed_distributions (local_only=False, skip=())\n" \
-        "  except (AttributeError, ImportError, ModuleNotFoundError):\n"               \
+        "  except (AttributeError, ImportError):\n"                                    \
         "    import pkg_resources\n"                                                   \
         "    packages = pkg_resources.working_set\n"                                   \
         "  package_list = []\n"                                                        \
@@ -1498,6 +1497,7 @@ static void py_get_module_info (struct python_info *pi)
   char *line, *str = NULL;
   char *str2 = NULL;
   char *tok_end;
+  int   save = warn_on_py_fail;
 
   if (opt.use_cache && smartlist_len(pi->modules) > 0)
      TRACE (1, "Calling %s() with a cache should not be neccesary.\n", __FUNCTION__);
@@ -1518,6 +1518,7 @@ static void py_get_module_info (struct python_info *pi)
       return;
     }
     set_error_mode (0);
+    warn_on_py_fail = 0;
     str = call_python_func (pi, PY_LIST_MODULES(), __LINE__);
 //  str2 = call_python_func (pi, PY_LIST_MODULES2(), __LINE__);
     ARGSUSED (str2);
@@ -1525,12 +1526,11 @@ static void py_get_module_info (struct python_info *pi)
   }
   else
   {
-    int save = warn_on_py_fail;
-
     warn_on_py_fail = 0;
     str = popen_run_py (pi, PY_LIST_MODULES());
-    warn_on_py_fail = save;
   }
+
+  warn_on_py_fail = save;
 
   if (str)
   {
