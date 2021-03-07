@@ -236,6 +236,8 @@ static char tmp_user_site [_MAX_PATH];
 static int longest_py_program = 0;  /** set in py_init() */
 static int longest_py_version = 0;  /** set in py_init() */
 static int global_indent = 0;
+static int warn_on_py_fail = 1;
+
 
 /**
  * Variables used in the generic callback helper function popen_append_out().
@@ -1034,8 +1036,12 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
   if (rc < 0)
   {
     (*PyErr_Clear)();
-    WARN ("Failed script (%s): ", pi->exe_name);
-    return py_prog_dump (stderr, prog, line);
+    if (warn_on_py_fail)
+    {
+      WARN ("Failed script (%s): ", pi->exe_name);
+      return py_prog_dump (stderr, prog, line);
+    }
+    return (NULL);
   }
 
   /* Get a reference to `catcher.value` where the catched `sys.stdout` string is stored.
@@ -1252,20 +1258,26 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
 
   if (rc < 0)
   {
-    snprintf (report, sizeof(report), "\"%s %s\"; errno: %d\n", py_exe, popen_tmp, errno);
-    Beep (1000, 30);
-    WARN ("Failed script (%s): ", py_exe);
-    C_puts (report);
+    if (warn_on_py_fail)
+    {
+      snprintf (report, sizeof(report), "\"%s %s\"; errno: %d\n", py_exe, popen_tmp, errno);
+      Beep (1000, 30);
+      WARN ("Failed script (%s): ", py_exe);
+      C_puts (report);
+    }
     popen_append_clear();
     return (NULL);
   }
 
   if (popen_py_crash)
   {
-    snprintf (report, sizeof(report), "\"%s %s\":\n%s\n", py_exe, popen_tmp, popen_out);
-    Beep (1000, 30);
-    WARN ("Failed script (%s): ", py_exe);
-    C_puts (report);
+    if (warn_on_py_fail)
+    {
+      snprintf (report, sizeof(report), "\"%s %s\":\n%s\n", py_exe, popen_tmp, popen_out);
+      Beep (1000, 30);
+      WARN ("Failed script (%s): ", py_exe);
+      C_puts (report);
+    }
     popen_append_clear();
     return (NULL);
   }
@@ -1512,7 +1524,13 @@ static void py_get_module_info (struct python_info *pi)
     set_error_mode (1);
   }
   else
+  {
+    int save = warn_on_py_fail;
+
+    warn_on_py_fail = 0;
     str = popen_run_py (pi, PY_LIST_MODULES());
+    warn_on_py_fail = save;
+  }
 
   if (str)
   {
