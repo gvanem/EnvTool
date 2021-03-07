@@ -1097,6 +1097,11 @@ const char *vcpkg_last_error (void)
   return (last_err_str);
 }
 
+void vcpkg_clear_error (void)
+{
+  last_err_str[0] = '\0';
+}
+
 /**
  * Print the description for a node in `ports_list`.
  */
@@ -1769,6 +1774,7 @@ static int vcpkg_parse_status_file (void)
     {
       TRACE (1, "Ignoring package: '%s'; %s\n", package.package, why_not);
       free_package (&package, FALSE);
+      vcpkg_clear_error();
     }
 
     /* Ready for the next record of another package

@@ -16,6 +16,7 @@ extern unsigned    vcpkg_find (const char *package_spec);
 extern BOOL        vcpkg_get_only_installed (void);
 extern BOOL        vcpkg_set_only_installed (BOOL True);
 extern const char *vcpkg_last_error (void);
+extern void        vcpkg_clear_error (void);
 
 #endif
 
