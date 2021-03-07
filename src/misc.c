@@ -3632,17 +3632,21 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
   char  *ret  = buf;
   char  *end  = buf + sizeof(buf) - 1;
   size_t left = end - ret;
-  int    i;
+  int    i, len;
 
   *ret = '\0';
   for (i = 0; i < num; i++, list++)
       if (flags & list->value)
       {
-        ret += snprintf (ret, left, "%s+", list->name);
-        left = end - ret;
+        len = snprintf (ret, left, "%s+", list->name);
+        if (len < 0 || len >= (int)left)
+           break;
+        ret  += len;
+        left -= len;
         flags &= ~list->value;
       }
-  if (flags)           /* print unknown flag-bits */
+
+  if (flags && left >= 15)  /* print unknown flag-bits */
      ret += snprintf (ret, left, "0x%08lX+", (u_long)flags);
   if (ret > buf)
      *(--ret) = '\0';   /* remove '+' */
@@ -3795,11 +3799,15 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
   if (arg)
   {
     va_list args;
+    int     len;
 
     *p++ = ' ';
     left--;
     va_start (args, arg);
-    left -= vsnprintf (p, left, arg, args);
+    len = vsnprintf (p, left, arg, args);
+    if (len < 0 || len >= (int)left)  /* 'cmd_buf[]' too small */
+         left = 0;
+    else left -= len;
     va_end (args);
   }
   TRACE (2, "left: %d, cmd_buf: '%s'.\n", (int)left, cmd_buf);
