@@ -1384,7 +1384,7 @@ static void py_get_meta_info (struct python_module *m)
         "  try:\n"                                                                     \
         "    import pip\n"                                                             \
         "    packages = pip.get_installed_distributions (local_only=False, skip=())\n" \
-        "  except (AttributeError, ImportError):\n"                                    \
+        "  except (AttributeError, ImportError, ModuleNotFoundError):\n"               \
         "    import pkg_resources\n"                                                   \
         "    packages = pkg_resources.working_set\n"                                   \
         "  package_list = []\n"                                                        \
