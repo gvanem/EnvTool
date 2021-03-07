@@ -1632,26 +1632,32 @@ static BOOL add_this_package (vcpkg_package *package, char **why_not)
     *why_not = "wrong status";
     return (FALSE);
   }
+
   if (!package->version[0] || package->version[0] == '?')
   {
     *why_not = "missing version";
     return (FALSE);
   }
+
   if (!package->arch[0])
   {
     *why_not = "missing arch";
     return (FALSE);
   }
+
   if (!get_installed_info(package))
   {
-    *why_not = "missing info .list files";
+    *why_not = "missing info .list files (1)";
     return (FALSE);
   }
+
+#if 0
   if (!get_packages_dir(package))
   {
     *why_not = "missing package dir";
     return (FALSE);
   }
+#endif
 
   max = smartlist_len (installed_packages);
   for (i = 0; i < max; i++)
@@ -1670,11 +1676,12 @@ static BOOL add_this_package (vcpkg_package *package, char **why_not)
       break;
     }
   }
+
   // if (i == max)
 
   if (!get_installed_info(package))
   {
-    *why_not = "missing info .list files";
+    *why_not = "missing info .list files (2)";
     return (FALSE);
   }
   return (TRUE);
@@ -1772,7 +1779,9 @@ static int vcpkg_parse_status_file (void)
     }
     else
     {
-      TRACE (1, "Ignoring package: '%s'; %s\n", package.package, why_not);
+      TRACE (1, "Ignoring package: '%s': %s"
+                "\n                                 (arch: '%s', ver: '%s')\n",
+             package.package, why_not, package.arch, package.version);
       free_package (&package, FALSE);
       vcpkg_clear_error();
     }
