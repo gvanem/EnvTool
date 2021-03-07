@@ -1168,7 +1168,7 @@ static char *fix_filespec (char **sub_dir)
    * Unless '.subdir' matches '.*' or '.py*'.
    */
   p = strchr (fspec, '.');
-  if (p && opt.do_python && strnicmp(p,".*",2) && strnicmp(p,".py",3))
+  if (opt.do_python && p && strnicmp(p, ".*", 2) && strnicmp(p, ".py", 3))
   {
     memcpy (&subdir, fspec, p-fspec);
     subdir [p-fspec] = '/';
@@ -1702,7 +1702,10 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     if (ignore)
        continue;
 
-    len  = snprintf (fqfn, sizeof(fqfn), "%s%c", _path, DIR_SEP);
+    len = snprintf (fqfn, sizeof(fqfn), "%s%c", _path, DIR_SEP);
+    if (len < 0 || len >= sizeof(fqfn))  /* 'fqfn[]' too small! Or some other error? */
+       continue;
+
     base = fqfn + len;
     snprintf (base, sizeof(fqfn)-len, "%s%s", subdir ? subdir : "", file);
 
@@ -2065,7 +2068,8 @@ static int do_check_evry (void)
      */
     if (opt.dir_mode && !opt.use_regex)
     {
-      len = snprintf (query_buf, sizeof(query_buf), "regex:\"^%s$\" folder:", translate_shell_pattern(opt.file_spec));
+      len = snprintf (query_buf, sizeof(query_buf), "regex:\"^%s$\" folder:",
+                      translate_shell_pattern(opt.file_spec));
       TRACE (2, "Simple directory mode: '%s'\n", query_buf);
     }
     else
@@ -2586,7 +2590,7 @@ static int do_check_cmake (void)
           ver.val_1, ver.val_2, ver.val_3, modules_dir);
 
   report_header_set ("Matches among built-in Cmake modules:\n");
-  found = process_dir (modules_dir, 0, TRUE, TRUE, 1, TRUE, env_name, NULL, FALSE);
+  found = process_dir (modules_dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_CMAKE_FILE, FALSE);
   FREE (bin);
   FREE (root);
 
@@ -4642,6 +4646,7 @@ static void MS_CDECL cleanup (void)
   authinfo_exit();
   envtool_cfg_exit();
   cfg_exit (opt.cfg_file);
+  opt.cfg_file = NULL;
 
   vcpkg_exit();
   pkg_config_exit();
@@ -4763,16 +4768,16 @@ static void init_all (const char *argv0)
  */
 static void cfg_beep_handler (const char *key, const char *value)
 {
-  if (!stricmp(key,"enable"))
+  if (!stricmp(key, "enable"))
      opt.beep.enable = atoi (value);
 
-  else if (!stricmp(key,"limit"))
+  else if (!stricmp(key, "limit"))
      opt.beep.limit = (unsigned) atoi (value);
 
-  else if (!stricmp(key,"freq"))
+  else if (!stricmp(key, "freq"))
      opt.beep.freq = (unsigned) atoi (value);
 
-  else if (!stricmp(key,"msec"))
+  else if (!stricmp(key, "msec"))
      opt.beep.msec = (unsigned) atoi (value);
 }
 
@@ -4781,10 +4786,10 @@ static void cfg_beep_handler (const char *key, const char *value)
  */
 static void cfg_ETP_handler (const char *key, const char *value)
 {
-  if (!stricmp(key,"buffered_io"))
+  if (!stricmp(key, "buffered_io"))
      opt.use_buffered_io = atoi (value);
 
-  else if (!stricmp(key,"nonblock_io"))
+  else if (!stricmp(key, "nonblock_io"))
      opt.use_nonblock_io = atoi (value);
 }
 
@@ -4793,7 +4798,7 @@ static void cfg_ETP_handler (const char *key, const char *value)
  */
 static void cfg_grep_handler (const char *key, const char *value)
 {
-  if (!stricmp(key,"max_matches"))
+  if (!stricmp(key, "max_matches"))
      opt.grep.max_matches = atoi (value);
 }
 
@@ -4822,22 +4827,22 @@ static void shadow_ignore_handler (const char *section, const char *key, const c
  */
 static void envtool_cfg_handler (const char *section, const char *key, const char *value)
 {
-  if (!strnicmp(key,"beep.",5))
+  if (!strnicmp(key, "beep.", 5))
   {
     TRACE (2, "%s: Calling 'cfg_beep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
     cfg_beep_handler (key+5, value);
   }
-  else if (!strnicmp(key,"cache.",6))
+  else if (!strnicmp(key, "cache.", 6))
   {
     TRACE (2, "%s: Calling 'cache_config (\"%s\", \"%s\")'.\n", section, key+6, value);
     cache_config (key+6, value);
   }
-  else if (!strnicmp(key,"ETP.",4))
+  else if (!strnicmp(key, "ETP.", 4))
   {
     TRACE (2, "%s: Calling 'cfg_ETP_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
     cfg_ETP_handler (key+4, value);
   }
-  else if (!strnicmp(key,"grep.",5))
+  else if (!strnicmp(key, "grep.", 5))
   {
     TRACE (2, "%s: Calling 'cfg_grep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
     cfg_grep_handler (key+5, value);
@@ -4849,7 +4854,7 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
  */
 static void evry_cfg_handler (const char *section, const char *key, const char *value)
 {
-  if (!stricmp(key,"busy_wait"))
+  if (!stricmp(key, "busy_wait"))
        opt.evry_busy_wait = atoi (value);
   else cfg_ignore_handler (section, key, value);
 }
@@ -4967,8 +4972,8 @@ int MS_CDECL main (int argc, const char **argv)
         if (opt.do_pkg && end > opt.file_spec && end[-1] != '*')
            opt.file_spec = str_acat (opt.file_spec, ".pc*");
 
-        else if (opt.do_vcpkg && end > opt.file_spec && end[-1] != '*')
-           opt.file_spec = str_acat (opt.file_spec, "*");
+        else if (opt.do_cmake && !str_endswith(opt.file_spec, ".cmake"))
+           opt.file_spec = str_acat (opt.file_spec, ".cmake*");
 
         else if (end > opt.file_spec && end[-1] != '*' && end[-1] != '$')
            opt.file_spec = str_acat (opt.file_spec, ".*");
