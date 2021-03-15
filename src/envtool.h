@@ -804,7 +804,7 @@ typedef struct FMT_buf {
         _buf->buffer_pos[0] = '\0';                               \
       } while (0)
 
-#define BUF_EXIT(fmt_buf) do {   \
+#define BUF_FREE(fmt_buf) do {   \
         FMT_buf *_buf = fmt_buf; \
         if (_buf->on_heap)       \
            FREE (_buf->buffer);  \
