@@ -584,7 +584,7 @@ size_t C_flush (void)
 /**
  * An printf() style console print function.
  */
-int C_printf (const char *fmt, ...)
+int C_printf (_Printf_format_string_ const char *fmt, ...)
 {
   int     len;
   va_list args;

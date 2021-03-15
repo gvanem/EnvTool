@@ -3192,7 +3192,7 @@ void crtdbug_exit (void)
  * A `snprintf()` replacement to print and append to a local `FMT_buf*`
  * initialised using `BUF_INIT()`.
  */
-int buf_printf (FMT_buf *fmt_buf, const char *format, ...)
+int buf_printf (FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...)
 {
   va_list      args;
   int          len;
@@ -3656,7 +3656,7 @@ const char *flags_decode (DWORD flags, const struct search_list *list, int num)
 /**
  * The var-arg print function used in e.g. the `TRACE()` macro.
  */
-int debug_printf (const char *format, ...)
+int debug_printf (_Printf_format_string_ const char *format, ...)
 {
   int     raw, rc;
   va_list args;

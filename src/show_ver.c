@@ -124,7 +124,7 @@ void get_PE_version_info_free (void)
   static void do_printf (_Printf_format_string_ const char *fmt, ...) ATTR_PRINTF (1,2);
 #endif
 
-static void do_printf (const char *fmt, ...)
+static void do_printf (_Printf_format_string_ const char *fmt, ...)
 {
   static  size_t left = 1000;
   static  size_t size = 1000;

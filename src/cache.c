@@ -568,7 +568,7 @@ void cache_put (CacheSections section, const char *key, const char *value)
 /**
  * A var-arg version of `cache_put()`.
  */
-void cache_putf (CacheSections section, const char *fmt, ...)
+void cache_putf (CacheSections section, _Printf_format_string_ const char *fmt, ...)
 {
   char    key_value [CACHE_MAX_KEY+10000];
   char   *p, *key, *value;
