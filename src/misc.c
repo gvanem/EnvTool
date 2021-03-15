@@ -1535,11 +1535,11 @@ const char *qword_str (UINT64 val)
   p = buf + len;
   *p-- = '\0';
 
-  for (i = len, j = -1; i >= 0; i--, j++)
+  for (i = len, j = -1; i >= 0; j++)
   {
     if (j > 0 && (j % 3) == 0)
       *p-- = ',';
-    *p-- = tmp[i];
+    *p-- = tmp [i--];
   }
   return (p+1);
 }
