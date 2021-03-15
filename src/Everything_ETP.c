@@ -325,10 +325,15 @@ static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
   va_start (args, fmt);
 
   len = vsnprintf (tx_buf, sizeof(tx_buf)-3, fmt, args);
-  tx_buf[len] = '\r';
-  tx_buf[len+1] = '\n';
+  if (len > 0 && len < sizeof(tx_buf)-3)
+  {
+    tx_buf[len] = '\r';
+    tx_buf[len+1] = '\n';
+    rc = send (ctx->sock, tx_buf, len+2, 0);
+  }
+  else
+    rc = -1;
 
-  rc = send (ctx->sock, tx_buf, len+2, 0);
   ETP_tracef (ctx, "Tx: \"%.*s\\r\\n\", len: %d\n", len, tx_buf, rc);
   va_end (args);
   return (rc < 0 ? -1 : 0);
@@ -1256,7 +1261,7 @@ static const char *ETP_state_name (ETP_state f)
  */
 int do_check_evry_ept (const char *host)
 {
-  struct state_CTX ctx;
+  struct state_CTX ctx;  /* Uses approx. 33750 bytes of stack */
   char   host_buf [100];
 
   memset (&ctx, 0, sizeof(ctx));
