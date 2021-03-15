@@ -659,8 +659,8 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
   return (found ? smartlist_get(sl, idx) : NULL);
 }
 
-/*
- * Taken a `char *` string separated by a character in `sep` and returns
+/**
+ * Takes a `char *` string separated by a character in `sep` and returns
  * a new `smartlist_t *` containing a list of `char *`.
  *
  * \param[in] val   the string to split.
@@ -670,12 +670,14 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
  * \code
  *  smartlist_t *sl = smartlist_split_str ("a", ",");
  * \endcode
+ *
  * will return a `sl` with 1 element: \n
  *  \li `smartlist_get (sl, 0)` -> `"a"`.
  *
  * \code
  *  smartlist_t *sl = smartlist_split_str ("a,b, c", ", ");
  * \endcode
+ *
  * will return a `sl` with 3 elements: \n
  *  \li `smartlist_get (sl, 0)` -> `"a"`.
  *  \li `smartlist_get (sl, 1)` -> `"b"`.
@@ -708,6 +710,17 @@ smartlist_t *smartlist_split_str (const char *val, const char *sep)
  *   smartlist_add (sl, "hello");
  *   smartlist_add (sl, "world");
  *   res = smartlist_join_str (sl, " "); // res becomes "hello world"
+ *   ...
+ *   FREE (res);
+ * \endcode
+ *
+ * `sep` can be NULL to join strings tightly.
+ * Example:
+ * \code
+ *   smartlist_t *sl = smartlist_new();
+ *   smartlist_add (sl, "hello ");
+ *   smartlist_add (sl, "world!");
+ *   res = smartlist_join_str (sl, MULL); // res becomes "hello world!"
  *   ...
  *   FREE (res);
  * \endcode
