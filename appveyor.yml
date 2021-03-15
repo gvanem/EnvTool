@@ -1,7 +1,7 @@
 environment:
   matrix:
-    - PLATFORM: Win32
-    - PLATFORM: Win64
+    - REL_DBG: Release
+    - REL_DBG: Debug
 
 build_script:
     - cmd: appveyor-script.bat build

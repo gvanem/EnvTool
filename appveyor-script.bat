@@ -28,7 +28,7 @@ exit /b 1
 :build
   cd %APPVEYOR_BUILD_FOLDER%\src
   set WK_VER=8.1
-  msbuild -nologo -p:Configuration=Release -p:Platform=%PLATFORM% envtool.sln
+  msbuild -nologo -p:Configuration=%REL_DBG% -p:Platform="Win32" envtool.sln
   exit /b
 
 ::
