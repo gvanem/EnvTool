@@ -12,7 +12,7 @@ typedef struct smartlist_t smartlist_t;  /* Opaque struct; defined in smartlist.
 typedef int  (*smartlist_sort_func) (const void **a, const void **b);
 typedef int  (*smartlist_compare_func) (const void *key, const void **member);
 typedef void (*smartlist_parse_func) (smartlist_t *sl, const char *line);
-typedef void (*smartlist_free_func)(void *a);
+typedef void (*smartlist_free_func) (void *a);
 
 smartlist_t *smartlist_new  (void);
 int          smartlist_len  (const smartlist_t *sl);

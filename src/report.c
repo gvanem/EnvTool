@@ -163,6 +163,7 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
   p = mmap_max;
   if (p > mmap_buf + 100)
      p = mmap_buf + 100;
+
   if (memchr(mmap_buf, '\0', p - mmap_buf))
   {
     TRACE (1, "Ignoring binary file %s.\n", file);
