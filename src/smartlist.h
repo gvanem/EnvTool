@@ -22,7 +22,7 @@ void         smartlist_set  (smartlist_t *sl, int idx, void *val);
 
 void     smartlist_free (smartlist_t *sl);
 void     smartlist_free_all (smartlist_t *sl);
-void     smartlist_ensure_capacity (smartlist_t *sl, size_t num);
+void   **smartlist_ensure_capacity (smartlist_t *sl, size_t num);
 void    *smartlist_add (smartlist_t *sl, void *element);
 unsigned smartlist_addu (smartlist_t *sl, unsigned element);
 void     smartlist_del (smartlist_t *sl, int idx);

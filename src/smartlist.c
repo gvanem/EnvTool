@@ -169,8 +169,10 @@ void smartlist_free_all (smartlist_t *sl)
 /**
  * Make sure that `sl` can hold at least `num` entries.
  */
-void smartlist_ensure_capacity (smartlist_t *sl, size_t num)
+void **smartlist_ensure_capacity (smartlist_t *sl, size_t num)
 {
+  void **new_list = sl->list;
+
   ASSERT (num <= SMARTLIST_MAX_CAPACITY);
 
   if (num > (size_t)sl->capacity)
@@ -184,10 +186,15 @@ void smartlist_ensure_capacity (smartlist_t *sl, size_t num)
       while (num > higher)
         higher *= 2;
     }
-    sl->list = REALLOC (sl->list, sizeof(void*) * higher);
+    new_list = REALLOC (sl->list, sizeof(void*) * higher);
+    if (!new_list)
+       return (NULL);
+
+    sl->list = new_list;
     memset (sl->list + sl->capacity, 0, sizeof(void*) * (higher - sl->capacity));
     sl->capacity = (int) higher;
   }
+  return (sl->list);
 }
 
 /**
@@ -198,16 +205,16 @@ void smartlist_ensure_capacity (smartlist_t *sl, size_t num)
 void *smartlist_add (smartlist_t *sl, void *element)
 {
   ASSERT (sl);
-  smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
-  sl->list [sl->num_used++] = element;
+  if (smartlist_ensure_capacity(sl, 1 + (size_t)sl->num_used))
+     sl->list [sl->num_used++] = element;
   return (element);
 }
 
 unsigned smartlist_addu (smartlist_t *sl, unsigned element)
 {
   ASSERT (sl);
-  smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
-  sl->list [sl->num_used++] = (void*) element;
+  if (smartlist_ensure_capacity(sl, 1 + (size_t)sl->num_used))
+     sl->list [sl->num_used++] = (void*) element;
   return (element);
 }
 #endif
@@ -392,7 +399,8 @@ void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
   new_size = (size_t)sl1->num_used + (size_t)sl2->num_used;
   ASSERT (new_size >= (size_t)sl1->num_used);    /* check for folding overflow. */
 
-  smartlist_ensure_capacity (sl1, new_size);
+  if (!smartlist_ensure_capacity(sl1, new_size))
+     return;
   memcpy (sl1->list + sl1->num_used, sl2->list, sl2->num_used*sizeof(void*));
   sl1->num_used = (int) new_size;
 }
@@ -411,7 +419,8 @@ void smartlist_insert (smartlist_t *sl, int idx, void *val)
      smartlist_add (sl, val);
   else
   {
-    smartlist_ensure_capacity (sl, ((size_t)sl->num_used)+1);
+    if (!smartlist_ensure_capacity (sl, ((size_t)sl->num_used)+1))
+       return;
 
     /* Move other elements away
      */
@@ -769,8 +778,8 @@ void *smartlist_add_dbg (smartlist_t *sl, void *element, const char *sl_name, co
   if (!sl)
      FATAL ("Illegal use of 'smartlist_add (%s, 0x%p)' from %s(%u).\n", sl_name, element, file, line);
   ASSERT_VAL (sl);
-  smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
-  sl->list [sl->num_used++] = element;
+  if (smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used))
+     sl->list [sl->num_used++] = element;
   return (element);
 }
 
@@ -779,8 +788,8 @@ unsigned smartlist_addu_dbg (smartlist_t *sl, unsigned element, const char *sl_n
   if (!sl)
      FATAL ("Illegal use of 'smartlist_addu (%s, %u)' from %s(%u).\n", sl_name, element, file, line);
   ASSERT_VAL (sl);
-  smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used);
-  sl->list [sl->num_used++] = (void*) element;
+  if (smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used))
+     sl->list [sl->num_used++] = (void*) element;
   return (element);
 }
 #endif
