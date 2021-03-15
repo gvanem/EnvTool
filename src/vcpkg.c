@@ -521,7 +521,7 @@ unsigned vcpkg_find (const char *package_spec)
   num = vcpkg_find_internal (&fmt_buf, package_spec, sub_package_list);
   sub_level = 0;
 
-  BUF_EXIT (&fmt_buf);
+  BUF_FREE (&fmt_buf);
 
   smartlist_free (sub_package_list);
   return (num);
@@ -2557,6 +2557,8 @@ unsigned vcpkg_list_installed (BOOL detailed)
 
   vcpkg_init();
 
+  fmt_buf.buffer = NULL;
+
   if (installed_packages)
   {
     BUF_INIT (&fmt_buf, BUF_INIT_SIZE, 1);
@@ -2613,10 +2615,11 @@ unsigned vcpkg_list_installed (BOOL detailed)
   else C_printf ("\n  Found 0 installed ~3VCPKG~0 packages.\n");
 
   if (max)
-  {
-    C_puts (fmt_buf.buffer_start);
-    BUF_EXIT (&fmt_buf);
-  }
+     C_puts (fmt_buf.buffer_start);
+
+  if (fmt_buf.buffer)
+     BUF_FREE (&fmt_buf);
+
   return (max - num_ignored);
 }
 
