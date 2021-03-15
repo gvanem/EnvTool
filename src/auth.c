@@ -19,7 +19,6 @@
  * either `~/.netrc`, `~/.authinfo` or `~/envtool.cfg`.
  */
 typedef enum login_source {
-        LOGIN_NONE,
         LOGIN_NETRC,
         LOGIN_AUTHINFO,
         LOGIN_ENVTOOL_CFG,
@@ -37,30 +36,38 @@ struct login_info {
        int          port;        /**< The network port of the entry. Only if from `~/.authinfo` or `~/envtool.cfg` */
      };
 
-/** The smartlist of "struct login_info" entries.
+/** The smartlists of "struct login_info" entries.
  */
-static smartlist_t *login_list = NULL;
+static smartlist_t *login_list [LOGIN_ENVTOOL_CFG+1];
+
+/**
+ * \def GET_LOGIN_LIST(src)
+ *     Returns the `login_list[]` smartlist for `src`.
+ */
+#define GET_LOGIN_LIST(src) ( ASSERT (src >= LOGIN_NETRC && src < LOGIN_ENVTOOL_CFG), \
+                              login_list [(src))-1] \
+                            )
 
 /**
  * Return the name of the login source.
  */
 static const char *login_src_name (enum login_source src)
 {
-  return ((src == LOGIN_NONE)        ? "none!?"      :
-          (src == LOGIN_NETRC)       ? "NETRC"       :
+  return ((src == LOGIN_NETRC)       ? "NETRC"       :
           (src == LOGIN_AUTHINFO)    ? "AUTHINFO"    :
           (src == LOGIN_ENVTOOL_CFG) ? "ENVTOOL_CFG" : "?");
 }
 
 /**
- * Common to both netrc_init() and authinfo_init().
- * The \ref login_list is grown in the below `parser` functions.
+ * Common to both `netrc_init()` and `authinfo_init()`.
+ * The `login_list [src]` is returned from `smartlist_read_file()`.
  */
-static int common_init (const char *fname, smartlist_parse_func parser)
+static int common_init (const char *fname, smartlist_parse_func parser, login_source src)
 {
   char        *file = getenv_expand (fname);
   smartlist_t *sl;
-  BOOL         first_time = (login_list == NULL);
+
+  ASSERT (login_list[src] == NULL);
 
   sl = file ? smartlist_read_file (file, parser) : NULL;
   FREE (file);
@@ -68,78 +75,45 @@ static int common_init (const char *fname, smartlist_parse_func parser)
   if (!sl)
      return (0);
 
-  if (first_time)
-     login_list = sl;
-  else
-  {
-    smartlist_append (login_list, sl);
-    smartlist_free (sl);
-  }
+  login_list [src] = sl;
+  TRACE (2, "smartlist_len (0x%p): %d.\n", sl, smartlist_len(sl));
   return (1);
 }
 
 /**
- * Free the memory allocated in the \ref login_list smartlist.<br>
- * But only if `li->src` matches `src`.
+ * Free the memory allocated in the `login_list [src]` smartlist.<br>
  */
 static void common_exit (enum login_source src)
 {
-  int i, max;
-
-  if (!login_list)
-  {
-    TRACE (3, "%s: length of list now: %s\n", login_src_name(src), "<N/A>");
-    return;
-  }
-
-  max = smartlist_len (login_list);
-  TRACE (3, "%s: length of list now: %d\n", login_src_name(src), max);
+  int i, max = login_list [src] ? smartlist_len (login_list[src]) : 0;
 
   for (i = 0; i < max; i++)
   {
-    struct login_info *li = smartlist_get (login_list, i);
+    struct login_info *li = smartlist_get (login_list[src], i);
 
-    TRACE (3, "i: %d, %-12s, do %sdelete this.\n",
-           i,  login_src_name(li->src), (li->src == src) ? "" : "not ");
+    TRACE (2, "i: %2d, %s.\n", i, login_src_name(li->src));
 
-    if (!li || li->src != src)
-       continue;
-
-    if (li->src != LOGIN_ENVTOOL_CFG)
-       FREE (li->host);
-
+    FREE (li->host);
     FREE (li->user);
     FREE (li->passw);
     FREE (li);
-    smartlist_del (login_list, i);
-    max = smartlist_len (login_list);
   }
-
-  TRACE (3, "length of list now: %d\n", smartlist_len(login_list));
-
-  if (smartlist_len(login_list) == 0)
-  {
-    smartlist_free (login_list);
-    login_list = NULL;
-  }
+  smartlist_free (login_list[src]);
+  login_list[src] = NULL;
 }
 
 /**
- * Search the `login_list` smartlist for `host`. <br>
- * The `li->src` must also match `src`.
+ * Search the `login_list [src]` smartlist for `host`. <br>
  */
 static const struct login_info *common_lookup (const char *host, enum login_source src)
 {
   const struct login_info *def_li = NULL;
-  int   i, save, max = login_list ? smartlist_len (login_list) : 0;
+  int   i, save, max = login_list[src] ? smartlist_len (login_list[src]) : 0;
 
   for (i = 0; i < max; i++)
   {
-    const struct login_info *li = smartlist_get (login_list, i);
+    const struct login_info *li = smartlist_get (login_list[src], i);
     char  buf [300];
-
-    if (li->src != src)
-       continue;
 
     if (li->is_default)
        def_li = li;
@@ -170,8 +144,6 @@ static const struct login_info *common_lookup (const char *host, enum login_sour
  *   \code machine <host> login <user> password <password> \endcode
  * Or
  *   \code default login <user> password <password> \endcode
- *
- * And add to the \ref login_list smartlist.
  */
 static void netrc_parse (smartlist_t *sl, const char *line)
 {
@@ -207,8 +179,6 @@ static void netrc_parse (smartlist_t *sl, const char *line)
  *   `machine <host> port <num> login <user> password <password>`
  * Or <br>
  *   `default port <num> login <user> password <password>`
- *
- * And add to the `login_list` smartlist.
  */
 static void authinfo_parse (smartlist_t *sl, const char *line)
 {
@@ -249,7 +219,7 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
  *    <host> = <user> / <password>
  *    <host> = <user> / <password> / port <port>
  *   ```
- * And add to the `login_list` smartlist.
+ * And add to the `login_list [LOGIN_ENVTOOL_CFG]` smartlist.
  */
 void auth_envtool_handler (const char *section, const char *key, const char *value)
 {
@@ -262,16 +232,16 @@ void auth_envtool_handler (const char *section, const char *key, const char *val
   {
     struct login_info *li = CALLOC (1, sizeof(*li));
 
-    if (!login_list)
-       login_list = smartlist_new();
+    if (!login_list[LOGIN_ENVTOOL_CFG])
+       login_list [LOGIN_ENVTOOL_CFG] = smartlist_new();
 
-    li->host     = (char*) key;
+    li->host     = STRDUP (key);
     li->user     = STRDUP (user);
     li->passw    = STRDUP (passw);
     li->port     = port;
     li->src      = LOGIN_ENVTOOL_CFG;
-    TRACE (3, "num: %d, host: '%s', user: '%s', passwd: '%s', port: %d.\n", num, li->host, li->user, li->passw, li->port);
-    smartlist_add (login_list, li);
+    TRACE (2, "num: %d, host: '%s', user: '%s', passwd: '%s', port: %d.\n", num, li->host, li->user, li->passw, li->port);
+    smartlist_add (login_list[LOGIN_ENVTOOL_CFG], li);
   }
   ARGSUSED (section);
 }
@@ -284,7 +254,7 @@ static int netrc_init (void)
   static int last_rc = -1;
 
   if (last_rc == -1)
-     last_rc = common_init ("%APPDATA%\\.netrc", netrc_parse);
+     last_rc = common_init ("%APPDATA%\\.netrc", netrc_parse, LOGIN_NETRC);
   return (last_rc);
 }
 
@@ -296,12 +266,12 @@ static int authinfo_init (void)
   static int last_rc = -1;
 
   if (last_rc == -1)
-     last_rc = common_init ("%APPDATA%\\.authinfo", authinfo_parse);
+     last_rc = common_init ("%APPDATA%\\.authinfo", authinfo_parse, LOGIN_AUTHINFO);
   return (last_rc);
 }
 
 /**
- * Free the login_list entries assosiated with the `"%APPDATA%\\.netrc"` file.
+ * Free the `login_list [LOGIN_NETRC]` entries assosiated with the `"%APPDATA%\\.netrc"` file.
  */
 void netrc_exit (void)
 {
@@ -309,7 +279,7 @@ void netrc_exit (void)
 }
 
 /**
- * Free the login_list entries assosiated with the `"%APPDATA%\\.authinfo"` file.
+ * Free the `login_list [LOGIN_AUTHINFO]` entries assosiated with the `"%APPDATA%\\.authinfo"` file.
  */
 void authinfo_exit (void)
 {
@@ -317,7 +287,7 @@ void authinfo_exit (void)
 }
 
 /**
- * Free the login_list entries assosiated with the `"%APPDATA%\\envtool.cfg"` file.
+ * Free the `login_list [LOGIN_ENVTOOL_CFG]` entries assosiated with the `"%APPDATA%\\envtool.cfg"` file.
  */
 void envtool_cfg_exit (void)
 {
