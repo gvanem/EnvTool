@@ -28,7 +28,7 @@ exit /b 1
 :build
   cd %APPVEYOR_BUILD_FOLDER%\src
   set WK_VER=8.1
-  msbuild -nologo -p:Configuration=Release -p:Platform="Win32" envtool.sln
+  msbuild -nologo -p:Configuration=Release -p:Platform=%PLATFORM% envtool.sln
   exit /b
 
 ::
@@ -90,7 +90,7 @@ exit /b 1
   :: win_glob -fr "c:\Program Files (x86)\CMake"
 
   @echo.
-  @echo Show last 20 lines of cache-file
+  @echo Showing last 20 lines of cache-file
   @"c:\Program Files\Git\usr\bin\tail" --lines=20 %TEMP%\envtool.cache
 
   @echo off
