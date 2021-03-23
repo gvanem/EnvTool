@@ -154,7 +154,11 @@ int make_dir_spec (const char *arg, char *dir, char *spec)
         _arg = p + 1;
 
   if (_arg - a_copy > 0)
-     _strlcpy (dir, a_copy, _arg - a_copy + 1);
+  {
+    _strlcpy (dir, a_copy, _arg - a_copy + 1);
+    if (dir[1] == ':' && dir[2] == '\0') /* Turn a "x:" into a "x:." */
+       strcat (dir+2, ".");
+  }
 
   if (end - _arg > 0)
      _strlcpy (spec, _arg, end - _arg + 1);
