@@ -404,9 +404,12 @@ static int show_version (void)
   HWND wnd;
   BOOL wow64 = is_wow64_active();
 
-  C_printf ("%s.\n  Version ~3%s ~1(%s, %s%s)~0 by %s.\n  Hosted at: ~6%s~0\n",
+  C_printf ("%s.\n"
+            "  Version ~3%s ~1(%s, %s%s)~0 by %s.\n"
+            "  Hosted at: ~6%s~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
-            wow64 ? ", ~1WOW64" : "", AUTHOR_STR, GITHUB_STR);
+            wow64 ? ", ~1WOW64" : "",
+            AUTHOR_STR, GITHUB_STR);
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (wnd)
@@ -2006,6 +2009,7 @@ static BOOL evry_busy_wait (HWND wnd, UINT sec)
   {
     Sleep (1000);
     C_puts ("~5.~0");
+    C_flush();
     return evry_busy_wait (wnd, --sec);
   }
   return (!busy);
