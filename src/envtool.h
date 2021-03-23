@@ -947,9 +947,10 @@ extern char *fnmatch_res  (int rc);
 
 #define WARN(...)           do {                                        \
                               if (!opt.quiet) {                         \
-                                C_puts ("~5");                          \
-                                C_printf (__VA_ARGS__);                 \
-                                C_puts ("~0");                          \
+                                 C_puts ("~5");                         \
+                                 C_printf (__VA_ARGS__);                \
+                                 C_puts ("~0");                         \
+                                 C_flush();                             \
                               }                                         \
                             } while (0)
 
