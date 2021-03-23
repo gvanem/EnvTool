@@ -1533,13 +1533,16 @@ const char *qword_str (UINT64 val)
   int    i, j, len = snprintf (tmp, sizeof(tmp), "%" U64_FMT, val);
 
   p = buf + len;
-  *p-- = '\0';
 
-  for (i = len, j = -1; i >= 0; j++)
+  /* Copy 'tmp[]' into 'buf[]' in reverse order. Add commas after each 3 digit.
+   */
+  for (i = len, j = -1; i >= 0; i--, j++)
   {
     if (j > 0 && (j % 3) == 0)
-      *p-- = ',';
-    *p-- = tmp [i--];
+       *p-- = ',';
+    *p-- = tmp [i];
+    if (p <= buf)
+       break;
   }
   return (p+1);
 }
