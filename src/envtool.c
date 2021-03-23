@@ -4331,7 +4331,7 @@ static void set_evry_options (const char *arg)
   {
     if (!opt.evry_host)
        opt.evry_host = smartlist_new();
-    smartlist_add (opt.evry_host, STRDUP(arg));
+    smartlist_add_strdup (opt.evry_host, arg);
   }
 }
 
@@ -4372,10 +4372,10 @@ static void set_owner_options (const char *arg)
      opt.owners = smartlist_new();
 
   if (arg)
-     smartlist_add (opt.owners, STRDUP(arg));
+     smartlist_add_strdup (opt.owners, arg);
   else
   if (smartlist_len(opt.owners) == 0)
-     smartlist_add (opt.owners, STRDUP("*"));
+     smartlist_add_strdup (opt.owners, "*");
 }
 
 /**

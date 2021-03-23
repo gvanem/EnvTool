@@ -217,7 +217,18 @@ unsigned smartlist_addu (smartlist_t *sl, unsigned element)
      sl->list [sl->num_used++] = (void*) element;
   return (element);
 }
-#endif
+
+/**
+ * Append a malloced copy of `string` to `sl`.
+ */
+char *smartlist_add_strdup (struct smartlist_t *sl, const char *string)
+{
+  char *copy = STRDUP (string);
+
+  smartlist_add (sl, copy);
+  return (copy);
+}
+#endif  /* _DEBUG */
 
 /**
  * Remove the `idx`-th element of `sl`: <br>
@@ -663,7 +674,7 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
  * Takes a `char *` string separated by a character in `sep` and returns
  * a new `smartlist_t *` containing a list of `char *`.
  *
- * \param[in] val   the string to split.
+ * \param[in] str   the string to split.
  * \param[in] sep   the string-separator to use for `strtok_r()`.
  *
  * Examples:
@@ -683,17 +694,25 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
  *  \li `smartlist_get (sl, 1)` -> `"b"`.
  *  \li `smartlist_get (sl, 2)` -> `"c"`. The space in `" c"` is ignored since sep == `" ,"`.
  */
-smartlist_t *smartlist_split_str (const char *val, const char *sep)
+smartlist_t *smartlist_split_str (const char *str, const char *sep)
 {
   smartlist_t *sl = smartlist_new();
   char        *p, *tok_end;
-  char        *_val = STRDUP (val);
 
-  str_unquote (_val);
-  for (p = _strtok_r(_val, sep, &tok_end); p;
+#ifdef USE_strdupa
+  char *s = strdupa (str);
+#else
+  char *s = STRDUP (str);
+#endif
+
+  str_unquote (s);
+  for (p = _strtok_r(s, sep, &tok_end); p;
        p = _strtok_r(NULL, sep, &tok_end))
-     smartlist_add (sl, STRDUP(p));
-  FREE (_val);
+     smartlist_add_strdup (sl, p);
+
+#ifndef USE_strdpa
+  FREE (s);
+#endif
   return (sl);
 }
 
@@ -805,5 +824,19 @@ unsigned smartlist_addu_dbg (smartlist_t *sl, unsigned element, const char *sl_n
      sl->list [sl->num_used++] = (void*) element;
   return (element);
 }
-#endif
+
+char *smartlist_add_strdup_dbg (smartlist_t *sl, const char *string, const char *sl_name, const char *file, unsigned line)
+{
+  char *copy;
+
+  if (!sl)
+     FATAL ("Illegal use of 'smartlist_add_strdup (%s, \"%.10s\")' from %s(%u).\n", sl_name, string, file, line);
+  ASSERT_VAL (sl);
+
+  copy = STRDUP (string);
+  smartlist_add (sl, copy);
+  return (copy);
+}
+#endif /* _DEBUG */
+
 

@@ -25,6 +25,7 @@ void     smartlist_free_all (smartlist_t *sl);
 void   **smartlist_ensure_capacity (smartlist_t *sl, size_t num);
 void    *smartlist_add (smartlist_t *sl, void *element);
 unsigned smartlist_addu (smartlist_t *sl, unsigned element);
+char    *smartlist_add_strdup (smartlist_t *sl, const char *str);
 void     smartlist_del (smartlist_t *sl, int idx);
 void     smartlist_del_keeporder (smartlist_t *sl, int idx);
 void     smartlist_append (smartlist_t *sl1, const smartlist_t *sl2);
@@ -58,17 +59,19 @@ char        *smartlist_join_str (smartlist_t *sl, const char *sep);
   /*
    * Some helpful bug-hunter versions and macros.
    */
-  int      smartlist_len_dbg  (const smartlist_t *sl, const char *sl_name, const char *file, unsigned line);
-  void    *smartlist_get_dbg  (const smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line);
-  unsigned smartlist_getu_dbg (const smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line);
-  void    *smartlist_add_dbg  (smartlist_t *sl, void *element, const char *sl_name, const char *file, unsigned line);
-  unsigned smartlist_addu_dbg (smartlist_t *sl, unsigned element, const char *sl_name, const char *file, unsigned line);
+  int      smartlist_len_dbg        (const smartlist_t *sl, const char *sl_name, const char *file, unsigned line);
+  void    *smartlist_get_dbg        (const smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line);
+  unsigned smartlist_getu_dbg       (const smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line);
+  void    *smartlist_add_dbg        (smartlist_t *sl, void *element, const char *sl_name, const char *file, unsigned line);
+  unsigned smartlist_addu_dbg       (smartlist_t *sl, unsigned element, const char *sl_name, const char *file, unsigned line);
+  char    *smartlist_add_strdup_dbg (smartlist_t *sl, const char *string, const char *sl_name, const char *file, unsigned line);
 
-  #define smartlist_len(sl)        smartlist_len_dbg (sl, #sl, __FILE(), __LINE__)
-  #define smartlist_get(sl, idx)   smartlist_get_dbg (sl, idx, #sl, __FILE(), __LINE__)
-  #define smartlist_getu(sl, idx)  smartlist_getu_dbg (sl, idx, #sl, __FILE(), __LINE__)
-  #define smartlist_add(sl, elem)  smartlist_add_dbg (sl, elem, #sl, __FILE(), __LINE__)
-  #define smartlist_addu(sl, elem) smartlist_addu_dbg (sl, elem, #sl, __FILE(), __LINE__)
+  #define smartlist_len(sl)             smartlist_len_dbg (sl, #sl, __FILE(), __LINE__)
+  #define smartlist_get(sl, idx)        smartlist_get_dbg (sl, idx, #sl, __FILE(), __LINE__)
+  #define smartlist_getu(sl, idx)       smartlist_getu_dbg (sl, idx, #sl, __FILE(), __LINE__)
+  #define smartlist_add(sl, elem)       smartlist_add_dbg (sl, elem, #sl, __FILE(), __LINE__)
+  #define smartlist_addu(sl, elem)      smartlist_addu_dbg (sl, elem, #sl, __FILE(), __LINE__)
+  #define smartlist_add_strdup(sl, str) smartlist_add_strdup_dbg (sl, str, #sl, __FILE(), __LINE__)
 #endif
 
 #endif
