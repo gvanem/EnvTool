@@ -811,7 +811,7 @@ static void final_report (const char *dir_buf)
   C_printf ("  total-size:       %s bytes", qword_str(total_size));
   C_printf (" (allocated: %s,", qword_str(total_size_alloc));
 
-  if (total_size_compr <= total_size_alloc)
+  if (total_size_compr < total_size_alloc)
        C_printf (" compressed: %s)\n", qword_str(total_size_compr));
   else C_printf (" no compressed files)\n");
 
