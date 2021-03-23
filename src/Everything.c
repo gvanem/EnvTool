@@ -615,6 +615,7 @@ static LRESULT WINAPI _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wParam,L
             break;
         }
     }
+
     return DefWindowProc(hwnd,msg,wParam,lParam);
 }
 
@@ -736,6 +737,8 @@ static DWORD __stdcall _Everything_query_thread_proc(void *param)
                 return 0;
             }
         }
+
+// FIXME: this should be static so we keep file info cached.
 
         hwnd = CreateWindow(
             TEXT("EVERYTHING_DLL"),
@@ -923,7 +926,7 @@ static BOOL _Everything_SendIPCQuery(void)
     {
         _Everything_QueryVersion = 2;
 
-        // try version 2 first (if we specified some non-version 1 request flags)
+        // try version 2 first (if we specified some non-version 1 request flags or sort)
         if ((_Everything_ShouldUseVersion2()) && (_Everything_SendIPCQuery2(everything_hwnd)))
         {
             // sucessful.
@@ -1283,8 +1286,6 @@ DWORD EVERYTHINGAPI Everything_GetTotFolderResults(void)
 {
     DWORD ret;
 
-    ret = 0;
-
     _Everything_Lock();
 
     if (_Everything_List)
@@ -1301,6 +1302,8 @@ DWORD EVERYTHINGAPI Everything_GetTotFolderResults(void)
     else
     {
         _Everything_LastError = EVERYTHING_ERROR_INVALIDCALL;
+
+        ret = 0;
     }
 
     _Everything_Unlock();
@@ -1871,15 +1874,20 @@ DWORD EVERYTHINGAPI Everything_GetResultFullPathNameW(DWORD dwIndex,LPWSTR wbuf,
             if (_Everything_IsUnicodeQuery)
             {
                 len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,EVERYTHING_IPC_ITEMPATHW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex]));
+
+                if (len)
+                {
+                    len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,_Everything_IsSchemeNameW(EVERYTHING_IPC_ITEMPATHW(_Everything_List,&((EVERYTHING_IPC_LISTW *)_Everything_List)->items[dwIndex])) ? L"/" : L"\\");
+                }
             }
             else
             {
                 len = _Everything_CopyWFromA(wbuf,wbuf_size_in_wchars,0,EVERYTHING_IPC_ITEMPATHA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex]));
-            }
 
-            if (len)
-            {
-                len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,_Everything_IsSchemeNameW(wbuf) ? L"/" : L"\\");
+                if (len)
+                {
+                    len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,_Everything_IsSchemeNameA(EVERYTHING_IPC_ITEMPATHA(_Everything_List,&((EVERYTHING_IPC_LISTA *)_Everything_List)->items[dwIndex])) ? L"/" : L"\\");
+                }
             }
 
             if (_Everything_IsUnicodeQuery)
@@ -1945,15 +1953,20 @@ DWORD EVERYTHINGAPI Everything_GetResultFullPathNameW(DWORD dwIndex,LPWSTR wbuf,
                         if (_Everything_IsUnicodeQuery)
                         {
                             len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,0,path);
+
+                            if (len)
+                            {
+                                len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,_Everything_IsSchemeNameW(path) ? L"/" : L"\\");
+                            }
                         }
                         else
                         {
                             len = _Everything_CopyWFromA(wbuf,wbuf_size_in_wchars,0,path);
-                        }
 
-                        if (len)
-                        {
-                            len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,_Everything_IsSchemeNameW(wbuf) ? L"/" : L"\\");
+                            if (len)
+                            {
+                                len = _Everything_CopyW(wbuf,wbuf_size_in_wchars,len,_Everything_IsSchemeNameA(path) ? L"/" : L"\\");
+                            }
                         }
 
                         if (_Everything_IsUnicodeQuery)
@@ -2162,6 +2175,8 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
 
                     if (_Everything_List2)
                     {
+                        _Everything_LastError = 0;
+
                         CopyMemory(_Everything_List2,cds->lpData,cds->cbData);
                     }
                     else
@@ -2182,6 +2197,8 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
 
                         if (_Everything_List)
                         {
+                            _Everything_LastError = 0;
+
                             CopyMemory(_Everything_List,cds->lpData,cds->cbData);
                         }
                         else
@@ -2199,6 +2216,8 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
 
                         if (_Everything_List)
                         {
+                            _Everything_LastError = 0;
+
                             CopyMemory(_Everything_List,cds->lpData,cds->cbData);
                         }
                         else

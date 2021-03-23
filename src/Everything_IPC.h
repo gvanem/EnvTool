@@ -1,6 +1,7 @@
 /** \file    Everything_IPC.h
  *  \ingroup EveryThing_SDK
  */
+
 // Everything IPC
 
 #ifndef _EVERYTHING_IPC_H_
@@ -16,6 +17,7 @@ extern "C" {
 #define EVERYTHING_IPC_TARGET_MACHINE_X86                               1
 #define EVERYTHING_IPC_TARGET_MACHINE_X64                               2
 #define EVERYTHING_IPC_TARGET_MACHINE_ARM                               3
+#define EVERYTHING_IPC_TARGET_MACHINE_ARM64                             4
 
 // built in filters
 #define EVERYTHING_IPC_FILTER_EVERYTHING                                0
@@ -32,8 +34,9 @@ extern "C" {
 // the Everything taskbar notification window is always created when Everything is running. (even when the taskbar notification icon is hidden)
 // HWND everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_*,lParam)
+
 // version format: major.minor.revision.build
-// example: 1.1.4.309
+// example: 1.4.1.877
 #define EVERYTHING_IPC_GET_MAJOR_VERSION                                0 // int major_version = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_MAJOR_VERSION,0);
 #define EVERYTHING_IPC_GET_MINOR_VERSION                                1 // int minor_version = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_MINOR_VERSION,0);
 #define EVERYTHING_IPC_GET_REVISION                                     2 // int revision = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_REVISION,0);
@@ -80,7 +83,10 @@ extern "C" {
 #define EVERYTHING_IPC_SAVE_RUN_HISTORY                                 408 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_SAVE_RUN_HISTORY,0); // save run history to disk.
 #define EVERYTHING_IPC_DELETE_RUN_HISTORY                               409 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_RUN_HISTORY,0); // deletes all run history from memory and disk.
 #define EVERYTHING_IPC_IS_FAST_SORT                                     410 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_FAST_SORT,EVERYTHING_IPC_SORT_*); // is the sort information indexed?
-#define EVERYTHING_IPC_IS_FILE_INFO_INDEXED                             411 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_FILE_INFO_INDEXED,EVERYTHING_IPC_FILE_INFO_*); // is the file info indexed?
+#define EVERYTHING_IPC_IS_FILE_INFO_INDEXED                             411 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_FILE_INFO_INDEXED,EVERYTHING_IPC_FILE_INFO_*); // is the file/folder info indexed?
+
+// Everything 1.5
+#define EVERYTHING_IPC_QUEUE_REBUILD_DB                                 412 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_QUEUE_REBUILD_DB,0); // forces all indexes to be rescanned when the db is ready.
 
 // send the following to an existing Everything search window (requires Everything 1.4.1)
 // SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_*,0);
@@ -98,6 +104,13 @@ extern "C" {
 #define EVERYTHING_IPC_GET_ON_TOP                                       511 // int on_top = (int)SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_ON_TOP,0); 0=never, 1=always, 2=while searching.
 #define EVERYTHING_IPC_GET_FILTER                                       512 // int filter = (int)SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_FILTER,0); filter can be one of EVERYTHING_IPC_FILTER_* types.
 #define EVERYTHING_IPC_GET_FILTER_INDEX                                 513 // int filter_index = (int)SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_FILTER_INDEX,0);
+
+// Everything 1.5
+#define EVERYTHING_IPC_IS_MATCH_PREFIX                                  514 // int is_match_prefix = (int)SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_MATCH_PREFIX,0);
+#define EVERYTHING_IPC_IS_MATCH_SUFFIX                                  515 // int is_match_suffix = (int)SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_MATCH_SUFFIX,0);
+#define EVERYTHING_IPC_IS_IGNORE_PUNCTUATION                            516 // int is_ignore_punctuation = (int)SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_IGNORE_PUNCTUATION,0);
+#define EVERYTHING_IPC_IS_IGNORE_WHITESPACE                             517 // int is_ignore_whitespace = (int)SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_IGNORE_WHITESPACE,0);
+#define EVERYTHING_IPC_IS_SEARCH_AS_YOU_TYPE                            518 // int is_search_as_you_type = (int)SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_SEARCH_AS_YOU_TYPE,0);
 
 // command IDs to send to an Everything search window.
 // SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),WM_COMMAND,MAKEWPARAM(EVERYTHING_IPC_ID_*,0),0);
@@ -415,6 +428,11 @@ extern "C" {
 #define EVERYTHING_IPC_MATCHPATH                                        0x00000004  // include paths in search
 #define EVERYTHING_IPC_REGEX                                            0x00000008  // enable regex
 #define EVERYTHING_IPC_MATCHACCENTS                                     0x00000010  // match diacritic marks
+#define EVERYTHING_IPC_MATCHDIACRITICS                                  0x00000010  // match diacritic marks
+#define EVERYTHING_IPC_MATCHPREFIX                                      0x00000020  // match prefix (Everything 1.5)
+#define EVERYTHING_IPC_MATCHSUFFIX                                      0x00000040  // match suffix (Everything 1.5)
+#define EVERYTHING_IPC_IGNOREPUNCTUATION                                0x00000080  // ignore punctuation (Everything 1.5)
+#define EVERYTHING_IPC_IGNOREWHITESPACE                                 0x00000100  // ignore white-space (Everything 1.5)
 
 // item flags
 #define EVERYTHING_IPC_FOLDER                                           0x00000001  // The item is a folder. (it's a file if not set)
@@ -426,7 +444,7 @@ typedef struct EVERYTHING_IPC_COMMAND_LINE
     DWORD show_command; // MUST be one of the SW_* ShowWindow() commands
 
     // null terminated variable sized command line text in UTF-8.
-    unsigned char command_line_text[1];
+    BYTE command_line_text[1];
 
 }EVERYTHING_IPC_COMMAND_LINE;
 
@@ -846,7 +864,7 @@ typedef struct EVERYTHING_IPC_RUN_HISTORY
 {
     DWORD run_count;
 
-    // ansi/wchar filename follows.
+    // null terminated ansi/wchar filename follows.
     // TCHAR filename[];
 
 }EVERYTHING_IPC_RUN_HISTORY;
@@ -875,46 +893,8 @@ typedef struct EVERYTHING_IPC_RUN_HISTORY
 
 #ifdef UNICODE
 #define EVERYTHING_IPC_COPYDATA_QUERY2                                  EVERYTHING_IPC_COPYDATA_QUERY2W
-#define EVERYTHING_IPC_COPYDATA_QUERY_SET_SEARCH_TEXT                   EVERYTHING_IPC_COPYDATA_QUERY_SET_SEARCH_TEXTW
-#define EVERYTHING_IPC_COPYDATA_QUERY_SET_SEARCH_FILTER_TEXT            EVERYTHING_IPC_COPYDATA_QUERY_SET_SEARCH_FILTER_TEXTW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_NAME                         EVERYTHING_IPC_WM_QUERY_GET_RESULT_NAMEW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_PATH                         EVERYTHING_IPC_WM_QUERY_GET_RESULT_PATHW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_FULL_PATH_AND_NAME           EVERYTHING_IPC_WM_QUERY_GET_RESULT_FULL_PATH_AND_NAMEW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_NAME             EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_NAMEW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_PATH             EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_PATHW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_FULL_PATH_AND_NAME   EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_FULL_PATH_AND_NAMEW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_EXTENSION                    EVERYTHING_IPC_WM_QUERY_GET_RESULT_EXTENSIONW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_LIST_FILE_NAME          EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_LIST_FILE_NAMEW
-#define EVERYTHING_IPC_COPYDATA_QUERY_FIND_NEAREST_STRING_MATCH         EVERYTHING_IPC_COPYDATA_QUERY_FIND_NEAREST_STRING_MATCHW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_INFO                    EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_INFOW
-#define EVERYTHING_IPC_WM_QUERY_GET_SELECTION_FULL_PATH_AND_NAME        EVERYTHING_IPC_WM_QUERY_GET_SELECTION_FULL_PATH_AND_NAMEW
-#define EVERYTHING_IPC_WM_QUERY_GET_STATUS_TEXT                         EVERYTHING_IPC_WM_QUERY_GET_STATUS_TEXTW
-#define EVERYTHING_IPC_COPYDATA_QUERY_FIND                              EVERYTHING_IPC_COPYDATA_QUERY_FINDW
-#define EVERYTHING_IPC_COPYDATA_QUERY_FOLDER_EXISTS                     EVERYTHING_IPC_COPYDATA_QUERY_FOLDER_EXISTSW
-#define EVERYTHING_IPC_COPYDATA_QUERY_FILE_EXISTS                       EVERYTHING_IPC_COPYDATA_QUERY_FILE_EXISTSW
-#define EVERYTHING_IPC_COPYDATA_QUERY_GET_FILE_ATTRIBUTES               EVERYTHING_IPC_COPYDATA_QUERY_GET_FILE_ATTRIBUTESW
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_ATTRIBUTES              EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_ATTRIBUTESW
 #else
 #define EVERYTHING_IPC_COPYDATA_QUERY2                                  EVERYTHING_IPC_COPYDATA_QUERY2A
-#define EVERYTHING_IPC_COPYDATA_QUERY_SET_SEARCH_TEXT                   EVERYTHING_IPC_COPYDATA_QUERY_SET_SEARCH_TEXTA
-#define EVERYTHING_IPC_COPYDATA_QUERY_SET_SEARCH_FILTER_TEXT            EVERYTHING_IPC_COPYDATA_QUERY_SET_SEARCH_FILTER_TEXTA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_NAME                         EVERYTHING_IPC_WM_QUERY_GET_RESULT_NAMEA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_PATH                         EVERYTHING_IPC_WM_QUERY_GET_RESULT_PATHA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_FULL_PATH_AND_NAME           EVERYTHING_IPC_WM_QUERY_GET_RESULT_FULL_PATH_AND_NAMEA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_NAME             EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_NAMEA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_PATH             EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_PATHA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_FULL_PATH_AND_NAME   EVERYTHING_IPC_WM_QUERY_GET_RESULT_HIGHLIGHTED_FULL_PATH_AND_NAMEA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_EXTENSION                    EVERYTHING_IPC_WM_QUERY_GET_RESULT_EXTENSIONA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_LIST_FILE_NAME          EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_LIST_FILE_NAMEA
-#define EVERYTHING_IPC_COPYDATA_QUERY_FIND_NEAREST_STRING_MATCH         EVERYTHING_IPC_COPYDATA_QUERY_FIND_NEAREST_STRING_MATCHA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_INFO                    EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_INFOA
-#define EVERYTHING_IPC_WM_QUERY_GET_SELECTION_FULL_PATH_AND_NAME        EVERYTHING_IPC_WM_QUERY_GET_SELECTION_FULL_PATH_AND_NAMEA
-#define EVERYTHING_IPC_WM_QUERY_GET_STATUS_TEXT                         EVERYTHING_IPC_WM_QUERY_GET_STATUS_TEXTA
-#define EVERYTHING_IPC_COPYDATA_QUERY_FIND                              EVERYTHING_IPC_COPYDATA_QUERY_FINDA
-#define EVERYTHING_IPC_COPYDATA_QUERY_FOLDER_EXISTS                     EVERYTHING_IPC_COPYDATA_QUERY_FOLDER_EXISTSA
-#define EVERYTHING_IPC_COPYDATA_QUERY_FILE_EXISTS                       EVERYTHING_IPC_COPYDATA_QUERY_FILE_EXISTSA
-#define EVERYTHING_IPC_COPYDATA_QUERY_GET_FILE_ATTRIBUTES               EVERYTHING_IPC_COPYDATA_QUERY_GET_FILE_ATTRIBUTESA
-#define EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_ATTRIBUTES              EVERYTHING_IPC_WM_QUERY_GET_RESULT_FILE_ATTRIBUTESA
 #endif
 
 // end extern C
