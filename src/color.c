@@ -50,7 +50,7 @@
   #define snprintf  _snprintf
 #endif
 
-#if defined(_MSC_VER) && !defined(__POCC__) && defined(_DEBUG)
+#if defined(_MSC_VER) && defined(_DEBUG)
   #include <crtdbg.h>
 
   /* Use this in `FATAL()` to` avoid huge report of leaks from CrtDbg.

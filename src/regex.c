@@ -97,8 +97,8 @@ static void init_syntax_once (void)
   done = 1;
 }
 
-#if defined(_MSC_VER) && !defined(__POCC__) && (_MSC_VER < 1700)
-  #define isblank(c) ((c) == ' ' || (c) == '\t')
+#if defined(_MSC_VER) && (_MSC_VER < 1700)
+#define isblank(c) ((c) == ' ' || (c) == '\t')
 #endif
 
 #define ISASCII(c)  isascii(c)

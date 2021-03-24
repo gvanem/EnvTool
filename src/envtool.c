@@ -660,11 +660,11 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
    */
   d->is_native = (stricmp(dir,sys_native_dir) == 0);
 
-  /* Some issue with MinGW and OpenWatcom's `stat()` on a sys_native directory.
+  /* Some issue with MinGW's `stat()` on a sys_native directory.
    * Even though `GetFileAttributes()` in `safe_stat()` says it's a
    * directory, `stat()` doesn't report it as such. So just fake it.
    */
-#if defined(__MINGW32__) || defined(__WATCOMC__)
+#if defined(__MINGW32__)
   if (d->is_native && !d->exist)
   {
     d->exist  = TRUE;
@@ -5890,10 +5890,6 @@ static int do_check (void)
   #define CFLAGS   "cflags_MinGW.h"
   #define LDFLAGS  "ldflags_MinGW.h"
 
-#elif defined(__POCC__)
-  #define CFLAGS   "cflags_PellesC.h"
-  #define LDFLAGS  "ldflags_PellesC.h"
-
 #elif defined(__clang__)
   #define CFLAGS   "cflags_clang.h"
   #define LDFLAGS  "ldflags_clang.h"
@@ -5905,11 +5901,6 @@ static int do_check (void)
 #elif defined(__CYGWIN__)
   #define CFLAGS   "cflags_CygWin.h"
   #define LDFLAGS  "ldflags_CygWin.h"
-
-#elif defined(__WATCOMC__)
-  #define CFLAGS   "cflags_Watcom.h"
-  #define LDFLAGS  "ldflags_Watcom.h"
-#endif
 #endif  /* !__DOXYGEN__ */
 
 static void print_build_cflags (void)

@@ -38,18 +38,7 @@
  *    The EveryThing SDK for user queries.
  */
 
-#if defined(__POCC__)
-  /*
-   * warning #2130: Result of comparison is constant.
-   */
-  #pragma warn (disable: 2130)
-
-  /*
-   * warning #2154: Unreachable code.
-   */
-  #pragma warn (disable: 2154)
-
-#elif defined(__clang__)
+#if defined(__clang__)
   /*
    * Turn off these:
    *   Everything.c(1165,14):  warning: comparison of unsigned expression < 0 is always false [-Wtautological-compare]
@@ -78,12 +67,9 @@
 #include "Everything.h"
 #include "Everything_IPC.h"
 
-#if defined(__CYGWIN__)
-  #define stricmp(s1, s2)  strcasecmp (s1, s2)
-  #define wcsicmp(s1, s2)  lstrcmpW (s1, s2)
-
-#elif defined(__WATCOMC__) || defined(__POCC__)
-  #define wcsicmp(s1, s2)  _wcsicmp (s1, s2)
+#ifdef __CYGWIN__
+#define stricmp(s1, s2)  strcasecmp (s1, s2)
+#define wcsicmp(s1, s2)  lstrcmpW (s1, s2)
 #endif
 
 /*
@@ -91,10 +77,10 @@
  * var-arg functions must be defined as cdecl. This is only an issue if a program
  * is using 'fastcall' globally (cl option '-Gr').
  */
-#if defined(_MSC_VER) && !defined(__POCC__)
-  #define MS_CDECL __cdecl
+#ifdef _MSC_VER
+#define MS_CDECL __cdecl
 #else
-  #define MS_CDECL
+#define MS_CDECL
 #endif
 
 /*

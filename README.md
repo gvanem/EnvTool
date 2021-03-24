@@ -202,7 +202,7 @@ should be used instead.
 
 ---
 
-C-source included in `./src`. Makefiles for MinGW, Cygwin, Watcom, clang-cl and MSVC.
+C-source included in `./src`. Makefiles for MinGW, Cygwin, clang-cl and MSVC.
 Enjoy!
 
 `#include <std_disclaimer.h>`:<br>

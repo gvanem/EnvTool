@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <windows.h>
-#include <shellapi.h>  /* old Watcom 1.9 needs this ahead of '<shlobj.h>' */
+#include <shellapi.h>
 #include <shlobj.h>
 
 #include "tests.h"

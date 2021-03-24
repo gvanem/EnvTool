@@ -499,7 +499,6 @@ static UserCmpFunc user_compare;
  * be `__fastcall`.
  *
  * Only important for MSVC.
- * OpenWatcom does *not* require the compare function to be `__cdecl`.
  */
 static int MS_CDECL local_compare (const void *a, const void *b)
 {

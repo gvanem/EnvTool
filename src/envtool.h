@@ -14,18 +14,7 @@
 #error This program is not longer UNICODE compatible. Good riddance Microsoft.
 #endif
 
-/*
- * PellesC has '_MSC_VER' as a built-in (if option '-Ze' is used).
- * Hence test for '__POCC__' before '_MSC_VER'.
- */
-#if defined(__POCC__)
-  #ifdef _DEBUG
-    #define BUILDER  "PellesC, debug"
-  #else
-    #define BUILDER  "PellesC, release"
-  #endif
-
-#elif defined(__clang__)
+#if defined(__clang__)
   #ifdef _DEBUG
     #define BUILDER  "Clang-CL, debug"
   #else
@@ -47,9 +36,6 @@
 
 #elif defined(__MINGW32__)
   #define BUILDER  "MinGW"
-
-#elif defined(__WATCOMC__)
-  #define BUILDER  "OpenWatcom"
 
 #else
   #define BUILDER  "??"
@@ -143,26 +129,7 @@
   #endif
 #endif
 
-#if defined(__POCC__)
-  #include <wctype.h>
-  #include <wchar.h>
-
-  #define __FUNCTION__    __func__
-  #undef  stat
-  #define tzset()        ((void)0)
-
-  /*
-   * Lots of these:
-   *   warning #1058: Invalid token produced by ##, from ',' and 'env_name'.
-   */
-  #pragma warn (disable: 1058)
-
-  /*
-   * warning #2130: Result of comparison is constant.
-   */
-  #pragma warn (disable: 2130)
-
-#elif defined(_MSC_VER) && defined(_DEBUG)
+#if defined(_MSC_VER) && defined(_DEBUG)
   #undef  _malloca          /* Avoid MSVC-9 <malloc.h>/<crtdbg.h> name-clash */
   #define _CRTDBG_MAP_ALLOC
   #include <crtdbg.h>
@@ -243,7 +210,7 @@
  * MSVC (in debug) sometimes returns the full path.
  * Strip the directory part.
  */
-#if defined(_MSC_VER) && !defined(__POCC__)
+#if defined(_MSC_VER)
   #define __FILE()           basename (__FILE__)
   #define snprintf           _snprintf
 #else
@@ -278,12 +245,7 @@
 #else
   #define ATTR_PRINTF(_1,_2)
   #define ATTR_UNUSED()
-
-  #ifdef __POCC__
-    #define WIDESTR_FMT      "ls"
-  #else
-    #define WIDESTR_FMT      "ws"
-  #endif
+  #define WIDESTR_FMT      "ws"
 #endif
 
 #ifdef __CYGWIN__
@@ -326,7 +288,7 @@
  * var-arg functions must be defined as `cdecl`. This is only an issue if a program
  * is using `fastcall` globally (cl option `-Gr`).
  */
-#if defined(_MSC_VER) && !defined(__POCC__)
+#if defined(_MSC_VER)
   #define MS_CDECL __cdecl
 #else
   #define MS_CDECL
@@ -564,9 +526,6 @@ struct shadow_entry {
 
 /* Stuff in misc.c:
  */
-#if defined(__POCC__)
-_CRTCHK(printf,1,2)
-#endif
 int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1,2);
 
 /*
@@ -810,9 +769,6 @@ typedef struct FMT_buf {
            FREE (_buf->buffer);  \
       } while (0)
 
-#if defined(__POCC__)
-_CRTCHK(printf,2,3)
-#endif
 int  buf_printf (FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...) ATTR_PRINTF (2,3);
 void buf_puts_long_line (FMT_buf *fmt_buf, const char *line, size_t indent);
 int  buf_puts   (FMT_buf *fmt_buf, const char *string);

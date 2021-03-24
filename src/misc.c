@@ -13,7 +13,7 @@
 #include <windows.h>
 #include <wincon.h>
 #include <winioctl.h>
-#include <shellapi.h> /* old Watcom 1.9 needs this ahead of '<shlobj.h>' */
+#include <shellapi.h>
 #include <shlobj.h>
 #include <accctrl.h>
 #include <aclapi.h>
@@ -52,10 +52,7 @@
 #define KEY_WOW64_64KEY          0x0100
 #endif
 
-#if (defined(__POCC__)    && (__STDC_WANT_LIB_EXT1__ >= 1)) || \
-    (defined(__WATCOMC__) && (__STDC_WANT_LIB_EXT1__ == 1)) || \
-    (defined(__MINGW32__) && defined(MINGW_HAS_SECURE_API)) || \
-     defined(_MSC_VER)
+#if (defined(__MINGW32__) && defined(MINGW_HAS_SECURE_API)) || defined(_MSC_VER)
   #define HAVE_STRCAT_S
   #define HAVE_TMPNAM_S
 #endif
@@ -2080,13 +2077,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
  */
 char *create_temp_file (void)
 {
-#if defined(__POCC__)
-  char *tmp = tmpnam (buf);
-  #define T_FUNC  "tmpnam()"
-#else
   char *tmp = _tempnam (NULL, "envtool-tmp");
-  #define T_FUNC  "_tempnam()"
-#endif
 
   if (tmp)
   {
@@ -2096,7 +2087,7 @@ char *create_temp_file (void)
     free (tmp);     /* Free CRT data */
     return (t);     /* Caller must FREE() this */
   }
-  TRACE (2, " %s() %s failed: %s\n", __FUNCTION__, T_FUNC, strerror(errno));
+  TRACE (2, " %s(): _tempnam() failed: %s\n", __FUNCTION__, strerror(errno));
   return (NULL);
 }
 
@@ -3099,7 +3090,7 @@ void mem_report (void)
 #endif
 }
 
-#if (defined(_MSC_VER) && !defined(__POCC__)) && defined(_DEBUG) && !defined(USE_VLD)
+#if defined(_MSC_VER) && defined(_DEBUG) && !defined(USE_VLD)
 /**
  * Only one global mem-state.
  */
@@ -3111,8 +3102,6 @@ static _CrtMemState last_state;
  *
  * \note
  *   Enable this for MSVC and clang-cl only.
- *   The mem-checker in PellesC (which defines `__POCC__` and `_MSC_VER`) is
- *   somewhat buggy last time I checked. So leave that off.
  */
 void crtdbug_init (void)
 {
@@ -3337,13 +3326,6 @@ void buf_reset (FMT_buf *fmt_buf)
   fmt_buf->buffer_pos  = fmt_buf->buffer_start;
   fmt_buf->buffer_left = fmt_buf->buffer_size;
 }
-
-#if defined(__POCC__) && !defined(__MT__) && defined(_M_AMD64)
-  /*
-   * Some bug (?) causes a reference to this symbol in 'pocc -MD -Tx64-coff'.
-   */
-  DWORD __ullongfix;
-#endif
 
 /**
  * Return a nicely formatted string for a file-size
@@ -3707,19 +3689,15 @@ static char *popen_setup (const char *cmd)
   size_t      len;
 
   /**
-   * OpenWatcom's `popen()` always uses `cmd.exe` regardless of `%COMSPEC`.
-   *
    * If we're using 4NT/TCC shell, set all variable expansion to off
    * by prepending `setdos /x-3 & ` to `cmd` buffer.
    */
   if (env)
   {
     TRACE (3, "%%COMSPEC: %s.\n", env);
-#if !defined(__WATCOMC__)
     env = strlwr (basename(env));
     if (!strcmp(env, "4nt.exe") || !strcmp(env, "tcc.exe"))
        setdos = "setdos /x-3 & ";
-#endif
   }
   else
     comspec = "set COMSPEC=cmd.exe & ";
@@ -4354,8 +4332,6 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
 #define MAXIMUM_REPARSE_DATA_BUFFER_SIZE  (16*1024)
 #endif
 
-/* Stuff missing in OpenWatcom 2.0
- */
 #ifndef IsReparseTagMicrosoft
 #define IsReparseTagMicrosoft(_tag) (_tag & 0x80000000)
 #endif
@@ -4521,21 +4497,7 @@ static const char *gcc_version (void)
 }
 #endif
 
-#if defined(__POCC__)
-  const char *compiler_version (void)
-  {
-  #ifdef _DEBUG
-    #define DBG_REL "debug"
-  #else
-    #define DBG_REL "release"
-  #endif
-
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "PellesC ver %d.%d, %s",
-              __POCC__ / 100, __POCC__ % 100, DBG_REL);
-    return (cc_info_buf);
-  }
-
-#elif defined(__clang__)
+#if defined(__clang__)
   const char *compiler_version (void)
   {
   #ifdef _DEBUG
@@ -4601,17 +4563,6 @@ static const char *gcc_version (void)
     return (cc_info_buf);
   }
 
-#elif defined(__WATCOMC__)
-  const char *compiler_version (void)
-  {
-  #if (__WATCOMC__ >= 1200)
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "OpenWatcom %d.%d", (__WATCOMC__/100) - 11, (__WATCOMC__ % 100) / 10);
-  #else
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "Watcom C %d.%d", __WATCOMC__/100, __WATCOMC__ % 100);
-  #endif
-    return (cc_info_buf);
-  }
-
 #elif defined(__MINGW32__)
   /*
    * `__MINGW32__` is defined by BOTH mingw.org and by the MinGW-w64
@@ -4663,22 +4614,9 @@ static const char *gcc_version (void)
 
 #include <io.h>
 #include <wchar.h>
+#include <winternl.h>
 
-#if !defined(__POCC__) && !defined(__WATCOMC__)
-  #include <winternl.h>
-#else
-  typedef struct {
-          USHORT  Length;
-          USHORT  MaximumLength;
-          WCHAR  *Buffer;
-        } UNICODE_STRING;
-
-  #define NTAPI                     __stdcall
-  #define NT_SUCCESS(x)             ((LONG)(x) >= 0)
-  #define OBJECT_INFORMATION_CLASS  int
-#endif
-
-#if defined(_MSC_VER) || defined(__WATCOMC__)
+#if defined(_MSC_VER)
   typedef struct {
           UNICODE_STRING Name;
         } OBJECT_NAME_INFORMATION2;

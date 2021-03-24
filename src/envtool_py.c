@@ -1551,7 +1551,7 @@ static void py_get_module_info (struct python_info *pi)
       char meta    [256+1] = { "-" };
       int  num = sscanf (line, "%40[^;];%20[^;];%256[^;];%256s", module, version, fname, meta);
 
-      if (num >= 3)  /* Watcom's 'sscanf()' is buggy */
+      if (num >= 3)
       {
         struct python_module m;
 
