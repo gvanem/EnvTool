@@ -5901,6 +5901,7 @@ static int do_check (void)
 #elif defined(__CYGWIN__)
   #define CFLAGS   "cflags_CygWin.h"
   #define LDFLAGS  "ldflags_CygWin.h"
+#endif
 #endif  /* !__DOXYGEN__ */
 
 static void print_build_cflags (void)
