@@ -4508,6 +4508,19 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
 
 static char cc_info_buf[40];
 
+#if defined(__MINGW32__) || defined(__CYGWIN__)
+static const char *gcc_version (void)
+{
+  static char ver [20];
+#ifdef __GNUC_PATCHLEVEL__
+  snprintf (ver, sizeof(ver), "%d.%d.%d", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+#else
+  snprintf (ver, sizeof(ver), "%d.%d", __GNUC__, __GNUC_MINOR__);
+#endif
+  return (ver);
+}
+#endif
+
 #if defined(__POCC__)
   const char *compiler_version (void)
   {
@@ -4610,8 +4623,8 @@ static char cc_info_buf[40];
   const char *compiler_version (void)
   {
   #if defined(__MINGW64_VERSION_MAJOR)
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "MinGW-w64 %d.%d (%s)",
-              __MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, __MINGW64_VERSION_STATE);
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "gcc %s, MinGW-w64 %d.%d",
+              gcc_version(), __MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR);
 
   /* mingw.org MinGW. MingW-RT-4+ defines '__MINGW_MAJOR_VERSION'
    */
@@ -4626,8 +4639,9 @@ static char cc_info_buf[40];
 #elif defined(__CYGWIN__)
   const char *compiler_version (void)
   {
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "CygWin %d.%d.%d", CYGWIN_VERSION_DLL_MAJOR/1000,
-              CYGWIN_VERSION_DLL_MAJOR % 1000, CYGWIN_VERSION_DLL_MINOR);
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "gcc %s, CygWin %d.%d.%d",
+              gcc_version(), CYGWIN_VERSION_DLL_MAJOR/1000, CYGWIN_VERSION_DLL_MAJOR % 1000,
+              CYGWIN_VERSION_DLL_MINOR);
     return (cc_info_buf);
   }
 
