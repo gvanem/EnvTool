@@ -497,7 +497,7 @@ static unsigned vcpkg_find_internal (FMT_buf *fmt_buf, const char *package_spec,
 
     if (sub_level == 0)
     {
-      if (print_install_info(fmt_buf, package, indent-2) || num_deps == 0)
+      if (print_install_info(fmt_buf, package, indent-2) /* || num_deps == 0 */)
            C_puts (fmt_buf->buffer_start);
       else matches--;
 
@@ -776,7 +776,7 @@ static void CONTROL_add_dependencies (port_node *node, char *str)
       TRACE (2, "platform: '%s', tok: '%s', tok_end: '%s'\n", platform, tok, tok_end);
       CONTROL_add_dependency_platform (&package, platform, 0, TRUE);
     }
-    smartlist_add (node->depends, STRDUP(p));  // !! fixme: the 'package.platform[]' is now lost
+    smartlist_add_strdup (node->depends, p);  // !! fixme: the 'package.platform[]' is now lost
   }
 }
 
@@ -900,7 +900,7 @@ static void build_dir_list (smartlist_t *dir_list, const char *dir, BOOL check_C
         }
       }
       TRACE (2, "Adding '%s'\n", d);
-      smartlist_add (dir_list, STRDUP(d));
+      smartlist_add_strdup (dir_list, d);
     }
   }
   closedir2 (dp);
@@ -1996,7 +1996,7 @@ static int get_ports_dirs_from_cache (smartlist_t **ports_dirs)
     snprintf (format, sizeof(format), "port_dir_%d = %%s", i);
     if (cache_getf(SECTION_VCPKG, format, &dir) != 1)
        break;
-    smartlist_add (*ports_dirs, STRDUP(dir));
+    smartlist_add_strdup (*ports_dirs, dir);
   }
   return (i);
 }
@@ -2016,7 +2016,7 @@ static int get_packages_dirs_from_cache (smartlist_t **packages_dirs)
     snprintf (format, sizeof(format), "packages_dir_%d = %%s", i);
     if (cache_getf(SECTION_VCPKG, format, &dir) != 1)
        break;
-    smartlist_add (*packages_dirs, STRDUP(dir));
+    smartlist_add_strdup (*packages_dirs, dir);
   }
   return (i);
 }
@@ -2502,7 +2502,7 @@ static void info_parse (smartlist_t *sl, char *buf)
   {
     if (!opt.show_unix_paths)
        p = slashify2 (p, p, '\\');
-    smartlist_add (sl, STRDUP(p));
+    smartlist_add_strdup (sl, p);
     TRACE (2, "adding: '%s'.\n", p);
   }
 }
@@ -2740,7 +2740,7 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
 
   buf_printf (fmt_buf, "  %-*s%s~0", indent1, "installed:", yes_no);
 
-  if (vcpkg_get_only_installed() && !package)
+  if (only_installed && !package)
   {
     buf_putc (fmt_buf, '\n');
     return (FALSE);
@@ -2833,6 +2833,9 @@ static void *find_installed_package (int *index_p, const char *pkg_name, const c
     {
       if (arch && strcmp(package->arch, arch))
          continue;
+
+      TRACE (2, "i: %2d, found matching installed package: %s, arch: %s\n",
+             i, package->package, package->arch);
 
       *index_p = i + 1;
       return (package);
