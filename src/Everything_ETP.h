@@ -1,4 +1,4 @@
-/** \file EveryThing_ETP.h
+/** \file Everything_ETP.h
  *  \ingroup EveryThing_ETP
  */
 #ifndef _EVERYTHING_ETP_H_
