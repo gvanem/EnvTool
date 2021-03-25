@@ -3356,6 +3356,7 @@ int test_vcpkg_json_parser (void)
   smartlist_free_all (node.features);
   smartlist_free (node.supports);
   smartlist_free_all (available_packages);
+  available_packages = NULL;
   return (0);
 }
 
