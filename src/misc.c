@@ -1526,11 +1526,12 @@ char *path_ltrim (const char *p1, const char *p2)
  */
 const char *qword_str (UINT64 val)
 {
-  static char buf [30];
+  static char buf [40];
   char   tmp [30], *p;
   int    i, j, len = snprintf (tmp, sizeof(tmp), "%" U64_FMT, val);
 
-  p = buf + len;
+  p = buf + sizeof(buf) - 1;
+  *p-- = '\0';
 
   /* Copy 'tmp[]' into 'buf[]' in reverse order. Add commas after each 3 digit.
    */
@@ -1539,8 +1540,6 @@ const char *qword_str (UINT64 val)
     if (j > 0 && (j % 3) == 0)
        *p-- = ',';
     *p-- = tmp [i];
-    if (p <= buf)
-       break;
   }
   return (p+1);
 }
