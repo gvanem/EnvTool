@@ -26,6 +26,7 @@
 struct descr_node {
        char file_dir [_MAX_PATH];    /**< the file or directory name */
        char file_descr [MAX_DESCR];  /**< the description of the above `file_name` (a file or a directory) */
+       BOOL is_dir;                  /**< TRUE if `file_dir` is a directory */
      };
 
 /**
@@ -62,6 +63,12 @@ static DWORD cache_hits = 0;
 static char descr_name [200] = "DESCRIPT.ION";
 
 /**
+ * The directory we're currently parsing for
+ * a description-file.
+ */
+static const char *curr_dir;
+
+/**
  * Initialise this module.
  */
 void file_descr_init (void)
@@ -94,23 +101,31 @@ void file_descr_init (void)
  */
 static void all_descr_dump (void)
 {
-  int i, max = smartlist_len (all_descr);
+  const struct descr_dir  *dd;
+  const struct descr_node *dn;
+  int i, j, j_max, i_max = smartlist_len (all_descr);
+  int save = C_setraw (1);
 
-  if (max)
-     debug_printf ("file_descr_dump(): cache_hits: %lu\n"
-                   "  Idx  Len  directory\n"
-                   "  -----------------------------------------------------------------\n",
-                   cache_hits);
+  C_printf ("file_descr_dump(): cache_hits: %lu\n"
+            "  i  j  is_dir Directory / 'File':     Description\n"
+            "  ------------------------------------------------------------------------------------\n",
+            cache_hits);
 
-  for (i = 0; i < max; i++)
+  for (i = 0; i < i_max; i++)
   {
-    const struct descr_dir *d = smartlist_get (all_descr, i);
-    int   j, num = d->descr ? smartlist_len(d->descr) : 0;
+    dd = smartlist_get (all_descr, i);
+    j_max = dd->descr ? smartlist_len (dd->descr) : 0;
 
-    debug_printf ("  %d  %2d  %s:\n", i, num, d->dir);
-    for (j = 0; j < num; j++)
-        debug_printf ("         %2d %s\n", j, (const char*)smartlist_get(d->descr, j));
+    C_printf (" %2d           '%s':\n", i, dd->dir);
+    for (j = 0; j < j_max; j++)
+    {
+      dn = smartlist_get (dd->descr, j);
+      C_printf ("    %2d  %d     '%-20.20s':  %.80s\n",
+                j, dn->is_dir, dn->file_dir, dn->file_descr);
+    }
+    C_putc ('\n');
   }
+  C_setraw (save);
 }
 
 /**
@@ -119,18 +134,10 @@ static void all_descr_dump (void)
  */
 static void all_descr_free (void *_d)
 {
-  struct descr_dir  *d = (struct descr_dir*) _d;
+  struct descr_dir *dd = (struct descr_dir*) _d;
 
-  if (d->descr)
-  {
-#if defined(_CRTDBG_MAP_ALLOC)
-    smartlist_wipe (d->descr, free);
-#else
-    smartlist_wipe (d->descr, (void (*)(void*))free_at);
-#endif
-    smartlist_free (d->descr);
-  }
-  FREE (d);
+  smartlist_free_all (dd->descr);
+  FREE (dd);
 }
 
 /**
@@ -160,10 +167,17 @@ static void descr_parse (smartlist_t *sl, const char *buf)
   const char *p = buf;
   int   i;
 
-  for (i = 0; i < sizeof(file)-1 && *p && !isspace((int)*p); p++)
+  if (*p == '"')
   {
-    if (*p != '"')
-       file[i++] = *p;
+    p++;
+    for (i = 0; i < sizeof(file)-2 && *p && *p != '"'; p++)
+        file[i++] = *p;
+    p++;
+  }
+  else
+  {
+    for (i = 0 ; i < sizeof(file)-1 && *p && !isspace((int)*p); p++)
+        file[i++] = *p;
   }
   file[i] = '\0';
 
@@ -180,15 +194,18 @@ static void descr_parse (smartlist_t *sl, const char *buf)
 
   /* Do not add an entry for a `DESCRIPT.ION` file.
    */
-  if (file[0] != '?' && descr[0] != '?' && stricmp(file,descr_name))
+  if (file[0] != '?' && descr[0] != '?' && stricmp(file, descr_name))
   {
-    struct descr_node *d = CALLOC (1, sizeof(*d));
+    struct descr_node *dn = CALLOC (1, sizeof(*dn));
+    char fqfn_name [_MAX_PATH];
 
-    _strlcpy (d->file_dir, file, sizeof(d->file_dir));
-    _strlcpy (d->file_descr, descr, sizeof(d->file_descr));
-    smartlist_add (sl, d);
+    _strlcpy (dn->file_dir, file, sizeof(dn->file_dir));
+    _strlcpy (dn->file_descr, descr, sizeof(dn->file_descr));
+     snprintf (fqfn_name, sizeof(fqfn_name), "%s\\%s", curr_dir, file);
+     dn->is_dir = is_directory (fqfn_name);
+    smartlist_add (sl, dn);
   }
-  TRACE (2, "file: %s, descr: %s.\n", file, descr);
+  TRACE (2, "file: '%s', descr: '%s'.\n", file, descr);
 }
 
 /**
@@ -202,13 +219,15 @@ static const char *lookup_file_descr (const smartlist_t *sl, const char *file_di
 {
   int i, max = smartlist_len (sl);
 
+  TRACE (2, "Looking for file_dir: '%s'.\n", file_dir);
+
   for (i = 0; i < max; i++)
   {
-    const struct descr_node *d = smartlist_get (sl, i);
+    const struct descr_node *dn = smartlist_get (sl, i);
 
-    TRACE (2, "i: %d, file_dir: %s.\n", i, d->file_dir);
-    if (!stricmp(file_dir,d->file_dir))
-       return (d->file_descr);
+    TRACE (2, "i: %d, file_dir: %s.\n", i, dn->file_dir);
+    if (!stricmp(file_dir, dn->file_dir))
+       return (dn->file_descr);
   }
   return (NULL);
 }
@@ -229,34 +248,35 @@ static const char *lookup_file_descr (const smartlist_t *sl, const char *file_di
  * \retval !NULL The file/dir description found.
  * \retval NULL  The file/dir have no description.
  */
-static const char *all_descr_new (const char *dir, const char *file)
+static const char *all_descr_new (const char *dir, const char *file_dir)
 {
-  struct descr_dir *d;
-  char   fname [_MAX_PATH];
+  struct descr_dir *dd;
+  char   descript_ion [_MAX_PATH];
 
-  snprintf (fname, sizeof(fname), "%s\\%s", dir, descr_name);
+  snprintf (descript_ion, sizeof(descript_ion), "%s\\%s", dir, descr_name);
 
-  d = CALLOC (1, sizeof(*d));
-  d->descr = smartlist_read_file (fname, descr_parse);
-  _strlcpy (d->dir, dir, sizeof(d->dir));
+  curr_dir = dir;
+  dd = CALLOC (1, sizeof(*dd));
+  dd->descr = smartlist_read_file (descript_ion, descr_parse);
+  _strlcpy (dd->dir, dir, sizeof(dd->dir));
 
-  if (d->descr)
-       TRACE (2, "Parser found %d descriptions for %s.\n", smartlist_len(d->descr), fname);
+  if (dd->descr)
+       TRACE (2, "Parser found %d descriptions in '%s'.\n", smartlist_len(dd->descr), descript_ion);
   else TRACE (2, "Parser found no descriptions for files in '%s\\'.\n", dir);
 
-  smartlist_add (all_descr, d);
+  smartlist_add (all_descr, dd);
 
   /* Is it found now?
    */
-  if (d->descr)
-     return lookup_file_descr (d->descr, file);
+  if (dd->descr)
+     return lookup_file_descr (dd->descr, file_dir);
   return (NULL);
 }
 
 /**
  * Lookup a file/directory description for a `file_dir` in the directory `dir`.
  *
- * if `d->descr == NULL`, it means the `dir` was already
+ * if `dd->descr == NULL`, it means the `dir` was already
  * tried and we found no `descr_name` in it. Hence no point to look further.
  *
  * \retval !NULL The file/dir description was found.
@@ -264,24 +284,21 @@ static const char *all_descr_new (const char *dir, const char *file)
  */
 static const char *all_descr_lookup (const char *dir, const char *file_dir, BOOL *empty)
 {
-  const struct descr_dir *d;
+  const struct descr_dir *dd;
   int   i, max = smartlist_len (all_descr);
 
   *empty = FALSE;
-  TRACE (2, "all_descr_lookup(): max: %d, looking for dir: %s\n", max, dir);
+  TRACE (2, "all_descr_lookup(): max: %d, looking for dir: '%s'\n", max, dir);
 
   for (i = 0; i < max; i++)
   {
-    d = smartlist_get (all_descr, i);
-    TRACE (2, "  i=%d: empty: %d, dir: %s\n", i, d->descr ? 0 : 1, d->dir);
+    dd = smartlist_get (all_descr, i);
+    TRACE (2, "  i=%d: empty: %d, dir: '%s'\n", i, dd->descr ? 0 : 1, dd->dir);
 
-    if (!stricmp(dir,d->dir))
+    if (!stricmp(dir, dd->dir))
     {
-      if (d->descr)
-      {
-        *empty = FALSE;
-        return lookup_file_descr (d->descr, file_dir);
-      }
+      if (dd->descr)
+         return lookup_file_descr (dd->descr, file_dir);
       *empty = TRUE;
     }
   }
@@ -307,7 +324,7 @@ const char *file_descr_get (const char *file_dir)
 {
   const char *descr;
   char       *fname, *dir, _file[_MAX_PATH];
-  BOOL        empty, is_dir;
+  BOOL        empty;
 
   /* `file_descr_init()` was not called.
    * Or this function was called after `file_descr_exit()`
@@ -316,12 +333,13 @@ const char *file_descr_get (const char *file_dir)
      return (NULL);
 
   _fix_path (file_dir, _file);
-  is_dir = is_directory (_file);
-  fname  = basename (_file);
-  dir    = _file;
-  fname [-1] = '\0';
+  dir = _file;
+  fname = basename (_file);
+  fname [-1] = '\0';    /* terminate 'dir' */
 
-  TRACE (2, "dir: %s, fname: %s, is_dir: %d\n", dir, fname, is_dir);
+  if (opt.debug > 0)
+     C_putc ('\n');
+  TRACE (2, "file_dir: '%s', fname: '%s'\n", file_dir, fname);
 
   descr = all_descr_lookup (dir, fname, &empty);
   if (empty)
