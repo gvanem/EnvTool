@@ -57,7 +57,7 @@ static void print_and_compare_guid_str (const GUID *guid, const char *in)
   DWORD   len;
 
   strcpy (a_result, "{??}");
-  if (StringFromGUID2(guid, w_result, (int)sizeof(w_result)))
+  if (StringFromGUID2(guid, w_result, (int)DIM(w_result)))
   {
     len = WideCharToMultiByte (CP_ACP, 0, w_result, -1, a_result, (int)sizeof(a_result), NULL, NULL);
     if (len == 0)
@@ -424,7 +424,7 @@ BOOL find_vstudio_init (void)
 
   /* Increase debug-level when running on AppVeyor (to see more details).
    */
-  if (!stricmp(get_user_name(),"APPVYR-WIN\\appveyor"))
+  if (opt.under_appveyor)
      opt.debug = max (opt.debug, 1);
 
   build_GUIDs();
