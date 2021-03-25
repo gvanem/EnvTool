@@ -53,7 +53,7 @@ static const char *exec_stmt[] = {
                // "SELECT message FROM tbl WHERE message = 'hello!';"
                 };
 
-static HANDLE dll_hnd = INVALID_HANDLE_VALUE;
+static HANDLE dll_hnd = NULL;
 
 /*
  * Similar to 'envtool_py.c'
@@ -113,9 +113,9 @@ static BOOL sql3_load (void)
 
 static BOOL sql3_unload (void)
 {
-  if (dll_hnd && dll_hnd != INVALID_HANDLE_VALUE)
+  if (dll_hnd)
      FreeLibrary (dll_hnd);
-  dll_hnd = INVALID_HANDLE_VALUE;
+  dll_hnd = NULL;
   return (TRUE);
 }
 

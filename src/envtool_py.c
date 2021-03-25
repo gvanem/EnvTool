@@ -731,7 +731,7 @@ static void py_set_inspect_flag (int v)
  */
 static void py_exit_embedding (struct python_info *pi)
 {
-  if (pi->dll_hnd && pi->dll_hnd != INVALID_HANDLE_VALUE)
+  if (pi->dll_hnd)
   {
     py_set_inspect_flag (0);
     Py_InspectFlag = NULL;
@@ -743,7 +743,7 @@ static void py_exit_embedding (struct python_info *pi)
     if (!IsDebuggerPresent())
        CloseHandle (pi->dll_hnd);
   }
-  pi->dll_hnd = INVALID_HANDLE_VALUE;
+  pi->dll_hnd = NULL;
 }
 
 /**
@@ -813,8 +813,8 @@ void py_exit (void)
   }
 
 #if !defined(_DEBUG)
-  if (exc_hnd && exc_hnd != INVALID_HANDLE_VALUE)
-      FreeLibrary (exc_hnd);
+  if (exc_hnd)
+     FreeLibrary (exc_hnd);
   exc_hnd = NULL;
 #endif
 
@@ -2220,7 +2220,6 @@ static struct python_info *add_python (const struct python_info *pi, const char 
   _strlcpy (pi2->exe_dir, exe, base - exe);
   _strlcpy (pi2->program, pi->program, sizeof(pi2->program));
   pi2->exe_name = _fix_path (exe, NULL);
-  pi2->dll_hnd  = INVALID_HANDLE_VALUE;
   pi2->do_warn_home      = TRUE;
   pi2->do_warn_user_site = TRUE;
   pi2->sys_path = smartlist_new();
@@ -2855,11 +2854,13 @@ void py_init (void)
   int    i, max;
 
 #if !defined(_DEBUG)
-  if (exc_hnd == NULL)
+  if (!exc_hnd)
   {
+    DWORD exc_err;
+
     exc_hnd = LoadLibrary ("exc-abort.dll");
-    GetLastError();
-    TRACE (2, "LoadLibrary (\"exc-abort.dll\"): hnd: %p\n", exc_hnd);
+    exc_err = GetLastError();
+    TRACE (2, "LoadLibrary (\"exc-abort.dll\"): hnd: %p, err: %lu\n", exc_hnd, exc_err);
   }
 #endif
 

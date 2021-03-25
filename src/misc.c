@@ -347,7 +347,7 @@ const char *check_if_shebang (const char *fname)
    *  specific interpreter.
    */
   p = strchr (shebang, ' ');
-  if (strncmp(shebang, "#!/usr/bin/env ",15) && p)
+  if (strncmp(shebang, "#!/usr/bin/env ", 15) && p)
      *p = '\0';
 
   TRACE (1, "shebang: \"%s\"\n", shebang);
@@ -488,6 +488,7 @@ const char *get_gzip_link (const char *file)
  *
  * Return result as `<dir_name>/real-file-name`. Which is just an
  * assumption; the `real-file-name` can be anywhere on `%MANPATH%`.
+ * Or the `real-file-name` can be `real-file-name.gz`.
  */
 const char *get_man_link (const char *file)
 {
@@ -498,7 +499,7 @@ const char *get_man_link (const char *file)
      return (NULL);
 
   memset (buf, '\0', sizeof(buf));
-  if (fread(&buf,1,sizeof(buf),f) > 0 && !strncmp(buf,".so ",4))
+  if (fread(&buf, 1, sizeof(buf)-1, f) > 0 && !strncmp(buf, ".so ", 4))
   {
     static char fqfn_name [_MAX_PATH];
     char       *dir_name = dirname (file);
@@ -534,7 +535,7 @@ const char *get_sym_link (const char *file)
      return (NULL);
 
   memset (buf, '\0', sizeof(buf));
-  if (fread(&buf,1,sizeof(buf),f) > 0 && !strncmp(buf,"!<symlink>",10))
+  if (fread(&buf, 1, sizeof(buf)-1, f) > 0 && !strncmp(buf, "!<symlink>", 10))
   {
     static char fqfn_name [_MAX_PATH];
     char       *dir_name = dirname (file);
@@ -2017,8 +2018,8 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
    * Cannot use `GetFileAttributes()` in case `file` is on Posix form.
    * E.g. `"/cygdrive/c/foo"`.
    */
-  if (!strncmp(file,"/cygdrive/",10) || !strncmp(file,"/usr",4) ||
-      !strncmp(file,"/etc",4) || !strncmp(file,"~/",2))
+  if (!strncmp(file, "/cygdrive/", 10) || !strncmp(file, "/usr", 4) ||
+      !strncmp(file, "/etc", 4) || !strncmp(file, "~/", 2))
      attr = 0;   /* Pass on to Cygwin's stat() */
   else
 #endif
@@ -2148,8 +2149,8 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
      return (FALSE);
 
   i = disk - 'A';
-  ASSERT (i >= 0 && i < sizeof(is_local_disk));
-  ASSERT (i >= 0 && i < sizeof(cluster_size));
+  ASSERT (i >= 0 && i < DIM(is_local_disk));
+  ASSERT (i >= 0 && i < DIM(cluster_size));
 
   if (cluster_size[i] && is_local_disk[i])
   {
@@ -2828,7 +2829,7 @@ static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
   HMODULE mod = GetModuleHandle ("kernel32.dll");
   BOOL    rc = FALSE;
 
-  if (mod && mod != INVALID_HANDLE_VALUE)
+  if (mod)
   {
     rc = FormatMessageA (FORMAT_MESSAGE_FROM_HMODULE,
                          mod, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
@@ -4631,6 +4632,7 @@ int is_cygwin_tty (int fd)
   typedef LONG (NTAPI *func_NtQueryObject) (HANDLE, OBJECT_INFORMATION_CLASS, void*, ULONG, ULONG*);
   func_NtQueryObject   p_NtQueryObject;
   intptr_t             h_fd;
+  HMODULE              mod;
 
   /* NtQueryObject needs space for `OBJECT_NAME_INFORMATION.Name->Buffer` also.
    */
@@ -4649,7 +4651,14 @@ int is_cygwin_tty (int fd)
     return (0);
   }
 
-  p_NtQueryObject = (func_NtQueryObject) GetProcAddress (GetModuleHandle("ntdll.dll"), "NtQueryObject");
+  mod = GetModuleHandle ("ntdll.dll");
+  if (!mod)
+  {
+    TRACE (2, "Failed to load ntdll.dll; %s\n", win_strerror(GetLastError()));
+    goto no_tty;
+  }
+
+  p_NtQueryObject = (func_NtQueryObject) GetProcAddress (mod, "NtQueryObject");
   if (!p_NtQueryObject)
   {
     TRACE (2, "NtQueryObject() not found in ntdll.dll.\n");
@@ -4657,11 +4666,11 @@ int is_cygwin_tty (int fd)
   }
 
   memset (ntfn, 0, ntfn_size);
-  status = (p_NtQueryObject) ((HANDLE)h_fd, ObjectNameInformation, ntfn, ntfn_size, &ntfn_size);
+  status = (*p_NtQueryObject) ((HANDLE)h_fd, ObjectNameInformation, ntfn, ntfn_size, &ntfn_size);
 
   if (!NT_SUCCESS(status))
   {
-    TRACE (2, "NtQueryObject() failed.\n");
+    TRACE (2, "NtQueryObject() failed; status: %u\n", status);
 
     /* If it is not NUL (i.e. `\Device\Null`, which would succeed),
      * then normal `isatty()` could be consulted.

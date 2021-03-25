@@ -2235,6 +2235,9 @@ static int do_check_evry (void)
     if (halt_flag > 0)
        break;
 
+    if (i == 0)
+       prev[0] = '\0';
+
     len = Everything_GetResultFullPathName (i, file, sizeof(file));
     err = Everything_GetLastError();
     if (len == 0 || err != EVERYTHING_OK)
@@ -4682,12 +4685,12 @@ static void MS_CDECL halt (int sig)
 
   if (opt.do_evry)
   {
-    if (Everything_hthread && Everything_hthread != INVALID_HANDLE_VALUE)
+    if (Everything_hthread)
     {
       TerminateThread (Everything_hthread, 1);
       CloseHandle (Everything_hthread);
     }
-    Everything_hthread = INVALID_HANDLE_VALUE;
+    Everything_hthread = NULL;
     Everything_Reset();
   }
 
@@ -4726,7 +4729,7 @@ static void init_all (const char *argv0)
   tzset();
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu = C_conemu_detected();
-  opt.under_appveyor = (stricmp(get_user_name(),"APPVYR-WIN\\appveyor") == 0);
+  opt.under_appveyor = (stricmp(get_user_name(), "APPVYR-WIN\\appveyor") == 0);
   opt.evry_busy_wait = 2;
 #ifdef __CYGWIN__
   opt.under_cygwin = 1;
