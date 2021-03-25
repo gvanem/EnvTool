@@ -626,9 +626,9 @@ static void test_PE_wintrust (void)
     }
     C_putc ('\n');
   }
-  C_putc ('\n');
 
-  wintrust_dump_pkcs7_cert();   /* does nothing at the moment */
+  wintrust_dump_pkcs7_cert();
+  C_putc ('\n');
 }
 
 static void test_disk_ready (void)

@@ -242,7 +242,7 @@ static BOOL GetProgAndPublisherInfo (__IN  const CMSG_SIGNER_INFO     *signer_in
                                      __OUT struct SPROG_PUBLISHERINFO *info)
 {
   SPC_SP_OPUS_INFO *opus_info;
-  DWORD             data, n;
+  DWORD             info_size, n;
   BOOL              res = FALSE;
 
   /* Loop through authenticated attributes and find SPC_SP_OPUS_INFO_OBJID OID.
@@ -254,26 +254,28 @@ static BOOL GetProgAndPublisherInfo (__IN  const CMSG_SIGNER_INFO     *signer_in
 
     /* Get Size of SPC_SP_OPUS_INFO structure
      */
+    info_size = 0;
     res = CryptDecodeObject (ASN_ENCODING,
                              SPC_SP_OPUS_INFO_OBJID,
                              signer_info->AuthAttrs.rgAttr[n].rgValue[0].pbData,
                              signer_info->AuthAttrs.rgAttr[n].rgValue[0].cbData,
-                             0, NULL, &data);
+                             0, NULL, &info_size);
     if (!res)
     {
       ERROR ("CryptDecodeObject");
       QUIT (FALSE);
     }
 
-    opus_info = alloca (data);
+    opus_info = alloca (info_size);
 
     /* Decode and get SPC_SP_OPUS_INFO structure
      */
+    info_size = 0;
     res = CryptDecodeObject (ASN_ENCODING,
                              SPC_SP_OPUS_INFO_OBJID,
                              signer_info->AuthAttrs.rgAttr[n].rgValue[0].pbData,
                              signer_info->AuthAttrs.rgAttr[n].rgValue[0].cbData,
-                             0, opus_info, &data);
+                             0, opus_info, &info_size);
     if (!res)
     {
       ERROR ("CryptDecodeObject");
@@ -459,6 +461,7 @@ static int crypt_check_file (const char *fname)
 
   /* Get signer information size
    */
+  signer_info_size = 0;
   res = CryptMsgGetParam (h_msg, CMSG_SIGNER_INFO_PARAM, 0, NULL, &signer_info_size);
   if (!res)
   {
@@ -1161,22 +1164,51 @@ static unsigned char Python36_DLLs__ctypes_pyd[] = {
   0xbc, 0x59, 0xc5, 0x74
 };
 
+static void init_dump_pkcs7_cert (void)
+{
+#if 0
+  openssl = LoadLibrary ("libcrypto-3.dll");
+  p_BIO_new = GetProcAddress (openssl, "BIO_new");
+  p_BIO_write = GetProcAddress (openssl, "BIO_write");
+  p_PKCS7_verify = GetProcAddress (openssl, "PKCS7_verify");
+  p_PKCS7_get0_signers = GetProcAddress (openssl, "PKCS7_get0_signers");
+#endif
+
+  C_printf ("  wintrust_dump_pkcs7_cert (\"_ctypes.pyd\") %*s", 15, "->");
+}
+
+static void exit_dump_pkcs7_cert (void)
+{
+#if 0
+  FreeLibrary (openssl);
+#endif
+  C_puts (" ~5Unknown~0.\n");
+}
+
 /**
  * Called from `test_PE_wintrust()`
  */
 BOOL wintrust_dump_pkcs7_cert (void)
 {
-#if 0
-  BIO  *indata = BIO_new();
-  PKC7  p7;
+  init_dump_pkcs7_cert();
 
-  BIO_write (indata, Python36_DLLs__ctypes_pyd, sizeof(Python36_DLLs__ctypes_pyd));
-  if (PKCS7_verify(&p7, NULL, store, indata, NULL, 0) != 0)
-      PKCS7_get0_signers();
+#if 0
+  if (p_BIO_new && p_BIO_write && p_PKCS7_verify && p_PKCS7_get0_signers)
+  {
+    BIO        *indata = (*p_BIO_new)();
+    X509_STORE *store;
+    PKC7        p7;
+
+    (*p_BIO_write) (indata, Python36_DLLs__ctypes_pyd, sizeof(Python36_DLLs__ctypes_pyd));
+    if ((*p_PKCS7_verify) (&p7, NULL, store, indata, NULL, 0) != 0)
+       (*p_PKCS7_get0_signers)();
+  }
+
 #else
   ARGSUSED (Python36_DLLs__ctypes_pyd);
 #endif
 
+  exit_dump_pkcs7_cert();
   return (TRUE);
 }
 
