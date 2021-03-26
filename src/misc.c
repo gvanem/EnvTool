@@ -1876,11 +1876,15 @@ wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
 
 static int _getdrive (void)
 {
-  char buf [_MAX_PATH];
-  int  drive;
+  char  buf [_MAX_PATH];
+  int   drive;
+  DWORD len = GetCurrentDirectory (sizeof(buf), buf);
 
-  GetCurrentDirectory (sizeof(buf),buf);
+  if (len == 0 || len >= sizeof(buf))
+     return (3);   /* Assume C: */
+
   drive = TOLOWER (buf[0]) - 'a' + 1;
+  ASSERT (drive >= 1 && drive <= 26);
   return (drive);
 }
 #endif
@@ -4710,7 +4714,7 @@ int is_cygwin_tty (int fd)
 
   if (!NT_SUCCESS(status))
   {
-    TRACE (2, "NtQueryObject() failed; status: %u\n", status);
+    TRACE (2, "NtQueryObject() failed; status: %ld\n", status);
 
     /* If it is not NUL (i.e. `\Device\Null`, which would succeed),
      * then normal `isatty()` could be consulted.
