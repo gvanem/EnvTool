@@ -74,6 +74,10 @@
 #endif
 #endif
 
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+
 char *program_name = NULL;   /**< For getopt_long.c */
 
 BOOL have_sys_native_dir = FALSE;
@@ -986,7 +990,6 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   val = STRDUP (value);  /* Freed before we return */
   dir_array_free();
 
-#if !defined(__CYGWIN__)
   if (str_equal_n(val, "/cygdrive/", 10))
   {
     const char *p = strchr (val, ';');
@@ -995,7 +998,6 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
        WARN ("%s: Using ';' and \"/cygdrive\" together is suspisious.\n", env_name);
     path_separator = ':';    /* Assume all components are separated by ':' */
   }
-#endif
 
   sep[0] = (char) path_separator;
   sep[1] = '\0';
@@ -5442,7 +5444,7 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
   {
 #if defined(__CYGWIN__) && 0
     int   needed = cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, NULL, 0);
-    char *cyg_value = alloca (needed+1);
+    char *cyg_value = MALLOC (needed+1);
 
     cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, cyg_value, needed+1);
     path_separator = ':';
@@ -5513,9 +5515,7 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
   else if (!status[0])
     _strlcpy (status, "~2OK~0", status_sz);
 
-#if !defined(__CYGWIN__) || 1
   FREE (value);
-#endif
 
   if (list)
      put_dirlist_to_cache (env, list);

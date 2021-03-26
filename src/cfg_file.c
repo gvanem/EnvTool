@@ -157,7 +157,7 @@ static void parse_config_file (CFG_FILE *cf)
   {
     struct cfg_node *cfg;
     char            *p;
-    size_t           p_size = CFG_SECTION_LEN + CFG_KEYWORD_LEN + 3;
+    size_t           p_size = CFG_SECTION_LEN + CFG_KEYWORD_LEN + 16;
     cfg_handler      handler;
 
     if (!config_get_line(cf))

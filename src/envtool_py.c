@@ -254,6 +254,10 @@ static BOOL   popen_py_crash = FALSE;
 static int  get_python_version (const char *exe_name);
 static BOOL py_add_module (struct python_info *pi, const struct python_module *m);
 
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+
 /**
  * The list of Pythons from the `"%PATH"` and from the
  * `"HKLM\Software\Python\PythonCore\xx\InstallPath"` locations.
