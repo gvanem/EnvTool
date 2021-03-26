@@ -66,7 +66,7 @@ static int _sd_select (const struct dirent2 *de)
 {
   int rc = 1;
 
-  if (!strcmp(de->d_name,".") || !strcmp(de->d_name,".."))
+  if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
      rc = 0;
   TRACE (3, "rc: %d, de->d_name: %s\n", rc, de->d_name);
   return (rc);
@@ -201,7 +201,9 @@ DIR2 *opendir2x (const char *dir_name, const struct od2x_options *opts)
   * If we're called from `opendir2x()`, maybe use "*" as pattern if `opts->recursive == 1`?
   * And filter later on.
   */
-  snprintf (path, sizeof(path), "%s\\%s", dir_name, opts ? opts->pattern : "*");
+  if (IS_SLASH(dir_name[0]) && !dir_name[1])
+       snprintf (path, sizeof(path), "\\%s", opts ? opts->pattern : "*");
+  else snprintf (path, sizeof(path), "%s\\%s", dir_name, opts ? opts->pattern : "*");
 
   TRACE (3, "path: %s\n", path);
 
@@ -628,6 +630,7 @@ static UINT64 total_size = 0;
 static UINT64 total_size_alloc = 0;
 static UINT64 total_size_compr = 0;
 static BOOL   follow_junctions = TRUE;
+static char   drive_root [4];
 
 void usage (void)
 {
@@ -760,7 +763,8 @@ static void print_dirent2 (const struct dirent2 *de, int idx, const struct od2x_
     total_size += de->d_fsize;
     total_size_alloc += get_file_alloc_size (de->d_name, de->d_fsize);
     if (get_file_compr_size(de->d_name, &compr_size))
-       total_size_compr += compr_size;
+         total_size_compr += compr_size;
+    else total_size_compr += de->d_fsize;
   }
   else
   {
@@ -802,12 +806,10 @@ static void final_report (const char *dir_buf)
                ADD_VALUE (FILE_VOLUME_QUOTAS)
              };
   char  fs_name [20];
-  char  root [4];
   char  volume [_MAX_PATH];
   DWORD volume_sn = 0;
   DWORD max_component_length = 0;
   DWORD fs_flag = 0;
-  BOOL  missing_slash;
 
   C_printf ("  Num files:        %lu\n", (unsigned long)num_files);
   C_printf ("  Num directories:  %lu\n", (unsigned long)num_directories);
@@ -815,29 +817,17 @@ static void final_report (const char *dir_buf)
   C_printf ("  total-size:       %s bytes", qword_str(total_size));
   C_printf (" (allocated: %s,", qword_str(total_size_alloc));
 
-  if (total_size_compr < total_size_alloc)
-       C_printf (" compressed: %s)\n", qword_str(total_size_compr));
-  else C_printf (" no compressed files)\n");
-
-  missing_slash = (strlen(dir_buf) == 2 && isalpha((int)dir_buf[0]) && dir_buf[1] == ':');
-
-  if (_has_drive(dir_buf) || missing_slash) /* Test for 'x:\\' or 'x:' */
+  if (total_size_alloc && total_size_compr < total_size_alloc)
   {
-    root[0] =  dir_buf[0];
-    root[1] =  ':';
-    root[2] = '\\';
-    root[3] = '\0';
-    TRACE (2, "dir_buf: '%s', root: '%s'\n", dir_buf, root);
+    double percentage = 100.0 - 100.0 * ((double)total_size_compr / (double)total_size_alloc);
+    C_printf (" compressed: %s, %.02f%%)\n", qword_str(total_size_compr), percentage);
   }
-  else  /* Assume it's the root of current drive */
-  {
-    strcpy (root, "\\");
-    TRACE (2, "dir_buf: '%s', root: '%s'\n", dir_buf, root);
-  }
+  else
+    C_printf (" no compressed files)\n");
 
   C_puts ("  Volume info: ");
 
-  if (!GetVolumeInformation (root, volume, sizeof(volume), &volume_sn, &max_component_length,
+  if (!GetVolumeInformation (drive_root, volume, sizeof(volume), &volume_sn, &max_component_length,
                              &fs_flag, fs_name, sizeof(fs_name)))
      C_printf ("GetVolumeInformation() failed: %s\n", win_strerror(GetLastError()));
   else
@@ -997,6 +987,8 @@ int MS_CDECL main (int argc, char **argv)
   int  ch, do_scandir = 0;
   char dir_buf  [_MAX_PATH];
   char spec_buf [_MAX_PATH];
+  char root [_MAX_PATH];
+
   struct od2x_options opts;
 
   crtdbug_init();
@@ -1055,6 +1047,9 @@ int MS_CDECL main (int argc, char **argv)
 
   make_dir_spec (*argv, dir_buf, spec_buf);
   opts.pattern = spec_buf;
+
+  _fix_path (dir_buf, root);
+  _strlcpy (drive_root, root, 4);
 
   if (do_scandir)
        do_scandir2 (dir_buf, &opts);
