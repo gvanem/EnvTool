@@ -596,6 +596,7 @@ extern BOOL   get_file_compr_size   (const char *file, UINT64 *fsize);
 extern int    disk_ready            (int disk);
 extern BOOL   chk_disk_ready        (int disk);
 extern BOOL  _has_drive             (const char *path);
+extern BOOL  _has_drive2            (const char *path);
 extern BOOL   is_directory          (const char *file);
 extern int    safe_stat             (const char *file, struct stat *st, DWORD *win_err);
 

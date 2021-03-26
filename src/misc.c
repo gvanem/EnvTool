@@ -1873,6 +1873,16 @@ wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
      return wcsncpy (result, cyg_name, _MAX_PATH);
   return wcsncpy (result, path, _MAX_PATH);   /* return unchanged */
 }
+
+static int _getdrive (void)
+{
+  char buf [_MAX_PATH];
+  int  drive;
+
+  GetCurrentDirectory (sizeof(buf),buf);
+  drive = TOLOWER (buf[0]) - 'a' + 1;
+  return (drive);
+}
 #endif
 
 /**
@@ -1932,7 +1942,8 @@ char *_fix_drive (char *path)
 }
 
 /**
- * Return TRUE if `path` starts with a drive-letter (`A:` - `Z:`).
+ * Return TRUE if `path` starts with a drive-letter (`A:` - `Z:`)
+ * and is followed by a slash (`\\` or `/`).
  */
 BOOL _has_drive (const char *path)
 {
@@ -1940,6 +1951,19 @@ BOOL _has_drive (const char *path)
 
   if (disk >= 'A' && disk <= 'Z' && strlen(path) >= 3 &&
       path[1] == ':' && IS_SLASH(path[2]))
+     return (TRUE);
+  return (FALSE);
+}
+
+/**
+ * Return TRUE if `path` starts with a drive-letter (`A:` - `Z:`).
+ * Not required to be followed by a slash (`\\` or `/`).
+ */
+BOOL _has_drive2 (const char *path)
+{
+  int disk = TOUPPER (path[0]);
+
+  if (disk >= 'A' && disk <= 'Z' && strlen(path) >= 2)
      return (TRUE);
   return (FALSE);
 }
@@ -2140,7 +2164,7 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
 
   DWORD  sect_per_cluster, bytes_per_sector, free_clusters, total_clusters;
   BOOL   rc;
-  char  *err    = "<none>";
+  char  *err = "<none>";
   int    i;
 
   disk = TOUPPER (disk);
@@ -2174,8 +2198,8 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
     rc = TRUE;
   }
 
-  TRACE (1, "GetDiskFreeSpace(): sect_per_cluster: %lu, bytes_per_sector: %lu, total_clusters: %lu, error: %s\n",
-         (unsigned long)sect_per_cluster, (unsigned long)bytes_per_sector, (unsigned long)total_clusters,
+  TRACE (1, "GetDiskFreeSpace (\"%s\"): sect_per_cluster: %lu, bytes_per_sector: %lu, total_clusters: %lu, error: %s\n",
+         root, (unsigned long)sect_per_cluster, (unsigned long)bytes_per_sector, (unsigned long)total_clusters,
          err);
 
   if (rc && size)
@@ -2191,13 +2215,30 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
  * Otherwise it simply returns the `size`.
  *
  * `size == (UINT64)-1` means it's a directory.
+ * If `file` does not starts with a `x:`, `x:` should be the current disk.
  */
 UINT64 get_file_alloc_size (const char *file, UINT64 size)
 {
   DWORD  cluster_size;
   UINT64 num_clusters;
+  int    disk = *file;
+  static int curr_disk = 0;
 
-  if (!_has_drive(file) || !get_disk_cluster_size(*file, &cluster_size))
+  if (_has_drive2(file))  /* Not so strict as `_has_drive()` */
+     disk = *file;
+  else
+  {
+    if (curr_disk == 0)
+    {
+      curr_disk = _getdrive();
+      if (curr_disk >= 1)
+         curr_disk = TOLOWER (curr_disk + 'A' - 1);
+      TRACE (2, "curr_disk: %c:\n", curr_disk);
+    }
+    disk = curr_disk;
+  }
+
+  if (!disk || !get_disk_cluster_size(disk, &cluster_size))
   {
     if (size == (UINT64)-1)
        return (0);
