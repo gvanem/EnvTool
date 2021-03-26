@@ -1278,7 +1278,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
     val32 = *(DWORD*) &data[0];
     val64 = *(LONG64*) &data[0];
 
-    if (type == REG_EXPAND_SZ && strchr(data,'%'))
+    if (type == REG_EXPAND_SZ && strchr(data, '%'))
        expand_env_var (data, data, sizeof(data), TRUE);
 
     switch (type)
@@ -1416,7 +1416,7 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
     if (rc == ERROR_NO_MORE_ITEMS)
        break;
 
-    if (type == REG_EXPAND_SZ && strchr(value,'%'))
+    if (type == REG_EXPAND_SZ && strchr(value, '%'))
        expand_env_var (value, value, sizeof(value), TRUE);
 
     if (!stricmp(name,"PATH"))
@@ -2999,7 +2999,7 @@ static int find_library_path_cb (char *buf, int index)
       {
         snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, tok);
         rc = _fix_path (buf2, buf2);
-        end = rc ? strrchr(rc,'\\') : NULL;
+        end = rc ? strrchr (rc, '\\') : NULL;
         if (end)
            *end = '\0';
       }
@@ -3007,7 +3007,7 @@ static int find_library_path_cb (char *buf, int index)
 #endif
       {
         rc = _fix_path (tok, buf2);
-        end = rc ? strrchr(rc,'\\') : NULL;
+        end = rc ? strrchr (rc, '\\') : NULL;
         if (end)
            *end = '\0';
       }
@@ -4086,7 +4086,7 @@ static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
    * <bcc_root>\bccX.exe -> <bcc_root>\bccX.cfg
    */
   snprintf (bcc_cfg, sizeof(bcc_cfg), "%s\\bin\\%.*s.cfg",
-            bcc_root, strrchr(cc->short_name,'.') - cc->short_name, cc->short_name);
+            bcc_root, strrchr(cc->short_name, '.') - cc->short_name, cc->short_name);
 
   TRACE (2, "bcc_cfg: %s.\n", bcc_cfg);
 
@@ -4758,7 +4758,7 @@ static void init_all (const char *argv0)
   sys_dir[0] = sys_native_dir[0] = '\0';
   if (GetSystemDirectory(sys_dir, sizeof(sys_dir)))
   {
-    const char *rslash = strrchr (sys_dir,'\\');
+    const char *rslash = strrchr (sys_dir, '\\');
 
     if (rslash > sys_dir)
     {
@@ -4965,7 +4965,7 @@ int MS_CDECL main (int argc, const char **argv)
     {
       char *end, *dot, *fspec;
 
-      if (strchr(opt.file_spec,'~') > opt.file_spec)
+      if (strchr(opt.file_spec, '~') > opt.file_spec)
       {
         fspec = opt.file_spec;
         opt.file_spec = _fix_path (fspec, NULL);
