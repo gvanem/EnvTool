@@ -534,8 +534,8 @@ static void print_parsing (const char *file, int rc)
   snprintf (path, sizeof(path), "%s\\%s", appdata, file);
   C_printf ("  Parsing ~6%-50s~0", slashify(path, opt.show_unix_paths ? '/' : '\\'));
   if (rc == 0)
-       C_puts ("~5failed.~0\n");
-  else C_puts ("~3okay.~0\n");
+       C_puts ("~5FAIL.~0\n");
+  else C_puts ("~2OK.~0\n");
 }
 
 /**
@@ -554,6 +554,7 @@ static void test_auth (void)
   print_parsing (".netrc", rc1);
   print_parsing (".authinfo", rc2);
   print_parsing ("envtool.cfg", rc3);
+  C_putc ('\n');
 }
 
 /**
@@ -714,7 +715,7 @@ static void test_AppVeyor (void)
   save = opt.debug;
   opt.debug = 3;
   rc = popen_run (cmake_version_cb, cmake, "-version");
-  C_printf ("popen_run() reported %d: %s\n", rc, cmake);
+  C_printf ("popen_run() reported %d: %s\n\n", rc, cmake);
   opt.debug = save;
 }
 
@@ -808,6 +809,7 @@ int do_tests (void)
   test_libssp();
 
 #if defined(_MSC_VER) && !defined(_DEBUG)
+  C_putc ('\n');
   find_vstudio_init();
 #endif
 
@@ -816,7 +818,10 @@ int do_tests (void)
 #endif
 
   if (opt.use_cache)
-     cache_test();
+  {
+    C_puts ("~3cache_test():~0\n");
+    cache_test();
+  }
 
   return (0);
 }
