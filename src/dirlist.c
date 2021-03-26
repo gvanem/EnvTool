@@ -31,6 +31,9 @@
 #include "color.h"
 #include "dirlist.h"
 #include "getopt_long.h"
+#include "get_file_assoc.h"
+
+#define USE_get_actual_filename 0
 
 /*
  * Local functions
@@ -60,16 +63,6 @@ static BOOL setdirent2 (struct dirent2 *de, const char *dir, const char *file)
 
   TRACE (3, "len: %u, de->d_name: '%s'\n", (unsigned)len, de->d_name);
   return (TRUE);
-}
-
-static int _sd_select (const struct dirent2 *de)
-{
-  int rc = 1;
-
-  if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
-     rc = 0;
-  TRACE (3, "rc: %d, de->d_name: %s\n", rc, de->d_name);
-  return (rc);
 }
 
 static int sort_reverse = 0;
@@ -367,10 +360,7 @@ static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
 
   if (okay)
   {
-    struct dirent2 de;
-
-    de.d_name = rc;
-    if (!_sd_select(&de))
+    if (!strcmp(rc, ".") || !strcmp(rc, ".."))
        rc = getdirent2 (hnd, NULL, ff);
   }
 
@@ -782,7 +772,7 @@ static void print_dirent2 (const struct dirent2 *de, int idx, const struct od2x_
   }
 }
 
-static void final_report (const char *dir_buf)
+static void final_report (void)
 {
   #define ADD_VALUE(v)  { v, #v }
 
@@ -847,6 +837,19 @@ static void final_report (const char *dir_buf)
   }
 }
 
+static char *_get_actual_filename (char *link)
+{
+#if USE_get_actual_filename
+  char *New = link;
+
+  if (get_actual_filename(&New, FALSE))
+     link = New;
+  else
+#endif
+     link = STRDUP (link);
+  return _fix_drive (link);
+}
+
 /**
  * Recursive handler for `scandir2()`.
  */
@@ -878,10 +881,10 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
         BOOL rc = get_reparse_point (de->d_name, result, sizeof(result));
 
         if (rc)
-           namelist[i]->d_link = _fix_drive (result);
+           namelist[i]->d_link = _get_actual_filename (result);
       }
 
-      if (fnmatch(opts->pattern,basename(de->d_name),fnmatch_case(FNM_FLAG_PATHNAME)) == FNM_MATCH)
+      if (fnmatch(opts->pattern, basename(de->d_name), fnmatch_case(FNM_FLAG_PATHNAME)) == FNM_MATCH)
          print_dirent2 (de, i, opts);
 
       if (opts->recursive && (is_dir || is_junction))
@@ -896,7 +899,10 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
            (unsigned long)recursion_level, n);
 
     while (n--)
-       FREE (namelist[n]);
+    {
+      FREE (namelist[n]->d_link);
+      FREE (namelist[n]);
+    }
     FREE (namelist);
   }
 }
@@ -927,7 +933,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
       BOOL rc = get_reparse_point (de->d_name, result, sizeof(result));
 
       if (rc)
-         de->d_link = STRDUP (_fix_drive(result));
+         de->d_link = _get_actual_filename (result);
     }
 
     print_dirent2 (de, i++, opts);
@@ -1055,7 +1061,7 @@ int MS_CDECL main (int argc, char **argv)
        do_scandir2 (dir_buf, &opts);
   else do_dirent2 (dir_buf, &opts);
 
-  final_report (dir_buf);
+  final_report();
   crtdbug_exit();
   mem_report();
   return (0);
