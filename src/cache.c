@@ -876,7 +876,7 @@ void cache_test (void)
    *
    * with a "quoted description, with commas".
    */
-  rc4 = cache_getf (SECTION_VCPKG, "ports_node_499 = %s,%s,%s,%d,%s",
+  rc4 = cache_getf (SECTION_VCPKG, "port_node_499 = %s,%s,%s,%d,%s",
                     &s_val00, &s_val10, &s_val20, &d_val00, &s_val30);
   if (rc4 == 5)
   {
@@ -886,7 +886,7 @@ void cache_test (void)
     print_long_line (str_unquote(s_val30), 27);
   }
   else
-    TRACE (0, "'ports_node_499' not found or not 5 arguments in that key.\n");
+    TRACE (0, "'port_node_499' not found or not 5 arguments in that key.\n");
 
   if (opt.debug >= 2)
      cache_dump();
