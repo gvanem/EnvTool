@@ -399,6 +399,19 @@ static void show_ext_versions (void)
 }
 
 /**
+ * Returns TRUE if program was compiled with
+ * "AddressSanitizer" support.
+ */
+static BOOL asan_enabled (void)
+{
+#ifdef USE_ASAN
+  return (TRUE);
+#else
+  return (FALSE);
+#endif
+}
+
+/**
  * Handler for `envtool -V..`:
  * + Show some basic version information:    option `-V`.
  * + Show more detailed version information: option `-VV`.
@@ -409,10 +422,10 @@ static int show_version (void)
   BOOL wow64 = is_wow64_active();
 
   C_printf ("%s.\n"
-            "  Version ~3%s ~1(%s, %s%s)~0 by %s.\n"
+            "  Version ~3%s ~1(%s, %s%s%s)~0 by %s.\n"
             "  Hosted at: ~6%s~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
-            wow64 ? ", ~1WOW64" : "",
+            wow64 ? ", ~1WOW64" : "", asan_enabled() ? ", ASAN" : "",
             AUTHOR_STR, GITHUB_STR);
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
