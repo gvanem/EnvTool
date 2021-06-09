@@ -5711,7 +5711,7 @@ static void print_env_val (const char *val, size_t len, size_t indent)
   C_setraw (1);
   if (c_width == UINT_MAX)
        C_puts (val);
-  else C_printf ("%.*s", len, str_shorten(val, max));
+  else print_long_line2 (val, indent-1, ';');
   C_setraw (0);
   C_puts ("~0\n");
 }
@@ -5748,7 +5748,7 @@ static void compare_user_sys_env (const char *env_var, const char *sys_value, in
     print_env_val (sys_value, len, indent2);
     C_printf ("  %*s~2USER   = <None>~0\n", indent1, "");
   }
-  else if (strnicmp(user_value,sys_value,len))
+  else if (strnicmp(user_value, sys_value, len))
   {
     C_printf ("Mismatch:\n  %*s~6SYSTEM = ", indent1, "");
     print_env_val (sys_value, len, indent2);
@@ -5816,48 +5816,48 @@ struct environ_fspec {
      };
 
 static struct environ_fspec envs[] = {
-               { "*.exe",   "PATH"                },
-               { "*.lib",   "LIB"                 },
-               { "*.a",     "LIBRARY_PATH"        },
-               { "*.h",     "INCLUDE"             },
-               { "*.h",     "C_INCLUDE_PATH"      },
-               { "*",       "CPLUS_INCLUDE_PATH"  },
-               { NULL,      "MANPATH"             },
-               { NULL,      "PKG_CONFIG_PATH"     },
-               { "*.py?",   "PYTHONPATH"          },
-               { "*.cmake", "CMAKE_MODULE_PATH"   },
-               { "*.pm",    "AUTOM4TE_PERLLIBDIR" },
-               { NULL,      "CLASSPATH"           },  /* No support for these. But do it anyway. */
-               { "*.go",    "GOPATH"              },
-            // { "*.pm",    "PERLLIBDIR"          },
-               { NULL,      "FOO"                 },  /* Check that non-existing env-vars are also checked */
-               { NULL,      NULL                  },
-    };
+            { "*.exe",   "PATH"                },
+            { "*.lib",   "LIB"                 },
+            { "*.a",     "LIBRARY_PATH"        },
+            { "*.h",     "INCLUDE"             },
+            { "*.h",     "C_INCLUDE_PATH"      },
+            { "*",       "CPLUS_INCLUDE_PATH"  },
+            { NULL,      "MANPATH"             },
+            { NULL,      "PKG_CONFIG_PATH"     },
+            { "*.py?",   "PYTHONPATH"          },
+            { "*.cmake", "CMAKE_MODULE_PATH"   },
+            { "*.pm",    "AUTOM4TE_PERLLIBDIR" },
+            { "*.pm",    "PERLLIBDIR"          },
+            { NULL,      "CLASSPATH"           },  /* No support for these. But do it anyway. */
+            { "*.go",    "GOPATH"              },
+            { NULL,      "FOO"                 }   /* Check that non-existing env-vars are also checked */
+          };
 
 static int do_check (void)
 {
-  const char *env;
-  char       *sys_env_path = NULL;
-  char       *sys_env_inc  = NULL;
-  char       *sys_env_lib  = NULL;
-  char        status [100+_MAX_PATH];
-  int         i, save;
-  int         num, indent;
+  char *sys_env_path = NULL;
+  char *sys_env_inc  = NULL;
+  char *sys_env_lib  = NULL;
+  char  status [100+_MAX_PATH];
+  int   i, save;
+  int   num;
 
   /* Do not implicitly add current directory in these searches.
    */
   save = opt.no_cwd;
   opt.no_cwd = 1;
 
-  for (i = 0, env = envs[0].env; i < DIM(envs) && env; env = envs[++i].env)
+  for (i = 0; i < DIM(envs); i++)
   {
-    indent = (int) (sizeof("AUTOM4TE_PERLLIBDIR") - strlen(env));
+    const char *env  = envs[i].env;
+    const char *spec = envs[i].fspec;
+    int   indent = (int) (sizeof("AUTOM4TE_PERLLIBDIR") - strlen(env));
 
     C_printf ("Checking ~3%%%s%%~0:%*c", env, indent, ' ');
     if (opt.verbose)
        C_putc ('\n');
 
-    check_env_val (env, envs[i].fspec, &num, status, sizeof(status));
+    check_env_val (env, spec, &num, status, sizeof(status));
     C_printf ("%2d~0 elements, %s\n", num, status);
     if (opt.verbose)
        C_putc ('\n');

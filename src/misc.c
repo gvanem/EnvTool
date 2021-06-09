@@ -3575,6 +3575,50 @@ void print_long_line (const char *line, size_t indent)
 }
 
 /**
+ * A function similar to `print_long_line()`,
+ * but break a line at another character than a space.
+ *
+ * And do not print a trailing newline.
+ */
+void print_long_line2 (const char *line, size_t indent, int break_at)
+{
+  size_t      width = (C_screen_width() == 0) ? UINT_MAX : C_screen_width();
+  size_t      left  = width - indent;
+  const char *c = line;
+
+  while (*c)
+  {
+    /* Break a long line only at the `break_at` character.
+     * Check if room for a long string before we must break the line.
+     */
+    if (*c == break_at)
+    {
+      const char *p = strchr (c+1, break_at);
+
+      if (!p)
+         p = strchr (c+1, '\0');
+
+      if (left < 2 || (left <= (size_t)(p - c)))
+      {
+        C_printf ("%c\n%*c", break_at, indent, ' ');
+        left = width - indent;
+        line = ++c;
+        continue;
+      }
+      /* Drop multiple spaces.
+       */
+      if (c > line && isspace((int)c[-1]))
+      {
+        line = ++c;
+        continue;
+      }
+    }
+    C_putc (*c++);
+    left--;
+  }
+}
+
+/**
  * `_MSC_VER <= 1800` (Visual Studio 2012 or older) is lacking `vsscanf()`.
  * Create our own using `sscanf()`. <br>
  * Scraped from:

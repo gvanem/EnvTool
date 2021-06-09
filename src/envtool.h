@@ -617,6 +617,7 @@ extern const char *plural_str (DWORD val, const char *singular, const char *plur
 
 extern void        format_and_print_line (const char *line, int indent);
 extern void        print_long_line (const char *line, size_t indent);
+extern void        print_long_line2 (const char *line, size_t indent, int break_at);
 extern char       *translate_shell_pattern (const char *pattern);
 extern void        test_shell_pattern (void);
 extern void        hex_dump (const void *data_p, size_t datalen);
