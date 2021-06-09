@@ -2476,7 +2476,11 @@ static int do_check_manpath (void)
       done_cwd = TRUE;
     }
 
-    for (j = 0; j < DIM(sub_dirs); j++)
+    if (done_cwd)
+         j = 1;
+    else j = 0;
+
+    for ( ; j < DIM(sub_dirs); j++)
     {
       char dir [_MAX_PATH];
 
