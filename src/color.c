@@ -205,7 +205,7 @@ int C_winterm_detected (void)
 {
   HANDLE hnd = GetConsoleWindow();
 
-  if (SendMessage (hnd, WM_GETICON, 0, 0) == 0)
+  if (hnd && SendMessage (hnd, WM_GETICON, 0, 0) == 0)
      return (TRUE);
   return (FALSE);
 }
