@@ -197,6 +197,20 @@ int C_conemu_detected (void)
 }
 
 /**
+ * Returns 1 if running under the WindowsTerminal AppX program.
+ *
+ * But using ANSI sequences with this should check for `C_VT_detected(0)` first.
+ */
+int C_winterm_detected (void)
+{
+  HANDLE hnd = GetConsoleWindow();
+
+  if (SendMessage (hnd, WM_GETICON, 0, 0) == 0)
+     return (TRUE);
+  return (FALSE);
+}
+
+/**
  * Return TRUE if *Virtual Terminal Processing* is enabled.
  * Needs Windows-10 v1909 or later.
  *

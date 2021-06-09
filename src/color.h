@@ -70,6 +70,7 @@ extern int    C_init_colour_map (unsigned short col1, ...);
 extern size_t C_screen_width    (void);
 extern int    C_trace_level     (void);
 extern int    C_conemu_detected (void);
+extern int    C_winterm_detected(void);
 extern int    C_VT_detected     (int cmd_only);
 
 #ifdef __cplusplus

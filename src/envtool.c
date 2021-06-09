@@ -4747,7 +4747,8 @@ static void init_all (const char *argv0)
 
   tzset();
   memset (&opt, 0, sizeof(opt));
-  opt.under_conemu = C_conemu_detected();
+  opt.under_conemu   = C_conemu_detected();
+  opt.under_winterm  = C_winterm_detected();
   opt.under_appveyor = (stricmp(get_user_name(), "APPVYR-WIN\\appveyor") == 0);
   opt.evry_busy_wait = 2;
 #ifdef __CYGWIN__

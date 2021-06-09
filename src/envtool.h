@@ -421,6 +421,7 @@ struct prog_options {
        int             case_sensitive;
        int             keep_temp;         /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
        int             under_conemu;      /**< TRUE if running under ConEmu console-emulator */
+       int             under_winterm;     /**< TRUE if running under WindowsTerminal */
        int             under_appveyor;    /**< TRUE if running under AppVeyor */
        int             under_cygwin;      /**< TRUE if Cygwin compiled */
        enum SortMethod sort_methods[10];  /**< the specified sort methods */
