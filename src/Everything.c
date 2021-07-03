@@ -249,7 +249,7 @@ void EVERYTHINGAPI Everything_SetSearchA(LPCSTR lpString)
         _Everything_Free(_Everything_Search);
     }
 
-    size = _Everything_StringLengthA(lpString) + 1;
+    size = _Everything_StringLengthA(lpString) + 2;
 
     _Everything_Search = _Everything_Alloc(size);
     if (_Everything_Search)
@@ -942,7 +942,7 @@ static BOOL _Everything_SendIPCQuery(void)
             }
 
             // alloc
-            query = _Everything_Alloc(size);
+            query = _Everything_Alloc(2+size);
 
             if (query)
             {
