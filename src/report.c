@@ -332,13 +332,14 @@ int report_file (struct report *r)
      * don't set `found_everything_db_dirty=1` when we don't `have_sys_native_dir`.
      */
     if (r->mtime == 0 &&
-        (!have_sys_native_dir || !strnicmp(r->file,sys_native_dir,strlen(sys_native_dir))))
+        (!have_sys_native_dir || !strnicmp(r->file, sys_native_dir, strlen(sys_native_dir))))
        have_it = FALSE;
 #endif
 
     if (have_it && r->mtime == 0 && !(r->is_dir ^ opt.dir_mode))
     {
-      found_everything_db_dirty = 1;
+      if (r->fsize == (__int64)-1)   /* Could actually be a file from 01-01-1970 */
+         found_everything_db_dirty = 1;
       note = " (6)  ";
     }
   }
