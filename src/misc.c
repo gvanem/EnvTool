@@ -3229,7 +3229,7 @@ void crtdbug_exit (void)
  * A `snprintf()` replacement to print and append to a local `FMT_buf*`
  * initialised using `BUF_INIT()`.
  */
-int buf_printf (FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...)
+int _buf_printf (const char *file, unsigned line, FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...)
 {
   va_list      args;
   int          len;
@@ -3238,15 +3238,15 @@ int buf_printf (FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...
   char        *end;
 
   if (fmt_len >= fmt_buf->buffer_left)
-     FATAL ("'fmt_buf->buffer_left' too small.\n");
+     FATAL ("'fmt_buf->buffer_left' too small. Called from %s(%u).\n", file, line);
 
   marker = (const DWORD*) fmt_buf->buffer;
   if (*marker != FMT_BUF_MARKER)
-     FATAL ("'First marked destroyed or 'BUF_INIT()' not called.\n");
+     FATAL ("'First marked destroyed or 'BUF_INIT()' not called. Called from %s(%u).\n", file, line);
 
   marker = (const DWORD*) (fmt_buf->buffer + fmt_buf->buffer_size + sizeof(DWORD));
   if (*marker != FMT_BUF_MARKER)
-     FATAL ("Last marked destroyed.\n");
+     FATAL ("Last marked destroyed. Called from %s(%u).\n", file, line);
 
   /* Terminate first. Because with `_MSC_VER < 1900` and `fmt_buf->buffer_left`
    * exactly large enough for the result, `vsnprintf()` will not add a trailing NUL.
@@ -3274,7 +3274,7 @@ int buf_printf (FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...
  * A `puts()` replacement to print and append to a local `FMT_buf*`
  * initialised using `BUF_INIT()`.
  */
-int buf_puts (FMT_buf *fmt_buf, const char *string)
+int _buf_puts (const char *file, unsigned line, FMT_buf *fmt_buf, const char *string)
 {
   size_t       str_len = strlen (string);
   const DWORD *marker;
@@ -3282,16 +3282,18 @@ int buf_puts (FMT_buf *fmt_buf, const char *string)
   if (str_len >= fmt_buf->buffer_left)
   {
     int size = (int) (fmt_buf->buffer_size + str_len) + 1;
-    FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", size);
+    FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'. Called from %s(%u).\n",
+           size, file, line);
   }
 
   marker = (const DWORD*) fmt_buf->buffer;
   if (*marker != FMT_BUF_MARKER)
-     FATAL ("'First marked destroyed or 'BUF_INIT()' not called.\n");
+     FATAL ("'First marked destroyed or 'BUF_INIT()' not called. Called from %s(%u).\n",
+            file, line);
 
   marker = (const DWORD*) (fmt_buf->buffer + fmt_buf->buffer_size + sizeof(DWORD));
   if (*marker != FMT_BUF_MARKER)
-     FATAL ("Last marked destroyed.\n");
+     FATAL ("Last marked destroyed. Called from %s(%u).\n", file, line);
 
   strcpy (fmt_buf->buffer_pos, string);
   fmt_buf->buffer_left -= str_len;
@@ -3302,12 +3304,13 @@ int buf_puts (FMT_buf *fmt_buf, const char *string)
 /**
  * A `putc()` replacement to print a single character to a `FMT_buf*`.
  */
-int buf_putc (FMT_buf *fmt_buf, int ch)
+int _buf_putc (const char *file, unsigned line, FMT_buf *fmt_buf, int ch)
 {
   if (fmt_buf->buffer_left <= 1)
   {
     int size = (int) (fmt_buf->buffer_size + 2);
-    FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'.\n", size);
+    FATAL ("'fmt_buf->buffer_size' too small. Try 'BUF_INIT(&fmt_buf,%d)'. Called from %s(%u).\n",
+           size, file, line);
   }
   fmt_buf->buffer_left--;
   *fmt_buf->buffer_pos++ = (char) ch;
@@ -3322,11 +3325,11 @@ int buf_putc (FMT_buf *fmt_buf, int ch)
  * If the console is redirected, wrap at the `UINT_MAX` edge (practically
  * no wrapping at all).
  */
-void buf_puts_long_line (FMT_buf *fmt_buf, const char *line, size_t indent)
+void _buf_puts_long_line (const char *file, unsigned line, FMT_buf *fmt_buf, const char *string, size_t indent)
 {
   size_t      width = (C_screen_width() == 0) ? UINT_MAX : C_screen_width();
   size_t      left  = width - indent;
-  const char *c = line;
+  const char *c = string;
 
   while (*c)
   {
@@ -3342,23 +3345,23 @@ void buf_puts_long_line (FMT_buf *fmt_buf, const char *line, size_t indent)
 
       if (left < 2 || (left <= (size_t)(p - c)))
       {
-        buf_printf (fmt_buf, "\n%*c", (int)indent, ' ');
+        _buf_printf (file, line, fmt_buf, "\n%*c", (int)indent, ' ');
         left = width - indent;
-        line = ++c;
+        string = ++c;
         continue;
       }
       /* Drop multiple spaces.
        */
-      if (c > line && isspace((int)c[-1]))
+      if (c > string && isspace((int)c[-1]))
       {
-        line = ++c;
+        string = ++c;
         continue;
       }
     }
-    buf_putc (fmt_buf, *c++);
+    _buf_putc (file, line, fmt_buf, *c++);
     left--;
   }
-  buf_putc (fmt_buf, '\n');
+  _buf_putc (file, line, fmt_buf, '\n');
 }
 
 /**
@@ -3485,8 +3488,11 @@ const char *get_time_str_FILETIME (const FILETIME *ft)
        _month = months [lt.wMonth-1];
   else _month = "???";
 
-  snprintf (res, sizeof(buf[0]), "%02d %s %04u - %02u:%02u:%02u",
-            lt.wDay, _month, lt.wYear, lt.wHour, lt.wMinute, lt.wSecond);
+  if (opt.decimal_timestamp)
+       snprintf (res, sizeof(buf[0]), "%04d%02d%02d.%02d%02d%02d",
+                 lt.wYear, lt.wMonth, lt.wDay, lt.wHour, lt.wMinute, lt.wSecond);
+  else snprintf (res, sizeof(buf[0]), "%02d %s %04u - %02u:%02u:%02u",
+                 lt.wDay, _month, lt.wYear, lt.wHour, lt.wMinute, lt.wSecond);
   idx++;
   idx &= 1;
   return (res);
@@ -3947,7 +3953,7 @@ char *getenv_expand (const char *variable)
     env = buf1;
     variable = buf1;
   }
-  if (strchr(variable,'%'))
+  if (strchr(variable, '%'))
   {
     /* buf2 == variable if not expanded.
      */
