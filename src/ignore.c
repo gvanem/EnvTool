@@ -56,7 +56,7 @@ static UINT curr_sec = UINT_MAX;
  */
 void cfg_ignore_handler (const char *section, const char *key, const char *value)
 {
-  if (section && !stricmp(key,"ignore"))
+  if (section && !stricmp(key, "ignore"))
   {
     struct ignore_node *node;
     unsigned idx;
@@ -117,7 +117,7 @@ int cfg_ignore_lookup (const char *section, const char *value)
     /* A wildcard match.
      * This is case-sensitive if option '-c' was used.
      */
-    if (fnmatch(node->value, value, fnmatch_case(0)) == FNM_MATCH)
+    if (fnmatch(node->value, value, fnmatch_case(FNM_FLAG_NOESCAPE | FNM_FLAG_PATHNAME)) == FNM_MATCH)
     {
       TRACE (3, "Wildcard match for '%s' in %s.\n", value, section);
       return (1);
