@@ -51,10 +51,10 @@ static size_t save_chunk (FMT_buf *fmt, const char *str, size_t max_len)
   for (p = str; *p != '\r' && *p != '\n' && len < max_len && p < mmap_max; len++, p++)
   {
     if (*p == '\t')
-         buf_puts (fmt, "  ");
+         BUF_PUTS (fmt, "  ");
     else if (*p == '~')
-         buf_puts (fmt, "~~");
-    else buf_putc (fmt, *p);
+         BUF_PUTS (fmt, "~~");
+    else BUF_PUTC (fmt, *p);
     if (fmt->buffer_left < 2)
        break;
   }
@@ -79,21 +79,21 @@ static void save_match (FMT_buf *fmt, DWORD line_num, const char *line, const ch
   size_t      len, rest_max;
 
   if (first_match)
-     buf_putc (fmt, '\n');
+     BUF_PUTC (fmt, '\n');
   first_match = FALSE;
 
-  len = buf_printf (fmt, "%s~2%lu:~0 ", indent, line_num);
+  len = BUF_PRINTF (fmt, "%s~2%lu:~0 ", indent, line_num);
   len += save_chunk (fmt, line, match - line);
 
-  buf_puts (fmt, "~8");  /* bright white on red background */
+  BUF_PUTS (fmt, "~8");  /* bright white on red background */
   len += save_chunk (fmt, match, match_len);
-  buf_puts (fmt, "~0");
+  BUF_PUTS (fmt, "~0");
 
   rest = match + match_len;
   rest_max = C_screen_width() - 1 - len;
   rest_max = min (line_max, rest_max);
   save_chunk (fmt, rest, rest_max);
-  buf_putc (fmt, '\n');
+  BUF_PUTC (fmt, '\n');
 }
 
 /**
@@ -115,7 +115,7 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
   int           matches = 0;
 
   if (opt.debug >= 1)
-     buf_putc (fmt, '\n');
+     BUF_PUTC (fmt, '\n');
 
   TRACE (1, "grepping file '%s' for '%s'.\n", file, content);
 
@@ -205,7 +205,7 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
       opt.grep.num_matches++;
       if (++matches >= (int)opt.grep.max_matches && opt.grep.max_matches)
       {
-        buf_puts (fmt, "        ...\n");
+        BUF_PUTS (fmt, "        ...\n");
         break;
       }
     }
@@ -422,7 +422,7 @@ int report_file (struct report *r)
     num_version_ok_last = num_version_ok;
   }
 
-  buf_printf (&fmt_buf_time_size, "~3%s~0%s%s: ",
+  BUF_PRINTF (&fmt_buf_time_size, "~3%s~0%s%s: ",
               note ? note : r->filler, get_time_str(r->mtime), size);
 
   /* The remote `file` from EveryThing is not something Windows knows
@@ -477,11 +477,11 @@ int report_file (struct report *r)
     if (found_owner)
     {
       TRACE (2, "account_name (%s) %smatches owner (%s).\n", account_name, inverse ? "does not " : "", found_owner);
-      buf_printf (&fmt_buf_owner_info, "%-18s", str_shorten(account_name,18));
+      BUF_PRINTF (&fmt_buf_owner_info, "%-18s", str_shorten(account_name,18));
     }
     else
     {
-      buf_printf (&fmt_buf_owner_info, "%-18s", account_name ? account_name : "<None>");
+      BUF_PRINTF (&fmt_buf_owner_info, "%-18s", account_name ? account_name : "<None>");
       TRACE (2, "account_name (%s) did not match any wanted owner(s) for file '%s'.\n",
              account_name, basename(r->file));
     }
@@ -491,7 +491,7 @@ int report_file (struct report *r)
   /* `slashify2()` will remove excessive `/` or `\\` anywhere in the name.
    * Add a trailing slash to directories.
    */
-  buf_printf (&fmt_buf_file_info, "%s%c", r->file, r->is_dir ? DIR_SEP: '\0');
+  BUF_PRINTF (&fmt_buf_file_info, "%s%c", r->file, r->is_dir ? DIR_SEP: '\0');
   slashify2 (fmt_buf_file_info.buffer_start, fmt_buf_file_info.buffer_start,
              opt.show_unix_paths ? '/' : '\\');
 
@@ -505,14 +505,14 @@ int report_file (struct report *r)
 #endif
 
     if (link)
-       buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(r->file), " ", link);
+       BUF_PRINTF (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(r->file), " ", link);
   }
   else if (!r->is_dir)
   {
     const char *shebang = check_if_shebang (r->file);
 
     if (shebang)
-       buf_printf (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(r->file), " ", shebang);
+       BUF_PRINTF (&fmt_buf_file_info, "%*s(%s)", get_trailing_indent(r->file), " ", shebang);
   }
 
   if (r->content && !r->is_dir)
@@ -580,10 +580,10 @@ int report_file2 (struct report *r)
   BUF_INIT (&fmt_buf_file_info, 100 + _MAX_PATH, 0);
   BUF_INIT (&fmt_buf_time_size, 100, 0);
 
-  buf_printf (&fmt_buf_time_size, "~2%s~3%s%s: ",
+  BUF_PRINTF (&fmt_buf_time_size, "~2%s~3%s%s: ",
               note ? note : r->filler, get_time_str(r->mtime), get_file_size_str(r->fsize));
 
-  buf_printf (&fmt_buf_file_info, "~6%s%c~0", r->file, r->is_dir ? DIR_SEP: '\0');
+  BUF_PRINTF (&fmt_buf_file_info, "~6%s%c~0", r->file, r->is_dir ? DIR_SEP: '\0');
 
   C_puts (fmt_buf_time_size.buffer_start);
   C_puts (fmt_buf_file_info.buffer_start);

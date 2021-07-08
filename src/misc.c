@@ -3229,7 +3229,7 @@ void crtdbug_exit (void)
  * A `snprintf()` replacement to print and append to a local `FMT_buf*`
  * initialised using `BUF_INIT()`.
  */
-int _buf_printf (const char *file, unsigned line, FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...)
+int buf_printf (const char *file, unsigned line, FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...)
 {
   va_list      args;
   int          len;
@@ -3274,7 +3274,7 @@ int _buf_printf (const char *file, unsigned line, FMT_buf *fmt_buf, _Printf_form
  * A `puts()` replacement to print and append to a local `FMT_buf*`
  * initialised using `BUF_INIT()`.
  */
-int _buf_puts (const char *file, unsigned line, FMT_buf *fmt_buf, const char *string)
+int buf_puts (const char *file, unsigned line, FMT_buf *fmt_buf, const char *string)
 {
   size_t       str_len = strlen (string);
   const DWORD *marker;
@@ -3304,7 +3304,7 @@ int _buf_puts (const char *file, unsigned line, FMT_buf *fmt_buf, const char *st
 /**
  * A `putc()` replacement to print a single character to a `FMT_buf*`.
  */
-int _buf_putc (const char *file, unsigned line, FMT_buf *fmt_buf, int ch)
+int buf_putc (const char *file, unsigned line, FMT_buf *fmt_buf, int ch)
 {
   if (fmt_buf->buffer_left <= 1)
   {
@@ -3325,7 +3325,7 @@ int _buf_putc (const char *file, unsigned line, FMT_buf *fmt_buf, int ch)
  * If the console is redirected, wrap at the `UINT_MAX` edge (practically
  * no wrapping at all).
  */
-void _buf_puts_long_line (const char *file, unsigned line, FMT_buf *fmt_buf, const char *string, size_t indent)
+void buf_puts_long_line (const char *file, unsigned line, FMT_buf *fmt_buf, const char *string, size_t indent)
 {
   size_t      width = (C_screen_width() == 0) ? UINT_MAX : C_screen_width();
   size_t      left  = width - indent;
@@ -3345,7 +3345,7 @@ void _buf_puts_long_line (const char *file, unsigned line, FMT_buf *fmt_buf, con
 
       if (left < 2 || (left <= (size_t)(p - c)))
       {
-        _buf_printf (file, line, fmt_buf, "\n%*c", (int)indent, ' ');
+        buf_printf (file, line, fmt_buf, "\n%*c", (int)indent, ' ');
         left = width - indent;
         string = ++c;
         continue;
@@ -3358,10 +3358,10 @@ void _buf_puts_long_line (const char *file, unsigned line, FMT_buf *fmt_buf, con
         continue;
       }
     }
-    _buf_putc (file, line, fmt_buf, *c++);
+    buf_putc (file, line, fmt_buf, *c++);
     left--;
   }
-  _buf_putc (file, line, fmt_buf, '\n');
+  buf_putc (file, line, fmt_buf, '\n');
 }
 
 /**

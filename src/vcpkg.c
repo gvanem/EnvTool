@@ -18,7 +18,7 @@
  * \def BUF_INIT_SIZE
  * The size of the `malloc()` buffer used in the `BUF_INIT()` macro.
  */
-#define BUF_INIT_SIZE 500000
+#define BUF_INIT_SIZE 1000000
 
 /** From Windows-Kit's <ctype.h> comment:
  *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
@@ -479,15 +479,15 @@ static unsigned vcpkg_find_internal (FMT_buf *fmt_buf, const char *package_spec,
 
     if (sub_level == 0)
     {
-      indent = buf_printf (fmt_buf, "  ~6%s~0: %*s", package, padding, "") - 4;
-      buf_puts_long_line (fmt_buf, node->description ? node->description : "<none>", indent);
-      buf_printf (fmt_buf, "  %-*s%s%s\n", indent-2, "version: ", node->version[0] ? node->version : "<none>", node->have_JSON ? " (have_JSON)" : "");
-      buf_printf (fmt_buf, "  %-*s%s\n", indent-2, "homepage:", node->homepage[0] ? node->homepage : "<none>");
+      indent = BUF_PRINTF (fmt_buf, "  ~6%s~0: %*s", package, padding, "") - 4;
+      BUF_PUTS_LONG_LINE (fmt_buf, node->description ? node->description : "<none>", indent);
+      BUF_PRINTF (fmt_buf, "  %-*s%s%s\n", indent-2, "version: ", node->version[0] ? node->version : "<none>", node->have_JSON ? " (have_JSON)" : "");
+      BUF_PRINTF (fmt_buf, "  %-*s%s\n", indent-2, "homepage:", node->homepage[0] ? node->homepage : "<none>");
     }
     else
     {
       indent = 2;
-      buf_printf (fmt_buf, "%-*s%s:\n", indent + 2*sub_level, "", package);
+      BUF_PRINTF (fmt_buf, "%-*s%s:\n", indent + 2*sub_level, "", package);
     }
 
     num_deps = print_top_dependencies (fmt_buf, node, indent-2);
@@ -537,7 +537,7 @@ static int print_sub_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
   if (!node->depends || smartlist_len(node->depends) == 0)
   {
     if (sub_level == 0)
-       buf_printf (fmt_buf, "%-*s<none>\n", indent, "");
+       BUF_PRINTF (fmt_buf, "%-*s<none>\n", indent, "");
     return (0);
   }
 
@@ -568,7 +568,7 @@ static int print_sub_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
   }
 #if 0
   if (found == 0 && sub_level == 0)
-     buf_puts (fmt_buf, "None found\n");
+     BUF_PUTS (fmt_buf, "None found\n");
 #endif
   return (found);
 }
@@ -590,10 +590,10 @@ static int print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
   }
   else
   {
-    buf_printf (fmt_buf, "  %-*s", indent, "dependencies:");
+    BUF_PRINTF (fmt_buf, "  %-*s", indent, "dependencies:");
     if (!node->depends || smartlist_len(node->depends) == 0)
     {
-      buf_puts (fmt_buf, "<none>\n");
+      BUF_PUTS (fmt_buf, "<none>\n");
       return (0);
     }
   }
@@ -618,18 +618,18 @@ static int print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
     package = find_available_package (pkg_name);
 
     if (sub_level > 0)
-       buf_printf (fmt_buf, "%-*s%s;\n", indent + 2*sub_level, "", pkg_name);
+       BUF_PRINTF (fmt_buf, "%-*s%s;\n", indent + 2*sub_level, "", pkg_name);
     else if (package)
     {
       if (i > 0)
-         buf_printf (fmt_buf, "%-*s", indent+2, "");
+         BUF_PRINTF (fmt_buf, "%-*s", indent+2, "");
 
-      buf_printf (fmt_buf, "%-*s  platform: ", (int)longest_package, pkg_name);
+      BUF_PRINTF (fmt_buf, "%-*s  platform: ", (int)longest_package, pkg_name);
       supported = get_depend_name (package->platforms, &name);
       if (!supported)
-           buf_printf (fmt_buf, "!(%s)", name);
-      else buf_printf (fmt_buf, "%s", name);
-      buf_printf (fmt_buf, " (0x%04X)\n", package->platforms[0]);
+           BUF_PRINTF (fmt_buf, "!(%s)", name);
+      else BUF_PRINTF (fmt_buf, "%s", name);
+      BUF_PRINTF (fmt_buf, " (0x%04X)\n", package->platforms[0]);
     }
   }
   return (max);
@@ -2432,22 +2432,22 @@ static void print_package_info (vcpkg_package *package, FMT_buf *fmt_buf, int in
 
   for (i = 0; i < max; i++)
   {
-    buf_printf (fmt_buf, "%*s%s\n", i > 0 ? indent : 0, "",
+    BUF_PRINTF (fmt_buf, "%*s%s\n", i > 0 ? indent : 0, "",
                 (const char*)smartlist_get (package->install_info, i));
   }
 
   if (opt.show_size)
-     buf_printf (fmt_buf, "%*s~3%s~0", indent, "", get_package_files_size(package));
+     BUF_PRINTF (fmt_buf, "%*s~3%s~0", indent, "", get_package_files_size(package));
 
   if (max == 0)
   {
     char slash = (opt.show_unix_paths ? '/' : '\\');
 
     snprintf (path, sizeof(path), "%s\\installed\\%s\\", vcpkg_root, package->arch);
-    buf_printf (fmt_buf, "%*sNo entries for package `%s` under\n%*s%s.",
+    BUF_PRINTF (fmt_buf, "%*sNo entries for package `%s` under\n%*s%s.",
                 indent, "", package->package, indent, "", slashify2(path, path, slash));
   }
-  buf_putc (fmt_buf, '\n');
+  BUF_PUTC (fmt_buf, '\n');
 }
 
 /**
@@ -2461,8 +2461,8 @@ static void print_package_brief (const vcpkg_package *package, FMT_buf *fmt_buf,
   int   i = 0;
 
   if (get_control_node(&i, &node, package->package))
-       buf_puts_long_line (fmt_buf, node->description ? node->description : "<none>", indent);
-  else buf_printf (fmt_buf, "No node (%s)\n", package->arch);
+       BUF_PUTS_LONG_LINE (fmt_buf, node->description ? node->description : "<none>", indent);
+  else BUF_PRINTF (fmt_buf, "No node (%s)\n", package->arch);
 }
 
 /**
@@ -2599,7 +2599,7 @@ unsigned vcpkg_list_installed (BOOL detailed)
       continue;
     }
 
-    indent = buf_printf (&fmt_buf, "    %-25s", package->package);
+    indent = BUF_PRINTF (&fmt_buf, "    %-25s", package->package);
 
     if (detailed)
          print_package_info (package, &fmt_buf, indent);
@@ -2738,11 +2738,11 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
        yes_no = C_BR_RED   "NO\n";
   else yes_no = C_BR_GREEN "YES: ";
 
-  buf_printf (fmt_buf, "  %-*s%s~0", indent1, "installed:", yes_no);
+  BUF_PRINTF (fmt_buf, "  %-*s%s~0", indent1, "installed:", yes_no);
 
   if (only_installed && !package)
   {
-    buf_putc (fmt_buf, '\n');
+    BUF_PUTC (fmt_buf, '\n');
     return (FALSE);
   }
 
@@ -2765,29 +2765,29 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
     }
 
     if (found > 0)
-       buf_printf (fmt_buf, "  %*s%s~0", indent1, "", yes_no);
+       BUF_PRINTF (fmt_buf, "  %*s%s~0", indent1, "", yes_no);
 
     if (package->install_info)
-       buf_printf (fmt_buf, "%s, %u files", package->arch, smartlist_len(package->install_info));
+       BUF_PRINTF (fmt_buf, "%s, %u files", package->arch, smartlist_len(package->install_info));
 
     if (opt.show_size)
-       buf_printf (fmt_buf, " %s", get_package_files_size(package));
-    buf_putc (fmt_buf, '\n');
+       BUF_PRINTF (fmt_buf, " %s", get_package_files_size(package));
+    BUF_PUTC (fmt_buf, '\n');
 
     dir = get_installed_dir (package);
     if (dir)
     {
-      buf_printf (fmt_buf, "  %*s%s~0\n", indent1, "", dir);
+      BUF_PRINTF (fmt_buf, "  %*s%s~0\n", indent1, "", dir);
       found++;
     }
   }
 
   if (found == 0 && cpu)
   {
-    buf_printf (fmt_buf, "But not for `%s` platform.\n", cpu);
+    BUF_PRINTF (fmt_buf, "But not for `%s` platform.\n", cpu);
     return (FALSE);
   }
-  buf_putc (fmt_buf, '\n');
+  BUF_PUTC (fmt_buf, '\n');
   return (TRUE);
 }
 

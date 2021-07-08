@@ -4834,7 +4834,7 @@ static void cfg_grep_handler (const char *key, const char *value)
  */
 static void shadow_ignore_handler (const char *section, const char *key, const char *value)
 {
-  if (!stricmp(key,"dtime"))
+  if (!stricmp(key, "dtime"))
   {
     char     *end;
     ULONGLONG val = _strtoi64 (value, &end, 10);

@@ -772,16 +772,16 @@ typedef struct FMT_buf {
            FREE (_buf->buffer);  \
       } while (0)
 
-int  _buf_printf         (const char *file, unsigned line, FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...) ATTR_PRINTF (4,5);
-void _buf_puts_long_line (const char *file, unsigned line, FMT_buf *fmt_buf, const char *str, size_t indent);
-int  _buf_puts           (const char *file, unsigned line, FMT_buf *fmt_buf, const char *string);
-int  _buf_putc           (const char *file, unsigned line, FMT_buf *fmt_buf, int ch);
-void  buf_reset          (FMT_buf *fmt_buf);
+int  buf_printf         (const char *file, unsigned line, FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...) ATTR_PRINTF (4,5);
+void buf_puts_long_line (const char *file, unsigned line, FMT_buf *fmt_buf, const char *str, size_t indent);
+int  buf_puts           (const char *file, unsigned line, FMT_buf *fmt_buf, const char *string);
+int  buf_putc           (const char *file, unsigned line, FMT_buf *fmt_buf, int ch);
+void buf_reset          (FMT_buf *fmt_buf);
 
-#define buf_printf(fmt_buf, format, ...)          _buf_printf (__FILE__, __LINE__, fmt_buf, format, __VA_ARGS__)
-#define buf_puts_long_line(fmt_buf, str, indent)  _buf_puts_long_line (__FILE__, __LINE__, fmt_buf, str, indent)
-#define buf_puts(fmt_buf, str)                    _buf_puts (__FILE__, __LINE__, fmt_buf, str)
-#define buf_putc(fmt_buf, ch)                     _buf_putc (__FILE__, __LINE__, fmt_buf, ch)
+#define BUF_PRINTF(fmt_buf, format, ...)          buf_printf (__FILE__, __LINE__, fmt_buf, format, __VA_ARGS__)
+#define BUF_PUTS_LONG_LINE(fmt_buf, str, indent)  buf_puts_long_line (__FILE__, __LINE__, fmt_buf, str, indent)
+#define BUF_PUTS(fmt_buf, str)                    buf_puts (__FILE__, __LINE__, fmt_buf, str)
+#define BUF_PUTC(fmt_buf, ch)                     buf_putc (__FILE__, __LINE__, fmt_buf, ch)
 
 
 /* Stuff in win_ver.c:
