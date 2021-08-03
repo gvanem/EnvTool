@@ -5705,10 +5705,9 @@ static void check_app_paths (HKEY key)
  * Print a single environment value from SYSTEM and USER limited to the screen width.
  * Thus printing a long string as "C:\Program Files (x86)\Mi...tudio 14.0\Common7\Tools"
  */
-static void print_env_val (const char *val, size_t len, size_t indent)
+static void print_env_val (const char *val, size_t indent)
 {
   size_t c_width = C_screen_width();
-  size_t max = (c_width < UINT_MAX) ? 200 : c_width - indent;
 
   C_setraw (1);
   if (c_width == UINT_MAX)
@@ -5747,20 +5746,20 @@ static void compare_user_sys_env (const char *env_var, const char *sys_value, in
   if (!user_value)
   {
     C_puts ("~6SYSTEM = ");
-    print_env_val (sys_value, len, indent2);
+    print_env_val (sys_value, indent2);
     C_printf ("  %*s~2USER   = <None>~0\n", indent1, "");
   }
   else if (strnicmp(user_value, sys_value, len))
   {
     C_printf ("Mismatch:\n  %*s~6SYSTEM = ", indent1, "");
-    print_env_val (sys_value, len, indent2);
+    print_env_val (sys_value, indent2);
     C_printf ("  %*s~2USER   = ", indent1, "");
-    print_env_val (user_value, INT_MAX, indent2);
+    print_env_val (user_value, indent2);
   }
   else
   {
     C_puts ("Match: ~6");
-    print_env_val (sys_value, len, indent2);
+    print_env_val (sys_value, indent2);
   }
   FREE (sys_val);
 }
