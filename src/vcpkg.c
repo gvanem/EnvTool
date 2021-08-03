@@ -18,7 +18,7 @@
  * \def BUF_INIT_SIZE
  * The size of the `malloc()` buffer used in the `BUF_INIT()` macro.
  */
-#define BUF_INIT_SIZE 1000000
+#define BUF_INIT_SIZE 2000000
 
 /** From Windows-Kit's <ctype.h> comment:
  *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
@@ -161,7 +161,7 @@ typedef struct vcpkg_package {
         VCPKG_plat_list  platforms;                   /**< The supported platform(s) and "static" status */
         BOOL             installed;                   /**< At least 1 combination is installed */
         BOOL             purged;                      /**< Not installed; ready to be removed/updated */
-        const port_node *link;                        /**< A link to the corresponding CONTROL/JSON node */
+        const port_node *link;                        /**< A link to the corresponding `struct port_node` with more CONTROL/JSON information */
         smartlist_t     *depends;                     /**< What package(s) it depends on; a smartlist of `char *` */
         smartlist_t     *install_info;                /**< A list of `/bin`, `/lib` and `/include` files installed. This is never written/read to/from cache-file */
         smartlist_t     *features;                    /**< The features; a smartlist of `char *` */
@@ -211,6 +211,11 @@ static int sub_level = 0;
  * Print details on installed packages only.
  */
 static BOOL only_installed = TRUE;
+
+/**
+ * Total packages-size when `opt.show_size = 1'.
+ */
+static UINT64 total_size = 0;
 
 /**
  * The VCPKG version information.
@@ -354,6 +359,54 @@ BOOL vcpkg_set_only_installed (BOOL True)
 }
 
 /**
+ * Allocate memory for `file`. Then return memory with allocated file-content.
+ */
+static char *fopen_mem (const char *file, size_t *_f_size)
+{
+  struct stat st;
+  FILE       *f;
+  char       *f_ptr;
+  size_t      f_read, f_size;
+  DWORD       win_err;
+
+  memset (&st, '\0', sizeof(st));
+  if (safe_stat(file, &st, &win_err) || st.st_size == 0)
+  {
+    WARN ("Failed to get the file-size of %s. win_err: %lu\n", file, win_err);
+    return (NULL);
+  }
+
+  f = fopen (file, "rb");
+  if (!f)
+  {
+    WARN ("Failed to open %s.\n", file);
+    return (NULL);
+  }
+
+  if (st.st_size >= ULONG_MAX)
+  {
+    WARN ("File %s is too big %" S64_FMT ".\n", file, st.st_size);
+    fclose (f);
+    return (NULL);
+  }
+
+  f_size = (size_t) st.st_size;
+  f_ptr = MALLOC (f_size + 1);
+  f_read = fread (f_ptr, 1, f_size, f);
+  fclose (f);
+  if (f_read != f_size)
+  {
+    WARN ("Failed to read the whole file %s. Only %u bytes, errno: %d (%s)\n",
+          file, (unsigned)f_read, errno, strerror(errno));
+    FREE (f_ptr);
+    return (NULL);
+  }
+  *_f_size = f_size;
+  f_ptr [f_read] = '\0';
+  return (f_ptr);
+}
+
+/**
  * Manage a list of already found packages visited in `print_sub_dependencies()`.
  * So they are not recursed and printed more than once.
  */
@@ -481,7 +534,7 @@ static unsigned vcpkg_find_internal (FMT_buf *fmt_buf, const char *package_spec,
     {
       indent = BUF_PRINTF (fmt_buf, "  ~6%s~0: %*s", package, padding, "") - 4;
       BUF_PUTS_LONG_LINE (fmt_buf, node->description ? node->description : "<none>", indent);
-      BUF_PRINTF (fmt_buf, "  %-*s%s%s\n", indent-2, "version: ", node->version[0] ? node->version : "<none>", node->have_JSON ? " (have_JSON)" : "");
+      BUF_PRINTF (fmt_buf, "  %-*s%s\n", indent-2, "version: ", node->version[0]  ? node->version  : "<none>");
       BUF_PRINTF (fmt_buf, "  %-*s%s\n", indent-2, "homepage:", node->homepage[0] ? node->homepage : "<none>");
     }
     else
@@ -1206,7 +1259,7 @@ static void dump_port_supports (const port_node *node, const char *indent)
 /**
  * Iterate over all installed package files and get the total file-size as a string.
  */
-static const char *get_package_files_size (vcpkg_package *package)
+static const char *get_package_files_size (vcpkg_package *package, UINT64 *p_size)
 {
   UINT64 f_size = 0;
   int    i, max = package->install_info ? smartlist_len (package->install_info) : 0;
@@ -1223,6 +1276,9 @@ static const char *get_package_files_size (vcpkg_package *package)
     if (safe_stat(path, &st, NULL) == 0)
        f_size += get_file_alloc_size (path, st.st_size);
   }
+  if (p_size)
+     *p_size = f_size;
+
   incr_total_size (f_size);
   return str_ltrim ((char*)get_file_size_str(f_size));
 }
@@ -1239,7 +1295,7 @@ static void print_installed_package_info (vcpkg_package *package, const char *in
   C_printf ("%s~6location:     %s~0, %u files", indent, dir, num);
 
   if (opt.show_size)
-     C_puts (get_package_files_size(package));
+     C_puts (get_package_files_size(package, NULL));
   C_puts ("\n\n");
 }
 
@@ -1332,15 +1388,20 @@ static void dump_installed_packages (void)
     if (package->link)
     {
       const port_node *node = package->link;
-      char             buf[10000], *p = buf;
+      char             buf [10000];
+      char            *p = buf;
       int              left = (int) sizeof(buf);
-      int              j, len, j_max = node->supports ? smartlist_len (node->supports) : 0;
-      unsigned         value;
+      int              len;
+      int              j, j_max = 0;
 
       strcpy (p, "all");
+      if (node->supports)
+         j_max = smartlist_len (node->supports);
+
       for (j = 0; j < j_max && left > 9; j++)
       {
-        value = smartlist_getu (node->supports, j);
+        unsigned value = smartlist_getu (node->supports, j);
+
         len = snprintf (p, left, "0x%04X, ", value);
         left -= len;
         p    += len;
@@ -1590,7 +1651,7 @@ static void free_package (vcpkg_package *package, BOOL free_package)
      FREE (package);
 }
 
-/*
+/**
  * Compare the package features of 2 packages given by `features1 *` and `features2 *`.
  */
 static BOOL equal_features (smartlist_t *features1, smartlist_t *features2)
@@ -1601,13 +1662,8 @@ static BOOL equal_features (smartlist_t *features1, smartlist_t *features2)
   if (!features1 && !features2)
      return (TRUE);
 
-#if 0
-  if ((features1 && !features2) || (!features1 && features2))
-     return (FALSE);
-#else
   if (!((BOOL)features1 ^ (BOOL)features2))
      return (FALSE);
-#endif
 
   feature1 = smartlist_join_str (features1, ",");
   feature2 = smartlist_join_str (features2, ",");
@@ -1677,8 +1733,6 @@ static BOOL add_this_package (vcpkg_package *package, char **why_not)
     }
   }
 
-  // if (i == max)
-
   if (!get_installed_info(package))
   {
     *why_not = "missing info .list files (2)";
@@ -1697,53 +1751,20 @@ static BOOL add_this_package (vcpkg_package *package, char **why_not)
  */
 static int vcpkg_parse_status_file (void)
 {
-  struct stat   st;
   vcpkg_package package, *package2;
-  FILE         *f;
   char          file [_MAX_PATH];
   char         *f_end, *f_ptr, *f_status_mem, *why_not;
-  size_t        f_size, f_read;
+  size_t        f_size;
   int           num_parsed = 0;  /* number of parsed lines in current record */
   int           num_total = 0;   /* number of total packages parsed */
-  DWORD         win_err;
 
   snprintf (file, sizeof(file), "%s\\installed\\vcpkg\\status", vcpkg_root);
 
-  memset (&st, '\0', sizeof(st));
-  if (safe_stat(file, &st, &win_err) || st.st_size == 0)
-  {
-    WARN ("Failed to get the file-size of %s. win_err: %lu\n", file, win_err);
-    return (0);
-  }
+  f_status_mem = fopen_mem (file, &f_size);
+  if (!f_status_mem)
+     return (0);
 
-  f = fopen (file, "rb");
-  if (!f)
-  {
-    WARN ("Failed to open %s.\n", file);
-    return (0);
-  }
-
-  if (st.st_size >= ULONG_MAX)
-  {
-    WARN ("File %s is too big %" S64_FMT ".\n", file, st.st_size);
-    fclose (f);
-    return (0);
-  }
-
-  f_size = (size_t) st.st_size;
-  f_status_mem = MALLOC (f_size + 1);
-  f_read = fread (f_status_mem, 1, f_size, f);
-  if (f_read != f_size)
-  {
-    WARN ("Failed to read the whole file %s. Only %u bytes, errno: %d (%s)\n",
-          file, (unsigned)f_read, errno, strerror(errno));
-    fclose (f);
-    return (0);
-  }
-
-  fclose (f);
   f_end = f_status_mem + f_size;
-  *f_end = '\0';
 
   TRACE (2, "Building 'installed_packages' from %s (%u bytes).\n", file, (unsigned)f_size);
 
@@ -1818,7 +1839,7 @@ static int vcpkg_version_cb (char *buf, int index)
   return (0);
 }
 
-/*
+/**
  * Write all collected information back to the file-cache.
  *
  * First the nodes in the `ports_list`.
@@ -2427,8 +2448,9 @@ static const char *get_packages_dir (const vcpkg_package *package)
  */
 static void print_package_info (vcpkg_package *package, FMT_buf *fmt_buf, int indent)
 {
-  char path [_MAX_PATH];
-  int  i, max = smartlist_len (package->install_info);
+  char   path [_MAX_PATH];
+  int    i, max = smartlist_len (package->install_info);
+  UINT64 p_size;
 
   for (i = 0; i < max; i++)
   {
@@ -2437,7 +2459,10 @@ static void print_package_info (vcpkg_package *package, FMT_buf *fmt_buf, int in
   }
 
   if (opt.show_size)
-     BUF_PRINTF (fmt_buf, "%*s~3%s~0", indent, "", get_package_files_size(package));
+  {
+    BUF_PRINTF (fmt_buf, "%*s~3%s~0", indent, "", get_package_files_size(package, &p_size));
+    total_size += p_size;
+  }
 
   if (max == 0)
   {
@@ -2551,13 +2576,16 @@ unsigned vcpkg_list_installed (BOOL detailed)
 {
   const char    *only = "";
   const char    *dir;
+  const char    *prev_package = "";
   unsigned       i, indent, num_ignored, max = 0;
   FMT_buf        fmt_buf;
   vcpkg_package *package;
+  char           totals [100];
 
   vcpkg_init();
 
   fmt_buf.buffer = NULL;
+  total_size = 0;
 
   if (installed_packages)
   {
@@ -2599,7 +2627,15 @@ unsigned vcpkg_list_installed (BOOL detailed)
       continue;
     }
 
+    if (!detailed && !stricmp(package->package, prev_package))  /* Same package but for another triplet */
+    {
+      num_ignored++;
+      continue;
+    }
+
     indent = BUF_PRINTF (&fmt_buf, "    %-25s", package->package);
+
+    prev_package = package->package;
 
     if (detailed)
          print_package_info (package, &fmt_buf, indent);
@@ -2611,8 +2647,16 @@ unsigned vcpkg_list_installed (BOOL detailed)
 
   dir = get_installed_dir (NULL);
   if (dir)
-       C_printf ("\n  Found %u installed ~3VCPKG~0 packages under ~3%s~0%s:\n", max, dir, only);
-  else C_printf ("\n  Found 0 installed ~3VCPKG~0 packages.\n");
+  {
+    if (opt.show_size && total_size > 0)
+         snprintf (totals, sizeof(totals), " (%s bytes)", str_ltrim(str_qword(total_size)));
+    else totals[0] = '\0';
+
+    C_printf ("\n  Found %u installed ~3VCPKG~0 packages under ~3%s~0%s%s:\n",
+              max - num_ignored, dir, only, totals);
+  }
+  else
+    C_printf ("\n  Found 0 installed ~3VCPKG~0 packages.\n");
 
   if (max)
      C_puts (fmt_buf.buffer_start);
@@ -2692,10 +2736,16 @@ void vcpkg_exit (void)
  */
 static BOOL get_control_node (int *index_p, const port_node **node_p, const char *package_spec)
 {
-  int i, index, max = ports_list ? smartlist_len (ports_list) : 0;
+  int i, index, max = 0;
 
   *node_p = NULL;
   index   = *index_p;
+
+  if (!ports_list)
+     return (FALSE);
+
+  max = smartlist_len (ports_list);
+
   for (i = index; i < max; i++)
   {
     const port_node *node = smartlist_get (ports_list, i);
@@ -2771,7 +2821,7 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
        BUF_PRINTF (fmt_buf, "%s, %u files", package->arch, smartlist_len(package->install_info));
 
     if (opt.show_size)
-       BUF_PRINTF (fmt_buf, " %s", get_package_files_size(package));
+       BUF_PRINTF (fmt_buf, " %s", get_package_files_size(package, NULL));
     BUF_PUTC (fmt_buf, '\n');
 
     dir = get_installed_dir (package);
@@ -2987,8 +3037,9 @@ static void json_add_features (port_node *node, char *buf, const JSON_tok_t *tok
 
 /**
  * A package description in a `vcpkg.json` file is normally a simple `JSON_STRING`.
- * But in the case of long descriptions, it can be split up in a `JSON_ARRAY`.
- * In the latter case we use a fixed `merger*` smartlist to convert it into a char string.
+ * But in the case of long descriptions, it can be splitted into a `JSON_ARRAY`.
+ *
+ * In the latter case we use a fixed `merger*` smartlist to convert it into a `char*` string.
  */
 static void json_add_description (port_node *node, char *buf, const JSON_tok_t *token)
 {
@@ -3097,10 +3148,10 @@ static BOOL json_make_supports (port_node *node, const char *buf, int i, BOOL re
  *
  * \note This function can be called recursively.
  */
-int json_parse_buf (port_node *node, const char *file, char *buf, size_t buf_len)
+static int json_parse_buf (port_node *node, const char *file, char *buf, size_t buf_len)
 {
   JSON_parser p;
-  JSON_tok_t  t[200];   /* We expect no more tokens than this per OBJECT */
+  JSON_tok_t  t [200];   /* We expect no more tokens than this per OBJECT */
   size_t      len;
   int         i, j, rc;
   char       *str, *str_copy;
@@ -3138,7 +3189,10 @@ int json_parse_buf (port_node *node, const char *file, char *buf, size_t buf_len
       TRACE (1, "package:     '%s'\n", node->package);
       i += t[i+1].size + 1;
     }
-    else if (JSON_str_eq(&t[i], buf, "version-string"))
+    else if (JSON_str_eq(&t[i], buf, "version") ||
+             JSON_str_eq(&t[i], buf, "version-date") ||
+             JSON_str_eq(&t[i], buf, "version-string") ||
+             JSON_str_eq(&t[i], buf, "version-semver"))
     {
       str = buf + t[i+1].start;
       len = t[i+1].end - t[i+1].start + 1;
@@ -3224,41 +3278,16 @@ int json_parse_buf (port_node *node, const char *file, char *buf, size_t buf_len
 
 static int json_parse_file (port_node *node, const char *file)
 {
-  struct stat st;
-  char   *f_mem = NULL;
-  size_t  f_size, f_read;
-  FILE   *f;
-  int     r = 0;
-  DWORD   win_err;
+  char  *f_mem;
+  size_t f_size;
+  int    r = 0;
 
-  memset (&st, '\0', sizeof(st));
-  if (safe_stat(file, &st, &win_err) || st.st_size == 0)
+  f_mem = fopen_mem (file, &f_size);
+  if (f_mem)
   {
-    TRACE (1, "Failed to get the file-size of %s. win_err: %lu\n", file, win_err);
-    return (0);
+    r = json_parse_buf (node, file, f_mem, f_size);
+    FREE (f_mem);
   }
-
-  f = fopen (file, "rb");
-  if (!f)
-  {
-    TRACE (1, "Failed to open %s.\n", file);
-    return (0);
-  }
-
-  f_size = (size_t) st.st_size;
-  f_mem = MALLOC (f_size + 1);
-  f_read = fread (f_mem, 1, f_size, f);
-  fclose (f);
-  if (f_read != f_size)
-  {
-    TRACE (1, "Failed to read the whole file %s. Only %u bytes, errno: %d (%s)\n",
-            file, (unsigned)f_read, errno, strerror(errno));
-    return (0);
-  }
-
-  f_mem [f_read] = '\0';
-  r = json_parse_buf (node, file, f_mem, f_read);
-  FREE (f_mem);
   return (r);
 }
 
