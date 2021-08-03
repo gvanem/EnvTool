@@ -26,6 +26,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <signal.h>
+#include <locale.h>
 
 #if defined(__MINGW32__) || defined(_CYGWIN__)
 #define INSIDE_ENVTOOL_C  /* Important for MinGW/CygWin with '_FORTIFY_SOURCE' only */
@@ -4746,6 +4747,7 @@ static void init_all (const char *argv0)
   crtdbug_init();
 
   tzset();
+  setlocale (LC_ALL, "");
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu   = C_conemu_detected();
   opt.under_winterm  = C_winterm_detected();
