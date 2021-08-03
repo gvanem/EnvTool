@@ -533,7 +533,7 @@ static const char *wincon_to_ansi (WORD col)
   left -= (ret - p);
 
   bold = (col & BACKGROUND_INTENSITY);
-  bg   = (col & ~BACKGROUND_INTENSITY) >> 4;
+  bg   = ((BYTE)col & ~BACKGROUND_INTENSITY) >> 4;
   if (c_always_set_bg || (bg && bg != (console_info.wAttributes >> 4)))
   {
     SGR = wincon_to_SGR [bg];
