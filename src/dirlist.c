@@ -804,13 +804,13 @@ static void final_report (void)
   C_printf ("  Num files:        %lu\n", (unsigned long)num_files);
   C_printf ("  Num directories:  %lu\n", (unsigned long)num_directories);
   C_printf ("  Num junctions:    %lu (errors: %lu)\n", (unsigned long)num_junctions, (unsigned long)num_junctions_err);
-  C_printf ("  total-size:       %s bytes", qword_str(total_size));
-  C_printf (" (allocated: %s,", qword_str(total_size_alloc));
+  C_printf ("  total-size:       %s bytes", str_qword(total_size));
+  C_printf (" (allocated: %s,", str_qword(total_size_alloc));
 
   if (total_size_alloc && total_size_compr < total_size_alloc)
   {
     double percentage = 100.0 - 100.0 * ((double)total_size_compr / (double)total_size_alloc);
-    C_printf (" compressed: %s, %.02f%%)\n", qword_str(total_size_compr), percentage);
+    C_printf (" compressed: %s, %.02f%%)\n", str_qword(total_size_compr), percentage);
   }
   else
     C_printf (" no compressed files)\n");

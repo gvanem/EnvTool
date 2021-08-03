@@ -861,32 +861,32 @@ void report_final (int found)
      snprintf (ignored, sizeof(ignored), " (%lu ignored)",
                (unsigned long)num_evry_ignored);
 
-  C_printf ("%s %s", dword_str((DWORD)found), plural_str(found, "match", "matches"));
+  C_printf ("%s %s", str_dword((DWORD)found), str_plural(found, "match", "matches"));
   C_printf (" found for \"%s\"%s%s.", opt.file_spec, duplicates, ignored);
 
   if (opt.show_size && total_size > 0)
      C_printf (" Totalling %s (%s bytes). ",
                str_trim((char*)get_file_size_str(total_size)),
-               qword_str(total_size));
+               str_qword(total_size));
 
   if (opt.grep.content && !opt.evry_host)
   {
     C_printf (" With %s %s for the \"--grep\" content. ",
-               qword_str(opt.grep.num_matches),
-               plural_str(opt.grep.num_matches, "match", "matches"));
+               str_qword(opt.grep.num_matches),
+               str_plural(opt.grep.num_matches, "match", "matches"));
   }
 
   if (opt.evry_host)
   {
     if (opt.debug >= 1 && ETP_total_rcv)
-       C_printf ("\n%s bytes received from ETP-host(s).", dword_str(ETP_total_rcv));
+       C_printf ("\n%s bytes received from ETP-host(s).", str_dword(ETP_total_rcv));
   }
   else if (opt.PE_check)
   {
     C_printf (" %lu have PE-version info.", (unsigned long)num_version_ok);
 
     if (opt.signed_status != SIGN_CHECK_NONE)
-       C_printf (" %lu %s verified.", (unsigned long)num_verified, plural_str(num_verified, "is", "are"));
+       C_printf (" %lu %s verified.", (unsigned long)num_verified, str_plural(num_verified, "is", "are"));
   }
   C_putc ('\n');
 }

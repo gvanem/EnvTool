@@ -827,7 +827,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
      */
     total_size += ff->ff_fsize;
     total_files++;
-    printf ("%2lu, %14s: %s %s\n", (unsigned long)recursion_level, qword_str(ff->ff_fsize), attr_str, path);
+    printf ("%2lu, %14s: %s %s\n", (unsigned long)recursion_level, str_qword(ff->ff_fsize), attr_str, path);
   }
   return (0);
 }
@@ -925,13 +925,13 @@ static void do_glob_new (const char *spec)
     const char *size_str = str_trim ((char*)get_file_size_str(total_size));
 
     printf ("\nglob_new: %lu, total_files: %s, ",
-            (unsigned long)rc, qword_str(total_files));
+            (unsigned long)rc, str_qword(total_files));
 
     printf ("total_dirs: %s, total_size: %s ",
-            qword_str(total_dirs), size_str);
+            str_qword(total_dirs), size_str);
 
     printf ("(%s), total_reparse_points: %" U64_FMT "\n",
-            qword_str(total_size), total_reparse_points);
+            str_qword(total_size), total_reparse_points);
   }
   printf ("recursion_level: %lu, num_ignored_errors: %lu\n",
           (unsigned long)recursion_level, (unsigned long)num_ignored_errors);

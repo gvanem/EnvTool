@@ -549,7 +549,7 @@ static BOOL state_closing (struct state_CTX *ctx)
 
   if (ctx->results_expected > 0 && ctx->results_got < ctx->results_expected)
      WARN ("Expected %u results, but received only %u. Received %s bytes.\n",
-           ctx->results_expected, ctx->results_got, dword_str(ETP_total_rcv));
+           ctx->results_expected, ctx->results_got, str_dword(ETP_total_rcv));
 
   ctx->state = state_exit;
   return (TRUE);

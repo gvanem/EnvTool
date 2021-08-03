@@ -566,6 +566,9 @@ extern char *str_reverse    (char *str);
 extern int   str_equal      (const char *s1, const char *s2);
 extern int   str_equal_n    (const char *s1, const char *s2, size_t len);
 extern char *str_shorten    (const char *str, size_t max_len);
+extern char *str_qword      (UINT64 val);
+extern char *str_dword      (DWORD val);
+extern char *str_plural     (DWORD val, const char *singular, const char *plural);
 
 extern char *searchpath     (const char *file, const char *env_var);
 extern int   searchpath_pos (void);
@@ -610,10 +613,6 @@ extern BOOL        is_user_admin (void);
 extern BOOL        is_user_admin2 (void);
 extern int         is_cygwin_tty (int fd);
 extern BOOL        print_core_temp_info (void);
-
-extern const char *qword_str (UINT64 val);
-extern const char *dword_str (DWORD val);
-extern const char *plural_str (DWORD val, const char *singular, const char *plural);
 
 extern void        format_and_print_line (const char *line, int indent);
 extern void        print_long_line (const char *line, size_t indent);

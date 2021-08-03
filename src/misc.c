@@ -1524,7 +1524,7 @@ char *path_ltrim (const char *p1, const char *p2)
  *
  * \param[in] val an 64-bit unsigned value.
  */
-const char *qword_str (UINT64 val)
+char *str_qword (UINT64 val)
 {
   static char buf [40];
   char   tmp [30], *p;
@@ -1550,20 +1550,20 @@ const char *qword_str (UINT64 val)
  *
  * \param[in] val an 32-bit unsigned value.
  */
-const char *dword_str (DWORD val)
+char *str_dword (DWORD val)
 {
-  return qword_str ((UINT64)val);
+  return str_qword ((UINT64)val);
 }
 
 /**
  * Return string like "is"  for 'val == 0' or 'val == 1' or
  *                    "are" for 0 or 'val > 1'.
  */
-const char *plural_str (DWORD val, const char *singular, const char *plural)
+char *str_plural (DWORD val, const char *singular, const char *plural)
 {
  if (val == 0 || val > 1)
-    return (plural);
-  return (singular);
+    return (char*) plural;
+  return (char*) singular;
 }
 
 /**
