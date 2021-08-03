@@ -2490,7 +2490,7 @@ int _file_exists (const char *file)
   struct stat st;
   return (safe_stat(file, &st, NULL) == 0 && st.st_mtime);
 #else
-  TRACE (2, "No attributes for File '%s'.\n", file);
+  TRACE (2, "File '%s' does not exist.\n", file);
   return (0);
 #endif
 }
@@ -3381,7 +3381,7 @@ void buf_reset (FMT_buf *fmt_buf)
  *
  * \note
  *  + Uses the SI-unit post-fixes.
- *  + A Yottabyte (`2^80`) is too large for an `UINT64`.
+ *  + A Yottabyte (or `Yobibyte == 1024^8`) is too large for an `UINT64`.
  *  + A `size == -1` is used as indication of an unknown size.
  */
 const char *get_file_size_str (UINT64 size)
@@ -3478,8 +3478,7 @@ const char *get_time_str_FILETIME (const FILETIME *ft)
                                    };
   const char *_month;
   char       *res = buf [idx];
-
-  SYSTEMTIME st, lt;
+  SYSTEMTIME  st, lt;
 
   if (!FileTimeToSystemTime(ft, &st) || !SystemTimeToTzSpecificLocalTime(NULL, &st, &lt))
      return ("?");

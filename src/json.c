@@ -324,6 +324,9 @@ void JSON_init (JSON_parser *parser)
   parser->tok_super = -1;
 }
 
+/**
+ * Return 1 if Json token matches `str`.
+ */
 int JSON_str_eq (const JSON_tok_t *tok, const char *buf, const char *str)
 {
   size_t len = tok->end - tok->start;
