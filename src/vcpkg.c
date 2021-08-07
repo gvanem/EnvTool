@@ -90,17 +90,31 @@
 #define STATUS_VERSION           "Version:"
 
 /**
+ * \def VCPKG_GH_FUNC
+ * The Cmake function `"vcpkg_from_github("` in a `portfile.cmake`.
+ *
+ * \def VCPKG_GH_REPO
+ * The github repository inside a `"vcpkg_from_github("` function
+ */
+#define VCPKG_GH_FUNC  "vcpkg_from_github("
+#define VCPKG_GH_REPO  " REPO "
+
+/**
  * \def VCPKG_MAX_NAME
  * \def VCPKG_MAX_VERSION
  * \def VCPKG_MAX_URL
  * \def VCPKG_MAX_PLAT
+ * \def VCPKG_MAX_STATUS
+ * \def VCPKG_MAX_ARCH
+ * \def VCPKG_MAX_ABI
  */
 #define VCPKG_MAX_NAME      30   /**< Max size of a `port_node::package` or `vcpkg_package::package` entry. */
 #define VCPKG_MAX_VERSION   30   /**< Max size of a `port_node::version` or `vcpkg_package::version` entry. */
 #define VCPKG_MAX_URL      200   /**< Max size of a `port_node::homepage` entry. */
 #define VCPKG_MAX_PLAT      10   /**< Max number of `port_node::platforms[]` */
-#define VCPKG_MAX_STATUS    30
-#define VCPKG_MAX_ARCH      30
+#define VCPKG_MAX_STATUS    30   /**< Max size of a `vcpkg_package::status` entry. */
+#define VCPKG_MAX_ARCH      30   /**< Max size of a `vcpkg_package::arch` entry. */
+#define VCPKG_MAX_ABI       45   /**< Max size of a `vcpkg_package::ABI` entry; like "c2b61c4e93998f8f6a036b553c6234688a73dcd4" */
 
 /**
  * \enum VCPKG_platform
@@ -141,6 +155,7 @@ typedef struct port_node {
         char           *description;                  /**< The description. */
         BOOL            have_CONTROL;                 /**< TRUE if this is a CONTROL-node. */
         BOOL            have_JSON;                    /**< TRUE if this is a JSON-node. */
+        BOOL            have_portfile;                /**< TRUE if this package has a `portfile.cmake` */
         VCPKG_plat_list platforms;                    /**< The supported platform(s) and "static" status */
         smartlist_t    *features;                     /**< The features; a smartlist of `char *`. */
         smartlist_t    *depends;                      /**< The dependencies; a smartlist of `char *`. */
@@ -158,9 +173,11 @@ typedef struct vcpkg_package {
         char             version [VCPKG_MAX_VERSION]; /**< The version. */
         char             status  [VCPKG_MAX_STATUS];  /**< The install/purge status. */
         char             arch    [VCPKG_MAX_ARCH];    /**< The OS/CPU and ("-static"). */
+        char             ABI     [VCPKG_MAX_ABI];     /**< The SHA256 (?) signature. */
         VCPKG_plat_list  platforms;                   /**< The supported platform(s) and "static" status */
         BOOL             installed;                   /**< At least 1 combination is installed */
         BOOL             purged;                      /**< Not installed; ready to be removed/updated */
+        BOOL             no_list_file;                /**< No *.list file for package */
         const port_node *link;                        /**< A link to the corresponding `struct port_node` with more CONTROL/JSON information */
         smartlist_t     *depends;                     /**< What package(s) it depends on; a smartlist of `char *` */
         smartlist_t     *install_info;                /**< A list of `/bin`, `/lib` and `/include` files installed. This is never written/read to/from cache-file */
@@ -248,6 +265,8 @@ static BOOL        get_depend_name (const VCPKG_plat_list p_list, const char **n
 static BOOL        get_installed_info (vcpkg_package *package);
 static const char *get_installed_dir (const vcpkg_package *package);
 static const char *get_packages_dir (const vcpkg_package *package);
+static char       *get_cache_dir (void);
+static const char *get_cache_zip (const vcpkg_package *package);
 static int         get_plat_value (VCPKG_platform platform, int idx, const char **name);
 
 static BOOL  is_plat_supported (const VCPKG_plat_list p_list, unsigned platform);
@@ -900,14 +919,32 @@ static int CONTROL_parse (port_node *node, const char *file)
 }
 
 /**
- * \todo
- *  Parse `file` for LOCAL package location or REMOTE package URL
+ * Parse `file` for a Github " REPO" relative link.
  */
 static int portfile_cmake_parse (port_node *node, const char *file)
 {
-  ARGSUSED (node);
-  ARGSUSED (file);
-  return (0);
+  int         rc = 0;
+  size_t      f_size;
+  char       *f_mem = fopen_mem (file, &f_size);
+  const char *github, *repo, *new_line;
+
+  if (!f_mem)
+     return (0);
+
+  github = strstr (f_mem, VCPKG_GH_FUNC);
+  if (github && (repo = strstr(f_mem, VCPKG_GH_REPO)) > github + sizeof(VCPKG_GH_FUNC))
+  {
+    repo += sizeof(VCPKG_GH_REPO) - 1;
+    new_line = strchr (repo, '\n');
+    if (!new_line)
+       new_line = f_mem + f_size;
+
+    TRACE (2, "At github: \"%.*s\".\n", new_line - repo - 1, repo);
+    snprintf (node->homepage, sizeof(node->homepage), "https://github.com/%.*s", new_line - repo - 1, repo);
+    rc = 1;
+  }
+  FREE (f_mem);
+  return (rc);
 }
 
 /**
@@ -928,7 +965,7 @@ static void build_dir_list (smartlist_t *dir_list, const char *dir, BOOL check_C
   size_t          ofs = strlen (vcpkg_root) + 1;
 
   snprintf (abs_dir, sizeof(abs_dir), "%s\\%s", vcpkg_root, dir);
-  if (!is_directory(abs_dir) || (dp = opendir2(abs_dir)) == NULL)
+  if (!is_directory_readable(abs_dir) || (dp = opendir2(abs_dir)) == NULL)
   {
     snprintf (last_err_str, sizeof(last_err_str), "No such directory %s", abs_dir);
     return;
@@ -965,7 +1002,7 @@ static void build_dir_list (smartlist_t *dir_list, const char *dir, BOOL check_C
  */
 static void get_port_info_from_disk (const char *port_dir, int ports_index)
 {
-  port_node  *node;
+  port_node  *node = NULL;
   char        CONTROL_file [_MAX_PATH];
   char        JSON_file [_MAX_PATH];
   char        port_file [_MAX_PATH];
@@ -1010,20 +1047,10 @@ static void get_port_info_from_disk (const char *port_dir, int ports_index)
     smartlist_add (ports_list, node);
   }
 
-  if (FILE_EXISTS(port_file))
+  if (FILE_EXISTS(port_file) && node && !node->homepage[0])
   {
-    TRACE (2, "%d: Building port-node for %s.\n", ports_index, port_file);
-
-#if 0   // Not ready for this code
-    node = CALLOC (sizeof(*node), 1);
-    _strlcpy (node->package, package_name, sizeof(node->package));
-    strcpy (node->homepage, "-");
+    node->have_portfile = TRUE;
     portfile_cmake_parse (node, port_file);
-    smartlist_add (ports_list, node);
-#else
-    node = NULL;
-    portfile_cmake_parse (node, port_file);
-#endif
   }
 }
 
@@ -1292,6 +1319,7 @@ static void print_installed_package_info (vcpkg_package *package, const char *in
   unsigned    num = smartlist_len (package->install_info);
 
   C_printf ("%s~6installed:    YES~0\n", indent);
+  C_printf ("%s~6ABI:          %s~0\n", indent, package->ABI[0] ? package->ABI : "-");
   C_printf ("%s~6location:     %s~0, %u files", indent, dir, num);
 
   if (opt.show_size)
@@ -1310,7 +1338,7 @@ static void print_installed_package_purge_info (const vcpkg_package *package, co
 }
 
 /**
- * Dump the parsed information from `ports_list`.
+ * Dump the parsed or cached information from `ports_list`.
  */
 static void dump_ports_list (void)
 {
@@ -1320,9 +1348,8 @@ static void dump_ports_list (void)
 
   /* Print a simple header.
    */
-  C_printf ("%d nodes in 'ports_list':\n~6Index ~3Package~0 / ~6Version\n", max);
-  C_puts (str_repeat('=', 100));
-  C_putc ('\n');
+  C_printf ("%d nodes in 'ports_list':\n~6Index ~3Package~0 / ~6Version\n%s\n",
+            max, str_repeat('=', 120));
 
   for (i = 0; i < max; i++)
   {
@@ -1374,10 +1401,10 @@ static void dump_installed_packages (void)
 {
   int i, i_max = smartlist_len (installed_packages);
 
-  C_puts (str_repeat('=', 120));
-  C_printf ("\n%d packages in 'installed_packages' (disregarding different architectures):\n"
+  C_printf ("%s\n%d packages in 'installed_packages' (disregarding different architectures):\n"
             "Package                Version            Architecture        "
-            "install_info   link       Platforms             Features\n", i_max);
+            "install_info   link       Platforms             Features\n",
+            str_repeat('=', 120), i_max);
 
   for (i = 0; i < i_max; i++)
   {
@@ -1421,6 +1448,115 @@ static void dump_installed_packages (void)
     C_putc ('\n');
   }
   C_puts ("\n\n");
+}
+
+/**
+ * Return a smartlist of all .zip filenames under the cache directory.
+ * Must do this recursively since the layout is 2 levels deep like:
+ * ```
+ * c:\Users\XX\AppData\Local\vcpkg\archives\YY\<ABI-signature>.zip
+ * ```
+ */
+static void get_cache_all_zips (const char *dir, smartlist_t *dirlist)
+{
+  struct dirent2 **namelist = NULL;
+  int    i, num = scandir2 (dir, &namelist, NULL, NULL);
+
+  for (i = 0; i < num; i++)
+  {
+    struct dirent2 *de = namelist[i];
+
+    if (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY)
+    {
+      TRACE (2, "Recursing into '%s'\n", de->d_name);
+      get_cache_all_zips (de->d_name, dirlist);
+    }
+    else if (str_endswith(de->d_name, ".zip"))
+    {
+      smartlist_add (dirlist, STRDUP(de->d_name));
+    }
+    FREE (de);
+  }
+  FREE (namelist);
+}
+
+/**
+ * Dump some information on package-cache .zip-files.
+ *
+ * Also note which package has no .zip-file cache. Noted with `!`.
+ *
+ * Also get all .zip filenames that does not belong to any
+ * installed packages. Since a `vcpkg uninstall <pkg>` does
+ * remove the cache .zip-file.
+ */
+static void dump_packages_cache (void)
+{
+  smartlist_t *all_zips;
+  const char  *zip;
+  const char  *cache;
+  char        *all_zip;
+  UINT64       f_size = 0;
+  int          i, j, i_max, j_max;
+
+  C_printf ("%s\nPackage            Size              ZIP\n",
+            str_repeat('=', 120));
+
+  cache = get_cache_dir();
+  if (!cache)
+  {
+    C_puts ("No cache.\n");
+    return;
+  }
+
+  all_zips = smartlist_new();
+  get_cache_all_zips (cache, all_zips);
+
+  i_max = smartlist_len (installed_packages);
+
+  for (i = 0; i < i_max; i++)
+  {
+    struct stat st;
+    const vcpkg_package *package = smartlist_get (installed_packages, i);
+    const char          *size = "?";
+    int                  note = '!';  /* A possibly orphaned .zip-archive */
+
+    zip = get_cache_zip (package);
+    if (!zip)
+       zip = "<none>";
+    else if (FILE_EXISTS(zip) && safe_stat(zip, &st, NULL) == 0)
+       size = str_qword (st.st_size);
+
+    j_max = smartlist_len (all_zips);
+    for (j = i; j < j_max; j++)
+    {
+      all_zip = smartlist_get (all_zips, j);
+      if (!stricmp(all_zip, zip))
+      {
+        FREE (all_zip);
+        smartlist_del_keeporder (all_zips, j);
+        note = ' ';
+        break;
+      }
+    }
+    C_printf ("%-18.18s %-15.15s %c %s\n", package->package, size, note, zip);
+  }
+
+  C_printf ("\n! = No archive for package.\n\n%s\nOrphaned archives:\n",
+            str_repeat('=', 120));
+
+  j_max = smartlist_len (all_zips);
+  for (j = 0; j < j_max; j++)
+  {
+    struct stat st;
+
+    zip = smartlist_get (all_zips, j);
+    C_printf ("  %s\n", zip);
+
+    if (safe_stat(zip, &st, NULL) == 0)
+       f_size += get_file_alloc_size (zip, st.st_size);
+  }
+  C_printf ("\nTotal size: %s (%s bytes)\n%s\n", str_trim((char*)get_file_size_str(f_size)), str_qword(f_size), str_repeat('=', 120));
+  smartlist_free_all (all_zips);
 }
 
 /**
@@ -1508,7 +1644,7 @@ static BOOL get_base_env (void)
     _strlcpy (last_err_str, "Env-var ~5VCPKG_ROOT~0 not defined", sizeof(last_err_str));
     return (FALSE);
   }
-  if (!is_directory(env))
+  if (!is_directory_readable(env))
   {
     _strlcpy (last_err_str, "~5VCPKG_ROOT~0 points to a non-existing directory", sizeof(last_err_str));
     return (FALSE);
@@ -1587,6 +1723,11 @@ static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p)
   if (str_match(line, STATUS_ARCH, &next))
   {
     _strlcpy (package->arch, next, sizeof(package->arch));
+    return (1);
+  }
+  if (str_match(line, STATUS_ABI, &next))
+  {
+    _strlcpy (package->ABI, next, sizeof(package->ABI));
     return (1);
   }
   if (str_match(line, STATUS_VERSION, &next))
@@ -1774,15 +1915,16 @@ static int vcpkg_parse_status_file (void)
   for (f_ptr = f_status_mem; f_ptr <= f_end; )
   {
     num_parsed += vcpkg_parse_status_line (&package, &f_ptr);
-    if (*f_ptr == '\r' || *f_ptr == '\n')  /* An empty line ends this record */
-    {
-      f_ptr++;
-      num_total++;
-      TRACE (2, "reached EOR for package '%s'. num_parsed: %d, num_total: %d\n",
-              package.package, num_parsed, num_total);
-    }
-    else
-      continue;   /* continue parsing the same record */
+
+    if (*f_ptr != '\r' && *f_ptr != '\n')
+       continue;
+
+    /* An record ends with an empty line
+     */
+    f_ptr++;
+    num_total++;
+    TRACE (2, "reached EOR for package '%s'. num_parsed: %d, num_total: %d\n",
+            package.package, num_parsed, num_total);
 
     if (str_endswith(package.arch, "-static"))
     {
@@ -1921,11 +2063,12 @@ static void put_installed_packages_to_cache (void)
        installed = 0;
 
     dependencies = smartlist_join_str (package->depends, ",");
-    cache_putf (SECTION_VCPKG, "installed_package_%d = %s,%d,%s,%s,%s,\"%s\"", i,
+    cache_putf (SECTION_VCPKG, "installed_package_%d = %s,%d,%s,%s,%s,%s,\"%s\"", i,
                 package->package, installed,
                 package->version[0] ? package->version : "-",
                 package->status[0]  ? package->status  : "-",
                 package->arch[0]    ? package->arch    : "-",
+                package->ABI[0]     ? package->ABI     : "-",
                 dependencies        ? dependencies     : "-");
     FREE (dependencies);
   }
@@ -2052,12 +2195,12 @@ static int get_installed_packages_from_cache (void)
   for (i = 0;; i++)
   {
     vcpkg_package *package;
-    char  format [100], *pkg_name, *version, *status, *arch, *dependencies;
+    char  format [100], *pkg_name, *version, *status, *arch, *ABI, *dependencies;
     int   rc, installed;
 
-    snprintf (format, sizeof(format), "installed_package_%d = %%s,%%d,%%s,%%s,%%s,%%s", i);
-    rc = cache_getf (SECTION_VCPKG, format, &pkg_name, &installed, &version, &status, &arch, &dependencies);
-    if (rc != 6)
+    snprintf (format, sizeof(format), "installed_package_%d = %%s,%%d,%%s,%%s,%%s,%%s,%%s", i);
+    rc = cache_getf (SECTION_VCPKG, format, &pkg_name, &installed, &version, &status, &arch, &ABI, &dependencies);
+    if (rc != 7)
        break;
 
     if (!installed || *arch == '-')
@@ -2066,6 +2209,9 @@ static int get_installed_packages_from_cache (void)
     package = CALLOC (sizeof(*package), 1);
     _strlcpy (package->package, pkg_name, sizeof(package->package));
     _strlcpy (package->arch, arch, sizeof(package->arch));
+
+    if (*ABI != '-')
+       _strlcpy (package->ABI, ABI, sizeof(package->ABI));
 
     if (*version != '-')
        _strlcpy (package->version, version, sizeof(package->version));
@@ -2264,11 +2410,14 @@ void vcpkg_init (void)
   {
     dump_ports_list();
     dump_installed_packages();
+    dump_packages_cache();
   }
 }
 
 /**
  * Return the number of `CONTROL` nodes.
+ *
+ * I.e. Number of packages with a `<VCPKG_ROOT>\\ports\\x\\CONTROL` file.
  */
 unsigned vcpkg_get_num_CONTROLS (void)
 {
@@ -2284,6 +2433,8 @@ unsigned vcpkg_get_num_CONTROLS (void)
 
 /**
  * Return the number of `JSON` nodes.
+ *
+ * I.e. Number of packages with a `<VCPKG_ROOT>\\ports\\x\\vcpkg.json` file.
  */
 unsigned vcpkg_get_num_JSON (void)
 {
@@ -2299,7 +2450,8 @@ unsigned vcpkg_get_num_JSON (void)
 
 /**
  * Return the number of `portfile.cmake` nodes.
- * \note Currently not used.
+ *
+ * I.e. Number of packages with a `<VCPKG_ROOT>\\ports\\x\\portfile.cmake` file.
  */
 unsigned vcpkg_get_num_portfile (void)
 {
@@ -2396,7 +2548,7 @@ static const char *get_installed_dir (const vcpkg_package *package)
   else
     snprintf (dir, sizeof(dir), "%s\\installed", vcpkg_root);
 
-  if (!is_directory(dir))
+  if (!is_directory_readable(dir))
   {
     snprintf (last_err_str, sizeof(last_err_str), "No status directory '%s'", dir);
     return (NULL);
@@ -2426,7 +2578,7 @@ static const char *get_packages_dir (const vcpkg_package *package)
 
   TRACE (2, "architecture: '%s', dir: '%s'\n", package->arch, dir);
 
-  if (!is_directory(dir))
+  if (!is_directory_readable(dir))
   {
     snprintf (last_err_str, sizeof(last_err_str), "No such directory '%s'", dir);
     return (NULL);
@@ -2494,7 +2646,7 @@ static void print_package_brief (const vcpkg_package *package, FMT_buf *fmt_buf,
  * Parser for a single `*.list` file for a specific package.
  *
  * Extract lines looking like these:
- * \code
+ * ```
  *  x86-windows-static/include/
  *  x86-windows-static/include/zconf.h
  *  x86-windows-static/include/zlib.h
@@ -2502,7 +2654,7 @@ static void print_package_brief (const vcpkg_package *package, FMT_buf *fmt_buf,
  *  x86-windows-static/lib/pkgconfig/
  *  x86-windows-static/lib/pkgconfig/zlib.pc
  *  x86-windows-static/lib/zlib.lib
- * \endcode
+ * ```
  *
  * Add wanted `char *` elements to this smartlist as we parse the file.
  */
@@ -2545,26 +2697,102 @@ static void info_parse (smartlist_t *sl, char *buf)
  */
 static BOOL get_installed_info (vcpkg_package *package)
 {
+  if (package->no_list_file)    /* We've already tried this */
+     return (FALSE);
+
   if (!package->install_info)
   {
-    char file [_MAX_PATH];
-
-    snprintf (file, sizeof(file), "%s\\installed\\vcpkg\\info\\%s_%s_%s.list",
-              vcpkg_root, package->package, package->version, package->arch);
-
-    if (!FILE_EXISTS(file))
-    {
-      TRACE (2, "Package '%s' is not installed; no '%s'.\n", package->package, file);
-      return (FALSE);
-    }
-
     wanted_arch = package->arch;
-    TRACE (1, "Getting package information from '%s' (arch: %s).\n", file, wanted_arch);
+    package->install_info = smartlist_read_file ((smartlist_parse_func)info_parse,
+                                                 "%s\\installed\\vcpkg\\info\\%s_%s_%s.list",
+                                                 vcpkg_root, package->package, package->version, package->arch);
 
-    package->install_info = smartlist_read_file (file, (smartlist_parse_func)info_parse);
+    if (!package->install_info || smartlist_len(package->install_info) == 0)
+       package->no_list_file = TRUE;
+
     make_package_platform (package, package->arch, 0, TRUE);
   }
-  return (package->install_info && smartlist_len(package->install_info) > 0);
+  return (package->install_info && !package->no_list_file);
+}
+
+/**
+ * Get the VCPKG archive directory once.
+ *
+ * zip-based archives will be cached at the first valid location of:
+ *  ```
+ *   %VCPKG_DEFAULT_BINARY_CACHE%
+ *   %LOCALAPPDATA%\vcpkg\archives
+ *   %APPDATA%\vcpkg\archives
+ *  ```
+ *
+ * Like:
+ *  ```
+ *  c:\Users\XX\AppData\Local\vcpkg\archives
+ *  ```
+ *
+ * Ref:
+ *   https://github.com/microsoft/vcpkg/blob/master/docs/users/binarycaching.md
+ */
+typedef struct _Locations {
+        const char *env;
+        const char *subdir;
+      } Locations;
+
+static const Locations locations[] = {
+          { "VCPKG_DEFAULT_BINARY_CACHE", "" },
+          { "LOCALAPPDATA", "\\vcpkg\\archives" },
+          { "APPDATA",      "\\vcpkg\archives" }
+        };
+
+static char *get_cache_dir (void)
+{
+  static char *cache_dir = NULL;
+  static BOOL  done_this = FALSE;
+  int    i;
+
+  if (done_this)
+     return (cache_dir);
+
+  done_this = TRUE;
+  for (i = 0; i < DIM(locations); i++)
+  {
+    const char *env = getenv (locations[i].env);
+    char  dir [_MAX_PATH];
+
+    snprintf (dir, sizeof(dir), "%s%s", env, locations[i].subdir);
+    if (is_directory_readable(dir))
+    {
+      cache_dir = STRDUP (dir);
+      TRACE (2, "cache_dir: '%s'\n", cache_dir);
+      break;
+    }
+  }
+  return (cache_dir);
+}
+
+/**
+ * Get the cache .zip filename for a package.
+ *
+ * VCPKG stores this in a .zip-file like:
+ *  ```
+ *  c:\Users\XX\AppData\Local\vcpkg\archives\YY\<ABI-signature>.zip
+ *  ```
+ *
+ * Where:
+ *   \li - `XX` is the user-name.
+ *   \li - `YY` is the first 2 digits of the SHA signature.
+ */
+static const char *get_cache_zip (const vcpkg_package *package)
+{
+  static char zip_file [_MAX_PATH];
+
+  if (strlen(package->ABI) < 2)
+     return (NULL);
+
+  snprintf (zip_file, sizeof(zip_file), "%s\\%c%c\\%s.zip",
+            get_cache_dir(), package->ABI[0], package->ABI[1], package->ABI);
+  TRACE (2, "zip_file '%s'.\n", zip_file);
+  return (zip_file);
 }
 
 /**
@@ -2695,6 +2923,7 @@ static void free_ports_list (void)
 void vcpkg_exit (void)
 {
   vcpkg_package *package;
+  char *cache_dir;
   int   i, max;
 
   if (opt.use_cache && vcpkg_root)
@@ -2726,6 +2955,8 @@ void vcpkg_exit (void)
   free_ports_list();
   regex_free();
 
+  cache_dir = get_cache_dir();
+  FREE (cache_dir);
   FREE (vcpkg_exe);
   FREE (vcpkg_root);
 }
