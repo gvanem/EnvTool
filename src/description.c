@@ -251,17 +251,14 @@ static const char *lookup_file_descr (const smartlist_t *sl, const char *file_di
 static const char *all_descr_new (const char *dir, const char *file_dir)
 {
   struct descr_dir *dd;
-  char   descript_ion [_MAX_PATH];
-
-  snprintf (descript_ion, sizeof(descript_ion), "%s\\%s", dir, descr_name);
 
   curr_dir = dir;
   dd = CALLOC (1, sizeof(*dd));
-  dd->descr = smartlist_read_file (descript_ion, descr_parse);
+  dd->descr = smartlist_read_file (descr_parse, "%s\\%s", dir, descr_name);
   _strlcpy (dd->dir, dir, sizeof(dd->dir));
 
   if (dd->descr)
-       TRACE (2, "Parser found %d descriptions in '%s'.\n", smartlist_len(dd->descr), descript_ion);
+       TRACE (2, "Parser found %d descriptions for '%s'.\n", smartlist_len(dd->descr), dir);
   else TRACE (2, "Parser found no descriptions for files in '%s\\'.\n", dir);
 
   smartlist_add (all_descr, dd);

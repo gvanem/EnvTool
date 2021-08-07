@@ -69,7 +69,7 @@ static int common_init (const char *fname, smartlist_parse_func parser, login_so
 
   ASSERT (login_list[src] == NULL);
 
-  sl = file ? smartlist_read_file (file, parser) : NULL;
+  sl = file ? smartlist_read_file (parser, file) : NULL;
   FREE (file);
 
   if (!sl)

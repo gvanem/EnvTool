@@ -339,11 +339,18 @@ int smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, smartlist
  * Lines starting with `#` or `;` are assumed to be comment lines
  * and ignored in the returned list.
  */
-smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
+smartlist_t *smartlist_read_file (smartlist_parse_func parse, const char *file_fmt, ...)
 {
   smartlist_t *sl;
-  FILE *f = fopen (file, "r");
+  char         file [_MAX_PATH];
+  FILE        *f;
+  va_list      args;
 
+  va_start (args, file_fmt);
+  vsnprintf (file, sizeof(file), file_fmt, args);
+  va_end (args);
+
+  f = fopen (file, "r");
   if (!f)
      return (NULL);
 
@@ -369,13 +376,19 @@ smartlist_t *smartlist_read_file (const char *file, smartlist_parse_func parse)
  * Lines are assumed to not contain newlines at the end.
  * Not used.
  */
-int smartlist_write_file (smartlist_t *sl, const char *file)
+int smartlist_write_file (smartlist_t *sl, const char *file_fmt, ...)
 {
-  FILE *f;
-  int   i, max;
+  FILE   *f;
+  int     i, max;
+  char    file [_MAX_PATH];
+  va_list args;
 
   ASSERT (sl);
   ASSERT_VAL (sl);
+
+  va_start (args, file_fmt);
+  vsnprintf (file, sizeof(file), file_fmt, args);
+  va_end (args);
 
   f = fopen (file, "w+t");
   if (!f)

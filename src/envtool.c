@@ -4089,7 +4089,6 @@ static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
 {
   smartlist_t *dir_list;
   char        *bin_dir;
-  char         bcc_cfg [_MAX_PATH];
 
   bcc_root = strlwr (STRDUP(cc->full_name));
   bin_dir = strrchr (bcc_root, '\\');
@@ -4102,15 +4101,13 @@ static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
 
   TRACE (2, "bcc_root: %s, short_name: %s\n", bcc_root, cc->short_name);
 
-  /* Get the `bcc*.cfg` filename:
-   * <bcc_root>\bccX.exe -> <bcc_root>\bccX.cfg
+  /* The `bcc*.cfg` filename:
+   *   <bcc_root>\bccX.exe -> <bcc_root>\bccX.cfg
    */
-  snprintf (bcc_cfg, sizeof(bcc_cfg), "%s\\bin\\%.*s.cfg",
-            bcc_root, strrchr(cc->short_name, '.') - cc->short_name, cc->short_name);
-
-  TRACE (2, "bcc_cfg: %s.\n", bcc_cfg);
-
-  dir_list = smartlist_read_file (bcc_cfg, (smartlist_parse_func)parser);
+  dir_list = smartlist_read_file ((smartlist_parse_func)parser,
+                                  "%s\\bin\\%.*s.cfg",
+                                  bcc_root, strrchr(cc->short_name, '.') - cc->short_name,
+                                  cc->short_name);
   if (!dir_list)
   {
     FREE (bcc_root);

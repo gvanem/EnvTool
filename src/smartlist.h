@@ -47,10 +47,8 @@ int      smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
 void    *smartlist_bsearch (const smartlist_t *sl, const void *key,
                             smartlist_compare_func compare);
 
-smartlist_t *smartlist_read_file (const char *file,
-                                  smartlist_parse_func parse);
-
-int smartlist_write_file (smartlist_t *sl, const char *file);
+smartlist_t *smartlist_read_file (smartlist_parse_func parse, const char *file_fmt, ...);
+int          smartlist_write_file (smartlist_t *sl, const char *file_fmt, ...);
 
 smartlist_t *smartlist_split_str (const char *val, const char *sep);
 char        *smartlist_join_str (smartlist_t *sl, const char *sep);
