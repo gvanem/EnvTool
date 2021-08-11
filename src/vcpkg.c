@@ -58,7 +58,7 @@
 #define CONTROL_VERSION            "Version:"
 
 /**
- * `<vcpkg_root>/installed/status` file keywords we look for:
+ * `<vcpkg_root>/installed/vcpkg/status` file keywords we look for:
  *
  * \def STATUS_ABI
  *      "Abi:" Some kind of hash value (SHA1, SHA256 or SHA512?) for the installed package.
@@ -66,8 +66,11 @@
  * \def STATUS_ARCH
  *      "Architecture:" the architecture (x86/x64/arm etc.) for this package.
  *
+ * \def STATUS_FEATURE
+ *      "Feature:" - What extra feature are there for this package?
+ *
  * \def STATUS_DEFAULT_FEATURES
- *      "Default-Features:" - What features are there for this package?
+ *      "Default-Features:" - What default features are there for this package?
  *
  * \def STATUS_DEPENDS
  *      "Depends:" the list of installed dependencies for this package.
@@ -83,6 +86,7 @@
  */
 #define STATUS_ABI               "Abi:"
 #define STATUS_ARCH              "Architecture:"
+#define STATUS_FEATURE           "Feature:"
 #define STATUS_DEFAULT_FEATURES  "Default-Features:"
 #define STATUS_DEPENDS           "Depends:"
 #define STATUS_PACKAGE           "Package:"
@@ -283,7 +287,7 @@ static void *find_or_alloc_package_dependency (const vcpkg_package *package);
 static int   print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int indent);
 static int   print_sub_dependencies (FMT_buf *fmt_buf, const port_node *node, int indent, smartlist_t *sub_package_list);
 static BOOL  print_install_info     (FMT_buf *fmt_buf, const char *package, int indent1);
-static int   json_parse_file (port_node *node, const char *file);
+static int   json_parse_ports_file (port_node *node, const char *file);
 
 /**
  * regex stuff
@@ -975,7 +979,7 @@ static void build_dir_list (smartlist_t *dir_list, const char *dir, BOOL check_C
   {
     if (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY)
     {
-      const char *d = de->d_name + ofs;
+      const char *rel_dir = de->d_name + ofs;
       char  CONTROL_file [_MAX_PATH];
 
       /* Check for a `CONTROL` file in this directory?
@@ -989,8 +993,8 @@ static void build_dir_list (smartlist_t *dir_list, const char *dir, BOOL check_C
           continue;
         }
       }
-      TRACE (2, "Adding '%s'\n", d);
-      smartlist_add_strdup (dir_list, d);
+      TRACE (2, "Adding '%s'\n", rel_dir);
+      smartlist_add_strdup (dir_list, rel_dir);
     }
   }
   closedir2 (dp);
@@ -1042,7 +1046,7 @@ static void get_port_info_from_disk (const char *port_dir, int ports_index)
 
     _strlcpy (node->package, package_name, sizeof(node->package));
 
-    if (!json_parse_file(node, JSON_file))
+    if (!json_parse_ports_file(node, JSON_file))
        TRACE (1, "parse_JSON_file (\"%s\") failed.\n", JSON_file);
     smartlist_add (ports_list, node);
   }
@@ -1086,7 +1090,7 @@ static int get_ports_list_from_cache (void)
             rc, vcpkg_root, package, package, have_CONTROL, have_JSON, version, homepage, description);
 
     if (rc != 6)
-      break;
+       break;
 
     node = CALLOC (sizeof(*node), 1);
     node->have_CONTROL = have_CONTROL;
@@ -1328,16 +1332,6 @@ static void print_installed_package_info (vcpkg_package *package, const char *in
 }
 
 /**
- * Print information for a not installed package in `installed_packages`.
- * Normally a package with "Status: purge ok not-installed".
- */
-static void print_installed_package_purge_info (const vcpkg_package *package, const char *indent)
-{
-  C_printf ("%s~6installed:    NO~0\n", indent);
-  C_printf ("%s~6status:       %s~0\n\n", indent, package->status);
-}
-
-/**
  * Dump the parsed or cached information from `ports_list`.
  */
 static void dump_ports_list (void)
@@ -1356,7 +1350,6 @@ static void dump_ports_list (void)
     const port_node *node = smartlist_get (ports_list, i);
     const char      *version = node->version;
     vcpkg_package   *package;
-    int              zero = 0;
 
     if (!node->have_CONTROL && !node->have_JSON)
        continue;
@@ -1378,17 +1371,15 @@ static void dump_ports_list (void)
     /* \todo: iterate to find all installed packages matching these architectures:
      *        'x86-windows', 'x86-windows-static', 'x64-windows', 'x64-windows-static',
      */
-    package = find_installed_package (&zero, node->package, NULL);
+    package = find_installed_package (NULL, node->package, NULL);
     if (!package)
+       C_printf ("%s~6installed:    NO~0\n\n", indent);
+    else
     {
-      C_printf ("%s~6installed:    NO~0\n\n", indent);
-      continue;
-    }
-    num_installed++;
-
-    if (package->install_info)
+      num_installed++;
+      if (package->install_info)
          print_installed_package_info (package, indent);
-    else print_installed_package_purge_info (package, indent);
+    }
   }
   C_printf ("num_available: %4d\n"
             "num_installed: %4d\n\n", num_available, num_installed);
@@ -1401,7 +1392,7 @@ static void dump_installed_packages (void)
 {
   int i, i_max = smartlist_len (installed_packages);
 
-  C_printf ("%s\n%d packages in 'installed_packages' (disregarding different architectures):\n"
+  C_printf ("%s\n%d packages in 'installed_packages':\n"
             "Package                Version            Architecture        "
             "install_info   link       Platforms             Features\n",
             str_repeat('=', 120), i_max);
@@ -1473,7 +1464,7 @@ static void get_cache_all_zips (const char *dir, smartlist_t *dirlist)
     }
     else if (str_endswith(de->d_name, ".zip"))
     {
-      smartlist_add (dirlist, STRDUP(de->d_name));
+      smartlist_add_strdup (dirlist, de->d_name);
     }
     FREE (de);
   }
@@ -1540,11 +1531,12 @@ static void dump_packages_cache (void)
     }
     C_printf ("%-18.18s %-15.15s %c %s\n", package->package, size, note, zip);
   }
-
-  C_printf ("\n! = No archive for package.\n\n%s\nOrphaned archives:\n",
-            str_repeat('=', 120));
+  C_printf ("\n! = No .zip cache for package.\n\n");
 
   j_max = smartlist_len (all_zips);
+  if (j_max > 0)
+     C_printf ("%s\nOrphaned archives:\n", str_repeat('=', 120));
+
   for (j = 0; j < j_max; j++)
   {
     struct stat st;
@@ -1555,7 +1547,10 @@ static void dump_packages_cache (void)
     if (safe_stat(zip, &st, NULL) == 0)
        f_size += get_file_alloc_size (zip, st.st_size);
   }
-  C_printf ("\nTotal size: %s (%s bytes)\n%s\n", str_trim((char*)get_file_size_str(f_size)), str_qword(f_size), str_repeat('=', 120));
+
+  if (j_max > 0)
+     C_printf ("\nTotal size: %s (%s bytes)\n%s\n", str_trim((char*)get_file_size_str(f_size)), str_qword(f_size), str_repeat('=', 120));
+
   smartlist_free_all (all_zips);
 }
 
@@ -1696,12 +1691,12 @@ static BOOL get_base_exe (const char *exe)
  * Caller must ensure this function does not parse beyond the allocated
  * file-buffer.
  */
-static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p)
+static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p, BOOL *end_of_record)
 {
-  char *next, *eol, *line;
+  char *next;
+  char *line = *line_p;
+  char *eol  = strchr (line, '\n');
 
-  line = *line_p;
-  eol = strchr (line, '\n');
   if (eol)
      *eol = '\0';
   else
@@ -1709,45 +1704,69 @@ static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p)
     eol = strchr (line, '\r');
     if (eol)
         *eol = '\0';
-    else eol = strchr (line, '\0'); /* could be the last line in file w/o EOF */
+    else eol = strchr (line, '\0'); /* could be the last line in file w/o a newline */
   }
-  *line_p = eol + 1;
 
-  TRACE (2, "line: '%.50s'.\n", line);
+  *line_p = ++eol;
+
+  if (*eol == '\r' || *eol == '\n')  /* records are separated with newlines */
+       *end_of_record = TRUE;
+  else *end_of_record = FALSE;
+
+  TRACE (0, "line: '%.50s'. end-of-record: %d\n", line, *end_of_record);
+
+  if (str_match(line, STATUS_STATUS, &next))
+  {
+    _strlcpy (package->status, next, sizeof(package->status));
+    return (1);
+  }
 
   if (str_match(line, STATUS_PACKAGE, &next))
   {
     _strlcpy (package->package, next, sizeof(package->package));
     return (1);
   }
+
   if (str_match(line, STATUS_ARCH, &next))
   {
     _strlcpy (package->arch, next, sizeof(package->arch));
     return (1);
   }
+
   if (str_match(line, STATUS_ABI, &next))
   {
     _strlcpy (package->ABI, next, sizeof(package->ABI));
     return (1);
   }
+
   if (str_match(line, STATUS_VERSION, &next))
   {
     _strlcpy (package->version, next, sizeof(package->version));
     str_replace2 ('~', "~~", package->version, sizeof(package->version));
     return (1);
   }
+
   if (str_match(line, STATUS_DEPENDS, &next))
   {
     ASSERT (package->depends == NULL);
     package->depends = smartlist_split_str (next, ", ");
     return (1);
   }
+
+  if (str_match(line, STATUS_FEATURE, &next))
+  {
+    ASSERT (package->features == NULL);
+    package->features = smartlist_split_str (next, ", ");
+    return (1);
+  }
+
   if (str_match(line, STATUS_DEFAULT_FEATURES, &next))
   {
     ASSERT (package->features == NULL);
     package->features = smartlist_split_str (next, ", ");
     return (1);
   }
+
   return (0);
 }
 
@@ -1780,6 +1799,17 @@ static int compare_port_node (const void **_a, const void **_b)
 }
 
 /**
+ * Compare 2 `char *` from a `package->features` on name.
+ */
+static int compare_str (const void **_a, const void **_b)
+{
+  const char *a = *_a;
+  const char *b = *_b;
+
+  return stricmp (a, b);
+}
+
+/**
  * Free memory for a single `package *` structure.
  */
 static void free_package (vcpkg_package *package, BOOL free_package)
@@ -1792,47 +1822,55 @@ static void free_package (vcpkg_package *package, BOOL free_package)
      FREE (package);
 }
 
-/**
- * Compare the package features of 2 packages given by `features1 *` and `features2 *`.
- */
-static BOOL equal_features (smartlist_t *features1, smartlist_t *features2)
+#if !defined(_CRTDBG_MAP_ALLOC)
+static void free_feature (void *p)
 {
-  char *feature1, *feature2;
-  BOOL  rc;
+  free_at (p, __FILE__, __LINE__);
+}
+#endif
 
-  if (!features1 && !features2)
-     return (TRUE);
+/**
+ * Merge package features of 2 packages given by `sl1 *` and `sl2 *`
+ * into a unique smartlist at `sl1*`.
+ */
+static smartlist_t *add_or_merge_features (smartlist_t *sl1, smartlist_t *sl2)
+{
+  if (!sl1)
+     return (sl2);
 
-  if (!((BOOL)features1 ^ (BOOL)features2))
-     return (FALSE);
+  if (sl2)
+  {
+    smartlist_append (sl1, sl2);
+ // smartlist_free_all (sl2);
+  }
 
-  feature1 = smartlist_join_str (features1, ",");
-  feature2 = smartlist_join_str (features2, ",");
-  rc = (strcmp (feature1, feature2) == 0);
-  FREE (features1);
-  FREE (features2);
-  return (rc);
+  smartlist_sort (sl1, compare_str);
+
+#if defined(_CRTDBG_MAP_ALLOC)
+  smartlist_make_uniq (sl1, compare_str, free);
+#else
+  smartlist_make_uniq (sl1, compare_str, free_feature);
+#endif
+
+  return (sl1);
 }
 
 /**
- * Check for any duplicates before adding another package to `installed_packages`.
- * We ignore all with the same name and older versions.
+ * Cherck if we should add this package or modify an existing package
+ * with some elements of this package.
+ *
+ * We ignore all without a "install ok installed" status or a
+ * missing architecture.
  */
-static BOOL add_this_package (vcpkg_package *package, char **why_not)
+static BOOL add_or_modify_this_package (vcpkg_package *package, vcpkg_package **modify, char **why_not)
 {
-  int i, max;
-
   *why_not = "-";
+  *modify = NULL;
 
-  if (package->status[0] && !str_startswith(package->status, "install ok"))
+  if (stricmp(package->status, "install ok installed"))
   {
-    *why_not = "wrong status";
-    return (FALSE);
-  }
-
-  if (!package->version[0] || package->version[0] == '?')
-  {
-    *why_not = "missing version";
+    *why_not = "not installed";
+    TRACE (0, "package->status: '%s'\n", package->status);
     return (FALSE);
   }
 
@@ -1842,41 +1880,13 @@ static BOOL add_this_package (vcpkg_package *package, char **why_not)
     return (FALSE);
   }
 
-  if (!get_installed_info(package))
-  {
-    *why_not = "missing info .list files (1)";
-    return (FALSE);
-  }
-
-#if 0
-  if (!get_packages_dir(package))
-  {
-    *why_not = "missing package dir";
-    return (FALSE);
-  }
-#endif
-
-  max = smartlist_len (installed_packages);
-  for (i = 0; i < max; i++)
-  {
-    vcpkg_package *This = smartlist_get (installed_packages, i);
-
-    if (strcmp(This->package, package->package))                    /* different package name */
-       continue;
-    if (strcmp(This->arch, package->arch))                          /* different architecture */
-       continue;
-    if (!equal_features(This->features, package->features))         /* different features */
-       continue;
-    if (strcmp(This->version, package->version))                    /* different version */
-    {
-      TRACE (1, "This->version: '%s', package->version: %s'\n", This->version, package->version);
-      break;
-    }
-  }
+  *modify = find_installed_package (NULL, package->package, package->arch);
+  if (*modify)
+     package = *modify;
 
   if (!get_installed_info(package))
   {
-    *why_not = "missing info .list files (2)";
+    *why_not = "missing info .list files";
     return (FALSE);
   }
   return (TRUE);
@@ -1892,12 +1902,13 @@ static BOOL add_this_package (vcpkg_package *package, char **why_not)
  */
 static int vcpkg_parse_status_file (void)
 {
-  vcpkg_package package, *package2;
+  vcpkg_package package;
   char          file [_MAX_PATH];
   char         *f_end, *f_ptr, *f_status_mem, *why_not;
   size_t        f_size;
-  int           num_parsed = 0;  /* number of parsed lines in current record */
-  int           num_total = 0;   /* number of total packages parsed */
+  int           num_parsed = 0;    /* number of parsed lines in current record */
+  int           num_records = 0;   /* total number of records parsed */
+  BOOL          EOR;
 
   snprintf (file, sizeof(file), "%s\\installed\\vcpkg\\status", vcpkg_root);
 
@@ -1914,17 +1925,16 @@ static int vcpkg_parse_status_file (void)
 
   for (f_ptr = f_status_mem; f_ptr <= f_end; )
   {
-    num_parsed += vcpkg_parse_status_line (&package, &f_ptr);
+    vcpkg_package *package_modify, *package_new;
 
-    if (*f_ptr != '\r' && *f_ptr != '\n')
+    num_parsed += vcpkg_parse_status_line (&package, &f_ptr, &EOR);
+    if (!EOR)
        continue;
 
-    /* An record ends with an empty line
-     */
     f_ptr++;
-    num_total++;
-    TRACE (2, "reached EOR for package '%s'. num_parsed: %d, num_total: %d\n",
-            package.package, num_parsed, num_total);
+    num_records++;
+    TRACE (0, "reached EOR for package '%s'. num_parsed: %d, num_records: %d\n",
+           package.package, num_parsed, num_records);
 
     if (str_endswith(package.arch, "-static"))
     {
@@ -1932,18 +1942,29 @@ static int vcpkg_parse_status_file (void)
       // !! todo clear any 'VCPKG_plat_STATIC' values in 'platform->platforms[]' list
     }
 
-    if (add_this_package(&package, &why_not))
+    if (add_or_modify_this_package(&package, &package_modify, &why_not))
     {
-      TRACE (1, "Adding package: '%s', arch: '%s'\n", package.package, package.arch);
-      package2 = MALLOC (sizeof(*package2));
-      memcpy (package2, &package, sizeof(*package2));
-      package2->installed = TRUE;
-      smartlist_add (installed_packages, package2);
+      if (package_modify)
+      {
+        TRACE (0, "Modifying package: '%s', arch: '%s'\n\n", package_modify->package, package_modify->arch);
+        package_modify->installed = TRUE;
+#if 1
+        package_modify->features = add_or_merge_features (package_modify->features, package.features);
+#endif
+      }
+      else
+      {
+        TRACE (0, "Adding package: '%s', arch: '%s', version: '%s'\n\n", package.package, package.arch, package.version);
+        package_new = MALLOC (sizeof(*package_new));
+        memcpy (package_new, &package, sizeof(*package_new));
+        package_new->installed = TRUE;
+        smartlist_add (installed_packages, package_new);
+      }
     }
     else
     {
-      TRACE (1, "Ignoring package: '%s': %s"
-                "\n                                 (arch: '%s', ver: '%s')\n",
+      TRACE (0, "Ignoring package: '%s': %s\n"
+                "                                 (arch: '%s', ver: '%s')\n\n",
              package.package, why_not, package.arch, package.version);
       free_package (&package, FALSE);
       vcpkg_clear_error();
@@ -2031,10 +2052,9 @@ static void put_available_packages_to_cache (void)
     const vcpkg_package *package = smartlist_get (available_packages, i);
     const vcpkg_package *inst_package;
     char *dependencies;
-    int   zero = 0;
     int   installed = 1;
 
-    inst_package = find_installed_package (&zero, package->package, NULL);
+    inst_package = find_installed_package (NULL, package->package, NULL);
     if (inst_package && !strnicmp(inst_package->status, "purge", 5))
        installed = 0;
 
@@ -2660,11 +2680,12 @@ static void print_package_brief (const vcpkg_package *package, FMT_buf *fmt_buf,
  */
 static const char *wanted_arch;
 
-static void info_parse (smartlist_t *sl, char *buf)
+static void info_parse (smartlist_t *sl, const char *buf)
 {
-  char *q, *p = buf;
+  char *q; // , *p = buf;
+  char *p  = strdupa (buf);
 
-  str_strip_nl (buf);
+  str_strip_nl (p);
   q = strchr (p, '\0') - 1;
 
   if (!str_startswith(buf, wanted_arch) ||  /* Does not match "x86-windows-static" */
@@ -2703,7 +2724,7 @@ static BOOL get_installed_info (vcpkg_package *package)
   if (!package->install_info)
   {
     wanted_arch = package->arch;
-    package->install_info = smartlist_read_file ((smartlist_parse_func)info_parse,
+    package->install_info = smartlist_read_file ( /* (smartlist_parse_func) */ info_parse,
                                                  "%s\\installed\\vcpkg\\info\\%s_%s_%s.list",
                                                  vcpkg_root, package->package, package->version, package->arch);
 
@@ -3053,6 +3074,7 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
 
     if (opt.show_size)
        BUF_PRINTF (fmt_buf, " %s", get_package_files_size(package, NULL));
+
     BUF_PUTC (fmt_buf, '\n');
 
     dir = get_installed_dir (package);
@@ -3107,7 +3129,11 @@ static void *find_installed_package (int *index_p, const char *pkg_name, const c
   vcpkg_package *package;
   int   i, max = smartlist_len (installed_packages);
 
-  for (i = *index_p; i < max; i++)
+  if (index_p)
+       i = *index_p;
+  else i = 0;
+
+  for ( ; i < max; i++)
   {
     package = smartlist_get (installed_packages, i);
     if (!strcmp(package->package, pkg_name))
@@ -3118,7 +3144,8 @@ static void *find_installed_package (int *index_p, const char *pkg_name, const c
       TRACE (2, "i: %2d, found matching installed package: %s, arch: %s\n",
              i, package->package, package->arch);
 
-      *index_p = i + 1;
+      if (index_p)
+         *index_p = i + 1;
       return (package);
     }
   }
@@ -3291,10 +3318,11 @@ static void json_add_description (port_node *node, char *buf, const JSON_tok_t *
 
       str = buf + token2->start;
       len = token2->end - token2->start;  /* do not use +1 since the string should be quoted */
+      str = str_ndup (str, len);
 
-      smartlist_add (merger, str_ndup(str, len));
-      str_replace2 ('~', "~~", str, sizeof(node->description));
-      TRACE (2, "  descr[%d]: '%.*s'\n", i, len, str);
+      smartlist_add (merger, str);
+      str_replace2 ('~', "~~", str, len);
+      TRACE (2, "  descr[%d]: '%s'\n", i, str);
     }
     node->description = smartlist_join_str (merger, NULL);
     smartlist_free_all (merger);
@@ -3304,7 +3332,7 @@ static void json_add_description (port_node *node, char *buf, const JSON_tok_t *
     str = buf + token->start;
     len = token->end - token->start;
     node->description = str_unquote (str_ndup(str, len));
-    str_replace2 ('~', "~~", node->description, sizeof(node->description));
+    str_replace2 ('~', "~~", node->description, len);
   }
   TRACE (1, "description: '%s'\n", node->description);
 }
@@ -3379,7 +3407,7 @@ static BOOL json_make_supports (port_node *node, const char *buf, int i, BOOL re
  *
  * \note This function can be called recursively.
  */
-static int json_parse_buf (port_node *node, const char *file, char *buf, size_t buf_len)
+static int json_parse_ports_buf (port_node *node, const char *file, char *buf, size_t buf_len)
 {
   JSON_parser p;
   JSON_tok_t  t [200];   /* We expect no more tokens than this per OBJECT */
@@ -3507,7 +3535,12 @@ static int json_parse_buf (port_node *node, const char *file, char *buf, size_t 
   return (rc);
 }
 
-static int json_parse_file (port_node *node, const char *file)
+static int json_parse_status_buf (smartlist_t *packages, const char *file, char *buf, size_t buf_len)
+{
+  return (0);
+}
+
+static int json_parse_status_file (smartlist_t *packages, const char *file)
 {
   char  *f_mem;
   size_t f_size;
@@ -3516,13 +3549,28 @@ static int json_parse_file (port_node *node, const char *file)
   f_mem = fopen_mem (file, &f_size);
   if (f_mem)
   {
-    r = json_parse_buf (node, file, f_mem, f_size);
+    r = json_parse_status_buf (packages, file, f_mem, f_size);
     FREE (f_mem);
   }
   return (r);
 }
 
-static void json_node_dump (const port_node *node)
+static int json_parse_ports_file (port_node *node, const char *file)
+{
+  char  *f_mem;
+  size_t f_size;
+  int    r = 0;
+
+  f_mem = fopen_mem (file, &f_size);
+  if (f_mem)
+  {
+    r = json_parse_ports_buf (node, file, f_mem, f_size);
+    FREE (f_mem);
+  }
+  return (r);
+}
+
+static void json_port_node_dump (const port_node *node)
 {
   int i, len, len0, save, width, max;
 
@@ -3606,10 +3654,16 @@ int test_vcpkg_json_parser (void)
   node.depends = smartlist_new();
   node.features = smartlist_new();
   node.supports = smartlist_new();
-  smartlist_addu (node.supports, VCPKG_plat_ALL);
 
-  json_parse_file (&node, "test.json");
-  json_node_dump (&node);
+#if 0
+  system ("vcpkg.exe list --x-json --x-full-desc > vcpkg-list.json");
+  json_parse_status_file (available_packages, "vcpkg-list.json");
+
+#else
+  smartlist_addu (node.supports, VCPKG_plat_ALL);
+  json_parse_ports_file (&node, "test.json");
+  json_port_node_dump (&node);
+#endif
 
   smartlist_free_all (node.depends);
   FREE (node.description);
