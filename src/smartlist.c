@@ -407,7 +407,7 @@ int smartlist_write_file (smartlist_t *sl, const char *file_fmt, ...)
 /**
  * Append each element from `sl2` to the end of `sl1`.
  */
-void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
+size_t smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
 {
   size_t new_size;
 
@@ -418,15 +418,17 @@ void smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
   ASSERT_VAL (sl2);
 
   if (sl2->num_used == 0) /* `sl2` is empty */
-     return;
+     return (0);
 
   new_size = (size_t)sl1->num_used + (size_t)sl2->num_used;
   ASSERT (new_size >= (size_t)sl1->num_used);    /* check for folding overflow. */
 
   if (!smartlist_ensure_capacity(sl1, new_size))
-     return;
-  memcpy (sl1->list + sl1->num_used, sl2->list, sl2->num_used*sizeof(void*));
+     return (0);
+
+  memcpy (sl1->list + sl1->num_used, sl2->list, sl2->num_used * sizeof(void*));
   sl1->num_used = (int) new_size;
+  return (size_t) sl1->num_used;
 }
 
 /**
@@ -504,7 +506,7 @@ static UserCmpFunc user_compare;
  * Sort the members of `sl` into an order defined by
  * the ordering function `compare`, which
  *
- *  - returns less then 0 if `a` precedes `b`.
+ *  - returns less than 0 if `a` precedes `b`.
  *  - greater than 0 if `b` precedes `a`.
  *  - and 0 if `a` equals `b`.
  *
@@ -668,18 +670,21 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
 /**
  * Assuming the members of `sl` are in order, return a pointer to the
  * member that matches `key`. Ordering and matching are defined by a
- * `compare` function that
+ * `compare` function that:
  *
  *  - returns 0 on a match.
  *  - less than 0 if `key` is less than member.
  *  - and greater than 0 if `key` is greater than member.
  */
 void *smartlist_bsearch (const smartlist_t *sl, const void *key,
-                         int (*compare)(const void *key, const void **member))
+                         smartlist_compare_func compare)
 {
-  int found, idx = smartlist_bsearch_idx (sl, key, compare, &found);
+  int found;
+  int idx = smartlist_bsearch_idx (sl, key, compare, &found);
 
-  return (found ? smartlist_get(sl, idx) : NULL);
+  if (!found)
+     return (NULL);
+  return smartlist_get(sl, idx);
 }
 
 /**
@@ -704,7 +709,7 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
  * will return a `sl` with 3 elements: \n
  *  \li `smartlist_get (sl, 0)` -> `"a"`.
  *  \li `smartlist_get (sl, 1)` -> `"b"`.
- *  \li `smartlist_get (sl, 2)` -> `"c"`. The space in `" c"` is ignored since sep == `" ,"`.
+ *  \li `smartlist_get (sl, 2)` -> `"c"`. The space in `" c"` is ignored since sep == `", "`.
  */
 smartlist_t *smartlist_split_str (const char *str, const char *sep)
 {

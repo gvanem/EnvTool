@@ -28,7 +28,7 @@ unsigned smartlist_addu (smartlist_t *sl, unsigned element);
 char    *smartlist_add_strdup (smartlist_t *sl, const char *str);
 void     smartlist_del (smartlist_t *sl, int idx);
 void     smartlist_del_keeporder (smartlist_t *sl, int idx);
-void     smartlist_append (smartlist_t *sl1, const smartlist_t *sl2);
+size_t   smartlist_append (smartlist_t *sl1, const smartlist_t *sl2);
 void     smartlist_insert (smartlist_t *sl, int idx, void *val);
 void     smartlist_swap (smartlist_t *sl, int idx1, int idx2);
 int      smartlist_pos (const smartlist_t *sl, const void *element);
