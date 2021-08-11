@@ -18,6 +18,8 @@ extern BOOL        vcpkg_set_only_installed (BOOL True);
 extern const char *vcpkg_last_error (void);
 extern void        vcpkg_clear_error (void);
 
+extern int test_vcpkg_json_parser (void);
+
 #endif
 
 

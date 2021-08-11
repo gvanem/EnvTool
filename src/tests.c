@@ -19,7 +19,6 @@
 #include "vcpkg.h"
 
 extern BOOL find_vstudio_init (void);
-extern int  test_vcpkg_json_parser (void);
 
 /**
  * Test non-Cygwin env-var splitting in split_env_var().
