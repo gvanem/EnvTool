@@ -2050,7 +2050,7 @@ static int do_check_evry (void)
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (!wnd)
   {
-    C_printf ("  Everything search engine not found.\n");
+    C_printf ("~5Everything search engine not found.~0\n");
     return (0);
   }
 
@@ -4847,6 +4847,18 @@ static void shadow_ignore_handler (const char *section, const char *key, const c
     cfg_ignore_handler (section, key, value);
 }
 
+#ifdef NOT_YET
+/*
+ * "colour.1 = bright yellow"   -> Map color "~1" to bright yellow on default background ( == 6 | FOREGROUND_INTENSITY)
+ * "colour.2 = bri red on blue" -> Map color "~2" to bright red on blue background ( == 4 | FOREGROUND_INTENSITY + 16*4)
+ */
+static void colour_handler (const char *key, const char *value)
+{
+  int key_idx = atoi (key);
+  C_init_colour (key_idx, value);
+}
+#endif
+
 /**
  * The config-file parser for key/value pairs *not* in any section
  * (at the start of the `%APPDATA%/envtool.cfg` file).
@@ -4873,6 +4885,14 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
     TRACE (2, "%s: Calling 'cfg_grep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
     cfg_grep_handler (key+5, value);
   }
+#ifdef NOT_YET
+  else if (!strnicmp(key, "colour.", 6))
+  {
+    TRACE (2, "%s: Calling 'colour_handler (\"%s\", \"%s\")'.\n", section, key+6, value);
+    colour_handler (key+6, value);
+  }
+#endif
+
 }
 
 /**
