@@ -410,9 +410,16 @@ static cache_node *cache_bsearch (CacheSections section, const char *key, int *i
   _strlcpy (c.key, key, sizeof(c.key));
 
   idx = smartlist_bsearch_idx (cache.entries, &c, compare_on_section_key2, &found);
-  ret = found ? smartlist_get (cache.entries, idx) : NULL;
-
-  found ? cache.hits++ : cache.misses++;
+  if (found)
+  {
+    ret = smartlist_get (cache.entries, idx);
+    cache.hits++;
+  }
+  else
+  {
+    ret = NULL;
+    cache.misses++;
+  }
   if (idx_p)
      *idx_p = idx;
   return (ret);
@@ -435,7 +442,7 @@ void cache_del (CacheSections section, const char *key)
   c = cache_bsearch (section, key, &idx);
   if (!c)
   {
-    TRACE (2, "entry with key: '%s' in section '%s' not found.\n", key, sections[section].name);
+    TRACE (2, "entry with key: '%s' in section '%s' was not found.\n", key, sections[section].name);
     return;
   }
 
