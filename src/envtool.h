@@ -138,10 +138,8 @@
    */
   #define CRTDBG_CHECK_OFF() \
           _CrtSetDbgFlag (~_CRTDBG_LEAK_CHECK_DF & _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG))
-#endif
-
-#ifndef CRTDBG_CHECK_OFF
-#define CRTDBG_CHECK_OFF()
+#else
+  #define CRTDBG_CHECK_OFF()  ((void)0)
 #endif
 
 /* Using "Visual Leak Detector" in _RELEASE mode is possible via the
