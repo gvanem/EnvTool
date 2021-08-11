@@ -67,8 +67,7 @@ typedef struct JSON_parser {
       } JSON_parser;
 
 void              JSON_init (JSON_parser *parser);
-int               JSON_parse (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, unsigned int num_tokens);
-int               JSON_parse_string (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, size_t num_tokens);
+int               JSON_parse (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, size_t num_tokens);
 int               JSON_parse_primitive (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, size_t num_tokens);
 size_t            JSON_get_total_size (const JSON_tok_t *token);
 int               JSON_str_eq (const JSON_tok_t *tok, const char *buf, const char *str);

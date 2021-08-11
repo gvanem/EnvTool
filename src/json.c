@@ -102,7 +102,7 @@ found:
 /**
  * Fills next token with JSON string.
  */
-int JSON_parse_string (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, size_t num_tokens)
+static int JSON_parse_string (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, size_t num_tokens)
 {
   JSON_tok_t *token;
   int         i, start = parser->pos;
@@ -114,7 +114,7 @@ int JSON_parse_string (JSON_parser *parser, const char *js, size_t len, JSON_tok
    */
   for ( ; parser->pos < len && js[parser->pos]; parser->pos++)
   {
-    c = js[parser->pos];
+    c = js [parser->pos];
 
     if (c == '\"')   /* Quote: end of string */
     {
@@ -181,12 +181,12 @@ int JSON_parse_string (JSON_parser *parser, const char *js, size_t len, JSON_tok
  * Run JSON parser. It parses a JSON data string into and array of tokens, each describing
  * a single JSON object.
  */
-int JSON_parse (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, unsigned int num_tokens)
+int JSON_parse (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tokens, size_t num_tokens)
 {
   JSON_tok_t *token;
   int         r, i, count = parser->tok_next;
 
-  for (; parser->pos < len && js[parser->pos]; parser->pos++)
+  for ( ; parser->pos < len && js[parser->pos]; parser->pos++)
   {
     JSON_type_t type;
     char c = js [parser->pos];
