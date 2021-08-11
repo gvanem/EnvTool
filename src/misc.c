@@ -1195,13 +1195,21 @@ DWORD reg_swap_long (DWORD val)
 
 /**
  * Removes end-of-line termination from a string.
+ *
+ * Works for "\r\n" or "\n" terminated strings only.
+ * (not MAC "\r" format).
  */
 char *str_strip_nl (char *str)
 {
   char *p;
 
-  if ((p = strrchr(str,'\n')) != NULL) *p = '\0';
-  if ((p = strrchr(str,'\r')) != NULL) *p = '\0';
+  p = strrchr (str, '\n');
+  if (p)
+     *p = '\0';
+
+  p = strrchr (str, '\r');
+  if (p)
+     *p = '\0';
   return (str);
 }
 
@@ -3091,7 +3099,10 @@ void free_at (void *ptr, const char *file, unsigned line)
   struct mem_head *head = (struct mem_head*)ptr;
 
   head--;
-  if (!ptr || head->marker == MEM_FREED)
+  if (!ptr)
+     FATAL ("free(NULL) called at %s, line %u\n", file, line);
+
+  if (head->marker == MEM_FREED)
      FATAL ("double free() of block detected at %s, line %u\n", file, line);
 
   if (head->marker != MEM_MARKER)
