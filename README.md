@@ -112,7 +112,7 @@ via the `fnmatch()` function.
 16 Feb 2011 - 12:14:28: f:\ProgramFiler\Python27\lib\site-packages\win32\lib\sspicon.py
 ```
 
-**E.g. 6**: The `--python` option will also look inside Python _EGG_s (plain ZIP-files) found
+**E.g. 6**: The `--python` option will also look inside Python *EGGs* (plain ZIP-files) found
 in `sys.path[]`. E.g.:
 `envtool.exe --python socket.py`:
 
