@@ -22,6 +22,7 @@ struct lua_dir {
      };
 
 /** A `smartlist_t` of 'struct lua_dir'
+ *
  */
 static smartlist_t *lua_dirs = NULL;
 
