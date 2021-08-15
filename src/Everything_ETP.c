@@ -353,7 +353,6 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
      ctx->results_ignore++;
   else
   {
-    struct report r;
     static char prev_name [_MAX_PATH];
     char   full_name [_MAX_PATH+2];
 
@@ -363,14 +362,14 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
        ETP_num_evry_dups++;
     else
     {
-      r.file        = full_name;
-      r.content     = NULL;      /* cannot read a remote file (yet) */
-      r.mtime       = ctx->mtime;
-      r.fsize       = ctx->fsize;
-      r.is_dir      = is_dir;
-      r.is_junction = FALSE;
-      r.is_cwd      = FALSE;
-      r.key         = HKEY_EVERYTHING_ETP;
+      struct report r;
+
+      memset (&r, '\0', sizeof(r));
+      r.file   = full_name;
+      r.mtime  = ctx->mtime;
+      r.fsize  = ctx->fsize;
+      r.is_dir = is_dir;
+      r.key    = HKEY_EVERYTHING_ETP;
       report_file (&r);
     }
     _strlcpy (prev_name, full_name, sizeof(prev_name));
