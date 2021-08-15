@@ -368,7 +368,7 @@ int check_if_zip (const char *fname)
   /** Return 0 if extension is neither `.egg` nor `.zip` nor `.whl`.
    */
   ext = get_file_ext (fname);
-  if (stricmp(ext,"egg") && stricmp(ext,"whl") && stricmp(ext,"zip"))
+  if (stricmp(ext, "egg") && stricmp(ext, "whl") && stricmp(ext, "zip"))
      return (0);
 
   f = fopen (fname, "rb");
@@ -402,8 +402,8 @@ int check_if_gzip (const char *fname)
   /** Accept only `.gz`, `.tgz` or `.tar.gz` extensions.
    */
   ext = get_file_ext (fname);
-  is_gzip = (stricmp(ext,"gz") == 0);
-  is_tgz  = (stricmp(ext,"tgz") == 0 || stricmp(ext,"tar.gz") == 0);
+  is_gzip = (stricmp(ext, "gz") == 0);
+  is_tgz  = (stricmp(ext, "tgz") == 0 || stricmp(ext, "tar.gz") == 0);
 
   if (!is_gzip && !is_tgz)
   {
@@ -4878,7 +4878,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
 
   if (!ct_dll)
   {
-    C_printf ("\"GetCoreTempInfo.dll\" is not installed.\n");
+    TRACE (1, "\"GetCoreTempInfo.dll\" is not installed.\n");
     return (FALSE);
   }
 
