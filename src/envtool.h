@@ -3,9 +3,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "1.3"
+#define VER_STRING  "1.4"
 #define MAJOR_VER   1
-#define MINOR_VER   3
+#define MINOR_VER   4
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 #define GITHUB_STR    "https://github.com/gvanem/EnvTool"
@@ -312,6 +312,8 @@ extern "C" {
 #define HKEY_INC_LIB_FILE              (HKEY) 0x7FF5
 #define HKEY_PKG_CONFIG_FILE           (HKEY) 0x7FF6
 #define HKEY_CMAKE_FILE                (HKEY) 0x7FF7
+#define HKEY_LUA_FILE                  (HKEY) 0x7FF8  /* A .lua file */
+#define HKEY_LUA_DLL                   (HKEY) 0x7FF9  /* A .dll for Lua */
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
 
@@ -378,8 +380,8 @@ struct prog_options {
        int             no_cwd;
        int             show_unix_paths;
        int             show_owner;
-       int             show_descr;
        smartlist_t    *owners;
+       int             show_descr;
        int             decimal_timestamp;
        int             no_sys_env;
        int             no_usr_env;
@@ -391,10 +393,10 @@ struct prog_options {
        int             use_buffered_io;
        int             use_nonblock_io;
        int             dir_mode;
+       int             lua_mode;
        int             man_mode;
        int             PE_check;
        SignStatus      signed_status;
-       int             help;
        int             show_size;
        int             only_32bit;
        int             only_64bit;
@@ -413,9 +415,11 @@ struct prog_options {
        int             do_python;
        int             do_man;
        int             do_cmake;
+       int             do_lua;
        int             do_pkg;
        int             do_vcpkg;
        int             do_check;
+       int             do_help;
        int             case_sensitive;
        int             keep_temp;         /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
        int             under_conemu;      /**< TRUE if running under ConEmu console-emulator */
@@ -498,6 +502,8 @@ extern void         dir_array_add (const char *dir, int is_cwd);
 extern smartlist_t *reg_array_head (void);
 extern void         reg_array_free (void);
 extern void         reg_array_add (HKEY key, const char *fname, const char *fqfn);
+
+extern smartlist_t *get_matching_files (const char *dir, const char *file_spec);
 
 /**
  * \def REG_APP_PATH

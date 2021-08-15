@@ -320,7 +320,7 @@ int report_file (struct report *r)
     possible_PE_file = FALSE;
     note = " (5)  ";
   }
-  else if (r->key == HKEY_MAN_FILE)
+  else if (r->key == HKEY_MAN_FILE || r->key == HKEY_LUA_FILE)
   {
     possible_PE_file = FALSE;
   }

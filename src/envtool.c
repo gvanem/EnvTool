@@ -47,6 +47,7 @@
 #include "dirlist.h"
 #include "sort.h"
 #include "vcpkg.h"
+#include "lua.h"
 #include "report.h"
 #include "pkg-config.h"
 #include "get_file_assoc.h"
@@ -455,7 +456,7 @@ static int show_version (void)
   {
     unsigned num;
 
-    C_printf ("  OS-version: %s (%s bits).\n", os_full_version(), os_bits());
+    C_printf ("  OS-version: %s (%s bits).\n", os_name(), os_bits());
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
     C_printf ("  ConEmu:     %sdetected.\n", opt.under_conemu ? "" : "not ");
     C_puts   ("  CPU-Info:   ");
@@ -516,6 +517,7 @@ static int show_help (void)
           "    ~6--evry~0[=~3host~0]  check and search in the ~6EveryThing database~0.     ~2[1]~0\n"
           "    ~6--inc~0          check and search in ~3%INCLUDE%~0.                   ~2[2]~0\n"
           "    ~6--lib~0          check and search in ~3%LIB%~0 and ~3%LIBRARY_PATH%~0.    ~2[2]~0\n"
+          "    ~6--lua~0          check and search in ~3%LUA_PATH%~0 and ~3%LUA_CPATH%~0.\n"
           "    ~6--man~0          check and search in ~3%MANPATH%~0.\n"
           "    ~6--path~0         check and search in ~3%PATH%~0.\n"
           "    ~6--pkg~0          check and search in ~3%PKG_CONFIG_PATH%~0.\n"
@@ -628,7 +630,7 @@ static int show_help (void)
           "    ~6<file-spec>~0 matches both files and directories. If ~6-D~0/~6--dir~0 is used, only\n"
           "                matching directories are reported.\n"
           "    Quote argument if it contains a shell-character [~6^&%~0]."
-          "   E.g. use ~6--regex \"^foo%%\\.exe$\"~0\n"
+          " E.g. use ~6--regex \"^foo%%\\.exe$\"~0\n"
           "    Commonly used options can be set in ~3%ENVTOOL_OPTIONS%~0.\n");
   return (0);
 }
@@ -656,7 +658,7 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
   BOOL   exists = FALSE;
   BOOL   is_dir = FALSE;
 
-  if (safe_stat(dir, &st, NULL) == 0)
+  if (!opt.lua_mode && safe_stat(dir, &st, NULL) == 0)
      is_dir = exists = _S_ISDIR (st.st_mode);
 
   d->cyg_dir = NULL;
@@ -676,7 +678,7 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
    * uppercase for some strange reason.
    * E.g. "C:\WINDOWS\sysnative".
    */
-  d->is_native = (stricmp(dir,sys_native_dir) == 0);
+  d->is_native = (stricmp(dir, sys_native_dir) == 0);
 
   /* Some issue with MinGW's `stat()` on a sys_native directory.
    * Even though `GetFileAttributes()` in `safe_stat()` says it's a
@@ -1017,7 +1019,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   sep[1] = '\0';
 
   tok = _strtok_r (val, sep, &_end);
-  is_cwd = (!strcmp(val, ".") || !strcmp(val, ".\\") || !strcmp(val ,"./"));
+  is_cwd = (!strcmp(val, ".") || !strcmp(val, ".\\") || !strcmp(val, "./"));
 
   TRACE (1, "'val': \"%s\". 'tok': \"%s\", is_cwd: %d\n", val, tok, is_cwd);
 
@@ -1313,7 +1315,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
 
              /* Found 1st data-value with extension we're looking for. Return it.
               */
-             if (dot && !stricmp(dot,ext))
+             if (dot && !stricmp(dot, ext))
                 *ret = _strlcpy (ret_data, data, sizeof(ret_data));
            }
            break;
@@ -1435,13 +1437,13 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
     if (type == REG_EXPAND_SZ && strchr(value, '%'))
        expand_env_var (value, value, sizeof(value), TRUE);
 
-    if (!stricmp(name,"PATH"))
+    if (!stricmp(name, "PATH"))
        *path = STRDUP (value);
 
-    else if (!stricmp(name,"INCLUDE"))
+    else if (!stricmp(name, "INCLUDE"))
        *inc = STRDUP (value);
 
-    else if (!stricmp(name,"LIB"))
+    else if (!stricmp(name, "LIB"))
        *lib = STRDUP (value);
 
 #if 0
@@ -3421,7 +3423,7 @@ static void print_gcc_internal_dirs (const char *env_name, const char *env_value
     {
       arr = smartlist_get (list, j);
       dir = slashify2 (arr->dir, arr->dir, slash);
-      if (!stricmp(dir,copy[i]))
+      if (!stricmp(dir, copy[i]))
       {
         found = TRUE;
         break;
@@ -3811,7 +3813,7 @@ static int do_check_clang_includes (void)
     const compiler_info *cc = smartlist_get (all_cc, i);
 
     if (cc->type == CC_CLANG_CL && !cc->ignore &&
-        !stricmp("clang.exe",cc->short_name)   &&   /* Do it for clang.exe only */
+        !stricmp("clang.exe", cc->short_name)  &&   /* Do it for clang.exe only */
         setup_clang_includes(cc) > 0)
     {
       report_header_set ("Matches in %s %%INCLUDE%% path:\n", cc->full_name);
@@ -3838,7 +3840,7 @@ static int do_check_clang_library_paths (void)
     const compiler_info *cc = smartlist_get (all_cc, i);
 
     if (cc->type == CC_CLANG_CL && !cc->ignore &&
-        !stricmp("clang.exe",cc->short_name)   &&   /* Do it for clang.exe only */
+        !stricmp("clang.exe", cc->short_name)  &&   /* Do it for clang.exe only */
         setup_clang_library_path(cc) > 0)
     {
       report_header_set ("Matches in %s %%LIB%% path:\n", cc->full_name);
@@ -4032,7 +4034,7 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
   line = str_strip_nl (str_ltrim(line));
   TRACE (2, "line: %s.\n", line);
 
-  if (!strnicmp(line,isystem,strlen(isystem)))
+  if (!strnicmp(line, isystem, strlen(isystem)))
   {
     char dir [MAX_PATH];
 
@@ -4040,7 +4042,7 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
     TRACE (2, "dir: %s.\n", dir);
     dir_array_add (dir, FALSE);
   }
-  else if (!strncmp(line,"-I",2))
+  else if (!strncmp(line, "-I", 2))
   {
     split_env_var ("Borland INC", str_ltrim(line+2));
   }
@@ -4067,7 +4069,7 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
   line = str_strip_nl (str_ltrim(line));
   TRACE (2, "line: %s.\n", line);
 
-  if (!strnicmp(line,Ldir,strlen(Ldir)))
+  if (!strnicmp(line, Ldir, strlen(Ldir)))
   {
     char dir [MAX_PATH];
 
@@ -4075,7 +4077,7 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
     TRACE (2, "dir: %s.\n", dir);
     dir_array_add (dir, FALSE);
   }
-  else if (!strncmp(line,"-L",2))
+  else if (!strncmp(line, "-L", 2))
   {
     split_env_var ("Borland LIB", str_ltrim(line+2));
   }
@@ -4229,11 +4231,12 @@ static const struct option long_options[] = {
            { "signed",      optional_argument, NULL, 0 },
            { "no-cwd",      no_argument,       NULL, 0 },    /* 37 */
            { "sort",        required_argument, NULL, 0 },
-           { "vcpkg",       optional_argument, NULL, 0 },    /* 39 */
-           { "descr",       no_argument,       NULL, 0 },
-           { "keep",        no_argument,       NULL, 0 },    /* 41 */
-           { "grep",        required_argument, NULL, 0 },
-           { "only",        no_argument,       NULL, 0 },    /* 43 */
+           { "lua",         no_argument,       NULL, 0 },    /* 39 */
+           { "vcpkg",       optional_argument, NULL, 0 },
+           { "descr",       no_argument,       NULL, 0 },    /* 41 */
+           { "keep",        no_argument,       NULL, 0 },
+           { "grep",        required_argument, NULL, 0 },    /* 43 */
+           { "only",        no_argument,       NULL, 0 },
            { NULL,          no_argument,       NULL, 0 }
          };
 
@@ -4277,11 +4280,12 @@ static int *values_tab[] = {
             (int*)&opt.signed_status,
             &opt.no_cwd,              /* 37 */
             (int*)1,                  /* Since option '-S' is handled specially. This address is not used. */
-            &opt.do_vcpkg,            /* 39 */
-            &opt.show_descr,
-            &opt.keep_temp,           /* 41 */
-            (int*)&opt.grep.content,
-            &opt.grep.only            /* 43 */
+            &opt.do_lua,              /* 39 */
+            &opt.do_vcpkg,
+            &opt.show_descr,          /* 41 */
+            &opt.keep_temp,
+            (int*)&opt.grep.content,  /* 43 */
+            &opt.grep.only
           };
 
 /**
@@ -4301,7 +4305,7 @@ static void set_python_variant (const char *arg)
   ASSERT (arg);
 
   for (i = 0; py[i]; i++)
-     if (!stricmp(arg,py[i]))
+     if (!stricmp(arg, py[i]))
      {
        v = py_variant_value (arg, NULL);
        break;
@@ -4310,12 +4314,13 @@ static void set_python_variant (const char *arg)
   if (v == UNKNOWN_PYTHON)
   {
     char buf[100], *p = buf;
-    int  left = sizeof(buf)-1;
+    int  len, left = sizeof(buf)-1;
 
     for (i = 0; py[i] && left > 4; i++)
     {
-      p += snprintf (p, left, "\"%s\", ", py[i]);
-      left = (int) (sizeof(buf) - (p - buf));
+      len = snprintf (p, left, "\"%s\", ", py[i]);
+      p    += len;
+      left -= len;
     }
     if (p > buf+2)
        p[-2] = '\0';
@@ -4370,10 +4375,10 @@ static void set_signed_options (const char *arg)
 
   if (arg)
   {
-    if (*arg == '1' || !stricmp(arg,"on") || !stricmp(arg,"yes"))
+    if (*arg == '1' || !stricmp(arg, "on") || !stricmp(arg, "yes"))
        opt.signed_status = SIGN_CHECK_SIGNED;
 
-    else if (*arg == '0' || !stricmp(arg,"off") || !stricmp(arg,"no"))
+    else if (*arg == '0' || !stricmp(arg, "off") || !stricmp(arg, "no"))
        opt.signed_status = SIGN_CHECK_UNSIGNED;
   }
 
@@ -4413,7 +4418,7 @@ static void set_short_option (int o, const char *arg)
   switch (o)
   {
     case 'h':
-         opt.help = 1;
+         opt.do_help = 1;
          break;
     case 'H':
          set_evry_options (arg);
@@ -4604,8 +4609,8 @@ static int eval_options (void)
      opt.PE_check = TRUE;
 
   if (opt.do_check &&
-      (opt.do_path  || opt.do_lib || opt.do_include || opt.do_evry || opt.do_man ||
-       opt.do_cmake || opt.do_pkg || opt.do_vcpkg   || opt.do_python))
+      (opt.do_path  || opt.do_lib || opt.do_include || opt.do_evry   || opt.do_man ||
+       opt.do_cmake || opt.do_pkg || opt.do_vcpkg   || opt.do_python || opt.do_lua))
   {
     WARN ("Option '--check' should be used alone.\n");
     return (0);
@@ -4673,6 +4678,7 @@ static void MS_CDECL cleanup (void)
   opt.cfg_file = NULL;
 
   vcpkg_exit();
+  lua_exit();
   pkg_config_exit();
   file_descr_exit();
   cache_exit();
@@ -4773,6 +4779,7 @@ static void init_all (const char *argv0)
   current_dir[1] = DIR_SEP;
   current_dir[2] = '\0';
   getcwd (current_dir, sizeof(current_dir));
+  _fix_drive (current_dir);
 
   sys_dir[0] = sys_native_dir[0] = '\0';
   if (GetSystemDirectory(sys_dir, sizeof(sys_dir)))
@@ -4892,7 +4899,6 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
     colour_handler (key+6, value);
   }
 #endif
-
 }
 
 /**
@@ -4966,7 +4972,7 @@ int MS_CDECL main (int argc, const char **argv)
   signal (SIGINT, halt);
   signal (SIGILL, halt);
 
-  if (opt.help)
+  if (opt.do_help)
      return show_help();
 
   if (opt.do_version)
@@ -4974,6 +4980,9 @@ int MS_CDECL main (int argc, const char **argv)
 
   if (opt.do_python)
      py_init();
+
+  if (opt.do_lua)
+     lua_init();
 
   if (opt.do_check)
      return do_check();
@@ -4990,10 +4999,10 @@ int MS_CDECL main (int argc, const char **argv)
   if (!(opt.do_path || opt.do_lib || opt.do_include))
      opt.no_sys_env = opt.no_usr_env = 1;
 
-  if (!opt.do_path && !opt.do_include && !opt.do_lib && !opt.do_python &&
+  if (!opt.do_path && !opt.do_include && !opt.do_lib && !opt.do_python && !opt.do_lua &&
       !opt.do_evry && !opt.do_cmake   && !opt.do_man && !opt.do_pkg && !opt.do_vcpkg)
      usage ("Use at least one of; \"--evry\", \"--cmake\", \"--inc\", \"--lib\", "
-            "\"--man\", \"--path\", \"--pkg\", \"--vcpkg\" and/or \"--python\".\n");
+            "\"--lua\", \"--man\", \"--path\", \"--pkg\", \"--vcpkg\" and/or \"--python\".\n");
 
   if (!opt.file_spec)
      usage ("You must give a filespec to search for.\n");
@@ -5102,6 +5111,9 @@ int MS_CDECL main (int argc, const char **argv)
   if (opt.do_pkg)
      found += pkg_config_search (opt.file_spec);
 
+  if (opt.do_lua)
+     found += lua_search (opt.file_spec);
+
   if (opt.do_vcpkg)
      found += do_check_vcpkg();
 
@@ -5182,7 +5194,7 @@ static struct dirent2 *copy_de (const struct dirent2 *de)
  * \todo Use `scandir2()` instead. This can match a more advanced `file_spec`
  *       that `fnmatch()` supports. Like `*.[ch]`.
  */
-static smartlist_t *get_matching_files (const char *dir, const char *file_spec)
+smartlist_t *get_matching_files (const char *dir, const char *file_spec)
 {
   struct dirent2     *de;
   struct od2x_options dir_opt;
@@ -5469,26 +5481,9 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
   status[0] = '\0';
   *num = 0;
 
-#if 0
-  max = get_dirlist_from_cache (env);
-  if (max == 0)
-     value = getenv_expand (env);
-#else
   value = getenv_expand (env);
-#endif
-
   if (value)
   {
-#if defined(__CYGWIN__) && 0
-    int   needed = cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, NULL, 0);
-    char *cyg_value = MALLOC (needed+1);
-
-    cygwin_conv_path_list (CCP_WIN_A_TO_POSIX, value, cyg_value, needed+1);
-    path_separator = ':';
-    FREE (value);
-    value = cyg_value;
-#endif
-
     list = split_env_var (env, value);
     *num = max = smartlist_len (list);
   }

@@ -1,4 +1,4 @@
-# EnvTool v1.3:
+# EnvTool v1.4:
 
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/gvanem/envtool?branch=master&svg=true)](https://ci.appveyor.com/project/gvanem/envtool)
 
@@ -13,6 +13,7 @@ handles these environment variables:
 | `--lib` | `%LIB%` and `%LIBRARY_PATH%` |
 | `--cmake` | `%CMAKE_MODULE_PATH%` |
 | `--man` | `%MANPATH%` |
+| `--lua` | `%LUA_PATH%` and `%LUA_CPATH%` |
 | `--pkg` | `%PKG_CONFIG_PATH%` |
 | `--python` | `%PYTHONPATH%` and `sys.path[]` |
 | `--evry` | [EveryThing](http://www.voidtools.com/support/everything) file database. |
@@ -121,7 +122,16 @@ in `sys.path[]`. E.g.:
 30 Apr 2014 - 09:54:04: f:\Programfiler\Python27\lib\socket.py
 ```
 
-**E.g. 7**: The `--evry` option combined with the `--regex` (or `-r`) is quite powerful. To find
+**E.g. 7**: If you have Lua installed, the `--lua` option will search in
+`%LUA_PATH` and `%LUA_CPATH` for a match. E.g.:
+`envtool.exe --lua [gs]*.dll`:
+
+```
+12 Aug 2021 - 13:11:04: f:\MingW32\src\inet\Lua\luasocket\install\gem.dll
+12 Aug 2021 - 15:25:09: f:\MingW32\src\inet\Lua\LuaSec\src\ssl.dll
+```
+
+**E.g. 8**: The `--evry` option combined with the `--regex` (or `-r`) is quite powerful. To find
 all directories with Unix man-pages, you can do this:
 `envtool.exe --evry -r "man[1-9]$"`:
 
@@ -146,7 +156,7 @@ Or how much space is *wasted* in your Python cache-files. This would tell you qu
   592 matches found for "__pycache__*". Totalling 125 MB (131,391,488 bytes).
 ```
 
-**E.g. 8**: More than one option-mode can combined. For example:
+**E.g. 9**: More than one option-mode can combined. For example:
 `envtool.exe --man --evry awk*.[1-9]*`:
 
 ```
@@ -160,7 +170,7 @@ Matches from EveryThing:
 <DIR> 01 Sep 2014 - 17:49:32: f:\MingW32\msys32\var\lib\pacman\local\awk-1.6-1\
 ```
 
-**E.g. 9**: All modes support showing the file-owner. Or only
+**E.g. 10**: All modes support showing the file-owner. Or only
 specific owners.<br>
 For example: `envtool.exe --path --owner=Admin* --owner=S-1-5* add*` could return:
 ```
@@ -174,7 +184,7 @@ Matches in %PATH:
 The inverse `envtool.exe --path --owner=!Admin*` is also possible; showing files on the<br>
 `%PATH` who's owner does *not* match `Admin*`.
 
-**E.g. 10**: `envtool --check -v` does a shadow check for file-spec in these
+**E.g. 11**: `envtool --check -v` does a shadow check for file-spec in these
   environment variables:<br>
    `PATH`, `LIB`, `LIBRARY_PATH`,`INCLUDE`, `C_INCLUDE_PATH`,
    `CPLUS_INCLUDE_PATH`, `MANPATH`,<br>
@@ -300,6 +310,9 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
 
    1.3: Enhanced "envtool --check -v" to look for shadowed files in important environment variables
         like PATH, INCLUDE and LIB. See E.g. 10. above.
+
+   1.4: Added a "--lua" option.
+
 ```
 
 PS. This file is written with the aid of the **[Atom](https://atom.io/)**

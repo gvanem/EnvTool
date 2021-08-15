@@ -44,7 +44,14 @@
  *   This consists of the files:
  *     \li Everything_ETP.c
  *     \li Everything_ETP.h
- *
+ * @}
+ */
+
+/**\addtogroup Lua  Lua-mode search functions.
+ * @{
+ *   This consists of the files:
+ *     \li lua.c
+ *     \li lua.h
  * @}
  */
 
@@ -81,9 +88,11 @@ The following modes handles these environment variables:
 <table>
   <tr><td width="20%">\c --cmake <td>Check and search in \c \%CMAKE_MODULE_PATH\%
                                      and it's built-in module-path.
+  <tr><td>\c --cmake             <td>Check and search in \c \%CMAKE_MODULE_PATH\% and it's built-in module-path.
   <tr><td>\c --evry[=\em host]   <td>Check and search in the [EveryThing](https://www.voidtools.com/) database.
   <tr><td>\c --inc               <td>Check and search in \c \%INCLUDE\%.
   <tr><td>\c --lib               <td>Check and search in \c \%LIB\% and \c \%LIBRARY_PATH\%.
+  <tr><td>\c --lua               <td>Check and search in \c \%LUA_PATH\% and \c \%LUA_CPATH\%.
   <tr><td>\c --man               <td>Check and search in \c \%MANPATH\%.
   <tr><td>\c --path              <td>Check and search in \c \%PATH\%.
   <tr><td>\c --pkg               <td>Check and search in \c \%PKG_CONFIG_PATH\%.
