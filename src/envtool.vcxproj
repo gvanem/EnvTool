@@ -177,7 +177,7 @@
     <ClInclude Include="get_file_assoc.h" />
     <ClInclude Include="ignore.h" />
     <ClInclude Include="json.h" />
-    <ClCompile Include="lua.h" />
+    <ClInclude Include="lua.h" />
     <ClInclude Include="pkg-config.h" />
     <ClInclude Include="regex.h" />
     <ClInclude Include="report.h" />
