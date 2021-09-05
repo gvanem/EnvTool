@@ -25,6 +25,10 @@ struct lua_dir {
  */
 static smartlist_t *lua_dirs = NULL;
 
+/**
+ * Parse one component from either `LUA_PATH` or `LUA_CPATH` and append
+ * to `lua_dirs`.
+ */
 static BOOL lua_append_dir (const struct directory_array *dir, BOOL for_LUA_CPATH)
 {
   const char     *env_var = for_LUA_CPATH ? "LUA_CPATH" : "LUA_PATH";
@@ -108,7 +112,6 @@ static void lua_handle_var (const  char *env_var, BOOL for_LUA_CPATH)
     dir = smartlist_get (dirs, i);
     lua_append_dir (dir, for_LUA_CPATH);
   }
-
   dir_array_free();
   opt.lua_mode = FALSE;
 }

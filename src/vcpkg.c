@@ -1713,7 +1713,7 @@ static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p, BOOL 
        *end_of_record = TRUE;
   else *end_of_record = FALSE;
 
-  TRACE (0, "line: '%.50s'. end-of-record: %d\n", line, *end_of_record);
+  TRACE (2, "line: '%.50s'. end-of-record: %d\n", line, *end_of_record);
 
   if (str_match(line, STATUS_STATUS, &next))
   {
@@ -1870,7 +1870,7 @@ static BOOL add_or_modify_this_package (vcpkg_package *package, vcpkg_package **
   if (stricmp(package->status, "install ok installed"))
   {
     *why_not = "not installed";
-    TRACE (0, "package->status: '%s'\n", package->status);
+    TRACE (2, "package->status: '%s'\n", package->status);
     return (FALSE);
   }
 
@@ -1933,7 +1933,7 @@ static int vcpkg_parse_status_file (void)
 
     f_ptr++;
     num_records++;
-    TRACE (0, "reached EOR for package '%s'. num_parsed: %d, num_records: %d\n",
+    TRACE (2, "reached EOR for package '%s'. num_parsed: %d, num_records: %d\n",
            package.package, num_parsed, num_records);
 
     if (str_endswith(package.arch, "-static"))
@@ -1946,7 +1946,7 @@ static int vcpkg_parse_status_file (void)
     {
       if (package_modify)
       {
-        TRACE (0, "Modifying package: '%s', arch: '%s'\n\n", package_modify->package, package_modify->arch);
+        TRACE (1, "Modifying package: '%s', arch: '%s'\n\n", package_modify->package, package_modify->arch);
         package_modify->installed = TRUE;
 #if 1
         package_modify->features = add_or_merge_features (package_modify->features, package.features);
@@ -1954,7 +1954,7 @@ static int vcpkg_parse_status_file (void)
       }
       else
       {
-        TRACE (0, "Adding package: '%s', arch: '%s', version: '%s'\n\n", package.package, package.arch, package.version);
+        TRACE (1, "Adding package: '%s', arch: '%s', version: '%s'\n\n", package.package, package.arch, package.version);
         package_new = MALLOC (sizeof(*package_new));
         memcpy (package_new, &package, sizeof(*package_new));
         package_new->installed = TRUE;
@@ -1963,7 +1963,7 @@ static int vcpkg_parse_status_file (void)
     }
     else
     {
-      TRACE (0, "Ignoring package: '%s': %s\n"
+      TRACE (1, "Ignoring package: '%s': %s\n"
                 "                                 (arch: '%s', ver: '%s')\n\n",
              package.package, why_not, package.arch, package.version);
       free_package (&package, FALSE);
