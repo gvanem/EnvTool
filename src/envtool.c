@@ -702,7 +702,14 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
   if (d->is_native && !have_sys_native_dir)
      TRACE (2, "Native dir '%s' doesn't exist.\n", dir);
   else if (!d->exist)
-     TRACE (2, "'%s' doesn't exist.\n", dir);
+  {
+    /* An issue with 'stat()' on MSVC-2013. So just pretend it
+     * exist if it has a sys-native prefix.
+     */
+    if (d->is_native && have_sys_native_dir)
+         d->exist = d->is_dir = TRUE;
+    else TRACE (2, "'%s' doesn't exist.\n", dir);
+  }
 #endif
 
 #if defined(__CYGWIN__)
@@ -1012,6 +1019,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
 
     if (p && !opt.quiet)
        WARN ("%s: Using ';' and \"/cygdrive\" together is suspisious.\n", env_name);
+
     path_separator = ':';    /* Assume all components are separated by ':' */
   }
 
@@ -5507,7 +5515,9 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
     while (*end == ' ' || *end == '\t')
        end--;
 
-    slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
+    if (str_equal_n("/cygdrive/", arr->dir, 10))
+         _strlcpy (fbuf, arr->dir, sizeof(fbuf));
+    else slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
 
     if (start > arr->dir)
     {
