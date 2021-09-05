@@ -83,6 +83,7 @@ static int pkg_config_list_all_cb (char *buf, int index)
 
 /**
  * Build the list of pkg_config packages found.
+ * First try the cache. Otherwise spawn `pkg-config.exe --list-all`.
  *
  * This has no relation to the number of `*.pc` files found on `PKG_CONFIG_PATH`.
  * But rather via the output of `pkg-config --list-all`.
@@ -113,7 +114,7 @@ static void pkg_config_build_pkg (void)
   {
     /* None found from cache. Try for real
      */
-    popen_run (pkg_config_list_all_cb, pkgconfig_exe, "--list-all");
+    popen_run (pkg_config_list_all_cb, pkgconfig_exe, "--list-all 2> %s", DEV_NULL);
   }
 
   max = smartlist_len (pkgconfig_pkg);
