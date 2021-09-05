@@ -1,9 +1,8 @@
 #
 # EnvTool MSVC Nmake makefile.
 #
-
 DEBUG  = 0
-STATIC = 1
+STATIC = 0
 
 CC      = cl
 CFLAGS  = -nologo -W3 -Zi -Zo -Gy -Gs -DWIN32 \
