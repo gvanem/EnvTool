@@ -4,13 +4,8 @@
  */
 #include "envtool.h"
 #include "cache.h"
+#include "color.h"
 #include "cmake.h"
-
-/**
- * \def KITWARE_REG_NAME
- * The Kitware (Cmake) Registry key name under HKCU or HKLM.
- */
-#define KITWARE_REG_NAME "Software\\Kitware\\CMake\\Packages"
 
 /**
  * Get the value and data for a Kitware sub-key. <br>
@@ -92,6 +87,10 @@ int cmake_get_info_registry (int *index, HKEY top_key)
     uuid = _fix_uuid (uuid, NULL);
     path = _fix_path (path, NULL);
     cache_putf (SECTION_CMAKE, "cmake_key%d = %s\\%s,%s,%s", *index, reg_top_key_name(top_key), package_key, uuid, path);
+
+    if (opt.do_check)
+       C_printf ("   [%2d]: ~6%-15s~0 -> ~6%s%s~0\n", num, package, path, is_directory (path) ? "": " ~5(Missing)");
+
     FREE (uuid);
     FREE (path);
     (*index)++;

@@ -5793,12 +5793,14 @@ static struct environ_fspec envs[] = {
 
 static int do_check (void)
 {
+  struct ver_info cmake_ver;
+  char *cmake_exe;
   char *sys_env_path = NULL;
   char *sys_env_inc  = NULL;
   char *sys_env_lib  = NULL;
   char  status [100+_MAX_PATH];
-  int   i, save;
-  int   num;
+  int   i, save, num;
+  int   index = 0;
 
   /* Do not implicitly add current directory in these searches.
    */
@@ -5821,7 +5823,6 @@ static int do_check (void)
        C_putc ('\n');
   }
 
-  C_putc ('\n');
   check_app_paths (HKEY_CURRENT_USER);
   if (opt.verbose)
      C_putc ('\n');
@@ -5829,6 +5830,17 @@ static int do_check (void)
   check_app_paths (HKEY_LOCAL_MACHINE);
   if (opt.verbose)
      C_putc ('\n');
+
+  if (opt.verbose && cmake_get_info(&cmake_exe, &cmake_ver))
+  {
+    C_printf ("Checking ~3HKEY_CURRENT_USER\\%s~0 keys:\n", KITWARE_REG_NAME);
+    cmake_get_info_registry (&index, HKEY_CURRENT_USER);
+    C_putc ('\n');
+
+    C_printf ("Checking ~3HKEY_LOCAL_MACHINE\\%s~0 keys:\n", KITWARE_REG_NAME);
+    cmake_get_info_registry (&index, HKEY_LOCAL_MACHINE);
+    C_putc ('\n');
+  }
 
   opt.no_cwd = save;
 
