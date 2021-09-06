@@ -274,7 +274,7 @@ const char *os_bits (void)
 
   if (sizeof(void*) == 8)
      return ("64");
-  if (GetSystemWow64Directory(dir,sizeof(dir)))
+  if (GetSystemWow64Directory(dir, sizeof(dir)))
      return ("64");
   return ("32");
 }

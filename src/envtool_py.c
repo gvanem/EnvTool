@@ -1799,7 +1799,7 @@ static BOOL py_module_found (const struct python_info *pi, const char *module)
   {
     const struct python_module *m = smartlist_get (pi->modules, i);
 
-    if (!stricmp(m->name,module))
+    if (!stricmp(m->name, module))
        return (TRUE);
   }
   return (FALSE);
@@ -1840,7 +1840,7 @@ static BOOL py_path_found (const struct python_info *pi, const char *dir)
   {
     const struct python_path *pp = smartlist_get (pi->sys_path, i);
 
-    if (!stricmp(pp->dir,dir))
+    if (!stricmp(pp->dir, dir))
        return (TRUE);
   }
   return (FALSE);
@@ -2744,7 +2744,7 @@ static void get_install_path (const struct python_info *pi, const char *key_name
     TRACE (2, "   value: \"%s\", data: \"%s\"\n",
            value[0] ? value : "(Standard)", data[0] ? data : "(no data)");
 
-    if (value[0] && data[0] && !stricmp(value,"ExecutablePath"))
+    if (value[0] && data[0] && !stricmp(value, "ExecutablePath"))
     {
       struct python_info *pi2;
       char  *slash = strrchr (data, '\\');
@@ -2825,7 +2825,7 @@ void enum_python_in_registry (const char *key_name)
       TRACE (2, " ver: %d.%d, bitness:s %d\n", pi.ver_major, pi.ver_major, pi.bitness);
     }
     else
-    if (!stricmp(value,"InstallPath"))
+    if (!stricmp(value, "InstallPath"))
        get_install_path (&pi, sub_key);
 
     rec_level++;
