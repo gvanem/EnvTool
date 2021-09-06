@@ -576,6 +576,7 @@ extern char *str_plural     (DWORD val, const char *singular, const char *plural
 
 extern char *searchpath     (const char *file, const char *env_var);
 extern int   searchpath_pos (void);
+extern char *_fix_uuid (const char *uuid, char *result);
 extern char *_fix_path      (const char *path, char *result);
 extern char *_fix_drive     (char *path);
 extern char *path_ltrim     (const char *p1, const char *p2);

@@ -2504,6 +2504,45 @@ int _file_exists (const char *file)
 }
 
 /**
+ * Convert compact UUIDs like:
+ *   6dceedd62edc8337ea153c73497e3d9e
+ *
+ * to this more "normal" Windows form:
+ *   {6DCEEDD6-2EDC-8337-EA15-3C73-497E3D9E}
+ */
+char *_fix_uuid (const char *uuid, char *result)
+{
+  char  *p;
+  size_t i, len;
+
+  if (!uuid || !*uuid)
+  {
+    TRACE (1, "given a bogus 'uuid': '%s'\n", uuid);
+    errno = EINVAL;
+    return (NULL);
+  }
+
+  len = strlen (uuid) + 7 + 1;
+  if (!result)
+     result = MALLOC (len);
+
+  if (*uuid == '{')   /* assume it's already on Windows OLE32 form */
+     return strcpy (result, uuid);
+
+  p = result;
+  *p++ = '{';
+  for (i = 0; *uuid && *uuid != '}'; i++)
+  {
+    if (*uuid != '-' && (i == 8 || i == 13 || i == 18 || i == 23 || i == 28))
+         *p++ = '-';
+    else *p++ = *uuid++;
+  }
+  *p++ = '}';
+  *p = '\0';
+  return strupr (result);
+}
+
+/**
  * Return TRUE if this program is executed as an `elevated` process.
  *
  * Taken from Python 3.5's `src/PC/bdist_wininst/install.c`.
