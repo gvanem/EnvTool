@@ -170,7 +170,7 @@ void lua_exit (void)
  *
  * \note
  *  MSDN warns against using the `DONT_RESOLVE_DLL_REFERENCES` flag.
- *  But that the only way that `GetProcAddress()` will work.
+ *  But that's the only way that `GetProcAddress()` will work.
  */
 static void lua_print_exports (const char *dll_file, const char *filler)
 {
@@ -264,7 +264,7 @@ static int lua_search_internal (const char *search_spec, BOOL is_CPATH)
         if (report_file(&r))
         {
           found++;
-          if (opt.PE_check && opt.verbose >= 0 && dir->is_CPATH)
+          if (opt.PE_check && dir->is_CPATH)
              lua_print_exports (de->d_name, r.filler);
        }
       }
