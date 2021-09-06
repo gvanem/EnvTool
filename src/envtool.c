@@ -5833,6 +5833,7 @@ static int do_check (void)
 
   if (opt.verbose && cmake_get_info(&cmake_exe, &cmake_ver))
   {
+    FREE (cmake_exe);
     C_printf ("Checking ~3HKEY_CURRENT_USER\\%s~0 keys:\n", KITWARE_REG_NAME);
     cmake_get_info_registry (&index, HKEY_CURRENT_USER);
     C_putc ('\n');
