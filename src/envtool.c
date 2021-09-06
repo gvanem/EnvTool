@@ -1297,7 +1297,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
     LONG64 val64;
 
     rc = RegEnumValue (key, num, value, &value_size, NULL, &type,
-                       (LPBYTE)&data, &data_size);
+                       (BYTE*)&data, &data_size);
     if (rc == ERROR_NO_MORE_ITEMS)
        break;
 
@@ -1313,9 +1313,9 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
       case REG_EXPAND_SZ:
       case REG_MULTI_SZ:
            TRACE (1, "    num: %lu, %s, value: \"%s\", data: \"%s\"\n",
-                      num, reg_type_name(type),
-                      value[0] ? value : "(no value)",
-                      data[0]  ? data  : "(no data)");
+                     num, reg_type_name(type),
+                     value[0] ? value : "(no value)",
+                     data[0]  ? data  : "(no data)");
            if (!*ret && data[0])
            {
              static char ret_data [_MAX_PATH];
@@ -1330,22 +1330,21 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
 
       case REG_LINK:
            TRACE (1, "    num: %lu, REG_LINK, value: \"%" WIDESTR_FMT "\", data: \"%" WIDESTR_FMT "\"\n",
-                      num, (wchar_t*)value, (wchar_t*)data);
+                     num, (wchar_t*)value, (wchar_t*)data);
            break;
 
       case REG_DWORD_BIG_ENDIAN:
            val32 = reg_swap_long (*(DWORD*)&data[0]);
-
            FALLTHROUGH()
 
       case REG_DWORD:
            TRACE (1, "    num: %lu, %s, value: \"%s\", data: %lu\n",
-                      num, reg_type_name(type), value[0] ? value : "(no value)", (u_long)val32);
+                     num, reg_type_name(type), value[0] ? value : "(no value)", (u_long)val32);
            break;
 
       case REG_QWORD:
            TRACE (1, "    num: %lu, REG_QWORD, value: \"%s\", data: %" S64_FMT "\n",
-                      num, value[0] ? value : "(no value)", val64);
+                     num, value[0] ? value : "(no value)", val64);
            break;
 
       case REG_NONE:
@@ -1438,7 +1437,7 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
     DWORD vsize = sizeof(value);
     DWORD type;
 
-    rc = RegEnumValue (key, num, name, &nsize, NULL, &type, (LPBYTE)&value, &vsize);
+    rc = RegEnumValue (key, num, name, &nsize, NULL, &type, (BYTE*)&value, &vsize);
     if (rc == ERROR_NO_MORE_ITEMS)
        break;
 
@@ -2534,6 +2533,122 @@ static int do_check_vcpkg (void)
 }
 
 /**
+ * \def KITWARE_REG_NAME
+ * The Kitware (Cmake) Registry key name under HKCU or HKLM.
+ */
+#define KITWARE_REG_NAME "Software\\Kitware\\CMake\\Packages"
+
+/**
+ * Get the value and data for a Kitware sub-key. <br>
+ * Like:
+ *   `reg.exe query  HKCU\Software\Kitware\CMake\Packages\gflags`
+ * does:
+ * ```
+ * HKEY_CURRENT_USER\Software\Kitware\CMake\Packages\gflags
+ *    6dceedd62edc8337ea153c73497e3d9e    REG_SZ    f:/ProgramFiler-x86/gflags/lib/cmake/gflags
+ *    ^                                             ^
+ *    |__ ret_uuid                                  |___ ret_path
+ * ```
+ */
+static BOOL cmake_get_value_path (HKEY top_key, const char *key_name, char **ret_uuid, char **ret_path)
+{
+  HKEY   key = NULL;
+  DWORD  rc;
+  u_long num = 0;
+  REGSAM acc = reg_read_access();
+  static char _ret_uuid [100];
+  static char _ret_path [512];
+
+  *ret_uuid = *ret_path = NULL;
+
+  rc = RegOpenKeyEx (top_key, key_name, 0, acc, &key);
+  while (rc == ERROR_SUCCESS)
+  {
+    char  uuid [200] = "\0";
+    char  path [512] = "\0";
+    DWORD uuid_size  = sizeof(uuid);
+    DWORD path_size  = sizeof(path);
+    DWORD type       = REG_NONE;
+
+    rc = RegEnumValue (key, num++, uuid, &uuid_size, NULL, &type, (BYTE*)&path, &path_size);
+    if (rc == ERROR_NO_MORE_ITEMS)
+       break;
+
+    if (type != REG_SZ)
+       continue;
+
+    if (uuid[0])
+       *ret_uuid = _strlcpy (_ret_uuid, uuid, sizeof(_ret_uuid));
+    if (path[0])
+       *ret_path = _strlcpy (_ret_path, path, sizeof(_ret_path));
+  }
+  if (key)
+     RegCloseKey (key);
+  return (*ret_uuid && *ret_path);
+}
+
+/**
+ * Iterate over Registry keys to find location of `.cmake` files. <br>
+ * Does what the command:
+ *   reg.exe query HKCU\Software\Kitware\CMake\Packages /s /reg:32
+ *   reg.exe query HKLM\Software\Kitware\CMake\Packages /s /reg:32
+ * does.
+ */
+static int cmake_get_info_registry (int *index, HKEY top_key)
+{
+  HKEY   key = NULL;
+  int    num;
+  REGSAM acc = reg_read_access();
+  DWORD  rc  = RegOpenKeyEx (top_key, KITWARE_REG_NAME, 0, acc, &key);
+
+  for (num = 0; rc == ERROR_SUCCESS; num++)
+  {
+    char  package_key [512];
+    char  package [100];
+    char *uuid = "?";
+    char *path = "?";
+    DWORD size = sizeof(package);
+
+    rc = RegEnumKeyEx (key, num, package, &size, NULL, NULL, NULL, NULL);
+    if (rc == ERROR_NO_MORE_ITEMS)
+       break;
+
+    snprintf (package_key, sizeof(package_key), "%s\\%s", KITWARE_REG_NAME, package);
+    cmake_get_value_path (top_key, package_key, &uuid, &path);
+    uuid = _fix_uuid (uuid, NULL);
+    path = _fix_path (path, NULL);
+    cache_putf (SECTION_CMAKE, "cmake_key%d = %s\\%s,%s,%s", *index, reg_top_key_name(top_key), package_key, uuid, path);
+    FREE (uuid);
+    FREE (path);
+    (*index)++;
+  }
+  if (key)
+     RegCloseKey (key);
+  return (num);
+}
+
+/**
+ * Get CMake Registry keys from the cache.
+ */
+static int cmake_cache_info_registry (void)
+{
+  char format [50], *key, *uuid, *path;
+  int  i = 0, found = 0;
+
+  while (1)
+  {
+    snprintf (format, sizeof(format), "cmake_key%d = %%s,%%s,%%s", i);
+    if (cache_getf(SECTION_CMAKE, format, &key, &uuid, &path) != 3)
+       break;
+    TRACE (1, "%s: %s, %s\n", key, uuid, path);
+    found++;
+    i++;
+  }
+  TRACE (1, "Found %d cached entries for Cmake.\n", found);
+  return (found);
+}
+
+/**
  * Before checking the `CMAKE_MODULE_PATH`, we need to find the version and location
  * of `cmake.exe` (on `PATH`). Then assume it's built-in Module-path is relative to this.
  * E.g:
@@ -2602,6 +2717,7 @@ static BOOL cmake_get_info (char **exe, struct ver_info *ver)
 
   *ver = cmake_ver;
   TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+
   return (cmake_exe && VALID_VER(cmake_ver));
 }
 
@@ -2617,6 +2733,14 @@ static int do_check_cmake (void)
   {
     WARN ("cmake.exe not found on PATH.\n");
     return (0);
+  }
+
+  if (cmake_cache_info_registry() == 0)
+  {
+    int index = 0;
+
+    cmake_get_info_registry (&index, HKEY_CURRENT_USER);
+    cmake_get_info_registry (&index, HKEY_LOCAL_MACHINE);
   }
 
   root = dirname (bin);
