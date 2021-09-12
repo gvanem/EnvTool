@@ -29,7 +29,7 @@ extern void         py_exit          (void);
 extern int          py_search        (void);
 extern void         py_searchpaths   (void);
 extern int          py_test          (void);
-extern int          py_get_info      (char **exe, char **dll, struct ver_info *ver);
+extern int          py_get_info      (char **exe, struct ver_info *ver);
 extern const char **py_get_variants  (void);
 extern const char  *py_variant_name  (enum python_variants v);
 extern int          py_variant_value (const char *short_name, const char *full_name);

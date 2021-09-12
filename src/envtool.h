@@ -652,7 +652,7 @@ extern const char *last_reparse_err;
 extern BOOL        get_reparse_point (const char *dir, char *result,
                                       size_t result_size);
 
-/** \struct ver_info
+/** \typedef struct ver_info
  *
  * Generic program version information (in resource).
  *
@@ -662,12 +662,12 @@ extern BOOL        get_reparse_point (const char *dir, char *result,
  *  get_evry_version()    | EveryThing File-database.
  *  get_PE_version_info() | PE-image version info.
  */
-struct ver_info {
-       unsigned val_1;   /**< Major */
-       unsigned val_2;   /**< Minor */
-       unsigned val_3;   /**< Micro */
-       unsigned val_4;   /**< Build (unused in envtool_py.c) */
-     };
+typedef struct ver_info {
+        unsigned val_1;   /**< Major */
+        unsigned val_2;   /**< Minor */
+        unsigned val_3;   /**< Micro */
+        unsigned val_4;   /**< Build (unused in envtool_py.c) */
+      } ver_info;
 
 /** \def VALID_VER
  *  Check if ver was filled okay.
@@ -675,6 +675,33 @@ struct ver_info {
  *  the version was not correctly set.
  */
 #define VALID_VER(ver) (ver.val_1 + ver.val_2 > 0)
+
+/** \typedef enum ver_index
+ * The 5 programs we get version-information from on "envtool -V" command.
+ */
+typedef enum ver_index {
+        VER_CMAKE,
+        VER_PYTHON,
+        VER_PKG_CONFIG,
+        VER_VCPKG,
+        VER_LUA,
+        VER_MAX
+      } ver_index;
+
+/** \typedef struct ver_data
+ * The version-information for each program filled on a "envtool -V" command.
+ */
+typedef struct ver_data {
+        const char *found_fmt;
+        const char *not_found_fmt;
+        char       *exe;
+        char        slash;
+        char        found [100];
+        int         len;
+        ver_info    version;
+        int       (*get_info) (char **exe, struct ver_info *ver);
+        void      (*extras) (const struct ver_data *v, int pad_len);
+      } ver_data;
 
 /** \struct search_list
  *  A generic search-list type.

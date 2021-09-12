@@ -445,3 +445,12 @@ int pkg_config_search (const char *search_spec)
   return (found);
 }
 
+void pkg_config_extras (const struct ver_data *v, int pad_len)
+{
+  unsigned num = pkg_config_get_num_installed();
+
+  C_printf ("%-*s -> ~6%s~0", pad_len, v->found, slashify(v->exe, v->slash));
+  if (num >= 1)
+     C_printf (" (%u .pc files installed).", num);
+  C_putc ('\n');
+}

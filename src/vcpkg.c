@@ -2982,6 +2982,22 @@ void vcpkg_exit (void)
   FREE (vcpkg_root);
 }
 
+void vcpkg_extras (const struct ver_data *v, int pad_len)
+{
+  unsigned num1, num2;
+
+  C_puts ("  Checking vcpkg packages ...");
+  C_flush();
+
+  num1 = vcpkg_get_num_installed();
+  num2 = vcpkg_get_num_CONTROLS() + vcpkg_get_num_JSON();
+
+  C_printf ("\r%-*s -> ~6%s~0", pad_len, v->found, slashify(v->exe, v->slash));
+  if (num1 >= 1)
+       C_printf (" (%u packages installed, %u packages available).\n", num1, num2);
+  else C_printf (" (%s).\n", vcpkg_last_error());
+}
+
 /**
  * Get the index at or above `index` that matches `package_spec` in the `ports_list`.
  * Modify `*index_p` on output to the next index to check.

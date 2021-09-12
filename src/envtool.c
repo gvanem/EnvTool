@@ -298,140 +298,75 @@ static void get_evry_bitness (HWND wnd)
  *  + `vcpkg.exe`
  *  + `lua.exe`
  */
-typedef enum ver_index {
-        VER_CMAKE,
-        VER_PYTHON,
-        VER_PKG_CONFIG,
-        VER_VCPKG,
-        VER_LUA,
-        VER_MAX
-      } ver_index;
+static ver_data *build_ver_data (void)
+{
+  static ver_data data [VER_MAX];
+  char slash = (opt.show_unix_paths ? '/' : '\\');
+
+  memset (&data, '\0', sizeof(data));
+
+  data [VER_CMAKE]     .slash = slash;
+  data [VER_PYTHON]    .slash = slash;
+  data [VER_PKG_CONFIG].slash = slash;
+  data [VER_VCPKG]     .slash = slash;
+  data [VER_LUA]       .slash = slash;
+
+  data [VER_CMAKE]     .found_fmt  = "  Cmake %u.%u.%u detected";
+  data [VER_PYTHON]    .found_fmt  = "  Python %u.%u.%u detected";
+  data [VER_PKG_CONFIG].found_fmt  = "  pkg-config %u.%u detected";
+  data [VER_VCPKG]     .found_fmt  = "  vcpkg %u.%u.%u detected";
+  data [VER_LUA]       .found_fmt  = "  Lua %u.%u.%u detected";
+
+  data [VER_CMAKE]     .not_found_fmt  = "  Cmake ~5not~0 found";
+  data [VER_PYTHON]    .not_found_fmt  = "  Python ~5not~0 found";
+  data [VER_PKG_CONFIG].not_found_fmt  = "  pkg-config ~5not~0 found";
+  data [VER_VCPKG]     .not_found_fmt  = "  vcpkg ~5not~0 found";
+  data [VER_LUA]       .not_found_fmt  = "  Lua ~5not~0 found";
+
+  data [VER_CMAKE]     .get_info = cmake_get_info;
+  data [VER_PYTHON]    .get_info = py_get_info;
+  data [VER_PKG_CONFIG].get_info = pkg_config_get_info;
+  data [VER_VCPKG]     .get_info = vcpkg_get_info;
+  data [VER_LUA]       .get_info = lua_get_info;
+
+  data [VER_VCPKG]     .extras = vcpkg_extras;
+  data [VER_PKG_CONFIG].extras = pkg_config_extras;
+  return (data);
+}
 
 static void show_ext_versions (void)
 {
-  static const char *found_fmt[VER_MAX] = { "  Cmake %u.%u.%u detected",
-                                            "  Python %u.%u.%u detected",
-                                            "  pkg-config %u.%u detected",
-                                            "  vcpkg %u.%u.%u detected",
-                                            "  Lua %u.%u.%u detected"
-                                          };
-
-  static const char *not_found_fmt[VER_MAX] = { "  Cmake ~5not~0 found.\n",
-                                                "  Python ~5not~0 found.\n",
-                                                "  pkg-config ~5not~0 found.\n",
-                                                "  vcpkg ~5not~0 found.\n",
-                                                "  Lua ~5not~0 found.\n",
-                                              };
-  #define FOUND_SZ 100
-
-  char            found [VER_MAX][FOUND_SZ];
-  int             pad_len, len [VER_MAX];
-  char           *py_exe         = NULL;
-  char           *pkg_config_exe = NULL;
-  char           *vcpkg_exe      = NULL;
-  char           *cmake_exe      = NULL;
-  char           *lua_exe        = NULL;
-  char            slash = (opt.show_unix_paths ? '/' : '\\');
-  struct ver_info py_ver, cmake_ver, pkg_config_ver, vcpkg_ver, lua_ver;
-
-  memset (&found, '\0', sizeof(found));
-  memset (&cmake_ver, '\0', sizeof(cmake_ver));
-  memset (&py_ver, '\0', sizeof(py_ver));
-  memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
-  memset (&vcpkg_ver, '\0', sizeof(vcpkg_ver));
-  memset (&lua_ver, '\0', sizeof(lua_ver));
-  memset (&len, 0, sizeof(len));
-
-  pad_len = sizeof("  pkg-config 9.99 detected");
-
-  if (cmake_get_info(&cmake_exe, &cmake_ver))
-  {
-    len [VER_CMAKE] = snprintf (found[VER_CMAKE], FOUND_SZ, found_fmt[VER_CMAKE], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
-    if (len[VER_CMAKE] > pad_len)
-       pad_len = len[VER_CMAKE];
-  }
-
-  if (py_get_info(&py_exe, NULL, &py_ver))
-  {
-    len [VER_PYTHON] = snprintf (found[VER_PYTHON], FOUND_SZ, found_fmt[VER_PYTHON], py_ver.val_1, py_ver.val_2, py_ver.val_3);
-    if (len[VER_PYTHON] > pad_len)
-       pad_len = len [VER_PYTHON];
-  }
-
-  if (pkg_config_get_info(&pkg_config_exe, &pkg_config_ver))
-  {
-    len [VER_PKG_CONFIG] = snprintf (found[VER_PKG_CONFIG], FOUND_SZ, found_fmt[VER_PKG_CONFIG], pkg_config_ver.val_1, pkg_config_ver.val_2);
-    if (len[VER_PKG_CONFIG] > pad_len)
-       pad_len = len [VER_PKG_CONFIG];
-  }
-
-  if (vcpkg_get_info(&vcpkg_exe, &vcpkg_ver))
-  {
-    len [VER_VCPKG] = snprintf (found[VER_VCPKG], FOUND_SZ, found_fmt[VER_VCPKG], vcpkg_ver.val_1, vcpkg_ver.val_2, vcpkg_ver.val_3);
-    if (len[VER_VCPKG] > pad_len)
-       pad_len = len [VER_VCPKG];
-  }
+  int       i;
+  int       pad_len = sizeof("  pkg-config 9.99 detected");
+  ver_data *v, *v_start = build_ver_data();
 
   if (!stricmp(lua_get_exe(), "luajit.exe"))
   {
-    found_fmt[VER_LUA]     = "  LuaJIT %u.%u.%u detected";
-    not_found_fmt[VER_LUA] = "  LuaJIT ~5not~0 found.\n";
+    v_start [VER_LUA].found_fmt     = "  LuaJIT %u.%u.%u detected";
+    v_start [VER_LUA].not_found_fmt = "  LuaJIT ~5not~0 found.\n";
   }
 
-  if (lua_get_info(&lua_exe, &lua_ver))
+  for (v = v_start, i = 0; i < VER_MAX; i++, v++)
   {
-    len[VER_LUA] = snprintf (found[VER_LUA], FOUND_SZ, found_fmt[VER_LUA], lua_ver.val_1, lua_ver.val_2, lua_ver.val_3);
-    if (len[VER_LUA] > pad_len)
-       pad_len = len [VER_LUA];
+    if ((*v->get_info) (&v->exe, &v->version))
+    {
+      v->len = snprintf (v->found, sizeof(v->found), v->found_fmt, v->version.val_1, v->version.val_2, v->version.val_3);
+      if (v->len > pad_len)
+         pad_len = v->len;
+    }
   }
-
-  if (cmake_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[VER_CMAKE], slashify(cmake_exe, slash));
-  else C_printf (not_found_fmt[VER_CMAKE]);
-
-  if (py_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[VER_PYTHON], slashify(py_exe, slash));
-  else C_printf (not_found_fmt[VER_PYTHON]);
-
-  if (lua_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[VER_LUA], slashify(lua_exe, slash));
-  else C_printf (not_found_fmt[VER_LUA]);
-
-  if (pkg_config_exe)
+  for (v = v_start, i = 0; i < VER_MAX; i++, v++)
   {
-    unsigned num = pkg_config_get_num_installed();
-
-    C_printf ("%-*s -> ~6%s~0", pad_len, found[VER_PKG_CONFIG], slashify(pkg_config_exe, slash));
-    if (num >= 1)
-       C_printf (" (%u .pc files installed).", num);
-    C_putc ('\n');
+    if (v->exe)
+    {
+      if (v->extras)
+           (*v->extras) (v, pad_len);
+      else C_printf ("%-*s -> ~6%s~0\n", pad_len, v->found, slashify(v->exe, v->slash));
+    }
+    else
+      C_printf (v->not_found_fmt);
+    FREE (v->exe);
   }
-  else
-   C_printf (not_found_fmt[VER_PKG_CONFIG]);
-
-  if (vcpkg_exe)
-  {
-    unsigned num1, num2;
-
-    C_puts ("  Checking vcpkg packages ...");
-    C_flush();
-
-    num1 = vcpkg_get_num_installed();
-    num2 = vcpkg_get_num_CONTROLS() + vcpkg_get_num_JSON();
-
-    C_printf ("\r%-*s -> ~6%s~0", pad_len, found[VER_VCPKG], slashify(vcpkg_exe, slash));
-    if (num1 >= 1)
-         C_printf (" (%u packages installed, %u packages available).\n", num1, num2);
-    else C_printf (" (%s).\n", vcpkg_last_error());
-  }
-  else
-    C_printf (not_found_fmt[VER_VCPKG]);
-
-  FREE (cmake_exe);
-  FREE (lua_exe);
-  FREE (py_exe);
-  FREE (pkg_config_exe);
-  FREE (vcpkg_exe);
 }
 
 /**
