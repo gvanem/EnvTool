@@ -8,6 +8,12 @@
 #include "cmake.h"
 
 /**
+ * The global data for 'cmake.exe' found on `PATH`.
+ */
+static struct ver_info cmake_ver;
+static char           *cmake_exe = NULL;
+
+/**
  * Get the value and data for a Kitware sub-key. <br>
  * Like:
  *   `reg.exe query  HKCU\Software\Kitware\CMake\Packages\gflags`
@@ -59,11 +65,11 @@ static BOOL cmake_get_value_path (HKEY top_key, const char *key_name, char **ret
 /**
  * Iterate over Registry keys to find location of `.cmake` files. <br>
  * Does what the command:
- *   reg.exe query HKCU\Software\Kitware\CMake\Packages /s /reg:32
- *   reg.exe query HKLM\Software\Kitware\CMake\Packages /s /reg:32
+ *   reg.exe query HKCU\Software\Kitware\CMake\Packages /s
+ *   reg.exe query HKLM\Software\Kitware\CMake\Packages /s
  * does.
  */
-int cmake_get_info_registry (int *index, HKEY top_key)
+int cmake_get_info_registry (smartlist_t *sl, int *index, HKEY top_key)
 {
   HKEY   key = NULL;
   int    num;
@@ -76,7 +82,9 @@ int cmake_get_info_registry (int *index, HKEY top_key)
     char  package [100];
     char *uuid = "?";
     char *path = "?";
+    BOOL  exist;
     DWORD size = sizeof(package);
+    struct stat st;
 
     rc = RegEnumKeyEx (key, num, package, &size, NULL, NULL, NULL, NULL);
     if (rc == ERROR_NO_MORE_ITEMS)
@@ -86,10 +94,13 @@ int cmake_get_info_registry (int *index, HKEY top_key)
     cmake_get_value_path (top_key, package_key, &uuid, &path);
     uuid = _fix_uuid (uuid, NULL);
     path = _fix_path (path, NULL);
-    cache_putf (SECTION_CMAKE, "cmake_key%d = %s\\%s,%s,%s", *index, reg_top_key_name(top_key), package_key, uuid, path);
+    exist = (safe_stat(path, &st, NULL) == 0);
+    cache_putf (SECTION_CMAKE, "cmake_key%d = %s\\%s,%s,%s,%d", *index, reg_top_key_name(top_key), package_key, uuid, path, exist);
 
+    if (sl && exist)
+       smartlist_add (sl, STRDUP(path));
     if (opt.do_check)
-       C_printf ("   [%2d]: ~6%-15s~0 -> ~6%s%s~0\n", num, package, path, is_directory (path) ? "": " ~5(Missing)");
+       C_printf ("   [%2d]: ~6%-15s~0 -> ~6%s%s~0\n", num, package, path, exist ? "": " ~5(Missing)");
 
     FREE (uuid);
     FREE (path);
@@ -101,24 +112,28 @@ int cmake_get_info_registry (int *index, HKEY top_key)
 }
 
 /**
- * Get CMake Registry keys from the cache.
+ * Get CMake Registry entries from the cache.
+ * Return it as a smartlist.
  */
-int cmake_cache_info_registry (void)
+static smartlist_t *cmake_cache_info_registry (void)
 {
-  char format [50], *key, *uuid, *path;
-  int  i = 0, found = 0;
+  char         format [50], *key, *uuid, *path;
+  int          i = 0, found = 0, exist;
+  smartlist_t *sl = smartlist_new();
 
   while (1)
   {
-    snprintf (format, sizeof(format), "cmake_key%d = %%s,%%s,%%s", i);
-    if (cache_getf(SECTION_CMAKE, format, &key, &uuid, &path) != 3)
+    snprintf (format, sizeof(format), "cmake_key%d = %%s,%%s,%%s,%%d", i);
+    if (cache_getf(SECTION_CMAKE, format, &key, &uuid, &path, &exist) != 4)
        break;
-    TRACE (1, "%s: %s, %s\n", key, uuid, path);
+    if (exist)
+       smartlist_add (sl, STRDUP(path));
+    TRACE (1, "%s: %s, %s, %d\n", key, uuid, path, exist);
     found++;
     i++;
   }
   TRACE (1, "Found %d cached entries for Cmake.\n", found);
-  return (found);
+  return (sl);
 }
 
 /**
@@ -130,9 +145,6 @@ int cmake_cache_info_registry (void)
  *   built-in path -> f:\MinGW32\bin\CMake\share\cmake-{major_ver}.{minor_ver}\Modules
  * \endcode
  */
-static struct ver_info cmake_ver;
-static char           *cmake_exe = NULL;
-
 static int cmake_version_cb (char *buf, int index)
 {
   static char     prefix[] = "cmake version ";
@@ -149,6 +161,9 @@ static int cmake_version_cb (char *buf, int index)
   return (0);
 }
 
+/**
+ * Return the full path and version-information of `cmake.exe`.
+ */
 BOOL cmake_get_info (char **exe, struct ver_info *ver)
 {
   *ver = cmake_ver;
@@ -192,5 +207,66 @@ BOOL cmake_get_info (char **exe, struct ver_info *ver)
   TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
 
   return (cmake_exe && VALID_VER(cmake_ver));
+}
+
+/**
+ * Search for CMake modules matching the `opt.file_spec`.
+ *
+ * Search along these directories:
+ *  \li the builtin `modules_dir`
+ *  \li the environment variable `CMAKE_MODULE_PATH`.
+ *  \li the directories from the Registry.
+ */
+int cmake_search (void)
+{
+  struct ver_info ver;
+  char            modules_dir [_MAX_PATH];
+  char           *bin, *root, *dir;
+  const char     *env_name = "CMAKE_MODULE_PATH";
+  int             found, i, max;
+  smartlist_t    *sl;
+
+  if (!cmake_get_info(&bin, &ver))
+  {
+    WARN ("cmake.exe not found on PATH.\n");
+    return (0);
+  }
+
+  sl = cmake_cache_info_registry();
+  if (smartlist_len(sl) == 0)
+  {
+    int index = 0;
+
+    cmake_get_info_registry (sl, &index, HKEY_CURRENT_USER);
+    cmake_get_info_registry (sl, &index, HKEY_LOCAL_MACHINE);
+  }
+
+  root = dirname (bin);
+  snprintf (modules_dir, sizeof(modules_dir), "%s\\..\\share\\cmake-%d.%d\\Modules", root, ver.val_1, ver.val_2);
+  _fix_path (modules_dir, modules_dir);
+
+  TRACE (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
+          ver.val_1, ver.val_2, ver.val_3, modules_dir);
+
+  report_header_set ("Matches in built-in Cmake modules:\n");
+  found = process_dir (modules_dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_CMAKE_FILE, FALSE);
+  FREE (bin);
+  FREE (root);
+
+  report_header_set ("Matches in %%%s:\n", env_name);
+  found += do_check_env (env_name, TRUE);
+  report_header_set (NULL);
+
+  max = smartlist_len (sl);
+  for (i = 0; i < max; i++)
+  {
+    if (i == 0)
+       report_header_set ("Matches in Cmake Registry directories:\n");
+    dir = smartlist_get (sl, i);
+    found += process_dir (dir, 0, TRUE, TRUE, 1, TRUE, NULL, HKEY_CMAKE_FILE, FALSE);
+  }
+  smartlist_free_all (sl);
+  report_header_set (NULL);
+  return (found);
 }
 

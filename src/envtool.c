@@ -2388,7 +2388,7 @@ static int do_check_evry (void)
 /**
  * The main work-horse of this program.
  */
-static int do_check_env (const char *env_name, BOOL recursive)
+int do_check_env (const char *env_name, BOOL recursive)
 {
   smartlist_t *list;
   int          i, max, found = 0;
@@ -2564,46 +2564,6 @@ static int do_check_vcpkg (void)
   if (!opt.quiet && *vcpkg_last_error())
      C_printf ("%s.\n", vcpkg_last_error());
   return (num);
-}
-
-static int do_check_cmake (void)
-{
-  struct ver_info ver;
-  char            modules_dir [_MAX_PATH];
-  char           *bin, *root;
-  const char     *env_name = "CMAKE_MODULE_PATH";
-  int             found;
-
-  if (!cmake_get_info(&bin, &ver))
-  {
-    WARN ("cmake.exe not found on PATH.\n");
-    return (0);
-  }
-
-  if (cmake_cache_info_registry() == 0)
-  {
-    int index = 0;
-
-    cmake_get_info_registry (&index, HKEY_CURRENT_USER);
-    cmake_get_info_registry (&index, HKEY_LOCAL_MACHINE);
-  }
-
-  root = dirname (bin);
-  snprintf (modules_dir, sizeof(modules_dir), "%s\\..\\share\\cmake-%d.%d\\Modules", root, ver.val_1, ver.val_2);
-  _fix_path (modules_dir, modules_dir);
-
-  TRACE (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
-          ver.val_1, ver.val_2, ver.val_3, modules_dir);
-
-  report_header_set ("Matches among built-in Cmake modules:\n");
-  found = process_dir (modules_dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_CMAKE_FILE, FALSE);
-  FREE (bin);
-  FREE (root);
-
-  report_header_set ("Matches in %%%s:\n", env_name);
-  found += do_check_env (env_name, TRUE);
-  report_header_set (NULL);
-  return (found);
 }
 
 /**
@@ -5085,7 +5045,7 @@ int MS_CDECL main (int argc, const char **argv)
   }
 
   if (opt.do_cmake)
-     found += do_check_cmake();
+     found += cmake_search();
 
   if (opt.do_man)
      found += do_check_manpath();
@@ -5534,10 +5494,11 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
   FREE (value);
 
   if (list)
-     put_dirlist_to_cache (env, list);
-
-  if (opt.verbose && file_spec)
-     shadow_report (list, file_spec);
+  {
+    put_dirlist_to_cache (env, list);
+    if (opt.verbose && file_spec)
+       shadow_report (list, file_spec);
+  }
 
   dir_array_free();
   path_separator = ';';
@@ -5874,11 +5835,11 @@ static int do_check (void)
   {
     FREE (cmake_exe);
     C_printf ("Checking ~3HKEY_CURRENT_USER\\%s~0 keys:\n", KITWARE_REG_NAME);
-    cmake_get_info_registry (&index, HKEY_CURRENT_USER);
+    cmake_get_info_registry (NULL, &index, HKEY_CURRENT_USER);
     C_putc ('\n');
 
     C_printf ("Checking ~3HKEY_LOCAL_MACHINE\\%s~0 keys:\n", KITWARE_REG_NAME);
-    cmake_get_info_registry (&index, HKEY_LOCAL_MACHINE);
+    cmake_get_info_registry (NULL, &index, HKEY_LOCAL_MACHINE);
     C_putc ('\n');
   }
 

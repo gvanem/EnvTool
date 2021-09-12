@@ -504,6 +504,7 @@ extern void         reg_array_free (void);
 extern void         reg_array_add (HKEY key, const char *fname, const char *fqfn);
 
 extern smartlist_t *get_matching_files (const char *dir, const char *file_spec);
+extern int          do_check_env (const char *env_name, BOOL recursive);
 
 /**
  * \def REG_APP_PATH

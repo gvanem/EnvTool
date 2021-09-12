@@ -158,12 +158,12 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
   TRACE (1, "view range: 0x%p - 0x%p. fsize: %" U64_FMT " bytes.\n",
          mmap_buf, mmap_max-1, ((UINT64)fsize.HighPart << 32) + fsize.LowPart);
 
-  /* Detect and ignore files with binary content
-   */
   p = mmap_max;
   if (p > mmap_buf + 100)
      p = mmap_buf + 100;
 
+  /* Detect and ignore files with binary content
+   */
   if (memchr(mmap_buf, '\0', p - mmap_buf))
   {
     TRACE (1, "Ignoring binary file %s.\n", file);
