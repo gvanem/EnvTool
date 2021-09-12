@@ -5,6 +5,7 @@
  */
 #include "envtool.h"
 #include "color.h"
+#include "cache.h"
 #include "dirlist.h"
 #include "lua.h"
 
@@ -20,6 +21,14 @@ struct lua_dir {
        BOOL  is_cwd;            /**< This directory == current_dir */
        BOOL  is_CPATH;          /**< This directory is from `LUA_CPATH` */
      };
+
+/**
+ * The global data for 'lua.exe' (or `luajit.exe`) found on `PATH`.
+ */
+static char           *lua_exe;
+static struct ver_info lua_ver;
+static int prefer_luajit = 0;
+
 
 /** A `smartlist_t` of 'struct lua_dir'
  */
@@ -140,8 +149,14 @@ static void lua_dump_dirs (void)
  */
 void lua_init (void)
 {
+  struct ver_info ver;
+  char           *exe = NULL;
+
   if (lua_dirs)
      return;
+
+  lua_get_info (&exe, &ver);
+  FREE (exe);
 
   lua_dirs = smartlist_new();
 
@@ -281,3 +296,97 @@ int lua_search (const char *search_spec)
   return lua_search_internal (search_spec, FALSE) +
          lua_search_internal (search_spec, TRUE);
 }
+
+/**
+ * Config-file handler for kewords starting with `lua.`
+ */
+void lua_cfg_handler (const char *key, const char *value)
+{
+  if (!stricmp(key, "luajit.enable"))
+     prefer_luajit = atoi (value);
+}
+
+const char *lua_get_exe (void)
+{
+  return (prefer_luajit ? "luajit.exe" : "lua.exe");
+}
+
+static int lua_version_cb (char *buf, int index)
+{
+  struct ver_info ver = { 0,0,0,0 };
+  const char *fmt = prefer_luajit ? "LuaJIT %d.%d.%d" : "Lua %d.%d.%d";
+
+  ARGSUSED (index);
+
+  if (sscanf(buf, fmt, &ver.val_1, &ver.val_2, &ver.val_3) >= 2)
+  {
+    memcpy (&lua_ver, &ver, sizeof(lua_ver));
+    return (1);
+  }
+  return (0);
+}
+
+/**
+ * Find the location and version for `lua.exe` (or `luajit.exe`) on `PATH`.
+ */
+BOOL lua_get_info (char **exe, struct ver_info *ver)
+{
+  static char exe_copy [_MAX_PATH];
+  int  _prefer_luajit = 0;
+
+  *exe = NULL;
+  *ver = lua_ver;
+
+  /* We have already done this
+   */
+  if (lua_exe && (lua_ver.val_1 + lua_ver.val_2) > 0)
+  {
+    *exe = STRDUP (lua_exe);
+    return (TRUE);
+  }
+
+  if (cache_getf(SECTION_LUA, "luajit.enable = %d", &_prefer_luajit) == 0 ||
+      prefer_luajit != _prefer_luajit)
+  {
+    cache_del (SECTION_LUA, "lua_exe");
+    cache_del (SECTION_LUA, "lua_version");
+  }
+  else
+  {
+    cache_getf (SECTION_LUA, "lua_exe = %s", &lua_exe);
+    cache_getf (SECTION_LUA, "lua_version = %d,%d,%d", &lua_ver.val_1, &lua_ver.val_2, &lua_ver.val_3);
+  }
+
+  TRACE (2, "lua_exe: %s, ver: %d.%d.%d. _prefer_luajit: %d\n", lua_exe, lua_ver.val_1, lua_ver.val_2, lua_ver.val_3, _prefer_luajit);
+
+  if (lua_exe && !FILE_EXISTS(lua_exe))
+  {
+    cache_del (SECTION_LUA, "lua_exe");
+    cache_del (SECTION_LUA, "lua_version");
+    memset (&lua_ver, '\0', sizeof(lua_ver));
+    lua_exe = NULL;
+    return lua_get_info (exe, ver);
+  }
+
+  if (!lua_exe)
+     lua_exe = searchpath (lua_get_exe(), "PATH");
+
+  if (!lua_exe)
+     return (FALSE);
+
+  lua_exe = slashify2 (exe_copy, lua_exe, '\\');
+  *exe = STRDUP (lua_exe);
+
+  cache_putf (SECTION_LUA, "lua_exe = %s", lua_exe);
+  cache_putf (SECTION_LUA, "luajit.enable = %d", prefer_luajit);
+
+  if (lua_ver.val_1 + lua_ver.val_2 == 0 &&
+      popen_run(lua_version_cb, lua_exe, "-v") > 0)
+     cache_putf (SECTION_LUA, "lua_version = %d,%d,%d", lua_ver.val_1, lua_ver.val_2, lua_ver.val_3);
+
+  *ver = lua_ver;
+  TRACE (2, "%s: ver: %d.%d.%d.\n", lua_get_exe(), ver->val_1, ver->val_2, ver->val_3);
+
+  return (lua_exe && lua_ver.val_1 + lua_ver.val_2 > 0);
+}
+

@@ -296,85 +296,118 @@ static void get_evry_bitness (HWND wnd)
  *  + `Python*.exe`
  *  + `pkg-config.exe`
  *  + `vcpkg.exe`
+ *  + `lua.exe`
  */
+typedef enum ver_index {
+        VER_CMAKE,
+        VER_PYTHON,
+        VER_PKG_CONFIG,
+        VER_VCPKG,
+        VER_LUA,
+        VER_MAX
+      } ver_index;
+
 static void show_ext_versions (void)
 {
-  static const char *found_fmt[] = { "  Cmake %u.%u.%u detected",
-                                     "  Python %u.%u.%u detected",
-                                     "  pkg-config %u.%u detected",
-                                     "  vcpkg %u.%u.%u detected"
-                                   };
+  static const char *found_fmt[VER_MAX] = { "  Cmake %u.%u.%u detected",
+                                            "  Python %u.%u.%u detected",
+                                            "  pkg-config %u.%u detected",
+                                            "  vcpkg %u.%u.%u detected",
+                                            "  Lua %u.%u.%u detected"
+                                          };
 
-  static const char *not_found_fmt[] = { "  Cmake ~5not~0 found.\n",
-                                         "  Python ~5not~0 found.\n",
-                                         "  pkg-config ~5not~0 found.\n",
-                                         "  vcpkg ~5not~0 found.\n",
-                                       };
+  static const char *not_found_fmt[VER_MAX] = { "  Cmake ~5not~0 found.\n",
+                                                "  Python ~5not~0 found.\n",
+                                                "  pkg-config ~5not~0 found.\n",
+                                                "  vcpkg ~5not~0 found.\n",
+                                                "  Lua ~5not~0 found.\n",
+                                              };
   #define FOUND_SZ 100
 
-  char            found [4][FOUND_SZ];
-  int             pad_len, len [4] = { 0,0,0,0 };
+  char            found [VER_MAX][FOUND_SZ];
+  int             pad_len, len [VER_MAX];
   char           *py_exe         = NULL;
   char           *pkg_config_exe = NULL;
   char           *vcpkg_exe      = NULL;
   char           *cmake_exe      = NULL;
+  char           *lua_exe        = NULL;
   char            slash = (opt.show_unix_paths ? '/' : '\\');
-  struct ver_info py_ver, cmake_ver, pkg_config_ver, vcpkg_ver;
+  struct ver_info py_ver, cmake_ver, pkg_config_ver, vcpkg_ver, lua_ver;
 
   memset (&found, '\0', sizeof(found));
   memset (&cmake_ver, '\0', sizeof(cmake_ver));
   memset (&py_ver, '\0', sizeof(py_ver));
   memset (&pkg_config_ver, '\0', sizeof(pkg_config_ver));
   memset (&vcpkg_ver, '\0', sizeof(vcpkg_ver));
+  memset (&lua_ver, '\0', sizeof(lua_ver));
+  memset (&len, 0, sizeof(len));
 
   pad_len = sizeof("  pkg-config 9.99 detected");
 
   if (cmake_get_info(&cmake_exe, &cmake_ver))
   {
-    len[0] = snprintf (found[0], FOUND_SZ, found_fmt[0], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
-    if (len[0] > pad_len)
-       pad_len = len[0];
+    len [VER_CMAKE] = snprintf (found[VER_CMAKE], FOUND_SZ, found_fmt[VER_CMAKE], cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
+    if (len[VER_CMAKE] > pad_len)
+       pad_len = len[VER_CMAKE];
   }
 
   if (py_get_info(&py_exe, NULL, &py_ver))
   {
-    len[1] = snprintf (found[1], FOUND_SZ, found_fmt[1], py_ver.val_1, py_ver.val_2, py_ver.val_3);
-    pad_len = len[1];
+    len [VER_PYTHON] = snprintf (found[VER_PYTHON], FOUND_SZ, found_fmt[VER_PYTHON], py_ver.val_1, py_ver.val_2, py_ver.val_3);
+    if (len[VER_PYTHON] > pad_len)
+       pad_len = len [VER_PYTHON];
   }
 
   if (pkg_config_get_info(&pkg_config_exe, &pkg_config_ver))
   {
-    len[2] = snprintf (found[2], FOUND_SZ, found_fmt[2], pkg_config_ver.val_1, pkg_config_ver.val_2);
-    if (len[2] > pad_len)
-       pad_len = len[2];
+    len [VER_PKG_CONFIG] = snprintf (found[VER_PKG_CONFIG], FOUND_SZ, found_fmt[VER_PKG_CONFIG], pkg_config_ver.val_1, pkg_config_ver.val_2);
+    if (len[VER_PKG_CONFIG] > pad_len)
+       pad_len = len [VER_PKG_CONFIG];
   }
 
   if (vcpkg_get_info(&vcpkg_exe, &vcpkg_ver))
   {
-    len[3] = snprintf (found[3], FOUND_SZ, found_fmt[3], vcpkg_ver.val_1, vcpkg_ver.val_2, vcpkg_ver.val_3);
-    if (len[3] > pad_len)
-       pad_len = len[3];
+    len [VER_VCPKG] = snprintf (found[VER_VCPKG], FOUND_SZ, found_fmt[VER_VCPKG], vcpkg_ver.val_1, vcpkg_ver.val_2, vcpkg_ver.val_3);
+    if (len[VER_VCPKG] > pad_len)
+       pad_len = len [VER_VCPKG];
+  }
+
+  if (!stricmp(lua_get_exe(), "luajit.exe"))
+  {
+    found_fmt[VER_LUA]     = "  LuaJIT %u.%u.%u detected";
+    not_found_fmt[VER_LUA] = "  LuaJIT ~5not~0 found.\n";
+  }
+
+  if (lua_get_info(&lua_exe, &lua_ver))
+  {
+    len[VER_LUA] = snprintf (found[VER_LUA], FOUND_SZ, found_fmt[VER_LUA], lua_ver.val_1, lua_ver.val_2, lua_ver.val_3);
+    if (len[VER_LUA] > pad_len)
+       pad_len = len [VER_LUA];
   }
 
   if (cmake_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[0], slashify(cmake_exe, slash));
-  else C_printf (not_found_fmt[0]);
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[VER_CMAKE], slashify(cmake_exe, slash));
+  else C_printf (not_found_fmt[VER_CMAKE]);
 
   if (py_exe)
-       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[1], slashify(py_exe, slash));
-  else C_printf (not_found_fmt[1]);
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[VER_PYTHON], slashify(py_exe, slash));
+  else C_printf (not_found_fmt[VER_PYTHON]);
+
+  if (lua_exe)
+       C_printf ("%-*s -> ~6%s~0\n", pad_len, found[VER_LUA], slashify(lua_exe, slash));
+  else C_printf (not_found_fmt[VER_LUA]);
 
   if (pkg_config_exe)
   {
     unsigned num = pkg_config_get_num_installed();
 
-    C_printf ("%-*s -> ~6%s~0", pad_len, found[2], slashify(pkg_config_exe, slash));
+    C_printf ("%-*s -> ~6%s~0", pad_len, found[VER_PKG_CONFIG], slashify(pkg_config_exe, slash));
     if (num >= 1)
        C_printf (" (%u .pc files installed).", num);
     C_putc ('\n');
   }
   else
-   C_printf (not_found_fmt[2]);
+   C_printf (not_found_fmt[VER_PKG_CONFIG]);
 
   if (vcpkg_exe)
   {
@@ -386,15 +419,16 @@ static void show_ext_versions (void)
     num1 = vcpkg_get_num_installed();
     num2 = vcpkg_get_num_CONTROLS() + vcpkg_get_num_JSON();
 
-    C_printf ("\r%-*s -> ~6%s~0", pad_len, found[3], slashify(vcpkg_exe, slash));
+    C_printf ("\r%-*s -> ~6%s~0", pad_len, found[VER_VCPKG], slashify(vcpkg_exe, slash));
     if (num1 >= 1)
          C_printf (" (%u packages installed, %u packages available).\n", num1, num2);
     else C_printf (" (%s).\n", vcpkg_last_error());
   }
   else
-    C_printf (not_found_fmt[3]);
+    C_printf (not_found_fmt[VER_VCPKG]);
 
   FREE (cmake_exe);
+  FREE (lua_exe);
   FREE (py_exe);
   FREE (pkg_config_exe);
   FREE (vcpkg_exe);
@@ -4834,6 +4868,11 @@ static void envtool_cfg_handler (const char *section, const char *key, const cha
   {
     TRACE (2, "%s: Calling 'cfg_grep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
     cfg_grep_handler (key+5, value);
+  }
+  else if (!strnicmp(key, "lua.", 4))
+  {
+    TRACE (2, "%s: Calling 'lua_cfg_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
+    lua_cfg_handler (key+4, value);
   }
 #ifdef NOT_YET
   else if (!strnicmp(key, "colour.", 6))

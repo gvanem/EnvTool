@@ -14,6 +14,7 @@ typedef enum CacheSections {
              SECTION_CMAKE,
              SECTION_COMPILER,
              SECTION_ENV_DIR,
+             SECTION_LUA,
              SECTION_PKGCONFIG,
              SECTION_PYTHON,
              SECTION_VCPKG,

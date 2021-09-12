@@ -47,6 +47,7 @@ static const struct search_list sections[] = {
                   { SECTION_CMAKE,     "[Cmake]"     },
                   { SECTION_COMPILER,  "[Compiler]"  },
                   { SECTION_ENV_DIR,   "[EnvDir]"    },
+                  { SECTION_LUA,       "[Lua]"       },
                   { SECTION_PKGCONFIG, "[Pkgconfig]" },
                   { SECTION_PYTHON,    "[Python]"    },
                   { SECTION_VCPKG,     "[VCPKG]"     },
@@ -121,6 +122,9 @@ void cache_init (void)
   n = CACHE_STATES;
   if (n & (n-1))
      FATAL ("'CACHE_STATES' must be a power of 2.\n");
+
+  if (DIM(sections) != SECTION_LAST)
+     FATAL ("'DIM(sections) == %d' too small. Should be: %d\n", DIM(sections), SECTION_LAST);
 
   cache.entries = smartlist_new();
 
