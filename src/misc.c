@@ -2096,6 +2096,8 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
     else
       err = GetLastError();
   }
+  else
+    err = GetLastError();
 
   TRACE (1, "file: '%s', attr: 0x%08lX, hnd: %p, err: %lu, mtime: %" U64_FMT " fsize: %s\n",
          file, (unsigned long)attr, hnd, err, (UINT64)st->st_mtime, get_file_size_str(st->st_size));
