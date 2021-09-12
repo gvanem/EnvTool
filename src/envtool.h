@@ -102,7 +102,7 @@
   #define _pclose(fil)            pclose (fil)
   #define _fileno(f)              fileno (f)
   #define _isatty(fd)             isatty (fd)
-  #define _tempnam(dir,prefix)    tempnam (dir,prefix)
+  #define _tempnam(dir, prefix)   tempnam (dir, prefix)
   #define _wcsdup(s)              wcsdup (s)
 
   #define stricmp(s1, s2)         strcasecmp (s1, s2)
