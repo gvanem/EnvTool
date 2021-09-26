@@ -841,25 +841,30 @@ void py_exit (void)
  */
 static PyObject *setup_stdout_catcher (void)
 {
-  static char code[] = "import sys\n"                               \
-                       "PY3 = (sys.version_info[0] >= 3)\n"         \
-                       "Empty = ['', b''][PY3]\n"                   \
-                       "\n"                                         \
-                       "class catch_stdout:\n"                      \
-                       "  def __init__ (self):\n"                   \
-                       "    self.value = Empty\n"                   \
-                       "  def write (self, txt):\n"                 \
-                       "    if PY3:\n"                              \
-                       "      self.value += bytes(txt,\"UTF-8\")\n" \
-                       "    else:\n"                                \
-                       "      self.value += txt\n"                  \
-                       "  def reset (self):\n"                      \
-                       "    self.value = Empty\n"                   \
-                       "  def flush (self):\n"                      \
-                       "    self.reset()\n"                         \
-                       "\n"                                         \
-                       "old_stdout = sys.stdout\n"                  \
-                       "sys.stdout = catcher = catch_stdout()\n";
+  static char code[] = "import sys\n"                                 \
+                       "PY3 = (sys.version_info[0] >= 3)\n"           \
+                       "Empty = ['', b''][PY3]\n"                     \
+                       "\n"                                           \
+                       "class catch_stdout:\n"                        \
+                       "  def __init__ (self):\n"                     \
+                       "    self.value = Empty\n"                     \
+                       "    self.exit_code = 0\n"                     \
+                       "  def write (self, txt):\n"                   \
+                       "    if PY3:\n"                                \
+                       "      self.value += bytes (txt, \"UTF-8\")\n" \
+                       "    else:\n"                                  \
+                       "      self.value += txt\n"                    \
+                       "  def reset (self):\n"                        \
+                       "    self.value = Empty\n"                     \
+                       "  def flush (self):\n"                        \
+                       "    self.reset()\n"                           \
+                       "  def exit (self, x):\n"                      \
+                       "    self.exit_code = x\n"                     \
+                       "\n"                                           \
+                       "old_sys_exit = sys.exit\n"                    \
+                       "old_stdout = sys.stdout\n"                    \
+                       "sys.stdout = catcher = catch_stdout()\n"      \
+                       "sys.exit   = catcher.exit\n";
 
   PyObject *mod = (*PyImport_AddModule) ("__main__");          /* create `__main__` module */
   int       rc  = (*PyRun_SimpleString) (code);                /* invoke code to redirect */
