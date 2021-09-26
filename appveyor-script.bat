@@ -116,8 +116,7 @@ exit /b 1
 :: Use an 'echo.exe' with colour support in this sub-routine.
 ::
 :green_msg
-  @echo.
   @c:\msys64\usr\bin\echo.exe -en "\e[1;32m"
   @echo %*
-  @c:\msys64\usr\bin\echo.exe -en "\e[0m\n"
+  @c:\msys64\usr\bin\echo.exe -en "\e[0m"
   @goto :EOF
