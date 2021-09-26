@@ -60,42 +60,42 @@ exit /b 1
 
   echo on
 
-  %_ECHO% "\e[1;32mTesting version output.\e[0m"
+  %_ECHO% "\e[1;32mTesting version output:\e[0m"
   .\envtool -VVV
 
   @echo.
-  %_ECHO% "\e[1;32mTesting grep search and --inc mode.\e[0m"
+  %_ECHO% "\e[1;32mTesting grep search and --inc mode:\e[0m"
   .\envtool --inc --no-gcc --no-g++ --no-clang --grep PyOS_ pys*.h
 
   @echo.
-  %_ECHO% "\e[1;32mTesting test output (show owner in test_PE_wintrust()).\e[0m"
+  %_ECHO% "\e[1;32mTesting test output (show owner in test_PE_wintrust()):\e[0m"
   .\envtool --test --owner
 
   @echo.
-  %_ECHO% "\e[1;32mTesting Python2 test output.\e[0m"
+  %_ECHO% "\e[1;32mTesting Python2 test output:\e[0m"
   .\envtool --test --python=py2
 
   @echo.
-  %_ECHO% "\e[1;32mTesting Python3 test output.\e[0m"
+  %_ECHO% "\e[1;32mTesting Python3 test output:\e[0m"
   .\envtool --test --python=py3
 
   @echo.
-  %_ECHO% "\e[1;32mTesting VCPKG output.\e[0m"
+  %_ECHO% "\e[1;32mTesting VCPKG output:\e[0m"
   .\envtool --vcpkg=all azure-u*
 
   @echo.
-  %_ECHO% "\e[1;32mTesting ETP-searches (should fail).\e[0m"
+  %_ECHO% "\e[1;32mTesting ETP-searches (should fail):\e[0m"
   .\envtool -d --test --evry:ftp.github.com:21
 
   @echo.
-  %_ECHO% "\e[1;32mTesting verbose check output.\e[0m"
+  %_ECHO% "\e[1;32mTesting verbose check output:\e[0m"
   .\envtool --check -v
 
-  :: %_ECHO% "\e[1;32mTesting win_glob.\e[0m"
+  :: %_ECHO% "\e[1;32mTesting win_glob:\e[0m"
   :: win_glob -fr "c:\Program Files (x86)\CMake"
 
   @echo.
-  %_ECHO% "\e[1;32mShowing last 20 lines of cache-file.\e[0jm"
+  %_ECHO% "\e[1;32mShowing last 20 lines of cache-file:\e[0m"
   @"c:\Program Files\Git\usr\bin\tail" --lines=20 %TEMP%\envtool.cache
 
   @echo off
