@@ -19,6 +19,11 @@ if "%APPVEYOR_BUILD_FOLDER%" == "" set APPVEYOR_BUILD_FOLDER=%~dp0
 set PATH=%PATH%;c:\Python34;c:\msys64\MinGW64\bin
 set PROMPT=$P$G
 
+::
+:: Use an 'echo.exe' with colour support.
+::
+set _ECHO=@c:\msys64\usr\bin\echo.exe -e
+
 if %1. == build. goto build
 if %1. == test.  goto test
 
@@ -55,42 +60,42 @@ exit /b 1
 
   echo on
 
-  @echo Testing version output
+  %_ECHO% "\e[1;32mTesting version output.\e[0m"
   .\envtool -VVV
 
   @echo.
-  @echo Testing grep search and --inc mode
+  %_ECHO% "\e[1;32mTesting grep search and --inc mode.\e[0m"
   .\envtool --inc --no-gcc --no-g++ --no-clang --grep PyOS_ pys*.h
 
   @echo.
-  @echo Testing test output (show owner in test_PE_wintrust())
+  %_ECHO% "\e[1;32mTesting test output (show owner in test_PE_wintrust()).\e[0m"
   .\envtool --test --owner
 
   @echo.
-  @echo Testing Python2 test output
+  %_ECHO% "\e[1;32mTesting Python2 test output.\e[0m"
   .\envtool --test --python=py2
 
   @echo.
-  @echo Testing Python3 test output
+  %_ECHO% "\e[1;32mTesting Python3 test output.\e[0m"
   .\envtool --test --python=py3
 
   @echo.
-  @echo Testing VCPKG output
+  %_ECHO% "\e[1;32mTesting VCPKG output.\e[0m"
   .\envtool --vcpkg=all azure-u*
 
   @echo.
-  @echo Testing ETP-searches (should fail)
+  %_ECHO% "\e[1;32mTesting ETP-searches (should fail).\e[0m"
   .\envtool -d --test --evry:ftp.github.com:21
 
   @echo.
-  @echo Testing verbose check output
+  %_ECHO% "\e[1;32mTesting verbose check output.\e[0m"
   .\envtool --check -v
 
-  :: echo Testing win_glob
+  :: %_ECHO% "\e[1;32mTesting win_glob.\e[0m"
   :: win_glob -fr "c:\Program Files (x86)\CMake"
 
   @echo.
-  @echo Showing last 20 lines of cache-file
+  %_ECHO% "\e[1;32mShowing last 20 lines of cache-file.\e[0jm"
   @"c:\Program Files\Git\usr\bin\tail" --lines=20 %TEMP%\envtool.cache
 
   @echo off
@@ -101,7 +106,7 @@ exit /b 1
 :: Create a '<root>\.netrc' and '<root>\.authinfo' files for testing of 'src/auth.c' functions
 ::
 :create_auth_files
-  echo Creating '%APPDATA%/.netrc'.
+  %_ECHO% "\e[1;32mCreating '%APPDATA%/.netrc'.\e[0m"
 
   echo #                                                                     > .netrc
   echo # This .netrc file was generated from "appveyor-script.bat".         >> .netrc
