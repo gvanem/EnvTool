@@ -60,7 +60,9 @@ exit /b 1
 
   echo on
 
-  %_ECHO% "\e[1;32mTesting version output:\e[0m"
+  call :green_msg "Testing version output:"
+
+  :: %_ECHO% "\e[1;32mTesting version output:\e[0m"
   .\envtool -VVV
 
   @echo.
@@ -125,3 +127,8 @@ exit /b 1
   echo.
   goto :EOF
 
+:green_msg
+  %_ECHO% -n "\e[1;32m"
+  @echo %*
+  %_ECHO% -n "\e[0m\n"
+  goto :EOF
