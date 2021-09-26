@@ -2682,8 +2682,7 @@ static const char *wanted_arch;
 
 static void info_parse (smartlist_t *sl, const char *buf)
 {
-  char *q; // , *p = buf;
-  char *p  = strdupa (buf);
+  char *q, *p = strdupa (buf);
 
   str_strip_nl (p);
   q = strchr (p, '\0') - 1;
@@ -2724,7 +2723,7 @@ static BOOL get_installed_info (vcpkg_package *package)
   if (!package->install_info)
   {
     wanted_arch = package->arch;
-    package->install_info = smartlist_read_file ( /* (smartlist_parse_func) */ info_parse,
+    package->install_info = smartlist_read_file (info_parse,
                                                  "%s\\installed\\vcpkg\\info\\%s_%s_%s.list",
                                                  vcpkg_root, package->package, package->version, package->arch);
 
