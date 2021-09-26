@@ -98,7 +98,7 @@ int cmake_get_info_registry (smartlist_t *sl, int *index, HKEY top_key)
     cache_putf (SECTION_CMAKE, "cmake_key%d = %s\\%s,%s,%s,%d", *index, reg_top_key_name(top_key), package_key, uuid, path, exist);
 
     if (sl && exist)
-       smartlist_add (sl, STRDUP(path));
+       smartlist_add_strdup (sl, path);
     if (opt.do_check)
        C_printf ("   [%2d]: ~6%-15s~0 -> ~6%s%s~0\n", num, package, path, exist ? "": " ~5(Missing)");
 
@@ -127,7 +127,7 @@ static smartlist_t *cmake_cache_info_registry (void)
     if (cache_getf(SECTION_CMAKE, format, &key, &uuid, &path, &exist) != 4)
        break;
     if (exist)
-       smartlist_add (sl, STRDUP(path));
+       smartlist_add_strdup (sl, path);
     TRACE (1, "%s: %s, %s, %d\n", key, uuid, path, exist);
     found++;
     i++;
