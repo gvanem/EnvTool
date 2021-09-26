@@ -523,7 +523,7 @@ static int show_help (void)
           "    ~6--signed=0~0     report only ~4PE~0-files files that are ~6unsigned~0.\n"
           "    ~6--signed=1~0     report only ~4PE~0-files files that are ~6signed~0.\n"
           "    ~6--no-cwd~0       don't add current directory to the search-paths.\n"
-          "    ~6-c~0             be case-sensitive.\n"
+          "    ~6-c~0, ~6--case~0     be case-sensitive.\n"
           "    ~6-d~0, ~6--debug~0    set debug level (level 2, ~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
           "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n"
           "    ~6-k~0, ~6--keep~0     keep temporary files used in ~6--python~0 mode.\n"
@@ -4109,6 +4109,7 @@ static const struct option long_options[] = {
            { "keep",        no_argument,       NULL, 0 },
            { "grep",        required_argument, NULL, 0 },    /* 43 */
            { "only",        no_argument,       NULL, 0 },
+           { "case",        no_argument,       NULL, 'c' },  /* 45 */
            { NULL,          no_argument,       NULL, 0 }
          };
 
@@ -4157,7 +4158,8 @@ static int *values_tab[] = {
             &opt.show_descr,          /* 41 */
             &opt.keep_temp,
             (int*)&opt.grep.content,  /* 43 */
-            &opt.grep.only
+            &opt.grep.only,
+            (int*)&opt.case_sensitive /* 45 */
           };
 
 /**
@@ -4343,7 +4345,7 @@ static void set_short_option (int o, const char *arg)
          usage ("  Use %s \"-h\" / \"--help\" for options\n", who_am_I);
          break;
     default:
-         usage ("Illegal option: '%c'\n", optopt);
+         usage ("Illegal option: '%c' (%d)\n", optopt, optopt);
          break;
   }
 }
