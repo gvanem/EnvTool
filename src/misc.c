@@ -2028,6 +2028,42 @@ BOOL is_directory (const char *path)
 }
 
 /**
+ * Handle files like `c:\pagefile.sys` specially.
+ *
+ * These could be locked and `GetFileAttributes()` always fails on such files.
+ * Best alternative is to use `FindFirstFile()`.
+ */
+static int safe_stat_sys (const char *file, struct stat *st, DWORD *win_err)
+{
+  WIN32_FIND_DATA ff_data;
+  HANDLE          hnd;
+  DWORD           err = 0;
+
+  memset (&ff_data, '\0', sizeof(ff_data));
+  hnd = FindFirstFile (file, &ff_data);
+  if (hnd == INVALID_HANDLE_VALUE)
+     err = GetLastError();
+  else
+  {
+    if (ff_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+       err = ERROR_DIRECTORY;
+    else
+    {
+      st->st_ctime = FILETIME_to_time_t (&ff_data.ftCreationTime);
+      st->st_mtime = FILETIME_to_time_t (&ff_data.ftLastAccessTime);
+      st->st_size = ((UINT64)ff_data.nFileSizeHigh << 32) + ff_data.nFileSizeLow;
+    }
+    FindClose (hnd);
+  }
+  TRACE (1, "file: '%s', attr: 0x%08lX, err: %lu, mtime: %" U64_FMT " fsize: %" U64_FMT "\n",
+         file, (unsigned long)ff_data.dwFileAttributes, err, (UINT64)st->st_mtime, st->st_size);
+
+  if (win_err)
+     *win_err = err;
+  return (err ? -1 : 0);
+}
+
+/**
  * A bit safer `stat()`.
  * If given a hidden / system file (like `c:\\pagefile.sys`), some
  * `stat()` implementations can crash. MSVC would be one case.
@@ -2063,6 +2099,9 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
   memset (st, '\0', sizeof(*st));
   st->st_size = (off_t)-1;     /* signal if stat() fails */
 
+  if (attr == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_SHARING_VIOLATION)
+     return safe_stat_sys (file, st, win_err);
+
   is_dir = (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
   if (is_dir)
      return stat (file, st);
@@ -2071,7 +2110,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
      return stat (file, st);
 
   /**
-   * Need to check for Hidden/System files here.
+   * Need to check for other Hidden/System files here.
    */
   if (attr != INVALID_FILE_ATTRIBUTES && (attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
   {
