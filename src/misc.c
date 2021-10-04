@@ -225,7 +225,7 @@ typedef BOOL (WINAPI *func_DestroyEnvironmentBlock) (
 static func_GetModuleFileNameEx              p_GetModuleFileNameEx;
 static func_SetThreadErrorMode               p_SetThreadErrorMode;
 static func_IsWow64Process                   p_IsWow64Process;
-static func_NeedCurrentDirectoryForExePathA  p_NeedCurrentDirectoryForExePathA; /* not used */
+static func_NeedCurrentDirectoryForExePathA  p_NeedCurrentDirectoryForExePathA; /* used only in tests.c */
 static func_ExpandEnvironmentStringsForUserA p_ExpandEnvironmentStringsForUserA;
 static func_CreateEnvironmentBlock           p_CreateEnvironmentBlock;
 static func_DestroyEnvironmentBlock          p_DestroyEnvironmentBlock;
@@ -3651,7 +3651,7 @@ void print_long_line (const char *line, size_t indent)
 
       if (left < 2 || (left <= (size_t)(p - c)))
       {
-        C_printf ("\n%*c", indent, ' ');
+        C_printf ("\n%*c", (int)indent, ' ');
         left = width - indent;
         line = ++c;
         continue;
@@ -3696,7 +3696,7 @@ void print_long_line2 (const char *line, size_t indent, int break_at)
 
       if (left < 2 || (left <= (size_t)(p - c)))
       {
-        C_printf ("%c\n%*c", break_at, indent, ' ');
+        C_printf ("%c\n%*c", break_at, (int)indent, ' ');
         left = width - indent;
         line = ++c;
         continue;
