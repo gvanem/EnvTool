@@ -258,6 +258,39 @@ static void test_fnmatch (void)
 }
 
 /**
+ * Tests for some functions in misc.c.
+ */
+struct test_table3 {
+       const char *file;    /**< the file to test in `get_file_ext()` */
+       const char *expect;  /**< the expected result */
+     };
+
+static void test_misc (void)
+{
+  static const struct test_table3 tests[] = {
+              { "c:\\foo\\.\\bar\\baz.c",   "c"   },
+              { "foo\\.\\bar\\baz",         ""    },
+              { "c:\\foo\\bar\\baz.pc",     "pc"  },
+              { "c:\\foo\\bar\\baz.pc.old", "old" },
+            };
+  const struct test_table3 *t;
+  int   i = 0;
+
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+
+  for (t = tests; i < DIM(tests); t++, i++)
+  {
+    const char *rc  = get_file_ext (t->file);
+    size_t      len = strlen (t->file);
+
+    C_printf ("%s~0 get_file_ext (\"%s\") %*s -> \"%s\"\n",
+              !strcmp(rc, t->expect) ? "~2  OK" : "~5  FAIL",
+              t->file, (int)(22-len), "", rc);
+  }
+  C_putc ('\n');
+}
+
+/**
  * Tests for `slashify()`.
  */
 static void test_slashify (void)
@@ -793,6 +826,7 @@ int do_tests (void)
 
   test_searchpath();
   test_fnmatch();
+  test_misc();
   test_PE_wintrust();
   test_slashify();
   test_fix_path();
