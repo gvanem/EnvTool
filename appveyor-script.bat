@@ -80,7 +80,7 @@ exit /b 1
   .\envtool --check -v
 
   :: @call :green_msg Testing win_glob:
-  :: win_glob -fr "c:\Program Files (x86)\CMake"
+  :: .\win_glob -fr "c:\Program Files (x86)\CMake"
 
   @call :green_msg Showing last 20 lines of cache-file:
   @"c:\Program Files\Git\usr\bin\tail" --lines=20 %TEMP%\envtool.cache
@@ -109,7 +109,6 @@ exit /b 1
   echo machine host1  port 8080 login user1     password password1          >> .authinfo
   echo machine host2  port 7070 login user2     password password2          >> .authinfo
   echo default        port 21   login anonymous password your@email.address >> .authinfo
-  echo.
   goto :EOF
 
 ::
