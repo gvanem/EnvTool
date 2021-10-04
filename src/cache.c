@@ -459,7 +459,7 @@ void cache_del (CacheSections section, const char *key)
 /**
  * A var-arg version of `cache_del()`.
  */
-void cache_delf (CacheSections section, const char *fmt, ...)
+void cache_delf (CacheSections section, _Printf_format_string_ const char *fmt, ...)
 {
   char    key [CACHE_MAX_KEY];
   va_list args;
@@ -769,7 +769,7 @@ static int cache_next_idx_state (int rc, int idx)
 /*
  * The public interface for `cache_vgetf()`.
  */
-int cache_getf (CacheSections section, const char *fmt, ...)
+int cache_getf (CacheSections section, _Printf_format_string_ const char *fmt, ...)
 {
   static  int idx = 0;
   int     rc, save_dbg = 0;
@@ -836,18 +836,20 @@ void cache_dump (void)
   int num_sections = 0, last_section = -1;
   int max_sections = DIM(sections) - 2;  /* except SECTION_FIRST and SECTION_LAST */
 
+  TRACE (2, "%s()\n", __FUNCTION__);
+
   for (i = 0; i < max; i++)
   {
     const cache_node *c = smartlist_get (cache.entries, i);
 
     if (c->section != last_section)
     {
-      TRACE (2, "section: %s\n", sections[c->section].name);
+      debug_printf ("section: %s\n", sections[c->section].name);
       num_sections++;
     }
 
     last_section = c->section;
-    TRACE (2, "'%-15s' -> '%-15s'.\n", c->key, c->value);
+    debug_printf ("%-30s -> %s.\n", c->key, c->value);
   }
   if (num_sections != max_sections)
      TRACE (2, "Founded cached data for only %d section(s).\n"
@@ -876,28 +878,32 @@ void cache_test (void)
   rc2 = cache_getf (SECTION_PYTHON, "python_path0_2 = %d,%d,%d,%s", &d_val20, &d_val21, &d_val22, &s_val20);
   rc3 = cache_getf (SECTION_PYTHON, "python_path0_3 = %d,%d,%d,%s", &d_val30, &d_val31, &d_val32, &s_val30);
 
-  TRACE (0, "rc0: %d, d_val00: %d, d_val01: %d, d_val02: %d, s_val00: '%s'.\n\n", rc0, d_val00, d_val01, d_val02, s_val00);
-  TRACE (0, "rc1: %d, d_val10: %d, d_val11: %d, d_val12: %d, s_val10: '%s'.\n\n", rc1, d_val10, d_val11, d_val12, s_val10);
-  TRACE (0, "rc2: %d, d_val20: %d, d_val21: %d, d_val22: %d, s_val20: '%s'.\n\n", rc2, d_val20, d_val21, d_val22, s_val20);
-  TRACE (0, "rc3: %d, d_val30: %d, d_val31: %d, d_val32: %d, s_val30: '%s'.\n\n", rc3, d_val30, d_val31, d_val32, s_val30);
+  TRACE (0, "rc0: %d, d_val00: %d, d_val01: %d, d_val02: %d, s_val00: '%s'.\n", rc0, d_val00, d_val01, d_val02, s_val00);
+  TRACE (0, "rc1: %d, d_val10: %d, d_val11: %d, d_val12: %d, s_val10: '%s'.\n", rc1, d_val10, d_val11, d_val12, s_val10);
+  TRACE (0, "rc2: %d, d_val20: %d, d_val21: %d, d_val22: %d, s_val20: '%s'.\n", rc2, d_val20, d_val21, d_val22, s_val20);
+  TRACE (0, "rc3: %d, d_val30: %d, d_val31: %d, d_val32: %d, s_val30: '%s'.\n", rc3, d_val30, d_val31, d_val32, s_val30);
 
   /*
    * Add a test for parsing stuff like this (from VCPKG):
-   *  ports_node_499 = gts,0.7.6-1,https://github.com/finetjul/gts,1,"A Library intended to provide a set of useful functions to deal with 3D surfaces meshed with interconnected triangles"
+   *  port_node_499 = gts,0,1,0.7.6,https://github.com/finetjul/gts,"A Library intended to provide a set of useful functions to deal with 3D surfaces meshed with interconnected triangles"
    *
    * with a "quoted description, with commas".
    */
-  rc4 = cache_getf (SECTION_VCPKG, "port_node_499 = %s,%s,%s,%d,%s",
-                    &s_val00, &s_val10, &s_val20, &d_val00, &s_val30);
-  if (rc4 == 5)
+  rc4 = cache_getf (SECTION_VCPKG, "port_node_499 = %s,%d,%d,%s,%s,%s",
+                    &s_val00, &d_val00, &d_val01, &s_val10, &s_val20, &s_val30);
+  if (rc4 == 6)
   {
-    TRACE (0, "rc4: %d, name: %s, ver: %s, homepage: %s, have_CONTROL: %d\n"
-           "              description: ",
-           rc4, s_val00, s_val10, s_val20, d_val00);
-    print_long_line (str_unquote(s_val30), 27);
+    TRACE (0, "rc4: %d:\n"
+           "  name:         %s\n"
+           "  version:      %s\n"
+           "  homepage:     %s\n"
+           "  have_CONTROL: %d\n"
+           "  have_JSON:    %d\n"
+           "  description:  ", rc4, s_val00, s_val10, s_val20, d_val00, d_val01);
+    print_long_line (str_unquote(s_val30), 16);
   }
   else
-    TRACE (0, "'port_node_499' not found or not 5 arguments in that key.\n");
+    TRACE (0, "'port_node_499' not found or not 6 arguments in that key.\n");
 
   if (opt.debug >= 2)
      cache_dump();
