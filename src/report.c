@@ -336,7 +336,8 @@ int report_file (struct report *r)
        have_it = FALSE;
 #endif
 
-    if (have_it && r->mtime == 0 && !(r->is_dir ^ opt.dir_mode))
+    if (r->mtime == 0 &&
+        have_it && !(r->is_dir ^ opt.dir_mode))
     {
       if (r->fsize == (__int64)-1)   /* Could actually be a file from 01-01-1970 */
          found_everything_db_dirty = 1;
@@ -362,19 +363,13 @@ int report_file (struct report *r)
      note = "<DIR> ";
 
   if ((!r->is_dir && opt.dir_mode) || !have_it)
-  {
-    show_this_file = FALSE;
-    return (0);
-  }
+     return (0);
 
   if (show_pc_files_only)
   {
     ext = get_file_ext (r->file);
-    if (stricmp(ext,"pc"))
-    {
-      show_this_file = FALSE;
-      return (0);
-    }
+    if (stricmp(ext, "pc"))
+       return (0);
   }
 
  /*
