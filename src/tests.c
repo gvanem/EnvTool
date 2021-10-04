@@ -200,11 +200,6 @@ static void test_searchpath (void)
     C_printf ("%*s -> %s, pos: %d\n", pad, "",
               found ? found : strerror(errno), searchpath_pos());
   }
-  C_printf ("\n  check_if_cwd_in_search_path(~6\"envtool.exe\"~0):   %s~0\n",
-            check_if_cwd_in_search_path("envtool.exe") ? "~2YES" : "~5NO");
-
-  C_printf ("  check_if_cwd_in_search_path(~6\".\\envtool.exe\"~0): %s~0\n\n",
-            check_if_cwd_in_search_path(".\\envtool.exe") ? "~2YES" : "~5NO");
 }
 
 struct test_table2 {
@@ -267,25 +262,53 @@ struct test_table3 {
 
 static void test_misc (void)
 {
-  static const struct test_table3 tests[] = {
+  static const struct test_table3 ext_tests[] = {
               { "c:\\foo\\.\\bar\\baz.c",   "c"   },
               { "foo\\.\\bar\\baz",         ""    },
               { "c:\\foo\\bar\\baz.pc",     "pc"  },
               { "c:\\foo\\bar\\baz.pc.old", "old" },
             };
+  static int stat_okay = 0;
+  static const struct test_table3 stat_tests[] = {
+              { "c:\\pagefile.sys", (const char*)&stat_okay },
+              { "c:\\swapfile.sys", (const char*)&stat_okay },
+              { "c:\\",             (const char*)&stat_okay }
+            };
+
   const struct test_table3 *t;
-  int   i = 0;
+  DWORD err;
+  int   i;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
-  for (t = tests; i < DIM(tests); t++, i++)
+  C_printf ("  check_if_cwd_in_search_path(~6\"envtool.exe\"~0):   %s~0\n",
+            check_if_cwd_in_search_path("envtool.exe") ? "~2YES" : "~5NO");
+
+  C_printf ("  check_if_cwd_in_search_path(~6\".\\envtool.exe\"~0): %s~0\n\n",
+            check_if_cwd_in_search_path(".\\envtool.exe") ? "~2YES" : "~5NO");
+
+  i = 0;
+  for (t = ext_tests; i < DIM(ext_tests); t++, i++)
   {
     const char *rc  = get_file_ext (t->file);
     size_t      len = strlen (t->file);
 
     C_printf ("%s~0 get_file_ext (\"%s\") %*s -> \"%s\"\n",
-              !strcmp(rc, t->expect) ? "~2  OK" : "~5  FAIL",
+              !strcmp(rc, t->expect) ? "~2  OK  " : "~5  FAIL",
               t->file, (int)(22-len), "", rc);
+  }
+  C_putc ('\n');
+
+  i = 0;
+  for (t = stat_tests; i < DIM(stat_tests); t++, i++)
+  {
+    struct stat st;
+    int    rc  = safe_stat (t->file, &st, &err);
+    size_t len = strlen (t->file);
+
+    C_printf ("%s~0 safe_stat (\"%s\") %*s -> %d, size: %s, ctime: %s, err: %lu\n",
+              rc == *t->expect ? "~2  OK  " : "~5  FAIL", t->file, (int)(15-len), "", rc,
+              get_file_size_str(st.st_size), get_time_str(st.st_ctime), err);
   }
   C_putc ('\n');
 }
