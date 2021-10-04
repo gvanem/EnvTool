@@ -571,7 +571,7 @@ static int show_help (void)
   for (i = 1; i < DIM(gnu_prefixes); i++)
   {
     size_t len = strlen (gnu_prefixes[i]);
-    C_printf ("~6%.*s~0%s", len-1, gnu_prefixes[i], i <= DIM(gnu_prefixes)-2 ? ", " : ".");
+    C_printf ("~6%.*s~0%s", (int)(len-1), gnu_prefixes[i], i <= DIM(gnu_prefixes)-2 ? ", " : ".");
   }
 
   C_puts ("\n\n"
@@ -5273,8 +5273,8 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
       t1 = get_time_str_FILETIME (&se->shadowed_FILE_TIME);
       t2 = get_time_str_FILETIME (&se->shadowing_FILE_TIME);
 
-      C_printf ("     ~6shadowed:~0 %-*s  ~6%s~0\n", longest, slashify(se->shadowed_file, slash), t1);
-      C_printf ("               %-*s  ~6%s~0\n", longest, slashify(se->shadowing_file, slash), t2);
+      C_printf ("     ~6shadowed:~0 %-*s  ~6%s~0\n", (int)longest, slashify(se->shadowed_file, slash), t1);
+      C_printf ("               %-*s  ~6%s~0\n", (int)longest, slashify(se->shadowing_file, slash), t2);
     }
 
     /* We're done; free the shadow-list

@@ -378,7 +378,7 @@ size_t JSON_get_total_size (const JSON_tok_t *token)
 const JSON_tok_t *JSON_get_token_by_index (const JSON_tok_t *token, JSON_type_t type, int index)
 {
   const JSON_tok_t *token2;
-  int   i, total_size;
+  size_t i, total_size;
 
   if (token->type != type)
      return (NULL);

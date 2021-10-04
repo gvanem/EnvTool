@@ -943,7 +943,7 @@ static int portfile_cmake_parse (port_node *node, const char *file)
     if (!new_line)
        new_line = f_mem + f_size;
 
-    TRACE (2, "At github: \"%.*s\".\n", new_line - repo - 1, repo);
+    TRACE (2, "At github: \"%.*s\".\n", (int)(new_line - repo - 1), repo);
     snprintf (node->homepage, sizeof(node->homepage), "https://github.com/%.*s", new_line - repo - 1, repo);
     rc = 1;
   }
@@ -2589,6 +2589,7 @@ static const char *get_installed_dir (const vcpkg_package *package)
  *  \li package->platforms[1]:   `VCPKG_plat_WINDOWS`
  *  \li returns:                 "packages\\sqlite3_x86-windows"
  */
+_WUNUSED_FUNC_OFF()
 static const char *get_packages_dir (const vcpkg_package *package)
 {
   static char dir [_MAX_PATH];
@@ -2605,6 +2606,7 @@ static const char *get_packages_dir (const vcpkg_package *package)
   }
   return (dir + strlen(vcpkg_root) + 1);
 }
+_WUNUSED_FUNC_POP()
 
 /**
  * For a `package`, print the information obtained from `get_installed_info()`.
@@ -3500,7 +3502,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
       str = buf + t[i+1].start;
       len = t[i+1].end - t[i+1].start;     /* Do not add +1 since the value is quoted */
 
-      TRACE (1, "supports:    '%.*s'\n", len, str);
+      TRACE (1, "supports:    '%.*s'\n", (int)len, str);
       str_copy = str_ndup (str, len);
       json_make_supports (node, str_copy, 0, TRUE);
       FREE (str_copy);
@@ -3543,7 +3545,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
     {
       str = buf + t[i].start;
       len = t[i].end - t[i].start;
-      TRACE (2, "Unhandled key/value (type %s, size: %u): '%.*s'\n", JSON_typestr(t[i].type), t[i].size, len, str);
+      TRACE (2, "Unhandled key/value (type %s, size: %u): '%.*s'\n", JSON_typestr(t[i].type), t[i].size, (int)len, str);
       i += t[i+1].size + 1;
     }
   }
@@ -3552,9 +3554,14 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
 
 static int json_parse_status_buf (smartlist_t *packages, const char *file, char *buf, size_t buf_len)
 {
+  ARGSUSED (packages);
+  ARGSUSED (file);
+  ARGSUSED (buf);
+  ARGSUSED (buf_len);
   return (0);
 }
 
+_WUNUSED_FUNC_OFF()
 static int json_parse_status_file (smartlist_t *packages, const char *file)
 {
   char  *f_mem;
@@ -3569,6 +3576,7 @@ static int json_parse_status_file (smartlist_t *packages, const char *file)
   }
   return (r);
 }
+_WUNUSED_FUNC_POP()
 
 static int json_parse_ports_file (port_node *node, const char *file)
 {
@@ -3634,7 +3642,7 @@ static void json_port_node_dump (const port_node *node)
 
   //-------------------------------------------------------------------------
 
-  width = C_screen_width();
+  width = (int)C_screen_width();
   len0 = C_puts ("~3  dependencies:~0 ") - 2;
   len = len0;
   max = smartlist_len (node->depends);
