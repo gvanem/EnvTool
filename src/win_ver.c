@@ -17,6 +17,10 @@
 #define VER_PLATFORM_WIN32_CE 3
 #endif
 
+#ifndef RRF_SUBKEY_WOW6464KEY
+#define RRF_SUBKEY_WOW6464KEY  0x00010000
+#endif
+
 static char serv_pack[20] = { '\0' };
 static char build_str[20] = { '\0' };
 
@@ -292,18 +296,23 @@ const char *os_bits (void)
  */
 #define CURRENT_VER_KEY  "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 
-static const char *get_registry_value (const char *wanted_value, DWORD wanted_type)
+static const char *get_registry_value (const char *wanted_sub_key, DWORD wanted_type)
 {
   static char ret_buf [100];
-  DWORD  rc, value, type = 0;
+  DWORD  rc, flags, value, type = 0;
   DWORD  buf_size = sizeof(ret_buf);
+  char   key_name [100];
 
-  rc = RegGetValue (HKEY_LOCAL_MACHINE, CURRENT_VER_KEY, wanted_value, RRF_RT_ANY,
-                    &type, (void*)&ret_buf, &buf_size);
+  snprintf (key_name, sizeof(key_name), "%s\\%s", CURRENT_VER_KEY, wanted_sub_key);
 
-  TRACE (1, "  RegGetValue (%s\\%s\\%s, %s), type: %s.\n",
-         reg_top_key_name(HKEY_LOCAL_MACHINE), CURRENT_VER_KEY, wanted_value,
-         win_strerror(rc), reg_type_name(type));
+  flags = (1 << wanted_type);     /* From 'REG_x* to 'RRF_RT_REG_x' */
+  if (is_wow64_active())
+     flags |= RRF_SUBKEY_WOW6464KEY;
+
+  rc = RegGetValue (HKEY_LOCAL_MACHINE, CURRENT_VER_KEY, wanted_sub_key, flags, &type, (void*)&ret_buf, &buf_size);
+
+  TRACE (1, "  RegGetValue (%s\\%s, %s), type: %s.\n",
+         reg_top_key_name(HKEY_LOCAL_MACHINE), key_name, win_strerror(rc), reg_type_name(type));
 
   if (rc != ERROR_SUCCESS || type != wanted_type)
      return (NULL);
@@ -333,6 +342,24 @@ const char *os_release_id (void)
 const char *os_update_build_rev (void)
 {
   return get_registry_value ("UBR", REG_DWORD);
+}
+
+time_t os_install_date (void)
+{
+  const char *date = get_registry_value ("InstallDate", REG_DWORD);
+  char       *end;
+  time_t      rc = 0;
+
+  if (date)
+  {
+    rc = strtoul (date, &end, 10);
+    if (end == date)
+    {
+      TRACE (1, "Illegal date: '%s'\n", date);
+      rc = 0;
+    }
+  }
+  return (rc);
 }
 
 /**
@@ -378,12 +405,17 @@ struct prog_options opt;
 
 int MS_CDECL main (int argc, char **argv)
 {
-  DWORD major, minor, platform;
-  BOOL  rc;
+  DWORD       major, minor, platform;
+  BOOL        rc;
+  time_t      date;
   const char *ver, *release, *build, *full;
 
-  if (argc >= 2 && !strcmp(argv[1], "-d"))
-     opt.debug = 1;
+  if (argc >= 2 && !strncmp(argv[1], "-d", 2))
+  {
+    if (!strcmp(argv[1], "-dd"))
+         opt.debug = 2;
+    else opt.debug = 1;
+  }
 
   C_init();
 
@@ -409,6 +441,9 @@ int MS_CDECL main (int argc, char **argv)
 
   full = os_full_version();
   C_printf ("Result from os_full_version():     %s\n", full ? full : "<none>");
+
+  date = os_install_date();
+  C_printf ("Result from os_install_date():     %s\n", date ? get_time_str(date) : "<none>");
   return (0);
 }
 #endif
