@@ -1164,6 +1164,8 @@ static unsigned char Python36_DLLs__ctypes_pyd[] = {
   0xbc, 0x59, 0xc5, 0x74
 };
 
+static HANDLE openssl;
+
 static void init_dump_pkcs7_cert (void)
 {
 #if 0
@@ -1173,16 +1175,12 @@ static void init_dump_pkcs7_cert (void)
   p_PKCS7_verify = GetProcAddress (openssl, "PKCS7_verify");
   p_PKCS7_get0_signers = GetProcAddress (openssl, "PKCS7_get0_signers");
 #endif
-
-  C_printf ("  wintrust_dump_pkcs7_cert (\"_ctypes.pyd\") %*s", 15, "->");
 }
 
 static void exit_dump_pkcs7_cert (void)
 {
-#if 0
-  FreeLibrary (openssl);
-#endif
-  C_puts (" ~5Unknown~0.\n");
+  if (openssl)
+     FreeLibrary (openssl);
 }
 
 /**
@@ -1190,6 +1188,8 @@ static void exit_dump_pkcs7_cert (void)
  */
 BOOL wintrust_dump_pkcs7_cert (void)
 {
+  const char *result = "~5Unknown";
+
   init_dump_pkcs7_cert();
 
 #if 0
@@ -1201,13 +1201,16 @@ BOOL wintrust_dump_pkcs7_cert (void)
 
     (*p_BIO_write) (indata, Python36_DLLs__ctypes_pyd, sizeof(Python36_DLLs__ctypes_pyd));
     if ((*p_PKCS7_verify) (&p7, NULL, store, indata, NULL, 0) != 0)
-       (*p_PKCS7_get0_signers)();
+    {
+      (*p_PKCS7_get0_signers)();
+      result = "what-ever";
+    }
   }
-
 #else
   ARGSUSED (Python36_DLLs__ctypes_pyd);
 #endif
 
+  C_printf ("  wintrust_dump_pkcs7_cert (\"_ctypes.pyd\")              -> %s~0\n", result);
   exit_dump_pkcs7_cert();
   return (TRUE);
 }
