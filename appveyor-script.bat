@@ -39,7 +39,6 @@ exit /b 1
   :: For 'test_searchpath()' and 'NeedCurrentDirectoryForExePathA()'
   ::
   set NoDefaultCurrentDirectoryInExePath=1
-  set COLUMNS=120
   set APPDATA=%APPVEYOR_BUILD_FOLDER%
   set INCLUDE=%INCLUDE%;c:\Python34\include
   set VCPKG_ROOT=c:\Tools\vcpkg
@@ -115,7 +114,5 @@ exit /b 1
 :: Use an 'echo.exe' with colour support in this sub-routine.
 ::
 :green_msg
-  @rem c:\msys64\usr\bin\echo.exe -e -n "\n\e[1;32m"
-  @rem echo %*
   @c:\msys64\usr\bin\echo.exe -e -n "\n\e[1;32m%*\e[0m"
   @goto :EOF
