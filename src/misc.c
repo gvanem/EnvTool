@@ -562,7 +562,6 @@ BOOL check_if_cwd_in_search_path (const char *program)
   return (*p_NeedCurrentDirectoryForExePathA) (program);
 }
 
-
 /**
  * Helper variables for `check_if_PE()`.
  */
@@ -2033,11 +2032,14 @@ BOOL is_directory (const char *path)
  * These could be locked and `GetFileAttributes()` always fails on such files.
  * Best alternative is to use `FindFirstFile()`.
  */
-static int safe_stat_sys (const char *file, struct stat *st, DWORD *win_err)
+int safe_stat_sys (const char *file, struct stat *st, DWORD *win_err)
 {
   WIN32_FIND_DATA ff_data;
   HANDLE          hnd;
   DWORD           err = 0;
+
+  memset (st, '\0', sizeof(*st));
+  st->st_size = (off_t)-1;     /* signal if stat() fails */
 
   memset (&ff_data, '\0', sizeof(ff_data));
   hnd = FindFirstFile (file, &ff_data);
@@ -2055,8 +2057,8 @@ static int safe_stat_sys (const char *file, struct stat *st, DWORD *win_err)
     }
     FindClose (hnd);
   }
-  TRACE (1, "file: '%s', attr: 0x%08lX, err: %lu, mtime: %" U64_FMT " fsize: %" U64_FMT "\n",
-         file, (unsigned long)ff_data.dwFileAttributes, err, (UINT64)st->st_mtime, st->st_size);
+  TRACE (1, "file: '%s', attr: 0x%08lX, err: %lu, mtime: %" U64_FMT " fsize: %s\n",
+         file, (unsigned long)ff_data.dwFileAttributes, err, (UINT64)st->st_mtime, get_file_size_str(st->st_size));
 
   if (win_err)
      *win_err = err;
@@ -2096,11 +2098,11 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 #endif
     attr = GetFileAttributes (file);
 
-  memset (st, '\0', sizeof(*st));
-  st->st_size = (off_t)-1;     /* signal if stat() fails */
-
   if (attr == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_SHARING_VIOLATION)
      return safe_stat_sys (file, st, win_err);
+
+  memset (st, '\0', sizeof(*st));
+  st->st_size = (off_t)-1;     /* signal if stat() fails */
 
   is_dir = (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
   if (is_dir)

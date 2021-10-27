@@ -609,6 +609,7 @@ extern BOOL  _has_drive             (const char *path);
 extern BOOL  _has_drive2            (const char *path);
 extern BOOL   is_directory          (const char *file);
 extern int    safe_stat             (const char *file, struct stat *st, DWORD *win_err);
+extern int    safe_stat_sys         (const char *file, struct stat *st, DWORD *win_err);
 
 extern char       *make_cyg_path (const char *path, char *result);
 extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);
@@ -823,7 +824,8 @@ extern const char *os_bits (void);
 extern const char *os_release_id (void);
 extern const char *os_update_build_rev (void);
 extern const char *os_full_version (void);
-extern time_t      os_install_date (void);
+extern time_t      os_last_install_date (void);
+extern time_t      os_first_install_date (void);
 
 /* Stuff in win_trust.c:
  *
