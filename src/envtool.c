@@ -317,11 +317,11 @@ static ver_data *build_ver_data (void)
   data [VER_VCPKG]     .found_fmt  = "  vcpkg %u.%u.%u detected";
   data [VER_LUA]       .found_fmt  = "  Lua %u.%u.%u detected";
 
-  data [VER_CMAKE]     .not_found_fmt  = "  Cmake ~5not~0 found";
-  data [VER_PYTHON]    .not_found_fmt  = "  Python ~5not~0 found";
-  data [VER_PKG_CONFIG].not_found_fmt  = "  pkg-config ~5not~0 found";
-  data [VER_VCPKG]     .not_found_fmt  = "  vcpkg ~5not~0 found";
-  data [VER_LUA]       .not_found_fmt  = "  Lua ~5not~0 found";
+  data [VER_CMAKE]     .not_found = "Cmake ~5not~0 found";
+  data [VER_PYTHON]    .not_found = "Python ~5not~0 found";
+  data [VER_PKG_CONFIG].not_found = "pkg-config ~5not~0 found";
+  data [VER_VCPKG]     .not_found = "vcpkg ~5not~0 found";
+  data [VER_LUA]       .not_found = "Lua ~5not~0 found";
 
   data [VER_CMAKE]     .get_info = cmake_get_info;
   data [VER_PYTHON]    .get_info = py_get_info;
@@ -342,8 +342,8 @@ static void show_ext_versions (void)
 
   if (!stricmp(lua_get_exe(), "luajit.exe"))
   {
-    v_start [VER_LUA].found_fmt     = "  LuaJIT %u.%u.%u detected";
-    v_start [VER_LUA].not_found_fmt = "  LuaJIT ~5not~0 found.\n";
+    v_start [VER_LUA].found_fmt = "  LuaJIT %u.%u.%u detected";
+    v_start [VER_LUA].not_found = "LuaJIT ~5not~0 found";
   }
 
   for (v = v_start, i = 0; i < VER_MAX; i++, v++)
@@ -364,7 +364,7 @@ static void show_ext_versions (void)
       else C_printf ("%-*s -> ~6%s~0\n", pad_len, v->found, slashify(v->exe, v->slash));
     }
     else
-      C_printf (v->not_found_fmt);
+      C_printf ("  %s.\n", v->not_found);
     FREE (v->exe);
   }
 }
@@ -4631,7 +4631,8 @@ static void MS_CDECL halt (int sig)
  */
 static void init_all (const char *argv0)
 {
-  char buf [_MAX_PATH];
+  char        buf [_MAX_PATH];
+  const char *user = get_user_name();
 
   atexit (cleanup);
   crtdbug_init();
@@ -4641,7 +4642,8 @@ static void init_all (const char *argv0)
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu   = C_conemu_detected();
   opt.under_winterm  = C_winterm_detected();
-  opt.under_appveyor = (stricmp(get_user_name(), "APPVYR-WIN\\appveyor") == 0);
+  opt.under_appveyor = (stricmp(user, "APPVYR-WIN\\appveyor") == 0);
+  opt.under_github   = (stricmp(user, "??\\??") == 0);
   opt.evry_busy_wait = 2;
 #ifdef __CYGWIN__
   opt.under_cygwin = 1;
@@ -4825,10 +4827,10 @@ int MS_CDECL main (int argc, const char **argv)
 
   C_no_ansi = opt.no_ansi;
 
-  /* Use ANSI-sequences under ConEmu, AppVeyor or if "%COLOUR_TRACE >= 2" (for testing).
+  /* Use ANSI-sequences under ConEmu, 'AppVeyor', 'Github Actions' or if "%COLOUR_TRACE >= 2" (for testing).
    * Nullifies the "--no-ansi" option.
    */
-  if (opt.under_conemu || opt.under_appveyor || opt.under_cygwin || C_trace_level() >= 2)
+  if (opt.under_conemu || opt.under_appveyor || opt.under_github || opt.under_cygwin || C_trace_level() >= 2)
      C_use_ansi_colours = 1;
 
   if (opt.no_colours)
