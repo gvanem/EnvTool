@@ -423,9 +423,22 @@ static int show_version (void)
 
   if (opt.do_version >= 2)
   {
-    unsigned num;
+    const char *OS_name = os_name();
+    unsigned    num;
 
-    C_printf ("  OS-version: %s (%s bits).\n", os_name(), os_bits());
+    if (!strncmp(OS_name, "Win-10", 6))
+    {
+      OS_name = os_full_version();
+      C_printf ("  OS-version: Win-10; %s (%s bits).\n", os_full_version(), os_bits());
+    }
+    else if (!strncmp(OS_name, "Win-11", 6))
+    {
+      OS_name = os_full_version();
+      C_printf ("  OS-version: Win-11; %s (%s bits).\n", os_full_version(), os_bits());
+    }
+    else
+      C_printf ("  OS-version: %s (%s bits).\n", OS_name, os_bits());
+
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
     C_printf ("  ConEmu:     %sdetected.\n", opt.under_conemu ? "" : "not ");
     C_puts   ("  CPU-Info:   ");
