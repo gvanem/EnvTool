@@ -306,7 +306,7 @@ static void test_misc (void)
     int    rc  = safe_stat (t->file, &st, &err);
     size_t len = strlen (t->file);
 
-    C_printf ("%s~0 safe_stat (\"%s\") %*s -> %d, size: %s, ctime: %s, err: %lu\n",
+    C_printf ("%s~0 safe_stat (\"%s\") %*s -> %2d, size: %s, ctime: %s, err: %lu\n",
               rc == *t->expect ? "~2  OK  " : "~5  FAIL", t->file, (int)(15-len), "", rc,
               get_file_size_str(st.st_size), get_time_str(st.st_ctime), err);
   }
