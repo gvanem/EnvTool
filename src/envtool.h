@@ -425,6 +425,7 @@ struct prog_options {
        int             under_conemu;      /**< TRUE if running under ConEmu console-emulator */
        int             under_winterm;     /**< TRUE if running under WindowsTerminal */
        int             under_appveyor;    /**< TRUE if running under AppVeyor */
+       int             under_github;      /**< TRUE if running under Github Actions */
        int             under_cygwin;      /**< TRUE if Cygwin compiled */
        enum SortMethod sort_methods[10];  /**< the specified sort methods */
        BOOL            evry_raw;          /**< use raw non-regex searches */
@@ -694,7 +695,7 @@ typedef enum ver_index {
  */
 typedef struct ver_data {
         const char *found_fmt;
-        const char *not_found_fmt;
+        const char *not_found;
         char       *exe;
         char        slash;
         char        found [100];
