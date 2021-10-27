@@ -12,9 +12,9 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        BUILD_PLATFORM:  [ x86, x64 ]
+        USE_64BIT: [ 1 ]
 
     steps:
     - uses: actions/checkout@v2
     - name: GNU-make
-      run: make -f Makefile.MinGW FORTIFY_SOURCE=0 USE_64BIT=1 CPU=${{matrix.BUILD_PLATFORM}} -C ./src
+      run: make -f Makefile.MinGW FORTIFY_SOURCE=0 USE_64BIT=${{matrix.USE_64BIT}} -C ./src
