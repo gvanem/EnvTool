@@ -765,7 +765,7 @@ char *evry_raw_query (void)
   if (content && strchr(content+cont_len,' '))
   {
     snprintf (query, sizeof(query), "%.*s content:\"%s\"",
-              content-opt.file_spec, opt.file_spec, content+cont_len);
+              (int)(content - opt.file_spec), opt.file_spec, content + cont_len);
     TRACE (2, "Creating quoted 'content:' query: '%s'\n", query);
     return (query);
   }
@@ -1505,7 +1505,7 @@ char *str_shorten (const char *str, size_t max_len)
        shift++;
   }
   snprintf (buf, sizeof(buf), "%.*s%.*s%.*s",
-            len, str, dots_len, "...", len+shift, end-len-shift);
+            (int)len, str, dots_len, "...", (int)(len+shift), end-len-shift);
   return (buf);
 }
 
