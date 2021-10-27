@@ -344,7 +344,11 @@ const char *os_update_build_rev (void)
   return get_registry_value ("UBR", REG_DWORD);
 }
 
-time_t os_install_date (void)
+/*
+ * Return the "InstallDate" from Registry.
+ * This is the time-stamp of the last reinstall.
+ */
+time_t os_last_install_date (void)
 {
   const char *date = get_registry_value ("InstallDate", REG_DWORD);
   char       *end;
@@ -360,6 +364,23 @@ time_t os_install_date (void)
     }
   }
   return (rc);
+}
+
+/*
+ * Try to determine the time-stamp of the first OS installation
+ * by looking at the creation time of the `c:\bootmgr` file.
+ *
+ * Actually the `c:\$Recycle.Bin` folder could be a little bit older.
+ *
+ * Ref: https://stackoverflow.com/questions/170617/how-do-i-find-the-install-time-and-date-of-windows
+ */
+time_t os_first_install_date (void)
+{
+  struct stat st;
+
+  if (safe_stat_sys("c:\\bootmgr", &st, NULL))
+     return (0);
+  return (st.st_ctime);
 }
 
 /**
@@ -382,7 +403,7 @@ const char *os_full_version (void)
   x = os_release_id();
   if (x && build_str[0])
   {
-    p += sprintf (ret, "Version %s (OS-build %s", x, build_str);
+    p += sprintf (ret, "version %s (OS-build %s", x, build_str);
     z = os_update_build_rev();
     if (z)
     {
@@ -430,20 +451,23 @@ int MS_CDECL main (int argc, char **argv)
      C_puts ("  failed\n");
 
   ver = os_name();
-  C_printf ("Result from os_name():             %s\n", ver);
-  C_printf ("Result from os_bits():             %s bits\n", os_bits());
+  C_printf ("Result from os_name():               %s\n", ver);
+  C_printf ("Result from os_bits():               %s bits\n", os_bits());
 
   release = os_release_id();
-  C_printf ("Result from os_release_id():       %s\n", release ? release : "<none>");
+  C_printf ("Result from os_release_id():         %s\n", release ? release : "<none>");
 
   build = os_update_build_rev();
-  C_printf ("Result from os_update_build_rev(): %s\n", build ? build : "<none>");
+  C_printf ("Result from os_update_build_rev():   %s\n", build ? build : "<none>");
 
   full = os_full_version();
-  C_printf ("Result from os_full_version():     %s\n", full ? full : "<none>");
+  C_printf ("Result from os_full_version():       %s\n", full ? full : "<none>");
 
-  date = os_install_date();
-  C_printf ("Result from os_install_date():     %s\n", date ? get_time_str(date) : "<none>");
+  date = os_first_install_date();
+  C_printf ("Result from os_first_install_date(): %s\n", date ? get_time_str(date) : "<none>");
+
+  date = os_last_install_date();
+  C_printf ("Result from os_last_install_date():  %s\n", date ? get_time_str(date) : "<none>");
   return (0);
 }
 #endif
