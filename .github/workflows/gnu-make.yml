@@ -9,8 +9,14 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
     - uses: actions/checkout@v2
+
     - name: GNU-make
       run: make -f Makefile.MinGW FORTIFY_SOURCE=0 USE_64BIT=1 -C ./src
+
+test:
+  steps:
+    - name: Run tests
+      run: .\appveyor-script.bat test
+
