@@ -17,4 +17,4 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: GNU-make
-      run: make -f Makefile.MinGW FORTIFY_SOURCE=0 CPU=${{matrix.BUILD_PLATFORM}} -C ./src
+      run: make -f Makefile.MinGW FORTIFY_SOURCE=0 USE_64BIT=1 CPU=${{matrix.BUILD_PLATFORM}} -C ./src
