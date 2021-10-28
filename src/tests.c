@@ -129,7 +129,8 @@ void test_popen_cygwin (void)
 }
 #endif  /* __CYGWIN__ */
 
-/**\struct test_table1
+/**
+ * \struct test_table1
  * The structure used in `test_searchpath()`.
  */
 struct test_table1 {
@@ -140,6 +141,7 @@ struct test_table1 {
 static const struct test_table1 tab1[] = {
                   { "kernel32.dll",  "PATH" },
                   { "notepad.exe",   "PATH" },
+                  { "python.exe",    "PATH" },
 
                   /* Relative file-name test:
                    *   `c:\Windows\system32\Resources\Themes\aero.theme` is present in Win-8.1+
@@ -200,6 +202,7 @@ static void test_searchpath (void)
     C_printf ("%*s -> %s, pos: %d\n", pad, "",
               found ? found : strerror(errno), searchpath_pos());
   }
+  C_putc ('\n');
 }
 
 struct test_table2 {
