@@ -2320,7 +2320,7 @@ void vcpkg_init (void)
    *  \li - an existing directory `%VCPKG_ROOT%` or
    *  \li - The directory name of `vcpkg_exe`.
    */
-  vcpkg_ok = get_base_env() && get_base_exe (vcpkg_exe);
+  vcpkg_ok = get_base_env() || get_base_exe (vcpkg_exe);
   if (!vcpkg_ok)
      return;
 
