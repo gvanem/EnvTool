@@ -47,10 +47,17 @@ exit /b 1
   call :create_auth_files
 
   cd %APPDATA%\src
+
   ::
   :: Delete the quite limited Msys based Python; doesn't even have a 'pip' module
   ::
-  del /q c:\msys64\MinGW64\bin\python.exe
+  del /q c:\msys64\MinGW64\bin\python.exe 2> NUL
+
+  ::
+  :: If running on Github Actions', delete this Python since it shadows for
+  :: 'c:\ProgramData\Chocolatey\bin\python.exe'
+  ::
+  del /q c:\hostedtoolcache\windows\Python\3.7.9\x64\python.exe 2> NUL
 
   echo on
 
