@@ -272,10 +272,11 @@ static int lua_search_internal (const char *search_spec, BOOL is_CPATH)
         struct report r;
 
         memset (&r, '\0', sizeof(r));
-        r.file  = de->d_name;
-        r.fsize = de->d_fsize;
-        r.mtime = FILETIME_to_time_t (&de->d_time_write);
-        r.key   = dir->is_CPATH ? HKEY_LUA_DLL : HKEY_LUA_FILE;
+        r.file    = de->d_name;
+        r.fsize   = de->d_fsize;
+        r.mtime   = FILETIME_to_time_t (&de->d_time_write);
+        r.key     = dir->is_CPATH ? HKEY_LUA_DLL : HKEY_LUA_FILE;
+        r.content = opt.grep.content;
         if (report_file(&r))
         {
           found++;
