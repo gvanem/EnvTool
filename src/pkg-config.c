@@ -42,7 +42,7 @@ static smartlist_t *pkgconfig_pkg  = NULL;  /* A smartlist_t of 'struct pkgconfi
 #define ENV_NAME "PKG_CONFIG_PATH"
 #define REG_KEY  "Software\\pkgconfig"
 
-static void add_package (const char *name, const char *description)
+static void add_package (const char *name, char *description)
 {
   struct pkgconfig_node *pkg;
 
@@ -51,7 +51,7 @@ static void add_package (const char *name, const char *description)
 
   pkg = MALLOC (sizeof(*pkg));
   _strlcpy (pkg->name, name, sizeof(pkg->name));
-  _strlcpy (pkg->description, description, sizeof(pkg->description));
+  _strlcpy (pkg->description, str_unquote(description), sizeof(pkg->description));
   smartlist_add (pkgconfig_pkg, pkg);
 }
 
@@ -97,7 +97,7 @@ static void pkg_config_build_pkg (void)
 
   while (1)
   {
-    char  format [1000];
+    char  format [100];
     char *name  = NULL;
     char *descr = NULL;
 
@@ -123,7 +123,7 @@ static void pkg_config_build_pkg (void)
     const struct pkgconfig_node *pkg = smartlist_get (pkgconfig_pkg, i);
 
     TRACE (2, "%3d: %-30s  descr: %s.\n", i, pkg->name, pkg->description);
-    cache_putf (SECTION_PKGCONFIG, "pkgconfig_node_%d = %s,%s", i, pkg->name, pkg->description);
+    cache_putf (SECTION_PKGCONFIG, "pkgconfig_node_%d = %s,\"%s\"", i, pkg->name, pkg->description);
   }
 }
 
