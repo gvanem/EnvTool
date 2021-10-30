@@ -40,7 +40,7 @@ struct dirent2 {
        DWORD64   d_fsize;
      };
 
-typedef struct _dirdesc2 {
+typedef struct dirdesc2 {
         size_t          dd_loc;       /* index into below dd_contents[] */
         size_t          dd_num;       /* max # of entries in dd_contents[] */
         struct dirent2 *dd_contents;  /* pointer to contents of dir */
