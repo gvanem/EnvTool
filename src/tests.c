@@ -711,24 +711,24 @@ static void test_disk_ready (void)
  * Code for MinGW/Cygwin only:
  *
  * When run as:
- *   gdb -args envtool.exe -t
+ *   gdb --args envtool.exe -t
  *
  * the output is something like:
  *
  * test_libssp():
- * 10:    0000: 00 00 00 00 00 00 00 00-00 00                   ..........
- * 10:    0000: 48 65 6C 6C 6F 20 77 6F-72 6C                   Hello worl
+ * 15:    0000: 48 65 6C 6C 6F 20 77 6F-72 6C 64 2E 0A 0A 00    Hello world....
+ * 13:    0000: 48 65 6C 6C 6F 20 77 6F-72 6C 64 2E 0A          Hello world..
+ *
  * *** stack smashing detected ***:  terminated
  *
  * Program received signal SIGILL, Illegal instruction.
- * 0x68ac12d4 in ?? () from f:\MinGW32\bin\libssp-0.dll
+ * 0x00007ff6e9d77aa0 in fail.constprop.0.cold ()
  * (gdb) bt
- * #0  0x68ac12d4 in ?? () from f:\MinGW32\bin\libssp-0.dll
- * #1  0x68ac132e in libssp-0!__stack_chk_fail () from f:\MinGW32\bin\libssp-0.dll
- * #2  0x0040724f in _fu117____stack_chk_guard () at envtool.c:2518
- * #3  0x004072eb in _fu118____stack_chk_guard () at envtool.c:2552
- * #4  0x0040653d in _fu100____stack_chk_guard () at envtool.c:2081
- * (gdb)
+ * #0  0x00007ff79b547a90 in fail.constprop.0.cold ()
+ * #1  0x00007ff79b52fa55 in __stack_chk_fail ()
+ * #2  0x00007ff79b521762 in test_libssp () at tests.c:752
+ * #3  0x00007ff79b521b2f in do_tests () at tests.c:868
+ * #4  0x00007ff79b4e784b in main (argc=2, argv=0x23ec0628f30) at envtool.c:4885
  */
 static void test_libssp (void)
 {
@@ -842,6 +842,12 @@ int do_tests (void)
   if (opt.do_vcpkg)
      return test_vcpkg_json_parser();
 
+  if (opt.use_cache)
+  {
+    C_puts ("~3cache_test():~0\n");
+    cache_test();
+  }
+
   test_split_env ("PATH");
   test_split_env ("MANPATH");
 
@@ -864,7 +870,6 @@ int do_tests (void)
      test_AppVeyor();
 
   test_auth();
-
   test_libssp();
 
 #if defined(_MSC_VER) && !defined(_DEBUG)
@@ -875,12 +880,6 @@ int do_tests (void)
 #if defined(USE_SQLITE3)
   // test_sqlite3();
 #endif
-
-  if (opt.use_cache)
-  {
-    C_puts ("~3cache_test():~0\n");
-    cache_test();
-  }
 
   return (0);
 }
