@@ -34,7 +34,7 @@ void     smartlist_swap (smartlist_t *sl, int idx1, int idx2);
 int      smartlist_pos (const smartlist_t *sl, const void *element);
 
 void     smartlist_clear (smartlist_t *sl);
-void     smartlist_wipe (smartlist_t *sl, void (*free_fn)(void *a));
+void     smartlist_wipe (smartlist_t *sl, smartlist_free_func free_fn);
 
 int      smartlist_duplicates (smartlist_t *sl, smartlist_sort_func compare);
 int      smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, smartlist_free_func free_fn);

@@ -44,7 +44,7 @@ typedef struct smartlist_t {
  */
 #define SMARTLIST_MAX_CAPACITY  INT_MAX
 
-#if defined(_CRTDBG_MAP_ALLOC) /* Implies '_DEBUG' defined */
+#if defined(_CRTDBG_MAP_ALLOC) && !defined(USE_ASAN) /* Implies '_DEBUG' defined */
  /**
   * \def ASSERT_VAL
   *
@@ -53,6 +53,12 @@ typedef struct smartlist_t {
   * Also the value `0xFDFDFDFD` is automatically placed before and after the heap block. <br>
   * Ref:
   *   http://www.highprogrammer.com/alan/windev/visualstudio.html
+  *
+  * Do not do this for ASAN (CFLAGS contains `-DUSE_ASAN -fsanitize=address`), since
+  * that could trigger an exception when reading the DWORD value. I.e. this could be
+  * 3 bytes into the "Heap right redzone".
+  * Ref:
+  *   https://stackoverflow.com/questions/60476634/addresssanitizer-what-do-these-terms-mean
   */
   #define ASSERT_VAL(ptr) do {                                        \
                             const DWORD *_val = (const DWORD*) (ptr); \
@@ -99,7 +105,7 @@ unsigned smartlist_getu (const smartlist_t *sl, int idx)
   ASSERT_VAL (sl);
   ASSERT (idx >= 0);
   ASSERT (sl->num_used > idx);
-  return (unsigned) sl->list[idx];
+  return (unsigned) (intptr_t) sl->list[idx];
 }
 
 /**
@@ -214,7 +220,7 @@ unsigned smartlist_addu (smartlist_t *sl, unsigned element)
 {
   ASSERT (sl);
   if (smartlist_ensure_capacity(sl, 1 + (size_t)sl->num_used))
-     sl->list [sl->num_used++] = (void*) element;
+     sl->list [sl->num_used++] = (void*) (intptr_t) element;
   return (element);
 }
 
@@ -819,7 +825,7 @@ unsigned smartlist_getu_dbg (const smartlist_t *sl, int idx, const char *sl_name
   if (!sl)
      FATAL ("Illegal use of 'smartlist_getu (%s, %d)' from %s(%u).\n", sl_name, idx, file, line);
   ASSERT_VAL (sl);
-  return (unsigned) sl->list[idx];
+  return (unsigned) (intptr_t) sl->list[idx];
 }
 
 void *smartlist_add_dbg (smartlist_t *sl, void *element, const char *sl_name, const char *file, unsigned line)
@@ -838,7 +844,7 @@ unsigned smartlist_addu_dbg (smartlist_t *sl, unsigned element, const char *sl_n
      FATAL ("Illegal use of 'smartlist_addu (%s, %u)' from %s(%u).\n", sl_name, element, file, line);
   ASSERT_VAL (sl);
   if (smartlist_ensure_capacity (sl, 1 + (size_t)sl->num_used))
-     sl->list [sl->num_used++] = (void*) element;
+     sl->list [sl->num_used++] = (void*) (intptr_t) element;
   return (element);
 }
 
