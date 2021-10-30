@@ -189,6 +189,41 @@
   #define FALLTHROUGH()
 #endif
 
+#if defined(__clang__) && (__clang_major__ >= 13)
+  /*
+   * Turn off these:
+   *  ./envtool.h(551,14): warning: identifier '_strlcpy' is reserved because it starts with '_'
+   *  at global scope [-Wreserved-identifier]
+   *  extern char *_strlcpy       (char *dst, const char *src, size_t sz);
+   *               ^
+   */
+  #define _WRESERVED_ID_OFF()  _PRAGMA (clang diagnostic push) \
+                               _PRAGMA (clang diagnostic ignored "-Wreserved-identifier")
+  #define _WRESERVED_ID_POP()  _PRAGMA (clang diagnostic pop)
+
+  #define _WFUNC_CAST_OFF()    _PRAGMA (clang diagnostic push) \
+                               _PRAGMA (clang diagnostic ignored "-Wcast-function-type")
+  #define _WFUNC_CAST_POP()    _PRAGMA (clang diagnostic pop)
+
+#else
+  #define _WRESERVED_ID_OFF()
+  #define _WRESERVED_ID_POP()
+  #define _WFUNC_CAST_OFF()
+  #define _WFUNC_CAST_POP()
+#endif
+
+/*
+ * Turn off these annoying warnings in clang-cl >= v13:
+ *   win_ver.c(58,24): warning: cast from 'FARPROC' (aka 'long long (*)()') to 'func_NetWkstaGetInfo' (aka 'unsigned long
+ *         (*)(unsigned short *, unsigned long, unsigned char **)') converts to incompatible function type [-Wcast-function-type]
+ *   p_NetWkstaGetInfo = (func_NetWkstaGetInfo) GetProcAddress (hnd, "NetWkstaGetInfo");
+ *                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Use as:
+ *   p_NetWkstaGetInfo = GETPROCADDRESS (func_NetWkstaGetInfo, hnd, "NetWkstaGetInfo");
+ */
+#define GETPROCADDRESS(cast, mod, func) _WFUNC_CAST_OFF()                 \
+                                        (cast) GetProcAddress (mod, func) \
+                                        _WFUNC_CAST_POP()
 
 /*
  * To turn off these annoying warnings:

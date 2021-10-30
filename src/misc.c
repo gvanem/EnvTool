@@ -251,29 +251,24 @@ void init_misc (void)
 
   if (kernel32_hnd)
   {
-    p_GetModuleFileNameEx = (func_GetModuleFileNameEx)
-                              GetProcAddress (kernel32_hnd, "K32GetModuleFileNameExA");
-
-    p_SetThreadErrorMode = (func_SetThreadErrorMode)
-                             GetProcAddress (kernel32_hnd, "SetThreadErrorMode");
-
-    p_IsWow64Process = (func_IsWow64Process)
-                         GetProcAddress (kernel32_hnd, "IsWow64Process");
-
-    p_NeedCurrentDirectoryForExePathA = (func_NeedCurrentDirectoryForExePathA)
-                                          GetProcAddress (kernel32_hnd, "NeedCurrentDirectoryForExePathA");
+    p_GetModuleFileNameEx             = GETPROCADDRESS (func_GetModuleFileNameEx, kernel32_hnd, "K32GetModuleFileNameExA");
+    p_SetThreadErrorMode              = GETPROCADDRESS (func_SetThreadErrorMode, kernel32_hnd, "SetThreadErrorMode");
+    p_IsWow64Process                  = GETPROCADDRESS (func_IsWow64Process, kernel32_hnd, "IsWow64Process");
+    p_NeedCurrentDirectoryForExePathA = GETPROCADDRESS (func_NeedCurrentDirectoryForExePathA, kernel32_hnd, "NeedCurrentDirectoryForExePathA");
   }
 
   if (userenv_hnd)
   {
-    p_ExpandEnvironmentStringsForUserA = (func_ExpandEnvironmentStringsForUserA)
-                                           GetProcAddress (userenv_hnd, "ExpandEnvironmentStringsForUserA");
+    p_ExpandEnvironmentStringsForUserA = GETPROCADDRESS (func_ExpandEnvironmentStringsForUserA,
+                                                         userenv_hnd,
+                                                         "ExpandEnvironmentStringsForUserA");
+    p_CreateEnvironmentBlock = GETPROCADDRESS (func_CreateEnvironmentBlock,
+                                               userenv_hnd,
+                                               "CreateEnvironmentBlock");
 
-    p_CreateEnvironmentBlock = (func_CreateEnvironmentBlock)
-                                 GetProcAddress (userenv_hnd, "CreateEnvironmentBlock");
-
-    p_DestroyEnvironmentBlock = (func_DestroyEnvironmentBlock)
-                                  GetProcAddress (userenv_hnd, "DestroyEnvironmentBlock");
+    p_DestroyEnvironmentBlock = GETPROCADDRESS (func_DestroyEnvironmentBlock,
+                                                userenv_hnd,
+                                                "DestroyEnvironmentBlock");
 
   }
   done = TRUE;
@@ -1255,7 +1250,7 @@ char *str_trim (char *s)
 /**
  * Return TRUE if string `s1` starts with `s2`.
  *
- * Ignore casing of boith strings.
+ * Ignore casing of both strings.
  * And drop leading blanks in `s1` first.
  */
 BOOL str_startswith (const char *s1, const char *s2)
@@ -1482,7 +1477,7 @@ char *_strtok_r (char *ptr, const char *sep, char **end)
 char *str_shorten (const char *str, size_t max_len)
 {
   static char buf [200];
-  const char *end  = strchr (str,'\0');
+  const char *end  = strchr (str, '\0');
   int         dots_len = 3;
   int         shift = 0;
   size_t      len;
@@ -1588,7 +1583,7 @@ static const char *find_slash (const char *s)
   return (NULL);
 }
 
-/*
+/**
  * Test a character `test` for match of a `pattern`.
  * For a `pattern == "!x"`, check if `test != x`.
  */
@@ -1624,6 +1619,10 @@ static const char *range_match (const char *pattern, char test, int nocase)
   return (ok == negate ? NULL : pattern);
 }
 
+/**
+ * Returns the flag for a case-sensitive `fnmatch()`
+ * depending on `opt.case_sensitive`.
+ */
 int fnmatch_case (int flags)
 {
   if (opt.case_sensitive == 0)
@@ -1731,6 +1730,9 @@ int fnmatch (const char *pattern, const char *string, int flags)
   }   /* while (1) */
 }
 
+/**
+ * Returns a string result for a `fnmatch()` result in `rc`.
+ */
 char *fnmatch_res (int rc)
 {
   return (rc == FNM_MATCH   ? "FNM_MATCH"   :
@@ -1764,10 +1766,8 @@ char *basename (const char *fname)
 /**
  * Return the malloc'ed directory part of a filename.
  */
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstringop-truncation"
-#endif
+_PRAGMA (GCC diagnostic push)
+_PRAGMA (GCC diagnostic ignored "-Wstringop-truncation")
 
 char *dirname (const char *fname)
 {
@@ -1825,9 +1825,7 @@ char *dirname (const char *fname)
   return (dirpart);
 }
 
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
+_PRAGMA (GCC diagnostic pop)
 
 #if !defined(__CYGWIN__)
 /**
@@ -2603,7 +2601,7 @@ BOOL is_user_admin (void)
   if (!shell32)
      return (FALSE);
 
-  p_IsUserAnAdmin = (func_IsUserAnAdmin) GetProcAddress (shell32, "IsUserAnAdmin");
+  p_IsUserAnAdmin = GETPROCADDRESS (func_IsUserAnAdmin, shell32, "IsUserAnAdmin");
   if (!p_IsUserAnAdmin)
        rc = is_user_admin2();
   else rc = (*p_IsUserAnAdmin)();
@@ -2676,7 +2674,7 @@ const char *get_user_name (void)
    */
   if (secur32)
   {
-    p_GetUserNameEx = (func_GetUserNameEx) GetProcAddress (secur32, "GetUserNameExA");
+    p_GetUserNameEx = GETPROCADDRESS (func_GetUserNameEx, secur32, "GetUserNameExA");
     if (p_GetUserNameEx)
       (*p_GetUserNameEx) (NameSamCompatible, user, &ulen);
     FreeLibrary (secur32);
@@ -2742,7 +2740,7 @@ char *str_repeat (int ch, size_t num)
  * On return, `*stringp` points past the last `NUL` written (if there might
  * be further tokens), or is `NULL` (if there are definitely no more tokens).
  *
- * If `*stringp` is NULL, `strsep()` returns `NULL`.
+ * If `*stringp` is NULL, `str_sep()` returns `NULL`.
  */
 char *str_sep (char **stringp, const char *delim)
 {
@@ -2753,7 +2751,7 @@ char *str_sep (char **stringp, const char *delim)
   if (!s)
      return (NULL);
 
-  for (tok = s;;)
+  for (tok = s; ; )
   {
     c = *s++;
     spanp = delim;
@@ -2768,7 +2766,8 @@ char *str_sep (char **stringp, const char *delim)
         *stringp = s;
         return (tok);
       }
-    } while (sc != 0);
+    }
+    while (sc != 0);
   }
   return (NULL);
   /* NOTREACHED */
@@ -2865,16 +2864,16 @@ char *str_join (char * const *arr, const char *sep)
   /* Get the needed size for `ret`
    */
   for (i = num = 0; arr[i]; i++, num++)
-      sz += strlen(arr[i]) + strlen(sep);
+      sz += strlen (arr[i]) + strlen (sep);
 
   sz++;
-  sz -= strlen(sep);      /* No `sep` after last `arr[]` */
+  sz -= strlen (sep);      /* No `sep` after last `arr[]` */
   p = ret = MALLOC (sz);
   for (i = 0; i < num; i++)
   {
     strcpy (p, arr[i]);
     p = strchr (p, '\0');
-    if (i < num-1)
+    if (i < num - 1)
        strcpy (p, sep);
     p = strchr (p, '\0');
   }
@@ -2999,7 +2998,7 @@ char *win_strerror (unsigned long err)
        strcpy (err_buf, "Unknown error");
   }
 
-  if (hr)
+  if (hr != 0)
        snprintf (buf, sizeof(buf), "0x%08lX: %s", (unsigned long)hr, err_buf);
   else snprintf (buf, sizeof(buf), "%lu: %s", err, err_buf);
   str_strip_nl (buf);
@@ -3301,9 +3300,7 @@ void crtdbug_init (void)
   VLDSetReportOptions (VLD_OPT_REPORT_TO_STDOUT, NULL); /* Force all reports to "stdout" in "ASCII" */
 
   opts = VLDGetOptions();
-//opts |= VLD_OPT_SAFE_STACK_WALK;
   VLDSetOptions (opts, 100, 4);   /* Dump max 100 bytes data. And walk max 4 stack frames */
-//VLDResolveCallstacks();         /* Needed to get filename and line-numbers correctly reported */
 }
 void crtdbug_exit (void)
 {
@@ -4844,7 +4841,8 @@ int is_cygwin_tty (int fd)
     goto no_tty;
   }
 
-  p_NtQueryObject = (func_NtQueryObject) GetProcAddress (mod, "NtQueryObject");
+  p_NtQueryObject = GETPROCADDRESS (func_NtQueryObject, mod, "NtQueryObject");
+
   if (!p_NtQueryObject)
   {
     TRACE (2, "NtQueryObject() not found in ntdll.dll.\n");
@@ -4964,7 +4962,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
     return (FALSE);
   }
 
-  p_GetCoreTempInfoAlt = (func_GetCoreTempInfo) GetProcAddress (ct_dll, "fnGetCoreTempInfoAlt");
+  p_GetCoreTempInfoAlt = GETPROCADDRESS (func_GetCoreTempInfo, ct_dll, "fnGetCoreTempInfoAlt");
   if (!p_GetCoreTempInfoAlt)
   {
     TRACE (1, "\nError: The function \"fnGetCoreTempInfo\" in \"GetCoreTempInfo.dll\" could not be found.\n");

@@ -23,9 +23,9 @@
   #endif
   #undef sqlite3_open
 #else
-  typedef struct sqlite3     sqlite3;
-  typedef struct sqlite3_vfs sqlite3_vfs;
-  typedef int (__stdcall*    sqlite3_callback) (void *cb_arg, int argc, char **argv, char **col_name);
+  typedef struct sqlite3         sqlite3;
+  typedef struct sqlite3_vfs     sqlite3_vfs;
+  typedef int (SQLITE_CALLBACK*  sqlite3_callback) (void *cb_arg, int argc, char **argv, char **col_name);
 #endif
 
 #ifndef SQLITE_OPEN_READWRITE
@@ -62,18 +62,19 @@ static HANDLE dll_hnd = NULL;
         typedef ret (SQLITE_APICALL *func_##f) args; \
         static func_##f p_##f = NULL
 
-#define LOAD_FUNC(is_opt, f)                               \
-        do {                                               \
-          p_##f = (func_##f) GetProcAddress (dll_hnd, #f); \
-          if (!p_##f && !is_opt)                           \
-          {                                                \
-            WARN ("  Failed to find '%s()' in %s.\n",      \
-                  #f, SQLITE_DLL_NAME);                    \
-            return (FALSE);                                \
-          }                                                \
-          TRACE (2, "Function %s(): %*s 0x%p.\n",          \
-                 #f, 23-(int)strlen(#f), "", p_##f);       \
+#define LOAD_FUNC(is_opt, f)                              \
+        do {                                              \
+          p_##f = GETPROCADDRESS (func_##f, dll_hnd, #f); \
+          if (!p_##f && !is_opt)                          \
+          {                                               \
+            WARN ("  Failed to find '%s()' in %s.\n",     \
+                  #f, SQLITE_DLL_NAME);                   \
+            return (FALSE);                               \
+          }                                               \
+          TRACE (2, "Function %s(): %*s 0x%p.\n",         \
+                 #f, 23-(int)strlen(#f), "", p_##f);      \
         } while (0)
+
 
 DEF_FUNC (int,          sqlite3_open, (const char *filename, sqlite3 **p_db));
 DEF_FUNC (int,          sqlite3_open_v2, (const char *filename, sqlite3 **p_db,
@@ -98,6 +99,7 @@ static BOOL sql3_load (void)
     WARN ("  Failed to load %s; %s\n", SQLITE_DLL_NAME, win_strerror(GetLastError()));
     return (FALSE);
   }
+
   LOAD_FUNC (0, sqlite3_open);
   LOAD_FUNC (1, sqlite3_open_v2);
   LOAD_FUNC (0, sqlite3_exec);
@@ -108,6 +110,7 @@ static BOOL sql3_load (void)
   LOAD_FUNC (0, sqlite3_libversion);
   LOAD_FUNC (0, sqlite3_sourceid);
   LOAD_FUNC (0, sqlite3_vfs_find);
+
   return (TRUE);
 }
 
@@ -124,7 +127,7 @@ static int SQLITE_CALLBACK sql3_callback (void *cb_arg, int argc, char **argv, c
   int i;
 
   C_printf ("  ~3%s(): exec-number: %d~0  (argc: %d)\n",
-            __FUNCTION__, (int)cb_arg, argc);
+            __FUNCTION__, (int)(intptr_t)cb_arg, argc);
 
   for (i = 0; i < argc; i++)
       C_printf ("  ~6%-20s         ~2%s.~0\n",
@@ -197,7 +200,7 @@ void test_sqlite3 (void)
   for (i = 0; i < DIM(exec_stmt); i++)
   {
     rc = (*p_sqlite3_exec) (db, exec_stmt[i],
-                            sql3_callback, (void*)i, &err_msg);
+                            sql3_callback, (void*)(intptr_t)i, &err_msg);
     if (rc != SQLITE_OK)
     {
       C_printf (" ~6%d: ~5SQL error:~0 rc: %d, %s\n", i, rc, err_msg);

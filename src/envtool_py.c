@@ -273,7 +273,7 @@ static smartlist_t *py_programs;
  *   \param f       the name of the function (without any `"`).
  */
 #define LOAD_FUNC(pi, is_opt, f)  do {                                               \
-                                    f = (func_##f) GetProcAddress (pi->dll_hnd, #f); \
+                                    f = GETPROCADDRESS (func_##f, pi->dll_hnd, #f);  \
                                     if (!f && !is_opt) {                             \
                                       WARN ("Failed to find \"%s()\" in %s.\n",      \
                                             #f, pi->dll_name);                       \
@@ -290,7 +290,7 @@ static smartlist_t *py_programs;
  *   \param ptr  the name of the variable (without any `"`).
  */
 #define LOAD_INT_PTR(pi, ptr)  do {                                                        \
-                                 ptr = (int*) GetProcAddress (pi->dll_hnd, #ptr);          \
+                                 ptr = GETPROCADDRESS (int*, pi->dll_hnd, #ptr);           \
                                  if (!ptr)                                                 \
                                       TRACE (2, "Failed to find \"%s\" in %s.\n",          \
                                              #ptr, pi->dll_name);                          \
@@ -466,7 +466,7 @@ const char **py_get_variants (void)
   /* Make a unique result list.
    */
   for (i = 0; i < j; i++)
-    if (i > 0 && result[i] && !strcmp(result[i],result[i-1]))
+    if (i > 0 && result[i] && !strcmp(result[i], result[i-1]))
     {
       memmove (&result[i-1], &result[i], (DIM(result) - i) * sizeof(const char*));
       j--;
@@ -1188,7 +1188,7 @@ static int popen_append_out (char *str, int index)
    * Hopefully it will happen only at the first line (`index=0`).
    * This also needs `stderr` to be redirected into `stdout`.
    */
-  if (!strncmp(str,"Traceback (",11) || !strncmp(str,"ImportError:",13))
+  if (!strncmp(str, "Traceback (", 11) || !strncmp(str, "ImportError:", 13))
      popen_py_crash = TRUE;
 
   if (!popen_out || popen_out_sz - strlen(popen_out) < 4*strlen(str))
@@ -1548,10 +1548,10 @@ static void py_get_module_info (struct python_info *pi)
        * them to the `pi->modules` smartlist.
        */
       char module  [40+1]  = { "?" };
-      char version [30+1]  = { "?" };
+      char version [40+1]  = { "?" };
       char fname   [256+1] = { "?" };
       char meta    [256+1] = { "-" };
-      int  num = sscanf (line, "%40[^;];%20[^;];%256[^;];%256s", module, version, fname, meta);
+      int  num = sscanf (line, "%40[^;];%40[^;];%256[^;];%256s", module, version, fname, meta);
 
       if (num >= 3)
       {
@@ -1767,7 +1767,7 @@ static int process_zip (struct python_info *pi, const char *zfile)
     {
       TRACE (2, "line: \"%s\", found: %d\n", line, found);
 
-      if (!strncmp(line,"str: ",5))   /* if opt.debug >= 3; ignore these from stderr */
+      if (!strncmp(line, "str: ", 5))   /* if opt.debug >= 3; ignore these from stderr */
          continue;
       if (!report_zip_file(zfile, line))
          break;
@@ -1987,12 +1987,12 @@ static int get_dll_name (struct python_info *pi, const char **libs)
 
   for (i = 0, lib_fmt = libs[0]; lib_fmt && i < num; lib_fmt = libs[++i])
   {
-    if (!strncmp(lib_fmt,"%s\\",3))
+    if (!strncmp(lib_fmt, "%s\\", 3))
     {
       snprintf (dll1, sizeof(dll1), lib_fmt, pi->exe_dir, pi->ver_major, pi->ver_minor);
       snprintf (dll2, sizeof(dll2), lib_fmt, sys_dir, pi->ver_major, pi->ver_minor);
     }
-    else if (!strncmp(lib_fmt,"~\\",2))
+    else if (!strncmp(lib_fmt, "~\\", 2))
     {
       len = strlen (dll1);
       strcpy (dll1, pi->exe_dir);
@@ -2160,7 +2160,7 @@ static struct python_info *py_select_next (enum python_variants which)
        break;
   }
 
-  /* Prepare for next call of `py_select_next()`.
+  /* Prepare for next call to `py_select_next()`.
    */
   if (!okay)
        py_index = -1;
@@ -2299,7 +2299,7 @@ static int match_python_exe (const char *dir)
       if (stricmp(base, all_pi->program) != 0)
          continue;
 
-      if (cfg_ignore_lookup("[Python]",de->d_name))
+      if (cfg_ignore_lookup("[Python]", de->d_name))
          continue;
 
       found++;
@@ -2353,7 +2353,7 @@ static int get_modules_from_cache (struct python_info *pi)
 
     snprintf (format, sizeof(format), "python_modules%d_%d = %%s,%%s,%%d,%%s,%%s", pi->py_index, i);
     rc = cache_getf (SECTION_PYTHON, format, &mod_name, &mod_version, &is_zip, &location, &meta_path);
-    TRACE (2, "rc: %d.\n", rc);
+    TRACE (3, "rc: %d.\n", rc);
 
     if (rc < 5)
        break;
@@ -2919,12 +2919,14 @@ void py_init (void)
               "%*sDLL:         -> \"%s\"\n"
               "%*suser_site:   -> %s\n"
               "%*sVariant:     -> %s%s\n"
-              "%*snum_mod:     -> %s\n",
+              "%*snum_mod:     -> %s\n"
+              "%*sis_default:  -> %d\n",
            i, 2+longest_py_program, pi->program, pi->exe_name, version,
            indent+longest_py_program, "", pi->dll_name,
            indent+longest_py_program, "", pi->user_site_path ? pi->user_site_path : "<None>",
            indent+longest_py_program, "", py_variant_name(pi->variant), pi->is_default ? " (Default)" : "",
-           indent+longest_py_program, "", num_mod);
+           indent+longest_py_program, "", num_mod,
+           indent+longest_py_program, "", pi->is_default);
 
     write_to_cache (pi);
   }
@@ -3072,10 +3074,10 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
   else prog0 = "sys.stdout = old_stdout\n";   /* Undo what `setup_stdout_catcher()` did */
 
   size = strlen(prog0) + strlen(fmt) + 2 * strlen(py_argv[0]);
-  prog = alloca (size);
+  prog = alloca (size + 1);
 
   strcpy (prog, prog0);
-  snprintf (prog+strlen(prog0), size, fmt, py_argv[0], py_argv[0]);
+  snprintf (prog + strlen(prog0), size, fmt, py_argv[0], py_argv[0]);
 
   str = call_python_func (pi, prog, __LINE__);
 
@@ -3094,7 +3096,7 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
 /**
  * Executes a Python script, optionally with arguments.
  *
- * If `py_wich == ALL_PYTHONS`, do it for all supported and found Pythons.
+ * If `py_which == ALL_PYTHONS`, do it for all supported and found Pythons.
  *
  * \param[in] py_argv  The Python-script to run must be in `py_argv[0]`.<br>
  *                     The remaining command-line is in `py_argv[1..]`.
