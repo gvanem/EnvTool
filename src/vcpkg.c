@@ -243,6 +243,10 @@ static UINT64 total_size = 0;
  */
 static struct ver_info vcpkg_ver;
 
+/* To hunt down the ASAN bug in a x64 build.
+ */
+static int asan_trace = 3;
+
 /**
  * The platforms we support when parsing in `CONTROL_add_dependency_platform()`.
  */
@@ -944,7 +948,7 @@ static int portfile_cmake_parse (port_node *node, const char *file)
        new_line = f_mem + f_size;
 
     TRACE (2, "At github: \"%.*s\".\n", (int)(new_line - repo - 1), repo);
-    snprintf (node->homepage, sizeof(node->homepage), "https://github.com/%.*s", new_line - repo - 1, repo);
+    snprintf (node->homepage, sizeof(node->homepage), "https://github.com/%.*s", (int)(new_line - repo - 1), repo);
     rc = 1;
   }
   FREE (f_mem);
@@ -1391,11 +1395,20 @@ static void dump_ports_list (void)
 static void dump_installed_packages (void)
 {
   int i, i_max = smartlist_len (installed_packages);
+  int repeat = 120;
+
+#if (IS_WIN64)
+  #define FILLER  "        "
+  repeat += 16;
+#else
+  #define FILLER  ""
+#endif
 
   C_printf ("%s\n%d packages in 'installed_packages':\n"
             "Package                Version            Architecture        "
-            "install_info   link       Platforms             Features\n",
-            str_repeat('=', 120), i_max);
+            "install_info   " FILLER "link       " FILLER "Platforms             "
+            "Features\n",
+            str_repeat('=', repeat), i_max);
 
   for (i = 0; i < i_max; i++)
   {
@@ -1923,7 +1936,7 @@ static int vcpkg_parse_status_file (void)
   memset (&package, '\0', sizeof(package));
   package.version[0] = '?';
 
-  for (f_ptr = f_status_mem; f_ptr <= f_end; )
+  for (f_ptr = f_status_mem; f_ptr < f_end; )
   {
     vcpkg_package *package_modify, *package_new;
 
@@ -2309,6 +2322,10 @@ void vcpkg_init (void)
 
   done = TRUE;
 
+#if defined(USE_ASAN) && defined(_WIN64)
+  asan_trace = 0;   /* Hunt down the ASAN bug in a x64 build */
+#endif
+
   vcpkg_get_info (&vcpkg_exe, &vcpkg_ver);
 
   if (cache_getf(SECTION_VCPKG, "vcpkg_root = %s", &vcpkg_root) == 1)
@@ -2432,6 +2449,9 @@ void vcpkg_init (void)
     dump_installed_packages();
     dump_packages_cache();
   }
+
+  ARGSUSED (num_cached_available_packages);
+  ARGSUSED (num_cached_packages_dirs);
 }
 
 /**
@@ -3416,6 +3436,9 @@ static BOOL json_make_supports (port_node *node, const char *buf, int i, BOOL re
 
   TRACE (1, "platform: '%s', platforms[%d]: 0x%04X, Not: %d, recurse: %d\n",
           platform0, i, node->platforms[i], Not, recurse);
+
+  ARGSUSED (next_or);
+  ARGSUSED (next_and);
   return (FALSE);
 }
 
@@ -3427,14 +3450,14 @@ static BOOL json_make_supports (port_node *node, const char *buf, int i, BOOL re
 static int json_parse_ports_buf (port_node *node, const char *file, char *buf, size_t buf_len)
 {
   JSON_parser p;
-  JSON_tok_t  t [200];   /* We expect no more tokens than this per OBJECT */
+  JSON_tok_t  t [300];   /* We expect no more tokens than this per OBJECT */
   size_t      len;
   int         i, j, rc;
   char       *str, *str_copy;
 
   if (opt.debug >= 1)
      C_putc ('\n');
-  TRACE (1, "Parsing '%s'\n", file);
+  TRACE (asan_trace, "Parsing '%s'\n", file);
 
   JSON_init (&p);
   rc = JSON_parse (&p, buf, buf_len, t, DIM(t));
@@ -3455,6 +3478,11 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
    */
   for (i = 1; i < rc; i++)
   {
+#if defined(USE_ASAN) && defined(_WIN64)
+    if (t[i].size == 0)
+       TRACE (asan_trace, "Illegal token at index %d!!.\n", i);
+#endif
+
     if (JSON_str_eq(&t[i], buf, "name"))
     {
       str = buf + t[i+1].start;
@@ -3554,21 +3582,43 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
 
 static int json_parse_status_buf (smartlist_t *packages, const char *file, char *buf, size_t buf_len)
 {
-  ARGSUSED (packages);
-  ARGSUSED (file);
-  ARGSUSED (buf);
-  ARGSUSED (buf_len);
-  return (0);
+  JSON_parser p;
+  JSON_tok_t  t [5000];
+  size_t      len;
+  int         i, rc;
+  char       *str;
+
+  if (opt.debug >= 1)
+     C_putc ('\n');
+  TRACE (1, "Parsing '%s'\n", file);
+
+  JSON_init (&p);
+  rc = JSON_parse (&p, buf, buf_len, t, DIM(t));
+  if (rc < 0)
+  {
+    TRACE (1, "Failed to parse '%s': %d/%s\n", file, rc, JSON_strerror(rc));
+    return (0);
+  }
+
+  /* Loop over all keys of the root object
+   */
+  for (i = 1; i < rc; i++)
+  {
+    str = buf + t[i].start;
+    len = t[i].end - t[i].start;
+    TRACE (1, "key/value (type %s, size: %u): '%.*s'\n",
+           JSON_typestr(t[i].type), t[i].size, (int)len, str);
+    i += t[i+1].size + 1;
+  }
+  return (rc);
 }
 
-_WUNUSED_FUNC_OFF()
 static int json_parse_status_file (smartlist_t *packages, const char *file)
 {
-  char  *f_mem;
+  int    r = -1;
   size_t f_size;
-  int    r = 0;
+  char  *f_mem = fopen_mem (file, &f_size);
 
-  f_mem = fopen_mem (file, &f_size);
   if (f_mem)
   {
     r = json_parse_status_buf (packages, file, f_mem, f_size);
@@ -3576,15 +3626,13 @@ static int json_parse_status_file (smartlist_t *packages, const char *file)
   }
   return (r);
 }
-_WUNUSED_FUNC_POP()
 
 static int json_parse_ports_file (port_node *node, const char *file)
 {
-  char  *f_mem;
-  size_t f_size;
   int    r = 0;
+  size_t f_size;
+  char  *f_mem = fopen_mem (file, &f_size);
 
-  f_mem = fopen_mem (file, &f_size);
   if (f_mem)
   {
     r = json_parse_ports_buf (node, file, f_mem, f_size);
@@ -3672,24 +3720,35 @@ static void json_port_node_dump (const port_node *node)
 int test_vcpkg_json_parser (void)
 {
   port_node node = { "" };
+  int  rc;
+
+  if (opt.debug < 1)
+     opt.debug = 1;
 
   available_packages = smartlist_new();
   node.depends = smartlist_new();
   node.features = smartlist_new();
   node.supports = smartlist_new();
 
-#if 0
-  system ("vcpkg.exe list --x-json --x-full-desc > vcpkg-list.json");
-  json_parse_status_file (available_packages, "vcpkg-list.json");
-
-#else
-  smartlist_addu (node.supports, VCPKG_plat_ALL);
-  json_parse_ports_file (&node, "test.json");
-  json_port_node_dump (&node);
-#endif
+  if (opt.verbose >= 1)
+  {
+    rc = system ("vcpkg.exe list --x-json --x-full-desc > vcpkg-list.json");
+    TRACE (1, "rc: %d, errno: %d\n", rc, rc ? errno : 0);
+    if (rc == 0)
+    {
+      rc = json_parse_status_file (available_packages, "vcpkg-list.json");
+      TRACE (1, "rc: %d.\n", rc);
+    }
+  }
+  else
+  {
+    smartlist_addu (node.supports, VCPKG_plat_ALL);
+    json_parse_ports_file (&node, "test.json");
+    json_port_node_dump (&node);
+    FREE (node.description);
+  }
 
   smartlist_free_all (node.depends);
-  FREE (node.description);
   smartlist_free_all (node.features);
   smartlist_free (node.supports);
   smartlist_free_all (available_packages);
