@@ -429,12 +429,12 @@ static int show_version (void)
     if (!strncmp(OS_name, "Win-10", 6))
     {
       OS_name = os_full_version();
-      C_printf ("  OS-version: Win-10; %s (%s bits).\n", os_full_version(), os_bits());
+      C_printf ("  OS-version: Win-10; %s, %s bits.\n", os_full_version(), os_bits());
     }
     else if (!strncmp(OS_name, "Win-11", 6))
     {
       OS_name = os_full_version();
-      C_printf ("  OS-version: Win-11; %s (%s bits).\n", os_full_version(), os_bits());
+      C_printf ("  OS-version: Win-11; %s, %s bits.\n", os_full_version(), os_bits());
     }
     else
       C_printf ("  OS-version: %s (%s bits).\n", OS_name, os_bits());
@@ -1543,14 +1543,12 @@ static int report_registry (const char *reg_key)
         struct report r;
 
         snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
-        r.file        = fqfn;
-        r.content     = opt.grep.content;
-        r.mtime       = arr->mtime;
-        r.fsize       = arr->fsize;
-        r.is_dir      = FALSE;
-        r.is_junction = FALSE;
-        r.is_cwd      = FALSE;
-        r.key         = arr->key;
+        memset (&r, '\0', sizeof(r));
+        r.file    = fqfn;
+        r.content = opt.grep.content;
+        r.mtime   = arr->mtime;
+        r.fsize   = arr->fsize;
+        r.key     = arr->key;
         if (report_file(&r))
            found++;
       }
@@ -1967,13 +1965,12 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
     }
   }
 
+  memset (&r, '\0', sizeof(r));
   r.file        = file;
   r.content     = opt.grep.content;
   r.mtime       = mtime;
   r.fsize       = is_dir ? (__int64)-1 : fsize;
   r.is_dir      = is_dir;
-  r.is_junction = FALSE;
-  r.is_cwd      = FALSE;   // !!
   r.key         = HKEY_EVERYTHING;
   return report_file (&r);
 }
@@ -4509,10 +4506,16 @@ static int eval_options (void)
        WARN ("Option '--sign' is not supported for a remote search.\n");
     if (opt.PE_check)
        WARN ("Option '--pe' is not supported for a remote search.\n");
-    if (opt.grep.content)
-       WARN ("Option '--grep' is not supported for a remote search.\n");
     if (opt.show_owner)
        WARN ("Option '--owner' is not supported for a remote search.\n");
+  }
+
+  if (opt.grep.content)
+  {
+    if (opt.evry_host)
+       WARN ("Option '--grep' is not supported for a remote search.\n");
+    else if (opt.do_vcpkg)
+       WARN ("Option '--grep' is not supported for a VCPKG search.\n");
   }
   return (1);
 }
@@ -5297,7 +5300,9 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
 #if defined(_CRTDBG_MAP_ALLOC)
     smartlist_wipe (shadows, free);
 #else
-    smartlist_wipe (shadows, (void (*)(void*))free_at);
+    _WFUNC_CAST_OFF()
+    smartlist_wipe (shadows, (smartlist_free_func)free_at);
+    _WFUNC_CAST_POP()
 #endif
   }
 
