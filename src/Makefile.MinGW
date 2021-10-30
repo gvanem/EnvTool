@@ -1,15 +1,13 @@
 #
 # GNU makefile for EnvTool (MinGW/MinGW-w64/TDM-gcc).
 #
-FORTIFY_SOURCE ?= 1
-USE_DEBUG      ?= 1
+FORTIFY_SOURCE ?= 0
+USE_DEBUG      ?= 0
 USE_64BIT      ?= 0
 
 CC     = gcc
 CFLAGS = -Wall                        \
          -Wno-strict-aliasing         \
-         -Wno-int-to-pointer-cast     \
-         -Wno-pointer-to-int-cast     \
          -Wno-unused-but-set-variable \
          -Wno-format                  \
          -DEVERYTHINGUSERAPI=         \
