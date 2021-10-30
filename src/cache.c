@@ -29,10 +29,15 @@
  */
 #define CACHE_MAX_KEY  100
 
+/** \def CACHE_MAX_VALUE
+ * The maximum length of a value.
+ */
+#define CACHE_MAX_VALUE  10000
+
 /** \def CACHE_MAX_ARGS
  * The number of arguments supported in `cache_vgetf()`
  */
-#define CACHE_MAX_ARGS   12
+#define CACHE_MAX_ARGS  12
 
 /** \def CACHE_STATES
  * The number of states used by `cache_vgetf()`
@@ -57,6 +62,7 @@ static const struct search_list sections[] = {
  * \typedef cache_node
  *
  * Each cache-node have a section number and a key/value pair.
+ * If the value is a comma-string, use `_strtok_r()` to parse it.
  */
 typedef struct cache_node {
         CacheSections section;
@@ -96,11 +102,12 @@ typedef struct CACHE {
       } CACHE;
 
 static CACHE cache;
+static int   asan_trace = 3;
 
 static void cache_sort (void);
 static void cache_free_node (void *_c);
 static void cache_append (CacheSections section, const char *key, const char *value);
-static void cache_parse (FILE *f);
+static BOOL cache_parse (FILE *f);
 static void cache_write (void);
 static void cache_report (int num);
 
@@ -162,12 +169,11 @@ void cache_exit (void)
   if (cache.entries)
   {
     num = smartlist_len (cache.entries);
+    cache_report (num);
     smartlist_wipe (cache.entries, cache_free_node);
     smartlist_free (cache.entries);
     cache.entries = NULL;
   }
-  if (opt.use_cache)
-     cache_report (num);
 }
 
 /**
@@ -190,7 +196,7 @@ void cache_config (const char *key, const char *value)
  * Assume the entries are already sorted on `section` and `key`
  * (since that was done in `cache_write()` on last `cache_exit()`.)
  */
-static void cache_parse (FILE *f)
+static BOOL cache_parse (FILE *f)
 {
   UINT curr_section = UINT_MAX;
   UINT cache_ver = 0;
@@ -255,6 +261,7 @@ static void cache_parse (FILE *f)
       cache_append (curr_section, key, value);
     }
   }
+  return (cache.appended > 0);
 }
 
 /**
@@ -393,9 +400,10 @@ static int compare_on_section_key2 (const void *_key, const void **member)
  *   if cache-node was found, set the index of the entry in `*idx_p`.
  *   if cache-node was not found, set the index of the first vacant (new) entry in `*idx_p`.
  */
-static cache_node *cache_bsearch (CacheSections section, const char *key, int *idx_p)
+static cache_node *cache_bsearch (CacheSections section, const char *_key, int *idx_p)
 {
   cache_node c, *ret;
+  char *key = strdupa (_key);
   int   found, idx = 0;
 
   if (idx_p)
@@ -411,7 +419,7 @@ static cache_node *cache_bsearch (CacheSections section, const char *key, int *i
    */
   cache.bsearches++;
   c.section = section;
-  _strlcpy (c.key, key, sizeof(c.key));
+  _strlcpy (c.key, str_trim(key), sizeof(c.key));
 
   idx = smartlist_bsearch_idx (cache.entries, &c, compare_on_section_key2, &found);
   if (found)
@@ -479,15 +487,11 @@ static cache_node *cache_new_node (CacheSections section, const char *key, const
   cache_node *c;
 
   if (section <= SECTION_FIRST || section >= SECTION_LAST)
-  {
-    TRACE (1, "No such section: %d.\n", section);
-    return (NULL);
-  }
+     FATAL ("No such section: %d.\n", section);
+
   if (strlen(key) >= CACHE_MAX_KEY-1)
-  {
-    TRACE (1, "'key' too large. Max %d bytes.\n", CACHE_MAX_KEY-1);
-    return (NULL);
-  }
+     FATAL ("'key' too large. Max %d bytes.\n", CACHE_MAX_KEY-1);
+
   c = MALLOC (sizeof(*c));
   c->section = section;
   c->value   = STRDUP (value);
@@ -567,7 +571,7 @@ void cache_put (CacheSections section, const char *key, const char *value)
   cache.changed++;
   TRACE (1, "key: '%s', current value: '%s', new value: '%s'.\n", c->key, c->value, value);
 
-  if (strlen(c->value) >= strlen(value))
+  if (strlen(value) <= strlen(c->value))
      strcpy (c->value, value);
   else
   {
@@ -581,7 +585,7 @@ void cache_put (CacheSections section, const char *key, const char *value)
  */
 void cache_putf (CacheSections section, _Printf_format_string_ const char *fmt, ...)
 {
-  char    key_value [CACHE_MAX_KEY+10000];
+  char    key_value [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4];  /* Max length of 'key = value\0' */
   char   *p, *key, *value;
   va_list args;
 
@@ -618,7 +622,9 @@ const char *cache_get (CacheSections section, const char *key)
 
 /*
  * Similar to `vsscanf()` but arguments for `%s` MUST be `char **`.
- * Only `%d` and `%s` arguments are allowed here.
+ *
+ * A `"\"%s\""` format is legal in `cache_putf()`, but here only
+ * `"%d"` and `"%s"` formats are allowed.
  *
  * It is called with a state; `state->vec[]`, `state->s_val[]` and `state->d_val[]` arrays
  * are used in round-robin (`idx = [0 ... CACHE_STATES-1]`) to be able to call this
@@ -643,46 +649,43 @@ const char *cache_get (CacheSections section, const char *key)
  */
 static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vgetf_state *state)
 {
-  char       *fmt_copy, *tok_end, *p, *v;
+  char       *key, *fmt_copy, *tok_end, *p, *v;
+  char      **pp;
   const char *value;
-  int         rc, i;
+  int         rc, i, i_max;
 
-  for (i = 0; i < DIM(state->vec); i++)
+  if (!strchr(fmt, '='))
+     FATAL ("'fmt' must be on \"key = %%d,%%s...\" form. Not: '%s'\n", fmt);
+
+  for (i = 0, pp = va_arg(args, char**);
+       pp && i < DIM(state->vec);
+       pp = va_arg(args, char**), i++)
   {
-    state->vec[i]   = va_arg (args, char **);
+    state->vec[i]   = pp;
     state->d_val[i] = 0;
-    TRACE (3, "vec[%d]: 0x%p\n", i, state->vec[i]);
+    state->s_val[i] = NULL;
+    TRACE (asan_trace, "vec[%d]: 0x%p\n", i, state->vec[i]);
   }
 
-  fmt_copy = STRDUP (fmt);
-  i = 0;
-  for (v = _strtok_r(fmt_copy, ",", &tok_end); v;
-       v = _strtok_r(NULL, ",", &tok_end), i++)
-     *state->vec[i] = NULL;
+  key = strdupa (fmt);
+  p   = strchr (key, '=');
+  *p++ = '\0';
 
-  FREE (fmt_copy);
-  v = fmt_copy = STRDUP (fmt);
-
-  p  = strchr (fmt_copy, ' ');
-  *p = '\0';
-  TRACE (3, "fmt_copy: '%s'.\n", fmt_copy);
-
-  value = cache_get (section, fmt_copy);
+  value = cache_get (section, key);  /* Get the value for the key */
   if (!value)
   {
-    TRACE (2, "No value for fmt_copy: '%s' (end of list?).\n", fmt_copy);
-    FREE (fmt_copy);
+    TRACE (2, "No value for key: '%s' (end of list?).\n", key);
     return (0);
   }
 
-  p = str_ltrim (p+2);
-  fmt_copy = STRDUP (p);
-  TRACE (3, "fmt_copy: '%s', value: '%s'.\n", fmt_copy, value);
-  FREE (v);
+  p = str_ltrim (p + 1);
+  fmt_copy = strdupa (p);
+  TRACE (asan_trace, "fmt_copy: '%s', value: '%s'.\n", fmt_copy, value);
 
   state->value = STRDUP (value);
 
   i = 0;
+  i_max = DIM(state->s_val);
   for (v = _strtok_r(state->value, ",", &tok_end); v;
        v = _strtok_r(NULL, ",", &tok_end), i++)
   {
@@ -694,20 +697,21 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
         TRACE (1, "%s(): value (%s) is missing the right '\"' in 'fmt: '%s'" , __FUNCTION__, value, fmt);
         p = tok_end;
       }
+      if (i < i_max)
+         state->s_val [i++] = v;
 
-      state->s_val [i++] = v;
       TRACE (3, "i: %d, v: '%s'\n", i-1, v);
       v = tok_end;
       tok_end = p + 1;
     }
-    state->s_val[i] = v;
-    TRACE (3, "i: %d, v: '%s'\n", i, v);
-    if (i == DIM(state->vec) - 1)
-    {
-      TRACE (2, "too many fields: %d\n", i);
-      break;
-    }
+    if (i < i_max)
+       state->s_val[i] = v;
+    TRACE (asan_trace, "i: %d, v: '%s'\n", i, v);
+
   }
+
+  if (i > i_max)
+     FATAL ("too many fields (%d) in 'fmt'.\n", i+1);
 
   i = 0;
   for (v = _strtok_r(fmt_copy, ",", &tok_end); v;
@@ -723,7 +727,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
       else
       {
         TRACE (3, "s_val[%d]: '%s' (%d).\n", i, state->s_val[i], state->d_val[i]);
-        *state->vec[i] = (char*) state->d_val[i];
+        *(int*) state->vec[i] = state->d_val[i];
       }
       i++;
     }
@@ -734,26 +738,22 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
       i++;
     }
     else
-    {
-      TRACE (0, "Unsupported format '%s'\n", v);
-      i++;
-    }
+      FATAL ("Unsupported format '%s'\n", v);
   }
 
   rc = i;
-  FREE (fmt_copy);
   return (rc);
 }
 
 /*
- * Increment the state-inex and free it's oldest value.
+ * Increment the state-index and free it's oldest value.
  */
 static int cache_next_idx_state (int rc, int idx)
 {
   int new_idx, oldest_idx;
 
   new_idx = idx + 1;
-  new_idx &= (CACHE_STATES-1);
+  new_idx &= (CACHE_STATES - 1);
   oldest_idx = (new_idx + 1) & (CACHE_STATES - 1);
 
   /* Ensure the LRU distance is 1 or 'number of states - 1'.
@@ -769,29 +769,20 @@ static int cache_next_idx_state (int rc, int idx)
 /*
  * The public interface for `cache_vgetf()`.
  */
-int cache_getf (CacheSections section, _Printf_format_string_ const char *fmt, ...)
+int _cache_getf (CacheSections section, const char *fmt, ...)
 {
   static  int idx = 0;
-  int     rc, save_dbg = 0;
+  int     rc;
   va_list args;
 
   if (!cache.entries || smartlist_len(cache.entries) == 0)
      return (0);
-
-  if (!strncmp(fmt, "port_deps_", 10))
-  {
-    save_dbg = opt.debug;
-    opt.debug = 3;
-  }
 
   va_start (args, fmt);
   rc = cache_vgetf (section, fmt, args, &cache.state[idx]);
   va_end (args);
 
   idx = cache_next_idx_state (rc, idx);
-
-  if (save_dbg)
-     opt.debug = save_dbg;
   return (rc);
 }
 
@@ -862,26 +853,88 @@ void cache_dump (void)
  */
 void cache_test (void)
 {
-  int   rc0, rc1, rc2, rc3, rc4;
-  int   d_val00, d_val01, d_val02;
-  int   d_val10, d_val11, d_val12;
-  int   d_val20, d_val21, d_val22;
-  int   d_val30, d_val31, d_val32;
-  char *s_val00 = NULL, *s_val10 = NULL, *s_val20 = NULL, *s_val30 = NULL;
+  int   rc;
+  int   d_val00;
+  int   d_val01;
+  int   d_val02;
+  int   d_val10;
+  int   d_val11;
+  int   d_val12;
+  int   d_val20;
+  int   d_val21;
+  int   d_val22;
+  int   d_val30;
+  int   d_val31;
+  int   d_val32;
+  char *s_val00;
+  char *s_val10;
+  char *s_val20;
+  char *s_val30;
+  const char *value;
 
-  cache_node *c = cache_bsearch (SECTION_VCPKG, "ports_node_0", NULL);
+#if defined(USE_ASAN) && defined(_WIN64)
+  asan_trace = 0;   /* Hunt down the ASAN bug in a x64 build */
+#endif
 
-  TRACE (0, "c->value: '%s', comparisions: %lu\n", c ? c->value : "<None>", cache.bsearches_per_key);
+  if (!cache.entries || smartlist_len(cache.entries) == 0)
+  {
+    TRACE (0, "No cache.entries.\n");
+    return;
+  }
 
-  rc0 = cache_getf (SECTION_PYTHON, "python_path0_0 = %d,%d,%d,%s", &d_val00, &d_val01, &d_val02, &s_val00);
-  rc1 = cache_getf (SECTION_PYTHON, "python_path0_1 = %d,%d,%d,%s", &d_val10, &d_val11, &d_val12, &s_val10);
-  rc2 = cache_getf (SECTION_PYTHON, "python_path0_2 = %d,%d,%d,%s", &d_val20, &d_val21, &d_val22, &s_val20);
-  rc3 = cache_getf (SECTION_PYTHON, "python_path0_3 = %d,%d,%d,%s", &d_val30, &d_val31, &d_val32, &s_val30);
+  value = cache_get (SECTION_PYTHON, "pythons_on_path0");
+  TRACE (0, "\n  value: '%s'\n"
+            "  comparisions: %lu\n", value ? value : "<None>", cache.bsearches_per_key);
 
-  TRACE (0, "rc0: %d, d_val00: %d, d_val01: %d, d_val02: %d, s_val00: '%s'.\n", rc0, d_val00, d_val01, d_val02, s_val00);
-  TRACE (0, "rc1: %d, d_val10: %d, d_val11: %d, d_val12: %d, s_val10: '%s'.\n", rc1, d_val10, d_val11, d_val12, s_val10);
-  TRACE (0, "rc2: %d, d_val20: %d, d_val21: %d, d_val22: %d, s_val20: '%s'.\n", rc2, d_val20, d_val21, d_val22, s_val20);
-  TRACE (0, "rc3: %d, d_val30: %d, d_val31: %d, d_val32: %d, s_val30: '%s'.\n", rc3, d_val30, d_val31, d_val32, s_val30);
+  rc = cache_getf (SECTION_PYTHON, "python_path0_0 = %d,%d,%d,%s", &d_val00, &d_val01, &d_val02, &s_val00);
+  TRACE (0, "rc: %d, d_val00: %d, d_val01: %d, d_val02: %d, s_val00: '%s'.\n", rc, d_val00, d_val01, d_val02, s_val00);
+
+  rc = cache_getf (SECTION_PYTHON, "python_path0_1 = %d,%d,%d,%s", &d_val10, &d_val11, &d_val12, &s_val10);
+  TRACE (0, "rc: %d, d_val10: %d, d_val11: %d, d_val12: %d, s_val10: '%s'.\n", rc, d_val10, d_val11, d_val12, s_val10);
+
+  rc = cache_getf (SECTION_PYTHON, "python_path0_2 = %d,%d,%d,%s", &d_val20, &d_val21, &d_val22, &s_val20);
+  TRACE (0, "rc: %d, d_val20: %d, d_val21: %d, d_val22: %d, s_val20: '%s'.\n", rc, d_val20, d_val21, d_val22, s_val20);
+
+  rc = cache_getf (SECTION_PYTHON, "python_path0_3 = %d,%d,%d,%s", &d_val30, &d_val31, &d_val32, &s_val30);
+  TRACE (0, "rc: %d, d_val30: %d, d_val31: %d, d_val32: %d, s_val30: '%s'.\n", rc, d_val30, d_val31, d_val32, s_val30);
+
+  /* Test overflow of 'CACHE_MAX_ARGS == 12':
+   *
+   * - First create a cache-node with 13 elements (which is legal).
+   * - Then read 12 elements back.
+   * - Then read all 13 elements back which is illegal.
+   */
+  if (opt.verbose >= 1)
+  {
+    const char *fmt_12 = "legal_key_val = %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d";
+    const char *fmt_13 = "illegal_key_val = %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d";
+    int         data [CACHE_MAX_ARGS+1];
+
+    cache_putf (SECTION_PYTHON, fmt_13,
+                0,1,2,3,4,5,6,7,8,9,10,11,12);
+
+    rc = cache_getf (SECTION_PYTHON, fmt_12,
+                     &data[0], &data[1], &data[2],  &data[3],
+                     &data[4], &data[5], &data[6],  &data[7],
+                     &data[8], &data[9], &data[10], &data[11]);
+
+    TRACE (0, "rc: %d: %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d.\n", rc,
+           data[0], data[1], data[2],  data[3],
+           data[4], data[5], data[6],  data[7],
+           data[8], data[9], data[10], data[11]);
+
+    rc = cache_getf (SECTION_PYTHON, fmt_13,
+                     &data[0], &data[1], &data[2],  &data[3],
+                     &data[4], &data[5], &data[6],  &data[7],
+                     &data[8], &data[9], &data[10], &data[11], &data[12]);
+
+    /* Should not be reached.
+     */
+    TRACE (0, "rc: %d: %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d.\n", rc,
+           data[0], data[1], data[2],  data[3],
+           data[4], data[5], data[6],  data[7],
+           data[8], data[9], data[10], data[11], data[12]);
+  }
 
   /*
    * Add a test for parsing stuff like this (from VCPKG):
@@ -889,17 +942,17 @@ void cache_test (void)
    *
    * with a "quoted description, with commas".
    */
-  rc4 = cache_getf (SECTION_VCPKG, "port_node_499 = %s,%d,%d,%s,%s,%s",
-                    &s_val00, &d_val00, &d_val01, &s_val10, &s_val20, &s_val30);
-  if (rc4 == 6)
+  rc = cache_getf (SECTION_VCPKG, "port_node_499 = %s,%d,%d,%s,%s,%s",
+                   &s_val00, &d_val00, &d_val01, &s_val10, &s_val20, &s_val30);
+  if (rc == 6)
   {
-    TRACE (0, "rc4: %d:\n"
-           "  name:         %s\n"
-           "  version:      %s\n"
-           "  homepage:     %s\n"
-           "  have_CONTROL: %d\n"
-           "  have_JSON:    %d\n"
-           "  description:  ", rc4, s_val00, s_val10, s_val20, d_val00, d_val01);
+    TRACE (0, "rc: %d:\n", rc);
+    TRACE (0, "  name:         %s\n", s_val00);
+    TRACE (0, "  version:      %s\n", s_val10);
+    TRACE (0, "  homepage:     %s\n", s_val20);
+    TRACE (0, "  have_CONTROL: %d\n", d_val00);
+    TRACE (0, "  have_JSON:    %d\n", d_val01);
+    TRACE (0, "  description:  ");
     print_long_line (str_unquote(s_val30), 16);
   }
   else
