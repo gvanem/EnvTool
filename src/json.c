@@ -35,8 +35,8 @@ static JSON_tok_t *JSON_alloc_token (JSON_parser *parser, JSON_tok_t *tokens, si
      return (NULL);
 
   tok = &tokens [parser->tok_next++];
-  tok->start = tok->end = -1;
-  tok->size = 0;
+  tok->start  = tok->end = -1;
+  tok->size   = 0;
   tok->is_key = 0;
   return (tok);
 }
@@ -108,10 +108,10 @@ static int JSON_parse_string (JSON_parser *parser, const char *js, size_t len, J
   int         i, start = parser->pos;
   char        c;
 
-  parser->pos++;
-
   /* Skip starting quote
    */
+  parser->pos++;
+
   for ( ; parser->pos < len && js[parser->pos]; parser->pos++)
   {
     c = js [parser->pos];
@@ -151,7 +151,7 @@ static int JSON_parse_string (JSON_parser *parser, const char *js, size_t len, J
         /* Allows escaped symbol '\uXXXX' */
         case 'u':
              parser->pos++;
-             for(i = 0; i < 4 && parser->pos < len && js[parser->pos]; i++)
+             for (i = 0; i < 4 && parser->pos < len && js[parser->pos]; i++)
              {
                /* If it isn't a hex character we have an error */
                if (!((js[parser->pos] >= 48 && js[parser->pos] <= 57) ||  /* 0-9 */
@@ -344,8 +344,8 @@ int JSON_str_eq (const JSON_tok_t *tok, const char *buf, const char *str)
  */
 size_t JSON_get_total_size (const JSON_tok_t *token)
 {
-  int   rc = 0;
-  int   i, j;
+  size_t rc = 0;
+  size_t i, j;
   const JSON_tok_t *key;
 
   if (token->type == JSON_PRIMITIVE || token->type == JSON_STRING)
@@ -354,7 +354,7 @@ size_t JSON_get_total_size (const JSON_tok_t *token)
   }
   else if (token->type == JSON_OBJECT)
   {
-    for (i = j = 0; i < token->size; i++)
+    for (i = j = 0; i < (size_t)token->size; i++)
     {
       key = token + 1 + j;
       j += JSON_get_total_size (key);
@@ -365,7 +365,7 @@ size_t JSON_get_total_size (const JSON_tok_t *token)
   }
   else if (token->type == JSON_ARRAY)
   {
-    for (i = j = 0; i < token->size; i++)
+    for (i = j = 0; i < (size_t)token->size; i++)
         j += JSON_get_total_size (token + 1 + j);
     rc = j + 1;
   }
