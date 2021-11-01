@@ -38,7 +38,7 @@ PROJECT_NAME           = "Envtool"
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = "1.1 - search tool for environment variables"
+PROJECT_NUMBER         = "1.4 - search tool for environment variables"
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer a
@@ -774,6 +774,7 @@ INPUT = main_page.dox           \
         ../src/get_file_assoc.c \
         ../src/getopt_long.c    \
         ../src/ignore.c         \
+        ../src/json.c           \
         ../src/misc.c           \
         ../src/pkg-config.c     \
         ../src/regex.c          \
@@ -800,6 +801,7 @@ INPUT = main_page.dox           \
         ../src/get_file_assoc.h \
         ../src/getopt_long.h    \
         ../src/ignore.h         \
+        ../src/json.h           \
         ../src/pkg-config.h     \
         ../src/regex.h          \
         ../src/report.h         \
