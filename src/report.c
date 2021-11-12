@@ -100,8 +100,10 @@ static void save_match (FMT_buf *fmt, DWORD line_num, const char *line, const ch
  * Open a `file` in memory-mapped mode and search for `content`.
  * The search is case-sensitive if `opt.case_sensitive == TRUE`.
  *
- * \param[in] file     the file to search.
- * \param[in] content  the content in `file` to search for.
+ * \param[in,out] fmt      the format structure to use.
+ * \param[in]     file     the file to search.
+ * \param[in]     content  the content in `file` to search for.
+ *
  * \retval The number of matches found in `file`.
  */
 static int report_grep_file (FMT_buf *fmt, const char *file, const char *content)

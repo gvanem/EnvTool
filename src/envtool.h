@@ -403,8 +403,8 @@ typedef struct grep_info {
  *
  * All vital program options are set here.
  *
- * Set by `parse_cmdline()` and the handlers `set_short_option()`
- * and `set_short_option()`.
+ * Set by `parse_cmdline()` the handlers `set_short_option()` and `set_short_option()`.<br>
+ * The handler(s) in `cfg_init()` also sets these program-options.
  */
 struct prog_options {
        int             debug;

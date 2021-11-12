@@ -1352,12 +1352,13 @@ static int py_print_modinfo (const char *spec, BOOL get_details)
  * If there is:
  *   \li build a list of files for this package.
  *   \li extract the size and SHA256 value for the file from a RECORD-line like:
-
-         wheel/__init__.py,sha256=YumT_ajakW9VAgnV3umrUYypy6VzpbLKE-OPbVnWm8M,96
-         ^                        ^                                           ^
-         |                        |                                           |__ `__init__.py` size
-         |                        |___ Base64 encoded?
-         |_ relative to parent dir?
+ *   \code
+ *       wheel/__init__.py,sha256=YumT_ajakW9VAgnV3umrUYypy6VzpbLKE-OPbVnWm8M,96
+ *       ^                        ^                                           ^
+ *       |                        |                                           |__ `__init__.py` size
+ *       |                        |___ Base64 encoded?
+ *       |_ relative to parent dir?
+ *   \endcode
  */
 static void py_get_meta_info (struct python_module *m)
 {

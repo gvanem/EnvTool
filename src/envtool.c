@@ -1889,17 +1889,17 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  * \todo
  * \parblock
  *   If the result returns a file on a remote disk (X:) and the
- *   remote computer is down, EveryThing will return the
- *   the entry in it's database. But then the stat() below <br>
- *   will fail after a long SMB timeout (SessTimeOut, default 60 sec).
+ *   remote computer is down, EveryThing will return the the entry in
+ *   it's database. But then the stat() below will fail after a long
+ *   SMB timeout (SessTimeOut, default 60 sec).
  *
  *   Try to detect this if `file[0:1]` is `X:` prior to calling
- *   `stat()`. Use:
- *     `GetFileAttributes(file)` and test if `GetLastError()`
- *     returns `ERROR_BAD_NETPATH` ??
+ *   `stat()`. <br>
+ *   Use `GetFileAttributes(file)` and test if `GetLastError()`
+ *   returns `ERROR_BAD_NETPATH` ??
  *
  *  Or simply exclude the remote disk `X:` in the query.
- *  \eg
+ *  \b E.g:
  *   ```
  *    C:\> envtool --evry foxitre*.exe
  *   ```
@@ -1910,12 +1910,12 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  *
  * But then we need a-priori knowledge that `X:` is remote. Like
  *  `C:\> net use` does:
- *  \code
+ *   ```
  *   Status       Local     External                  Network
  *   -------------------------------------------------------------------------------
  *   Disconnected X:        \\DONALD\X-PARTITION      Microsoft Windows Network
  *   ^^
- *   \endcode
+ *   ```
  *  where to get this state?
  *
  * \endparblock

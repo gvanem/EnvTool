@@ -34,12 +34,17 @@ static smartlist_t *pkgconfig_dirs = NULL;  /* A smartlist_t of 'struct pkgconfi
 static smartlist_t *pkgconfig_pkg  = NULL;  /* A smartlist_t of 'struct pkgconfig_node' */
 
 /**
- * \def ENV_NAME the environment variable for search-directories.
- * \def REG_KEY  the Registry sub-branch variable for seach-directories. <br>
- *               The full key is either `HKEY_CURRENT_USER\Software\pkgconfig\PKG_CONFIG_PATH` or <br>
- *               `HKEY_LOCAL_MACHINE\Software\pkgconfig\PKG_CONFIG_PATH`.
+ * \def ENV_NAME
+ * The environment variable for search-directories.
  */
 #define ENV_NAME "PKG_CONFIG_PATH"
+
+/**
+ * \def REG_KEY
+ * The Registry sub-branch variable for seach-directories. <br>
+ * The full key is either `HKEY_CURRENT_USER\Software\pkgconfig\PKG_CONFIG_PATH` or <br>
+ * `HKEY_LOCAL_MACHINE\Software\pkgconfig\PKG_CONFIG_PATH`.
+ */
 #define REG_KEY  "Software\\pkgconfig"
 
 static void add_package (const char *name, char *description)
@@ -51,7 +56,7 @@ static void add_package (const char *name, char *description)
 
   pkg = MALLOC (sizeof(*pkg));
   _strlcpy (pkg->name, name, sizeof(pkg->name));
-  _strlcpy (pkg->description, str_unquote(description), sizeof(pkg->description));
+  _strlcpy (pkg->description, description ? str_unquote(description) : "", sizeof(pkg->description));
   smartlist_add (pkgconfig_pkg, pkg);
 }
 
