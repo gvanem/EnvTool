@@ -88,7 +88,7 @@ exit /b 1
   :: @call :green_msg Testing win_glob:
   :: .\win_glob -fr "c:\Program Files (x86)\CMake"
 
-  @call :green_msg Showing last 20 lines of cache-file:
+  @call :green_msg Showing last 20 lines of cache-file:\n
   @"c:\Program Files\Git\usr\bin\tail" --lines=20 %TEMP%\envtool.cache
 
   @echo off
