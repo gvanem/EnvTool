@@ -18,11 +18,8 @@ make all   - should produce envtool.chm in this directory.
 make clean - should delete all generated files.
 ```
 
-*PS1*. When using the `Index` menu in `"%WINDIR%\hh.exe"`, it will crash!
+*PS*. When using the `Index` menu in `"%WINDIR%\hh.exe"`, it will crash!
   Some issue with how I or Doxygen creates the `output/index.hhk` file?
-	**[KchmViewer](http://www.ulduzsoft.com/linux/kchmviewer/getting-kchmviewer/)** does
-	not exhibit this bug.
+  **[KchmViewer](http://www.ulduzsoft.com/linux/kchmviewer/getting-kchmviewer/)** does
+  not exhibit this bug.
 
-*PS2*. This file is written with the aid of the **[Atom](https://atom.io/)**
-editor and it's **[Markdown-Preview](https://atom.io/packages/markdown-preview)**.
-A real time-saver.
