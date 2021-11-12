@@ -1430,7 +1430,11 @@ int str_isquoted (const char *str)
  * A `strtok_r()` function taken from libcurl:
  *
  * Copyright (C) 1998 - 2007, Daniel Stenberg, <daniel@haxx.se>, et al.
-  */
+ *
+ * \param[in,out] ptr  on first call, the string to break apart looking for `sep` strings.
+ * \param[in]     sep  the separator string to look for.
+ * \param[in]     end  the pointer to the end. Ignored on 1st call.
+ */
 char *_strtok_r (char *ptr, const char *sep, char **end)
 {
   if (!ptr)
@@ -1766,8 +1770,10 @@ char *basename (const char *fname)
 /**
  * Return the malloc'ed directory part of a filename.
  */
-_PRAGMA (GCC diagnostic push)
-_PRAGMA (GCC diagnostic ignored "-Wstringop-truncation")
+#if defined(__GNUC__)
+  _PRAGMA (GCC diagnostic push)
+  _PRAGMA (GCC diagnostic ignored "-Wstringop-truncation")
+#endif
 
 char *dirname (const char *fname)
 {
@@ -1825,7 +1831,9 @@ char *dirname (const char *fname)
   return (dirpart);
 }
 
-_PRAGMA (GCC diagnostic pop)
+#if defined(__GNUC__)
+  _PRAGMA (GCC diagnostic pop)
+#endif
 
 #if !defined(__CYGWIN__)
 /**
