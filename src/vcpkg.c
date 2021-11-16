@@ -243,10 +243,6 @@ static UINT64 total_size = 0;
  */
 static struct ver_info vcpkg_ver;
 
-/* To hunt down the ASAN bug in a x64 build.
- */
-static int asan_trace = 3;
-
 /**
  * The platforms we support when parsing in `CONTROL_add_dependency_platform()`.
  */
@@ -835,7 +831,7 @@ static void CONTROL_add_dependencies (port_node *node, char *str)
     return;
   }
 
-  for (tok = _strtok_r(str,  ",", &tok_end); tok;
+  for (tok = _strtok_r(str, ",", &tok_end); tok;
        tok = _strtok_r(NULL, ",", &tok_end))
   {
     vcpkg_package package;
@@ -927,14 +923,15 @@ static int CONTROL_parse (port_node *node, const char *file)
 }
 
 /**
- * Parse `file` for a Github " REPO" relative link.
+ * Parse `file` for a Github " REPO " relative link.
  */
 static int portfile_cmake_parse (port_node *node, const char *file)
 {
   int         rc = 0;
   size_t      f_size;
   char       *f_mem = fopen_mem (file, &f_size);
-  const char *github, *repo, *new_line;
+  char       *repo, *new_line, *end;
+  const char *github;
 
   if (!f_mem)
      return (0);
@@ -942,13 +939,17 @@ static int portfile_cmake_parse (port_node *node, const char *file)
   github = strstr (f_mem, VCPKG_GH_FUNC);
   if (github && (repo = strstr(f_mem, VCPKG_GH_REPO)) > github + sizeof(VCPKG_GH_FUNC))
   {
-    repo += sizeof(VCPKG_GH_REPO) - 1;
+    repo = str_unquote (repo + sizeof(VCPKG_GH_REPO) - 1);
     new_line = strchr (repo, '\n');
     if (!new_line)
-       new_line = f_mem + f_size;
+       new_line = f_mem + f_size - 1;
+    *new_line = '\0';
 
     TRACE (2, "At github: \"%.*s\".\n", (int)(new_line - repo - 1), repo);
     snprintf (node->homepage, sizeof(node->homepage), "https://github.com/%.*s", (int)(new_line - repo - 1), repo);
+    end = strchr (node->homepage, '\0');
+    if (end[-1] == '"')
+       end[-1] = '\0';
     rc = 1;
   }
   FREE (f_mem);
@@ -2276,6 +2277,7 @@ static int get_available_packages_from_cache (void)
 
     snprintf (format, sizeof(format), "available_package_%d = %%s,%%d,%%s,%%s,%%s,%%s", i);
     rc = cache_getf (SECTION_VCPKG, format, &pkg_name, &installed, &version, &status, &arch, &dependencies);
+
     if (rc != 6)
        break;
 
@@ -2321,10 +2323,6 @@ void vcpkg_init (void)
      return;
 
   done = TRUE;
-
-#if defined(USE_ASAN) && defined(_WIN64)
-  asan_trace = 0;   /* Hunt down the ASAN bug in a x64 build */
-#endif
 
   vcpkg_get_info (&vcpkg_exe, &vcpkg_ver);
 
@@ -2722,7 +2720,7 @@ static void info_parse (smartlist_t *sl, const char *buf)
     if (!opt.show_unix_paths)
        p = slashify2 (p, p, '\\');
     smartlist_add_strdup (sl, p);
-    TRACE (2, "adding: '%s'.\n", p);
+    TRACE (3, "adding: '%s'.\n", p);
   }
 }
 
@@ -3361,7 +3359,7 @@ static void json_add_description (port_node *node, char *buf, const JSON_tok_t *
       str_replace2 ('~', "~~", str, len);
       TRACE (2, "  descr[%d]: '%s'\n", i, str);
     }
-    node->description = smartlist_join_str (merger, NULL);
+    node->description = smartlist_join_str (merger, " ");
     smartlist_free_all (merger);
   }
   else
@@ -3457,7 +3455,8 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
 
   if (opt.debug >= 1)
      C_putc ('\n');
-  TRACE (asan_trace, "Parsing '%s'\n", file);
+
+  TRACE (3, "Parsing '%s'\n", file);
 
   JSON_init (&p);
   rc = JSON_parse (&p, buf, buf_len, t, DIM(t));
@@ -3478,10 +3477,8 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
    */
   for (i = 1; i < rc; i++)
   {
-#if defined(USE_ASAN) && defined(_WIN64)
     if (t[i].size == 0)
-       TRACE (asan_trace, "Illegal token at index %d!!.\n", i);
-#endif
+       TRACE (3, "Illegal token at index %d!!.\n", i);
 
     if (JSON_str_eq(&t[i], buf, "name"))
     {
