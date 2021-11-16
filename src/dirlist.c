@@ -22,7 +22,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -961,16 +960,16 @@ static enum od2x_sorting get_sorting (const char *s_type)
   enum od2x_sorting sort = OD2X_UNSORTED;
   const char *s_supported = "\"names\", \"files\", \"dirs\"";
 
-  if (!strnicmp(s_type,"names",5))
+  if (!strnicmp(s_type, "names", 5))
        sort = OD2X_ON_NAME;
-  else if (!strnicmp(s_type,"files",5))
+  else if (!strnicmp(s_type, "files", 5))
        sort = OD2X_FILES_FIRST;
-  else if (!strnicmp(s_type,"dirs",4))
+  else if (!strnicmp(s_type, "dirs", 4))
        sort = OD2X_DIRECTORIES_FIRST;
   else FATAL ("Illegal sorting type '%s'.\n"
               "These are supported: %s. Optionally with \",reverse\".\n", s_type, s_supported);
 
-  if (strstr(s_type,",reverse"))
+  if (strstr(s_type, ",reverse"))
      sort |= OD2X_SORT_REVERSE;
   return (sort);
 }
@@ -980,9 +979,8 @@ static BOOL WINAPI halt (DWORD event)
   if (event != CTRL_C_EVENT)
      return (FALSE);
 
-  C_puts ("Got ^C.\n");
-  C_exit();
-  _exit (1);
+  C_puts ("~0\n");
+  FATAL ("Got ^C.\n");
   return (TRUE);
 }
 
