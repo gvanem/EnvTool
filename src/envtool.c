@@ -24,7 +24,6 @@
 #include <stdarg.h>
 #include <time.h>
 #include <fcntl.h>
-#include <assert.h>
 #include <signal.h>
 #include <locale.h>
 
@@ -1065,7 +1064,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
 #if !defined(__CYGWIN__)
     else if (strlen(tok) >= 12 && str_equal_n(tok, "/cygdrive/", 10))
     {
-      char buf [_MAX_PATH];
+      static char buf [_MAX_PATH];  /* static since it could be used after we return */
 
       snprintf (buf, sizeof(buf), "%c:/%s", tok[10], tok+12);
       TRACE (1, "CygPath conv: '%s' -> '%s'\n", tok, buf);
@@ -3635,7 +3634,7 @@ static int find_clang_library_path_cb (char *buf, int index)
 
   p = buf + sizeof(prefix) - 1;
 
-  for (i = 0, tok = strtok(p,";"); tok; tok = strtok(NULL,";"), i++)
+  for (i = 0, tok = strtok(p, ";"); tok; tok = strtok(NULL, ";"), i++)
   {
     char buf1 [_MAX_PATH];
     char buf2 [_MAX_PATH];
@@ -4648,6 +4647,7 @@ static void init_all (const char *argv0)
   opt.under_appveyor = (stricmp(user, "APPVYR-WIN\\appveyor") == 0);
   opt.under_github   = (stricmp(user, "??\\??") == 0);
   opt.evry_busy_wait = 2;
+
 #ifdef __CYGWIN__
   opt.under_cygwin = 1;
 #endif
