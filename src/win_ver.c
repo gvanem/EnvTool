@@ -55,8 +55,8 @@ BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level
   if (!hnd)
      return (rc);
 
-  p_NetWkstaGetInfo  = (func_NetWkstaGetInfo)  GetProcAddress (hnd, "NetWkstaGetInfo");
-  p_NetApiBufferFree = (func_NetApiBufferFree) GetProcAddress (hnd, "NetApiBufferFree");
+  p_NetWkstaGetInfo  = GETPROCADDRESS (func_NetWkstaGetInfo, hnd, "NetWkstaGetInfo");
+  p_NetApiBufferFree = GETPROCADDRESS (func_NetApiBufferFree, hnd, "NetApiBufferFree");
 
   if (p_NetWkstaGetInfo && p_NetApiBufferFree &&
       (*p_NetWkstaGetInfo)(NULL,level,&data) == NERR_Success)
@@ -112,7 +112,7 @@ BOOL get_rtdll_version (OSVERSIONINFOEXW *os)
   if (!hnd)
      return (rc);
 
-  p_RtlGetVersion = (func_RtlGetVersion) GetProcAddress (hnd, "RtlGetVersion");
+  p_RtlGetVersion = GETPROCADDRESS (func_RtlGetVersion, hnd, "RtlGetVersion");
   if (p_RtlGetVersion)
   {
     memset (os, '\0', sizeof(*os));
