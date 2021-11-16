@@ -5,12 +5,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <assert.h>
 
 #include "envtool.h"
 #include "color.h"
 #include "cache.h"
-
-#define USE_ADD_AND_SORT 0
 
 /** \def CACHE_HEADER
  * Cache-file header.
@@ -56,6 +55,7 @@ static const struct search_list sections[] = {
                   { SECTION_PKGCONFIG, "[Pkgconfig]" },
                   { SECTION_PYTHON,    "[Python]"    },
                   { SECTION_VCPKG,     "[VCPKG]"     },
+                  { SECTION_TEST,      "[Test]"      }
                 };
 
 /**
@@ -98,11 +98,11 @@ typedef struct CACHE {
         DWORD        inserted;               /**< Number of calls to `cache_insert()`. */
         DWORD        deleted;                /**< Number of calls to `cache_del()`. */
         DWORD        changed;                /**< Number of calls to `cache_putf()` with another value. */
+        BOOL         testing;                /**< For testing with `-DUSE_ASAN`. Do not write `cache.filename` at exit. */
         vgetf_state  state [CACHE_STATES];   /**< State values for `cache_vgetf()`. */
       } CACHE;
 
 static CACHE cache;
-static int   asan_trace = 3;
 
 static void cache_sort (void);
 static void cache_free_node (void *_c);
@@ -112,7 +112,8 @@ static void cache_write (void);
 static void cache_report (int num);
 
 /**
- * Initialise everything:
+ * Initialise the cache-functions:
+ *
  *  \li Setup the needed stuctures.
  *  \li Open and parse the `envtool.cache` file.
  *  \li Add each node to the `cache.entries` smartlist.
@@ -131,7 +132,7 @@ void cache_init (void)
      FATAL ("'CACHE_STATES' must be a power of 2.\n");
 
   if (DIM(sections) != SECTION_LAST)
-     FATAL ("'DIM(sections) == %d' too small. Should be: %d\n", DIM(sections), SECTION_LAST);
+     FATAL ("'DIM(sections) == %d' too small. Should be: %d.\n", DIM(sections), SECTION_LAST);
 
   cache.entries = smartlist_new();
 
@@ -155,7 +156,7 @@ void cache_exit (void)
 {
   int i, num = 0;
 
-  if (cache.entries && cache.filename)
+  if (!cache.testing && cache.entries && cache.filename)
   {
     cache_sort();
     cache_write();
@@ -327,7 +328,7 @@ static void cache_free_node (void *_c)
 }
 
 /**
- * Final step is to write the `cache.entries` to `cache.filename`.
+ * Write the `cache.entries` to `cache.filename`. <br>
  * Do it sorted on section, then on keys alpabetically.
  */
 static void cache_write (void)
@@ -338,15 +339,14 @@ static void cache_write (void)
   int      last_section = -1;
   int      i, max;
 
-  if (!cache.entries || !cache.filename)
-     return;
-
   if (cache.inserted + cache.deleted + cache.changed == 0)
   {
     TRACE (1, "No change.\n");
     return;
   }
 
+  /* Make a backup of current cache.filename.
+   */
   if (cache.filename_prev && FILE_EXISTS(cache.filename))
      CopyFile (cache.filename, cache.filename_prev, FALSE);
 
@@ -366,6 +366,9 @@ static void cache_write (void)
   for (i = 0; i < max; i++)
   {
     c = smartlist_get (cache.entries, i);
+    if (c->section == SECTION_TEST)
+       continue;
+
     if (c->section != last_section)
        fprintf (f, "\n%s # = %d\n", sections[c->section].name, c->section);
 
@@ -381,17 +384,17 @@ static void cache_write (void)
  */
 static int compare_on_section_key2 (const void *_key, const void **member)
 {
-  const cache_node *c   = *member;
   const cache_node *key = (const cache_node *) _key;
+  const cache_node *node = *member;
 
   /**< \todo make this into a ring-buffer to generate some more valuable statistics.
    * E.g. a bucket of 20 last searches, then generate a std-deviation in `cache_report()`.
    */
   cache.bsearches_per_key++;
 
-  if (key->section != c->section)
-     return (int)key->section - (int)c->section;
-  return strcmp (key->key, c->key);
+  if (key->section != node->section)
+     return (int)key->section - (int)node->section;
+  return strcmp (key->key, node->key);
 }
 
 /**
@@ -487,7 +490,7 @@ static cache_node *cache_new_node (CacheSections section, const char *key, const
   cache_node *c;
 
   if (section <= SECTION_FIRST || section >= SECTION_LAST)
-     FATAL ("No such section: %d.\n", section);
+     FATAL ("Illegal section: %d.\n", section);
 
   if (strlen(key) >= CACHE_MAX_KEY-1)
      FATAL ("'key' too large. Max %d bytes.\n", CACHE_MAX_KEY-1);
@@ -529,19 +532,10 @@ static void cache_insert (CacheSections section, const char *key, const char *va
   c = cache_new_node (section, key, value);
   if (c)
   {
-    int old_idx = idx;
-
-#if USE_ADD_AND_SORT
-    smartlist_add (cache.entries, c);
-    cache_sort();
-    idx = smartlist_pos (cache.entries, c); /* this should be the idx of the last element */
-#else
     smartlist_insert (cache.entries, idx, c);
-#endif
-
     cache.inserted++;
-    TRACE (3, "Inserting key: '%s', value: '%s', section: '%s' at idx: %d/%d.\n",
-           c->key, c->value, sections[section].name, idx, old_idx);
+    TRACE (3, "Inserting key: '%s', value: '%s', section: '%s' at idx: %d.\n",
+           c->key, c->value, sections[section].name, idx);
   }
 }
 
@@ -585,27 +579,30 @@ void cache_put (CacheSections section, const char *key, const char *value)
  */
 void cache_putf (CacheSections section, _Printf_format_string_ const char *fmt, ...)
 {
-  char    key_value [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4];  /* Max length of 'key = value\0' */
-  char   *p, *key, *value;
+  char    key_val [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4];  /* Max length of 'key = value\0' */
+  char   *p;
+  int     len;
   va_list args;
 
   if (!cache.entries)
      return;
 
-  if (!strchr(fmt, '='))
-     FATAL ("'fmt' must contain a '='.\n");
+  if (!strstr(fmt, " = "))
+     FATAL ("'fmt' must be on 'key = value' form.\n");
 
   va_start (args, fmt);
-  if (vsnprintf(key_value, sizeof(key_value), fmt, args) < 0)
-     FATAL ("'key_value' too small.\n");
+  len = vsnprintf (key_val, sizeof(key_val), fmt, args);
+  if (len >= sizeof(key_val))
+     FATAL ("'key_val' too small. Need %d bytes.\n", len+1);
+
+  if (len < 0)
+     FATAL ("Encoding error for 'key_value'.\n");
 
   /* Split "key = value" -> "key", "value"
    */
-  p = strchr (key_value, '=');
-  *p    = '\0';
-  key   = str_rtrim (key_value);
-  value = str_ltrim (p+1);
-  cache_put (section, key, value);
+  p = strchr (key_val, '=');
+  p[-1] = '\0';
+  cache_put (section, key_val, p +2);
   va_end (args);
 }
 
@@ -620,7 +617,110 @@ const char *cache_get (CacheSections section, const char *key)
   return (c ? c->value : NULL);
 }
 
-/*
+#define STATE_NORMAL 1  /** parse an unquoted string. */
+#define STATE_QUOTED 2  /** parse a "quoted" string (with >=1 ',') as one value. */
+#define STATE_ESCAPE 3  /** parse a ESCaped "\" string in 'STATE_QUOTED' */
+
+static int get_next_value (char **start, char *end)
+{
+  char *c = *start;
+  int   state = STATE_NORMAL;
+  int   len = 0;
+  char  buf [CACHE_MAX_VALUE+1] = { '\0' };
+  char *p = buf;
+
+  while (*c)
+  {
+    if (state == STATE_NORMAL)
+    {
+      if (*c == ',')                    /* right ',' in this value */
+      {
+        len++;
+        break;
+      }
+      else if (*c == '"' && c == end-1) /* stray left '"' at EOL */
+      {
+        break;
+      }
+      else if (*c == '"')               /* left '"' in this value */
+      {
+        *c++ = '\0';
+        *start = c;
+        state = STATE_QUOTED;
+      }
+      else
+      {
+        *p++ = *c;
+        len++;
+        c++;
+      }
+    }
+    else if (state == STATE_QUOTED)
+    {
+      if (*c == '"' && c == end-1)  /* stray right '"' at EOL */
+      {
+        len += 2;
+        break;
+      }
+      else if (*c == '"')           /* normal right '"' in this value */
+      {
+        len++;
+        *c++ = '\0';
+        state = STATE_NORMAL;
+      }
+      else if (*c == '\\')          /* left ESC char */
+      {
+        *p++ = *c;
+        len++;
+        c++;
+        state = STATE_ESCAPE;
+      }
+      else
+      {
+        *p++ = *c;
+        len++;
+        c++;
+      }
+    }
+    else if (state == STATE_ESCAPE)
+    {
+      if (*c == '\\')       /* right ESC char */
+      {
+        *p++ = *c;
+        len++;
+        c++;
+      }
+      else if (*c == '"')   /* right ESCaped '"' */
+      {
+        *p++ = *c;
+        len++;
+        c++;
+        state = STATE_QUOTED;
+      }
+      else
+      {
+        *p++ = *c;
+        c++;
+        len++;
+      }
+    }
+    else
+      FATAL ("Illegal state: %d.\n", state);
+  }
+
+  *c = '\0';
+  *p = '\0';
+
+  TRACE (3, "len: %d, *start: '%.*s', buf: '%s'.\n", len, len, *start, buf);
+
+#if 0
+  strcpy (*start, buf);
+#endif
+
+  return (len);
+}
+
+/**
  * Similar to `vsscanf()` but arguments for `%s` MUST be `char **`.
  *
  * A `"\"%s\""` format is legal in `cache_putf()`, but here only
@@ -629,7 +729,7 @@ const char *cache_get (CacheSections section, const char *key)
  * It is called with a state; `state->vec[]`, `state->s_val[]` and `state->d_val[]` arrays
  * are used in round-robin (`idx = [0 ... CACHE_STATES-1]`) to be able to call this
  * function like:
- *
+ *  \code
  *  char *str_1, *str_2, ... *str_N;
  *
  *  if (cache_getf(SECTION_CMAKE, "key_1 = %s", &str_1) == 1 &&
@@ -639,6 +739,7 @@ const char *cache_get (CacheSections section, const char *key)
  *  {
  *    ...
  *  }
+ * \endcode
  *
  * This way the returned `*str_1` ... `*str_N` should point to separate `s_val[idx][0]` slots.
  * The least recently used slot is freed at the end of `cache_getf()`. Ref. `oldest_idx`.
@@ -649,27 +750,38 @@ const char *cache_get (CacheSections section, const char *key)
  */
 static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vgetf_state *state)
 {
-  char       *key, *fmt_copy, *tok_end, *p, *v;
-  char      **pp;
-  const char *value;
+  char      **pp, *key, *fmt_copy, *tok_end, *values, *v, *v_end;
+  const char *this_fmt, *value;
   int         rc, i, i_max;
 
-  if (!strchr(fmt, '='))
-     FATAL ("'fmt' must be on \"key = %%d,%%s...\" form. Not: '%s'\n", fmt);
+  TRACE_NL (3);
+
+  if (!strstr(fmt, " = "))
+     FATAL ("'fmt' must be on \"key = %%d,%%s...\" form. Not: '%s'.\n", fmt);
+
+  values = strchr (fmt, '=') + 2;
+  fmt_copy = strdupa (values);
+  this_fmt = _strtok_r (fmt_copy, ",", &tok_end);
 
   for (i = 0, pp = va_arg(args, char**);
-       pp && i < DIM(state->vec);
-       pp = va_arg(args, char**), i++)
+       this_fmt && i < DIM(state->vec);
+       pp = va_arg(args, char**), this_fmt = _strtok_r(NULL, ",", &tok_end), i++)
   {
     state->vec[i]   = pp;
     state->d_val[i] = 0;
     state->s_val[i] = NULL;
-    TRACE (asan_trace, "vec[%d]: 0x%p\n", i, state->vec[i]);
+    TRACE (4, "vec[%d]: 0x%p, this_fmt: '%s'.\n", i, state->vec[i], this_fmt);
+    if (*tok_end == '\0')
+    {
+      state->vec [++i] = NULL;
+      break;
+    }
   }
 
   key = strdupa (fmt);
-  p   = strchr (key, '=');
-  *p++ = '\0';
+  values = strchr (key, '=');
+  values[-1] = '\0';                 /* terminate 'key' */
+  values++;
 
   value = cache_get (section, key);  /* Get the value for the key */
   if (!value)
@@ -678,67 +790,53 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
     return (0);
   }
 
-  p = str_ltrim (p + 1);
-  fmt_copy = strdupa (p);
-  TRACE (asan_trace, "fmt_copy: '%s', value: '%s'.\n", fmt_copy, value);
+  TRACE (3, "value: '%s'.\n", value);
 
   state->value = STRDUP (value);
 
   i = 0;
   i_max = DIM(state->s_val);
-  for (v = _strtok_r(state->value, ",", &tok_end); v;
-       v = _strtok_r(NULL, ",", &tok_end), i++)
+
+  v     = state->value;
+  v_end = strchr (v, '\0');
+  while ((rc = get_next_value(&v, v_end)) > 0 && i < i_max)
   {
-    if (*tok_end == '"')   /* handle a quoted string */
-    {
-      p = strrchr (tok_end+1, '"');
-      if (!p)
-      {
-        TRACE (1, "%s(): value (%s) is missing the right '\"' in 'fmt: '%s'" , __FUNCTION__, value, fmt);
-        p = tok_end;
-      }
-      if (i < i_max)
-         state->s_val [i++] = v;
-
-      TRACE (3, "i: %d, v: '%s'\n", i-1, v);
-      v = tok_end;
-      tok_end = p + 1;
-    }
-    if (i < i_max)
-       state->s_val[i] = v;
-    TRACE (asan_trace, "i: %d, v: '%s'\n", i, v);
-
+    TRACE (3, "i: %d, v: '%s'.\n", i, v);
+    state->s_val [i++] = v;
+    v += rc;
+    if (v >= v_end)
+       break;
   }
 
-  if (i > i_max)
-     FATAL ("too many fields (%d) in 'fmt'.\n", i+1);
-
   i = 0;
+  fmt_copy = strdupa (values + 1);
   for (v = _strtok_r(fmt_copy, ",", &tok_end); v;
        v = _strtok_r(NULL, ",", &tok_end))
   {
+    if (i >= i_max)
+       FATAL ("too many fields (%d) in 'fmt: \"%s\"'.\n", i+1, fmt);
+
     if (!strcmp(v, "%d"))
     {
-      char *end_d;
+      state->d_val[i] = strtoul (state->s_val[i], &v_end, 10);
 
-      state->d_val[i] = strtoul (state->s_val[i], &end_d, 10);
-      if (end_d == state->s_val[i])
-         TRACE (2, "EINVAL; s_val[%d]: '%s'\n", i, state->s_val[i]);
+      if (v_end == state->s_val[i])
+         TRACE (2, "EINVAL; s_val[%d]: '%s'.\n", i, state->s_val[i]);
       else
       {
-        TRACE (3, "s_val[%d]: '%s' (%d).\n", i, state->s_val[i], state->d_val[i]);
+        TRACE (3, "d_val[%d]: %d.\n", i, state->d_val[i]);
         *(int*) state->vec[i] = state->d_val[i];
       }
       i++;
     }
     else if (!strcmp(v, "%s"))
     {
-      TRACE (3, "s_val[%d]: '%s'\n", i, state->s_val[i]);
+      TRACE (3, "s_val[%d]: '%s'.\n", i, state->s_val[i]);
       *state->vec[i] = state->s_val[i];
       i++;
     }
     else
-      FATAL ("Unsupported format '%s'\n", v);
+      FATAL ("Unsupported format '%s'.\n", v);
   }
 
   rc = i;
@@ -758,9 +856,9 @@ static int cache_next_idx_state (int rc, int idx)
 
   /* Ensure the LRU distance is 1 or 'number of states - 1'.
    */
-  ASSERT ((oldest_idx - new_idx == 1) || (new_idx - oldest_idx) == CACHE_STATES-1);
+  assert ((oldest_idx - new_idx == 1) || (new_idx - oldest_idx) == CACHE_STATES - 1);
 
-  TRACE (3, "rc: %d, new_idx: %d, oldest_idx: %d, oldest_val: '%.10s'\n",
+  TRACE (3, "rc: %d, new_idx: %d, oldest_idx: %d, oldest_val: '%.10s'...\n",
          rc, new_idx, oldest_idx, cache.state[oldest_idx].value);
   FREE (cache.state[oldest_idx].value);     /* Free the oldest value */
   return (new_idx);
@@ -769,7 +867,7 @@ static int cache_next_idx_state (int rc, int idx)
 /*
  * The public interface for `cache_vgetf()`.
  */
-int _cache_getf (CacheSections section, const char *fmt, ...)
+int cache_getf (CacheSections section, const char *fmt, ...)
 {
   static  int idx = 0;
   int     rc;
@@ -791,7 +889,7 @@ int _cache_getf (CacheSections section, const char *fmt, ...)
  */
 int cache_getf2 (CacheSections section, const char *fmt, ...)
 {
-  char       *p, *fmt_copy, *fmt_values;
+  char       *p, *key, *fmt_copy, *fmt_values;
   const char *value;
   va_list     args;
   int         rc;
@@ -799,105 +897,231 @@ int cache_getf2 (CacheSections section, const char *fmt, ...)
   if (!cache.entries)
      return (0);
 
-  fmt_copy = STRDUP (fmt);
-  p  = strchr (fmt_copy, ' ');
-  *p = '\0';
-  fmt_values = str_ltrim (p+2);
+  if (!strstr(fmt, " = "))
+     FATAL ("'fmt' must be on \"key = %%d,%%s...\" form. Not: '%s'.\n", fmt);
 
-  value = cache_get (section, fmt_copy);
+  key = fmt_copy = strdupa (fmt);
+  p = strchr (fmt_copy, '=');
+  p[-1] = '\0';
+  fmt_values = p + 3;
+
+  value = cache_get (section, key);
   if (!value)
-  {
-    FREE (fmt_copy);
-    return (0);
-  }
+     return (0);
 
   va_start (args, fmt);
-  rc = vsscanf (value, fmt_values, args);
-  FREE (fmt_copy);
+  rc = vsscanf (value, fmt_values, args);  // need a custom 'vsscanf()' here
   va_end (args);
   return (rc);
 }
 
 /**
- * Dump cached nodes in all sections.
+ * Dump cached nodes in `section == SECTION_TEST`.
  */
-void cache_dump (void)
+static void cache_test_dump (void)
 {
-  int i, max = cache.entries ? smartlist_len (cache.entries) : 0;
-  int num_sections = 0, last_section = -1;
-  int max_sections = DIM(sections) - 2;  /* except SECTION_FIRST and SECTION_LAST */
+  const cache_node *c;
+  int   i, max = cache.entries ? smartlist_len (cache.entries) : 0;
 
-  TRACE (2, "%s()\n", __FUNCTION__);
+  debug_printf ("%s():\n  section: %s\n", __FUNCTION__, sections[SECTION_TEST].name);
 
   for (i = 0; i < max; i++)
   {
-    const cache_node *c = smartlist_get (cache.entries, i);
+    c = smartlist_get (cache.entries, i);
+    if (c->section == SECTION_TEST)
+       debug_printf ("  %-30s -> %s.\n", c->key, c->value);
+  }
+}
 
-    if (c->section != last_section)
+struct test_table {
+       int         rc;          /* the expected return-value from 'cache_getf()' */
+       const char *key;         /* the key for this test */
+       const char *putf_fmt;    /* the format for 'cache_putf()' */
+       const char *getf_fmt;    /* the format for 'cache_getf()' */
+
+       /* The key/value put in 'cache_put()'
+        */
+       char put_value [500];
+
+       /* The value we expect in 'cache_getf()' with a max length of 'key = value\0'
+        */
+       char getf_value [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4];
+
+       /* The optional arguments for each 'put_value'
+        */
+       char *args [CACHE_MAX_ARGS+1];
+     };
+
+static struct test_table tests[] = {
+#if 0
+    { 10, "pythons_on_path0",
+          "python.exe,c:\\Python36\\python.exe,c:\\Python36\\python36.dll,1,1,0,1,32,(3.6),%%APPDATA%%\\Roaming\\Python\\Python36\\site-packages",
+          "%s,%s,%s,%d,%d,%d,%d,%d,%s,%s"
+    },
+    {  4, "python_path0_0",
+          "1,1,0,c:\\Python36\\Scripts",
+          "%d,%d,%d,%s"
+    },
+#endif
+
+    { 4, "test_0", "-,-,-,-",                 /* no quoted values */
+         "%s,%s,%s,%s", "", "-,-,-,-"
+    },
+    { 4, "test_1", "\"-\",-,-,-",             /* quoted value at pos 0 */
+         "%s,%s,%s,%s", "", "-,-,-,-"
+    },
+
+    { 4, "test_2", "-,\"-\",-,-",             /* quoted value at pos 1 */
+         "%s,%s,%s,%s", "", "-,-,-,-"
+    },
+
+    { 4, "test_3", "-,-,-,\"-\"",             /* quoted value at last pos */
+         "%s,%s,%s,%s", "", "-,-,-,-"
+    },
+
+    { 4, "test_4", "-,-,-\",-",               /* extra quote after value 2 */
+         "%s,%s,%s,%s", "", "-,-,-,-"
+    },
+
+    { 4, "test_5", "-,-,-,-\"",               /* extra quote after value 3 */
+         "%s,%s,%s,%s", "", "-,-,-,-"
+    },
+
+    { 2, "test_6", "-,\"abc \\\"def\\\" \"",  /* Escaped quotes in quoted string */
+         "%s,%s", "", "-,-"
+    },
+
+#if 0
+    { 4, "test_5",
+         "-,-,-,\"a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q\"",  /* Far more ',' than CACHE_MAX_ARGS */
+         "%s,%s,%s,%s"
+    },
+
+    /* Test a "quoted description, with commas".
+     */
+    { 6, "port_node_0",
+         "gts,0,1,0.7.6,https://github.com/finetjul/gts,\"A library, intended to provide a set of useful functions to deal with 3D surfaces...\"",
+         "%s,%d,%d,%s,%s,%s"
+    },
+
+    /* Test for fields with a tilde character '~'.
+     */
+    { 6, "port_node_1",
+         "libsvm,0,1,3.25,https://www.csie.ntu.edu.tw/~cjlin/libsvm/,\"A library for Support Vector Machines.\"",
+         "%s,%d,%d,%s,%s,%s"
+    }
+#endif
+  };
+
+static void cache_test_init (void)
+{
+  struct test_table *t;
+  int                i;
+
+  cache.testing = TRUE;
+
+  for (i = 0, t = tests + 0; i < DIM(tests); i++, t++)
+      memset (&t->args, '\0', sizeof(t->args));
+
+  t = tests + 0;
+  for (i = 0; i < DIM(tests); i++, t++)
+  {
+    snprintf (t->put_value, sizeof(t->put_value), t->putf_fmt,
+              t->args[0],  t->args[1], t->args[2], t->args[3], t->args[4],  t->args[5],
+              t->args[6],  t->args[7], t->args[8], t->args[9], t->args[10], t->args[11],
+              t->args[12]);    /* To test overflow of 'CACHE_MAX_ARGS == 12': */
+
+    cache_put (SECTION_TEST, t->key, t->put_value);
+    if (!t->getf_value[0])
+       snprintf (t->getf_value, sizeof(t->getf_value), "%s = %s", t->key, t->put_value);
+  }
+
+  /* Dump cache-items we have added to 'SECTION_TEST'
+   */
+  if (opt.debug >= 2)
+  {
+    t = tests + 0;
+    for (i = 0; i < DIM(tests); i++, t++)
+        debug_printf ("  rc: %d, getf_value: '%.50s' ...\n", t->rc, t->getf_value);
+    C_putc ('\n');
+  }
+}
+
+static int cache_test_getf (void)
+{
+  const struct test_table *t = tests + 0;
+  int         i, num_ok = 0;
+  char       *args [CACHE_MAX_ARGS+1];
+
+  TRACE (2, "%s():\n", __FUNCTION__);
+  for (i = 0; i < DIM(tests); i++, t++)
+  {
+    char   key_value  [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4];
+    char   getf_value [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4] = { '\0' };
+    char  *buf = getf_value;
+    int    len, rc, j;
+    size_t left = sizeof(getf_value);
+    BOOL   equal = FALSE;
+
+    snprintf (key_value, sizeof(key_value), "%s = %s", t->key, t->getf_fmt);
+
+    memset (&args, '\0', sizeof(args));
+    rc = cache_getf (SECTION_TEST, key_value,
+                     &args[0], &args[1], &args[2], &args[3],
+                     &args[4], &args[5], &args[6], &args[7],
+                     &args[8], &args[9], &args[10], &args[11]);
+
+    for (j = 0; j < rc; j++)
     {
-      debug_printf ("section: %s\n", sections[c->section].name);
-      num_sections++;
+      len = snprintf (buf, left, "%p, ", args[j]);
+      left -= len;
+      buf  += len;
+      if (j < rc-1)
+      {
+        *buf++ = ',';
+        *buf++ = '\0';
+        left -= 2;
+      }
     }
 
-    last_section = c->section;
-    debug_printf ("%-30s -> %s.\n", c->key, c->value);
+    if (t->getf_value[0])
+       equal = !strcmp (t->getf_value, getf_value);
+
+    if (rc == t->rc && equal)
+       num_ok++;
+
+    debug_printf ("  key_value: '%s'...\n", key_value);
+
+    debug_printf ("  rc: %d, t->rc: %d, equal: %d, t->getf_value: '%s', getf_value: '%s'\n",
+                  rc, t->rc, equal, t->getf_value, getf_value);
   }
-  if (num_sections != max_sections)
-     TRACE (2, "Founded cached data for only %d section(s).\n"
-               "Run 'envtool -VVV' to refresh the cache.\n",
-            num_sections);
+
+  if (num_ok == i)
+       C_printf ("  All tests ran ~2OKAY~0.\n\n");
+  else C_printf ("  %d tests ~5FAILED~0.\n\n", i - num_ok);
+  return (num_ok);
 }
 
 /**
  * A simple test for all of the above.
+ *
+ * Should only be called from 'tests.c' if 'USE_ASAN' is defined.
+ * Otherwise let that be 'FATAL()'
  */
-void cache_test (void)
+int cache_test (void)
 {
-  int   rc;
-  int   d_val00;
-  int   d_val01;
-  int   d_val02;
-  int   d_val10;
-  int   d_val11;
-  int   d_val12;
-  int   d_val20;
-  int   d_val21;
-  int   d_val22;
-  int   d_val30;
-  int   d_val31;
-  int   d_val32;
-  char *s_val00;
-  char *s_val10;
-  char *s_val20;
-  char *s_val30;
-  const char *value;
-
-#if defined(USE_ASAN) && defined(_WIN64)
-  asan_trace = 0;   /* Hunt down the ASAN bug in a x64 build */
+#if !defined(USE_ASAN)
+  FATAL ("'cache_test()' needs '-DUSE_ASAN' to be called.\n");
 #endif
 
-  if (!cache.entries || smartlist_len(cache.entries) == 0)
-  {
-    TRACE (0, "No cache.entries.\n");
-    return;
-  }
+  C_puts ("~3cache_test():~0\n");
+  cache_test_init();
+  opt.debug = 3;
 
-  value = cache_get (SECTION_PYTHON, "pythons_on_path0");
-  TRACE (0, "\n  value: '%s'\n"
-            "  comparisions: %lu\n", value ? value : "<None>", cache.bsearches_per_key);
+  cache_test_getf();   /* Now, read them back */
+  cache_test_dump();   /* and dump the entries in SECTION_TEST */
 
-  rc = cache_getf (SECTION_PYTHON, "python_path0_0 = %d,%d,%d,%s", &d_val00, &d_val01, &d_val02, &s_val00);
-  TRACE (0, "rc: %d, d_val00: %d, d_val01: %d, d_val02: %d, s_val00: '%s'.\n", rc, d_val00, d_val01, d_val02, s_val00);
-
-  rc = cache_getf (SECTION_PYTHON, "python_path0_1 = %d,%d,%d,%s", &d_val10, &d_val11, &d_val12, &s_val10);
-  TRACE (0, "rc: %d, d_val10: %d, d_val11: %d, d_val12: %d, s_val10: '%s'.\n", rc, d_val10, d_val11, d_val12, s_val10);
-
-  rc = cache_getf (SECTION_PYTHON, "python_path0_2 = %d,%d,%d,%s", &d_val20, &d_val21, &d_val22, &s_val20);
-  TRACE (0, "rc: %d, d_val20: %d, d_val21: %d, d_val22: %d, s_val20: '%s'.\n", rc, d_val20, d_val21, d_val22, s_val20);
-
-  rc = cache_getf (SECTION_PYTHON, "python_path0_3 = %d,%d,%d,%s", &d_val30, &d_val31, &d_val32, &s_val30);
-  TRACE (0, "rc: %d, d_val30: %d, d_val31: %d, d_val32: %d, s_val30: '%s'.\n", rc, d_val30, d_val31, d_val32, s_val30);
-
+#if 0
   /* Test overflow of 'CACHE_MAX_ARGS == 12':
    *
    * - First create a cache-node with 13 elements (which is legal).
@@ -906,58 +1130,38 @@ void cache_test (void)
    */
   if (opt.verbose >= 1)
   {
-    const char *fmt_12 = "legal_key_val = %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d";
-    const char *fmt_13 = "illegal_key_val = %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d";
-    int         data [CACHE_MAX_ARGS+1];
+    const char *fmt_12 = "legal_key_val = %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s";
+    const char *fmt_13 = "illegal_key_val = %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s";
+    char       *str [CACHE_MAX_ARGS+1];
+    int         rc;
 
-    cache_putf (SECTION_PYTHON, fmt_13,
-                0,1,2,3,4,5,6,7,8,9,10,11,12);
+    cache_putf (SECTION_TEST, fmt_13, "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12");
 
-    rc = cache_getf (SECTION_PYTHON, fmt_12,
-                     &data[0], &data[1], &data[2],  &data[3],
-                     &data[4], &data[5], &data[6],  &data[7],
-                     &data[8], &data[9], &data[10], &data[11]);
+    memset (&str, '\0', sizeof(str));
+    rc = cache_getf (SECTION_TEST, fmt_12,
+                     &str[0], &str[1], &str[2],  &str[3],
+                     &str[4], &str[5], &str[6],  &str[7],
+                     &str[8], &str[9], &str[10], &str[11]);
 
-    TRACE (0, "rc: %d: %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d.\n", rc,
-           data[0], data[1], data[2],  data[3],
-           data[4], data[5], data[6],  data[7],
-           data[8], data[9], data[10], data[11]);
+    TRACE (0, "rc: %d: %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s.\n", rc,
+           str[0], str[1], str[2],  str[3],
+           str[4], str[5], str[6],  str[7],
+           str[8], str[9], str[10], str[11]);
 
-    rc = cache_getf (SECTION_PYTHON, fmt_13,
-                     &data[0], &data[1], &data[2],  &data[3],
-                     &data[4], &data[5], &data[6],  &data[7],
-                     &data[8], &data[9], &data[10], &data[11], &data[12]);
+    memset (&str, '\0', sizeof(str));
+    rc = cache_getf (SECTION_TEST, fmt_13,
+                     &str[0], &str[1], &str[2],  &str[3],
+                     &str[4], &str[5], &str[6],  &str[7],
+                     &str[8], &str[9], &str[10], &str[11],
+                     &str[12]);
 
-    /* Should not be reached.
-     */
-    TRACE (0, "rc: %d: %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d.\n", rc,
-           data[0], data[1], data[2],  data[3],
-           data[4], data[5], data[6],  data[7],
-           data[8], data[9], data[10], data[11], data[12]);
+    TRACE (0, "rc: %d: %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s.\n", rc,
+           str[0], str[1], str[2],  str[3],
+           str[4], str[5], str[6],  str[7],
+           str[8], str[9], str[10], str[11],
+           str[12]);
   }
+#endif
 
-  /*
-   * Add a test for parsing stuff like this (from VCPKG):
-   *  port_node_499 = gts,0,1,0.7.6,https://github.com/finetjul/gts,"A Library intended to provide a set of useful functions to deal with 3D surfaces meshed with interconnected triangles"
-   *
-   * with a "quoted description, with commas".
-   */
-  rc = cache_getf (SECTION_VCPKG, "port_node_499 = %s,%d,%d,%s,%s,%s",
-                   &s_val00, &d_val00, &d_val01, &s_val10, &s_val20, &s_val30);
-  if (rc == 6)
-  {
-    TRACE (0, "rc: %d:\n", rc);
-    TRACE (0, "  name:         %s\n", s_val00);
-    TRACE (0, "  version:      %s\n", s_val10);
-    TRACE (0, "  homepage:     %s\n", s_val20);
-    TRACE (0, "  have_CONTROL: %d\n", d_val00);
-    TRACE (0, "  have_JSON:    %d\n", d_val01);
-    TRACE (0, "  description:  ");
-    print_long_line (str_unquote(s_val30), 16);
-  }
-  else
-    TRACE (0, "'port_node_499' not found or not 6 arguments in that key.\n");
-
-  if (opt.debug >= 2)
-     cache_dump();
+  exit (0);
 }
