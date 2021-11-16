@@ -842,11 +842,10 @@ int do_tests (void)
   if (opt.do_vcpkg)
      return test_vcpkg_json_parser();
 
+#ifdef USE_ASAN
   if (opt.use_cache)
-  {
-    C_puts ("~3cache_test():~0\n");
-    cache_test();
-  }
+     cache_test();
+#endif
 
   test_split_env ("PATH");
   test_split_env ("MANPATH");
