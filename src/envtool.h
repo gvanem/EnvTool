@@ -576,8 +576,19 @@ int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1
  */
 #define MAX_ENV_VAR  32767
 
-#ifndef strdupa     /* CygWin have this macro in it's <string.h> */
-#define strdupa(s)  strcpy (alloca(strlen(s) + 1), s)
+/* CygWin have the 'strdupa()' macro in it's <string.h>
+ */
+#if !defined(strdupa)
+  #if defined(__GNUC__) || defined(__clang__)
+    #define strdupa(s)  (__extension__ ({ \
+                         const char *s_in = (s);                  \
+                            size_t s_len = strlen (s_in) + 1;        \
+                            char *s_out  = alloca (s_len);           \
+                            (char*) memcpy (s_out, s_in, s_len);     \
+                         }))
+  #else
+    #define strdupa(s)  strcpy (alloca(strlen(s) + 1), s)
+  #endif
 #endif
 
 extern void   init_misc     (void);
@@ -968,17 +979,32 @@ extern char *fnmatch_res  (int rc);
 #define DIM(arr)       (int) (sizeof(arr) / sizeof(arr[0]))
 #define ARGSUSED(foo)  (void)foo
 
-#define TRACE(level, ...)  do {                                   \
-                             if (opt.debug >= level) {            \
-                               debug_printf ("%s(%u): ",          \
-                                             __FILE(), __LINE__); \
-                               debug_printf (__VA_ARGS__);        \
-                             }                                    \
+#define TRACE(level, ...)  do {                                    \
+                             if (opt.debug >= level) {             \
+                                debug_printf ("%s(%u): ",          \
+                                              __FILE(), __LINE__); \
+                                debug_printf (__VA_ARGS__);        \
+                             }                                     \
                            } while (0)
 
-#define TRACE_NL(level)    do {                                   \
-                             if (opt.debug >= level)              \
-                                C_putc ('\n');                    \
+
+/*
+ * Used to debug ASAN bugs when 'USE_ASAN' is defined.
+ * Otherwise, active only for 'opt.debug >= 3'.
+ */
+#if defined(USE_ASAN)
+  #define ASAN_TRACE(...)  do {                                 \
+                             debug_printf ("ASAN: %s(%u): ",    \
+                                           __FILE(), __LINE__); \
+                             debug_printf (__VA_ARGS__);        \
+                           } while (0)
+#else
+  #define ASAN_TRACE(...)  TRACE (3, __VA_ARGS__)
+#endif
+
+#define TRACE_NL(level)    do {                      \
+                             if (opt.debug >= level) \
+                                C_putc ('\n');       \
                            } while (0)
 
 #define WARN(...)           do {                                        \
