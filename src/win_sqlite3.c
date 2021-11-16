@@ -22,7 +22,9 @@
     #include <winsqlite3.h>
   #endif
   #undef sqlite3_open
-#else
+#endif
+
+#if !defined(HAVE_WINSQLITE3_H) || (_WIN32_WINNT < 0x0A00)
   typedef struct sqlite3         sqlite3;
   typedef struct sqlite3_vfs     sqlite3_vfs;
   typedef int (SQLITE_CALLBACK*  sqlite3_callback) (void *cb_arg, int argc, char **argv, char **col_name);
@@ -58,8 +60,8 @@ static HANDLE dll_hnd = NULL;
 /*
  * Similar to 'envtool_py.c'
  */
-#define DEF_FUNC(ret, f, args)                       \
-        typedef ret (SQLITE_APICALL *func_##f) args; \
+#define DEF_FUNC(ret, f, args)                        \
+        typedef ret (SQLITE_APICALL *func_##f) args ; \
         static func_##f p_##f = NULL
 
 #define LOAD_FUNC(is_opt, f)                              \
@@ -139,7 +141,7 @@ static int SQLITE_CALLBACK sql3_callback (void *cb_arg, int argc, char **argv, c
 
 static void test_sqlite3_vfs (void)
 {
-#if defined(HAVE_WINSQLITE3_H)
+#if defined(HAVE_WINSQLITE3_H) && (_WIN32_WINNT >= 0x0A00)
   const struct sqlite3_vfs *vfs;
   int   i;
 
