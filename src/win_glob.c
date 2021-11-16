@@ -94,7 +94,7 @@ static DWORD glob_new2 (const char *dir,
   /* Construct the search spec for find_first().  Treat "d:" as "d:.".
    */
   strcpy (search_spec, dir);
-  dir_end = strchr (search_spec,'\0') - 1;
+  dir_end = strchr (search_spec, '\0') - 1;
 
   if (*dir_end == ':')
   {
@@ -113,7 +113,7 @@ static DWORD glob_new2 (const char *dir,
    * will be placed.
    */
   strcpy (path, dir);
-  dir_end = strchr (path,'\0') - 1;
+  dir_end = strchr (path, '\0') - 1;
 
   if (*dir_end == ':')
   {
@@ -742,7 +742,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
   char *base            = basename (path);
   BOOL  is_dir          = (ff->ff_attrib & FILE_ATTRIBUTE_DIRECTORY);
   BOOL  is_junction     = (ff->ff_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
-  BOOL  no_ext          = !is_dir && !is_junction && (strchr(base,'.') == NULL);
+  BOOL  no_ext          = !is_dir && !is_junction && (strchr(base, '.') == NULL);
   const char *spec      = NULL;
   const char *orig_path = "";
 
@@ -875,7 +875,7 @@ static void do_glob_new (const char *spec)
 
   /* Must use fnmatch() for such wildcards.
    */
-  if ((glob_flags & GLOB_RECURSIVE) || strpbrk(spec,"[]"))
+  if ((glob_flags & GLOB_RECURSIVE) || strpbrk(spec, "[]"))
   {
     global_spec = "*";
     orig_spec   = basename (spec);
@@ -895,7 +895,7 @@ static void do_glob_new (const char *spec)
   /* I failed to make fnmatch() handle files with no extension if 'spec' ends
    * in a '.' Hence, use this hack with a 'dot_spec' global.
    */
-  p = strchr (spec,'\0') - 1;
+  p = strchr (spec, '\0') - 1;
   if (*p == '.')
   {
     dot_spec = strcpy (buf, basename(spec));

@@ -806,11 +806,11 @@ void getopt_parse (struct command_line *c, int _argc, const char **_argv)
    */
   if (c0.argc >= 2)
   {
-    if (!strncmp(c0.argv[1],"-ddd",4))
+    if (!strncmp(c0.argv[1], "-ddd", 4))
        opt.debug = 3;
-    else if (!strncmp(c0.argv[1],"-dd",3))
+    else if (!strncmp(c0.argv[1], "-dd", 3))
        opt.debug = 2;
-    else if (!strncmp(c0.argv[1],"-d",2))
+    else if (!strncmp(c0.argv[1], "-d", 2))
        opt.debug = 1;
   }
 

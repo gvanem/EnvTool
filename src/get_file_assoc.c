@@ -226,7 +226,7 @@ int MS_CDECL main (int argc, char **argv)
   C_init();
   crtdbug_init();
 
-   if (argc >= 2 && !strcmp(argv[1],"-d"))
+   if (argc >= 2 && !strcmp(argv[1], "-d"))
    {
      opt.debug = 1;
      argc--;

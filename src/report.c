@@ -474,7 +474,7 @@ int report_file (struct report *r)
     if (found_owner)
     {
       TRACE (2, "account_name (%s) %smatches owner (%s).\n", account_name, inverse ? "does not " : "", found_owner);
-      BUF_PRINTF (&fmt_buf_owner_info, "%-18s", str_shorten(account_name,18));
+      BUF_PRINTF (&fmt_buf_owner_info, "%-18s", str_shorten(account_name, 18));
     }
     else
     {
@@ -654,7 +654,7 @@ static void print_PE_file_details (const char *filler)
 
   save = C_setraw (1);  /* In case version-info contains a "~" (SFN). */
 
-  for (i = 0, line = strtok(ver_trace,"\n"); line; line = strtok(NULL,"\n"), i++)
+  for (i = 0, line = strtok(ver_trace, "\n"); line; line = strtok(NULL, "\n"), i++)
   {
     const char *colon  = strchr (line, ':');
     size_t      indent = strlen (filler);
@@ -667,7 +667,7 @@ static void print_PE_file_details (const char *filler)
         size_t len = min (sizeof(ignore)-1, colon-line+1);
 
         _strlcpy (ignore, line, len);
-        if (cfg_ignore_lookup("[PE-resources]",str_trim(ignore)))
+        if (cfg_ignore_lookup("[PE-resources]", str_trim(ignore)))
            continue;
       }
       indent += colon - line + 1;

@@ -5,7 +5,6 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <errno.h>
 #include <math.h>
 #include <io.h>
@@ -754,7 +753,7 @@ BOOL get_module_filename_ex (HANDLE proc, char *filename)
 char *evry_raw_query (void)
 {
   static char query [_MAX_PATH+100];
-  const char *content  = strstr (opt.file_spec," content:");
+  const char *content  = strstr (opt.file_spec, " content:");
   size_t      cont_len = strlen (" content:");
 
   if (content && strchr(content+cont_len,' '))
@@ -3949,7 +3948,7 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
   p = cmd_buf;
   left = sizeof(cmd_buf) - 1;
 
-  if (!str_isquoted(cmd) && strchr(cmd, ' '))
+  if (strchr(cmd, ' ') && !str_isquoted(cmd))
   {
     *p++ = quote;
     _strlcpy (p, cmd, left);

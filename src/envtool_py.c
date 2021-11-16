@@ -12,7 +12,6 @@
 #include <stddef.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <assert.h>
 
 #include "color.h"
 #include "ignore.h"
@@ -313,8 +312,8 @@ static smartlist_t *py_programs;
  *   \param f      the name of the function (without any `"`).
  *   \param (args) the function arguments (as one list).
  */
-#define DEF_FUNC(ret,f,args)  typedef ret (__cdecl *func_##f) args; \
-                              static func_##f f
+#define DEF_FUNC(ret, f, args)  typedef ret (__cdecl *func_##f) args; \
+                                static func_##f f
 
 DEF_FUNC (void,        Py_InitializeEx,        (int init_sigs));
 DEF_FUNC (int,         Py_IsInitialized,       (void));
@@ -1563,7 +1562,7 @@ static void py_get_module_info (struct python_info *pi)
         _strlcpy (m.location, fname, sizeof(m.location));
         _strlcpy (m.meta_path, "-", sizeof(m.meta_path));
         m.is_actual = m.is_zip = FALSE;
-        if (str_endswith(fname," (ZIP)"))
+        if (str_endswith(fname, " (ZIP)"))
         {
           m.location [strlen(m.location) - sizeof(" (ZIP)") + 1] = '\0';
           m.is_zip = TRUE;
@@ -1980,7 +1979,7 @@ static int get_dll_name (struct python_info *pi, const char **libs)
   char        dll2 [_MAX_PATH] = { '\0' };
   const char *use_this = NULL;
   const char *newest   = NULL;
-  struct stat st1, st2, *use_st = NULL;
+  struct stat st1,  st2, *use_st = NULL;
   BOOL       _st1, _st2, equal;
   size_t      i, len, num = DIM (pi->libraries);
 
@@ -2816,7 +2815,7 @@ void enum_python_in_registry (const char *key_name)
               "                     sub_key: '%s'\n",
            rec_level, (unsigned long)num-1, value, sub_key);
 
-    if (sscanf(value,"%d.%d-%2s", &pi.ver_major, &pi.ver_minor, bitness) >= 2)
+    if (sscanf(value, "%d.%d-%2s", &pi.ver_major, &pi.ver_minor, bitness) >= 2)
     {
       if (bitness[0] == '6' && bitness[1] == '4' )
            pi.bitness = bit_64;
