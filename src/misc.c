@@ -4675,6 +4675,14 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
 
 static char cc_info_buf[40];
 
+/* 'DBG_REL' is used by MSVC and clang-cl only
+ */
+#ifdef _DEBUG
+  #define DBG_REL "debug"
+#else
+  #define DBG_REL "release"
+#endif
+
 #if defined(__MINGW32__) || defined(__CYGWIN__)
 static const char *gcc_version (void)
 {
@@ -4691,12 +4699,6 @@ static const char *gcc_version (void)
 #if defined(__clang__)
   const char *compiler_version (void)
   {
-  #ifdef _DEBUG
-    #define DBG_REL "debug"
-  #else
-    #define DBG_REL "release"
-  #endif
-
     snprintf (cc_info_buf, sizeof(cc_info_buf), "clang-cl %d.%d.%d, %s",
               __clang_major__, __clang_minor__, __clang_patchlevel__, DBG_REL);
     return (cc_info_buf);
@@ -4743,12 +4745,6 @@ static const char *gcc_version (void)
 
   const char *compiler_version (void)
   {
-  #ifdef _DEBUG
-    #define DBG_REL "debug"
-  #else
-    #define DBG_REL "release"
-  #endif
-
     snprintf (cc_info_buf, sizeof(cc_info_buf), "Visual-C %d.%02d%s, %s",
               _MSC_VER / 100, _MSC_VER % 100, msvc_get_micro_ver(), DBG_REL);
     return (cc_info_buf);
