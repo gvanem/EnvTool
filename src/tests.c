@@ -248,8 +248,8 @@ static void test_fnmatch (void)
 
     C_puts (rc == t->expect ? "~2  OK  ~0" : "~5  FAIL~0");
 
-    C_printf (" fnmatch (\"%s\", %*s \"%s\", %*s 0x%02X): %s\n",
-              t->pattern, (int)(15-len1), "", t->fname, (int)(15-len2), "",
+    C_printf (" fnmatch (\"%s\",%*s\"%s\",%*s0x%02X): %s\n",
+              t->pattern, (int)(13-len1), "", t->fname, (int)(15-len2), "",
               flags, fnmatch_res(rc));
   }
   C_putc ('\n');
