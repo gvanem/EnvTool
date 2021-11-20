@@ -2,6 +2,9 @@
 ::
 :: AppVeyor .bat-file to run "build" or "test".
 ::
+:: Note: the 'appveyor-script.bat test' step is also used in the
+::       "Github Workflow" to test the MinGW build.
+::
 :: Do not confuse 'appveyor.yml' by the 'cd' below.
 ::
 setlocal
