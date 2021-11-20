@@ -1099,7 +1099,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
 
 envtool.exe --evry -d --pe pwdspio.sys
 envtool.c(2218): file_spec: pwdspio.sys
-envtool.c(1383): Everything_SetSearch ("regex:^pwdspio\.sys$").
+envtool.c(1383): Everything_SetSearchA ("regex:^pwdspio\.sys$").
 envtool.c(1392): Everything_Query: No error
 envtool.c(1402): Everything_GetNumResults() num: 3, err: No error
 Matches from EveryThing:
@@ -2131,7 +2131,7 @@ static int do_check_evry (void)
          break;
   }
 
-  TRACE (1, "Everything_SetSearch (\"%s\").\n"
+  TRACE (1, "Everything_SetSearchA (\"%s\").\n"
              "                 Everything_SetMatchCase (%d).\n",
              query, opt.case_sensitive);
 

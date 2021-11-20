@@ -568,7 +568,7 @@ static BOOL state_closing (struct state_CTX *ctx)
 static BOOL state_send_query (struct state_CTX *ctx)
 {
   /* If a raw query, send `file_spec` query as-is.
-   * But as for 'Everything_SetSearch()', a 'content:foo bar' string MUST
+   * But as for 'Everything_SetSearchA()', a 'content:foo bar' string MUST
    * be quoted.
    */
   if (opt.evry_raw)
