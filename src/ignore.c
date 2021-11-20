@@ -39,7 +39,7 @@ struct ignore_node {
 static smartlist_t *ignore_list = NULL;
 
 /**
- * Help indices for cfg_ignore_first() and cfg_ignore_next().
+ * Help indices for `cfg_ignore_first()` and `cfg_ignore_next()`.
  */
 static int  next_idx = -1;
 static UINT curr_sec = UINT_MAX;
@@ -48,11 +48,11 @@ static UINT curr_sec = UINT_MAX;
  * Parser for `parse_config_file()` in `cfg_file.c`:
  *
  * Accepts only strings like `"ignore = xx"` from the config-file.
- * Add to \ref ignore_list in the correct `sections[]` slot.
+ * Add to `ignore_list` in the correct `sections[]` slot.
  *
- * \param[in] section the section from the file opened in parse_config_file().
- * \param[in] key     the key from the file opened in parse_config_file().
- * \param[in] value   the malloced value from the file opened in parse_config_file().
+ * \param[in] section  the section from the file opened in `parse_config_file()`.
+ * \param[in] key      the key from the file opened in `parse_config_file()`.
+ * \param[in] value    the malloced value from the file opened in `parse_config_file()`.
  */
 void cfg_ignore_handler (const char *section, const char *key, const char *value)
 {
@@ -86,7 +86,7 @@ void cfg_ignore_handler (const char *section, const char *key, const char *value
  * \param[in] value    The string-value to check.
  *
  * \retval 0 the `section` and `value` was not something to ignore.
- * \retval 1 the `section` and `value` was found in the \ref ignore_list.
+ * \retval 1 the `section` and `value` was found in the `ignore_list`.
  */
 int cfg_ignore_lookup (const char *section, const char *value)
 {
@@ -171,8 +171,8 @@ const char *cfg_ignore_next (const char *section)
   const struct ignore_node *node;
   int   i, max;
 
-  /* cfg_ignore_first() not called or no ignorables found
-   * by cfg_ignore_first().
+  /* cfg_ignore_first() not called or nothing to ignore was
+   * found by cfg_ignore_first().
    */
   if (next_idx == -1 || curr_sec == UINT_MAX)
      return (NULL);
