@@ -2251,8 +2251,19 @@ static int do_check_evry (void)
       break;
     }
 
-    ignore = cfg_ignore_lookup ("[EveryThing]", file);
-    TRACE (3, "cfg_ignore_lookup(\"[EveryThing]\", \"%s\") -> %d\n", file, ignore);
+    /* Handle unquoted files with spaces specially.
+     */
+    if (*file != '"' && strchr(file, ' '))
+    {
+      char quoted_file [_MAX_PATH];
+      snprintf (quoted_file, sizeof(quoted_file), "\"%s\"", file);
+      ignore = cfg_ignore_lookup ("[EveryThing]", quoted_file);
+    }
+    else
+      ignore = cfg_ignore_lookup ("[EveryThing]", file);
+
+    TRACE (1, "cfg_ignore_lookup(\"[EveryThing]\", \"%s\") -> %d\n", file, ignore);
+
     if (ignore)
     {
       num_evry_ignored++;
