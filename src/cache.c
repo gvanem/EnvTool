@@ -76,7 +76,7 @@ typedef struct cache_node {
  * Each call to `cache_vgetf()` uses this state-information.
  */
 typedef struct vgetf_state {
-        char **vec   [CACHE_MAX_ARGS];   /**< `CACHE_MAX_ARGS` args should be enough? */
+        char **vec   [CACHE_MAX_ARGS];   /**< Where to store `"%d"` and `"%s"` values. */
         int    d_val [CACHE_MAX_ARGS];   /**< decimal values for a `%d` parameter are stored here */
         char  *s_val [CACHE_MAX_ARGS];   /**< string values for a `%s` parameter are stored here */
         char  *value;                    /**< A string-value returned from `cache_vgetf()` */
@@ -767,7 +767,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
        this_fmt && i < DIM(state->vec);
        pp = va_arg(args, char**), this_fmt = _strtok_r(NULL, ",", &tok_end), i++)
   {
-    state->vec[i]   = pp;
+    state->vec[i]   = pp; /* the address to store a "%d" or "%s" value into */
     state->d_val[i] = 0;
     state->s_val[i] = NULL;
     TRACE (4, "vec[%d]: 0x%p, this_fmt: '%s'.\n", i, state->vec[i], this_fmt);
@@ -991,7 +991,7 @@ static struct test_table tests[] = {
          "%s,%s", "", "-,-"
     },
 
-#if 0
+#if 1
     { 4, "test_5",
          "-,-,-,\"a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q\"",  /* Far more ',' than CACHE_MAX_ARGS */
          "%s,%s,%s,%s"
@@ -1001,14 +1001,16 @@ static struct test_table tests[] = {
      */
     { 6, "port_node_0",
          "gts,0,1,0.7.6,https://github.com/finetjul/gts,\"A library, intended to provide a set of useful functions to deal with 3D surfaces...\"",
-         "%s,%d,%d,%s,%s,%s"
+         "%s,%d,%d,%s,%s,%s", "",
+         "gts,0,1,0.7.6,https://github.com/finetjul/gts,\"A library, intended to provide a set of useful functions to deal with 3D surfaces...\""
     },
 
     /* Test for fields with a tilde character '~'.
      */
     { 6, "port_node_1",
          "libsvm,0,1,3.25,https://www.csie.ntu.edu.tw/~cjlin/libsvm/,\"A library for Support Vector Machines.\"",
-         "%s,%d,%d,%s,%s,%s"
+         "%s,%d,%d,%s,%s,%s", "",
+         "libsvm,0,1,3.25,https://www.csie.ntu.edu.tw/~cjlin/libsvm/,\"A library for Support Vector Machines.\"",
     }
 #endif
   };
@@ -1020,12 +1022,11 @@ static void cache_test_init (void)
 
   cache.testing = TRUE;
 
-  for (i = 0, t = tests + 0; i < DIM(tests); i++, t++)
-      memset (&t->args, '\0', sizeof(t->args));
-
   t = tests + 0;
   for (i = 0; i < DIM(tests); i++, t++)
   {
+    memset (&t->args, '\0', sizeof(t->args));
+
     snprintf (t->put_value, sizeof(t->put_value), t->putf_fmt,
               t->args[0],  t->args[1], t->args[2], t->args[3], t->args[4],  t->args[5],
               t->args[6],  t->args[7], t->args[8], t->args[9], t->args[10], t->args[11],
@@ -1036,8 +1037,6 @@ static void cache_test_init (void)
        snprintf (t->getf_value, sizeof(t->getf_value), "%s = %s", t->key, t->put_value);
   }
 
-  /* Dump cache-items we have added to 'SECTION_TEST'
-   */
   if (opt.debug >= 2)
   {
     t = tests + 0;
@@ -1057,7 +1056,7 @@ static int cache_test_getf (void)
   for (i = 0; i < DIM(tests); i++, t++)
   {
     char   key_value  [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4];
-    char   getf_value [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4] = { '\0' };
+    char   getf_value [CACHE_MAX_KEY + CACHE_MAX_VALUE];
     char  *buf = getf_value;
     int    len, rc, j;
     size_t left = sizeof(getf_value);
@@ -1067,16 +1066,17 @@ static int cache_test_getf (void)
 
     memset (&args, '\0', sizeof(args));
     rc = cache_getf (SECTION_TEST, key_value,
-                     &args[0], &args[1], &args[2], &args[3],
-                     &args[4], &args[5], &args[6], &args[7],
+                     &args[0], &args[1], &args[2],  &args[3],
+                     &args[4], &args[5], &args[6],  &args[7],
                      &args[8], &args[9], &args[10], &args[11]);
 
+    getf_value[0] = '\0';
     for (j = 0; j < rc; j++)
     {
-      len = snprintf (buf, left, "%p, ", args[j]);
+      len = snprintf (buf, left, "%s", args[j]);  // this is wrong
       left -= len;
       buf  += len;
-      if (j < rc-1)
+      if (j < rc - 1)
       {
         *buf++ = ',';
         *buf++ = '\0';
@@ -1085,7 +1085,7 @@ static int cache_test_getf (void)
     }
 
     if (t->getf_value[0])
-       equal = !strcmp (t->getf_value, getf_value);
+       equal = (strcmp (t->getf_value, getf_value) == 0);
 
     if (rc == t->rc && equal)
        num_ok++;
@@ -1122,7 +1122,8 @@ int cache_test (void)
   cache_test_dump();   /* and dump the entries in SECTION_TEST */
 
 #if 0
-  /* Test overflow of 'CACHE_MAX_ARGS == 12':
+  /*
+   * Test overflow of 'CACHE_MAX_ARGS == 12':
    *
    * - First create a cache-node with 13 elements (which is legal).
    * - Then read 12 elements back.
