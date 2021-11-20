@@ -2799,6 +2799,9 @@ static char *get_cache_dir (void)
     const char *env = getenv (locations[i].env);
     char  dir [_MAX_PATH];
 
+    if (!env)
+       continue;
+
     snprintf (dir, sizeof(dir), "%s%s", env, locations[i].subdir);
     if (is_directory_readable(dir))
     {
