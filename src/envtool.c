@@ -2075,9 +2075,10 @@ static int do_check_evry (void)
      */
     if (opt.dir_mode && !opt.use_regex)
     {
-      len = snprintf (query_buf, sizeof(query_buf), "regex:\"^%s$\" folder:",
+      len = snprintf (query_buf, sizeof(query_buf), "regex:\"^.*\\\\%s$\" folder:",
                       translate_shell_pattern(opt.file_spec));
-      TRACE (2, "Simple directory mode: '%s'\n", query_buf);
+      TRACE (1, "Simple directory mode: '%s', opt.file_spec: '%s'.\n",
+             query_buf, opt.file_spec);
     }
     else
     {
@@ -2104,7 +2105,7 @@ static int do_check_evry (void)
     if (opt.grep.content && len > 0)
     {
       TRACE (1, "opt.grep.content: '%s'\n", opt.grep.content);
-      // snprintf (query_buf+len, sizeof(query_buf)-len, "content: %s", opt.grep.content);
+   // snprintf (query_buf+len, sizeof(query_buf)-len, "content: %s", opt.grep.content);
     }
 
     FREE (dir);
@@ -2131,10 +2132,6 @@ static int do_check_evry (void)
          break;
   }
 
-  TRACE (1, "Everything_SetSearchA (\"%s\").\n"
-             "                 Everything_SetMatchCase (%d).\n",
-             query, opt.case_sensitive);
-
   request_flags = Everything_GetRequestFlags();
 
   /* The request flags: EVERYTHING_REQUEST_SIZE and/or EVERYTHING_REQUEST_DATE_MODIFIED
@@ -2157,6 +2154,10 @@ static int do_check_evry (void)
 #endif
 
   start_time = GetTickCount();
+
+  TRACE (1, "Everything_SetSearchA (\"%s\").\n"
+             "                 Everything_SetMatchCase (%d).\n",
+             query, opt.case_sensitive);
 
   Everything_SetSearchA (query);
   Everything_QueryA (TRUE);
@@ -2294,7 +2295,7 @@ static int do_check_evry (void)
     {
       LARGE_INTEGER fs;
 
-      if (Everything_GetResultSize(i,&fs))
+      if (Everything_GetResultSize(i, &fs))
       {
         response_flags |= EVERYTHING_REQUEST_SIZE;
         fsize = ((UINT64)fs.u.HighPart << 32) + fs.u.LowPart;
