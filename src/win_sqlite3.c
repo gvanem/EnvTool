@@ -30,6 +30,10 @@
   typedef int (SQLITE_CALLBACK*  sqlite3_callback) (void *cb_arg, int argc, char **argv, char **col_name);
 #endif
 
+#if defined(HAVE_WINSQLITE3_H) && (_WIN32_WINNT >= 0x0A00)
+#define HAVE_SQLITE3_VFS
+#endif
+
 #ifndef SQLITE_OPEN_READWRITE
 #define SQLITE_OPEN_READWRITE 2
 #endif
@@ -141,7 +145,7 @@ static int SQLITE_CALLBACK sql3_callback (void *cb_arg, int argc, char **argv, c
 
 static void test_sqlite3_vfs (void)
 {
-#if defined(HAVE_WINSQLITE3_H) && (_WIN32_WINNT >= 0x0A00)
+#ifdef HAVE_SQLITE3_VFS
   const struct sqlite3_vfs *vfs;
   int   i;
 
@@ -154,6 +158,9 @@ static void test_sqlite3_vfs (void)
   if (i == 0)
      C_puts   ("No Virtual File Systems.");
   C_puts ("\n\n");
+
+#else
+  C_printf ("  ~3%s():~0\n%s\n\n", __FUNCTION__, "Virtual File Systems not available.");
 #endif
 }
 
@@ -212,7 +219,7 @@ void test_sqlite3 (void)
   }
 
   if (rc == SQLITE_OK && i == DIM(exec_stmt))
-     C_printf ("  Successfully created ~6%s~0 and executed all statements.\n", db_name);
+     C_printf ("  Successfully created ~6%s~0 and executed all SQL statements.\n", db_name);
 
   (*p_sqlite3_close) (db);
   sql3_unload();
