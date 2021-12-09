@@ -3,8 +3,13 @@
  * \brief
  *   Gets the OS version from various sources.
  */
+#ifndef BUILD_WINDOWS
 #define BUILD_WINDOWS      /* Because of "'GetVersionExW': was declared deprecated" */
+#endif
+
+#ifndef USE_RTDLL_VERSION
 #define USE_RTDLL_VERSION
+#endif
 
 #include <stdio.h>
 #include <windows.h>
@@ -278,6 +283,7 @@ const char *os_bits (void)
 
   if (sizeof(void*) == 8)
      return ("64");
+
   if (GetSystemWow64Directory(dir, sizeof(dir)))
      return ("64");
   return ("32");
