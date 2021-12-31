@@ -4673,7 +4673,7 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
   return wchar_to_mbchar (result, result_size, print_name);
 }
 
-static char cc_info_buf[40];
+static char cc_info_buf [100];
 
 /* 'DBG_REL' is used by MSVC and clang-cl only
  */
@@ -4696,7 +4696,20 @@ static const char *gcc_version (void)
 }
 #endif
 
-#if defined(__clang__)
+#if defined(__INTEL_LLVM_COMPILER) /* Since 'icx' also defines '__clang__' */
+  const char *compiler_version (void)
+  {
+    const char *ver = __VERSION__;
+    const char *comp = strstr (ver, " Compiler ");
+    size_t      len = strlen (ver);
+
+    if (comp)   /* Cut off version at " Compiler 202x" */
+       len = comp - ver;
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "%.*s, %s", len, ver, DBG_REL);
+    return (cc_info_buf);
+  }
+
+#elif defined(__clang__)
   const char *compiler_version (void)
   {
     snprintf (cc_info_buf, sizeof(cc_info_buf), "clang-cl %d.%d.%d, %s",

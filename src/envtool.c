@@ -519,6 +519,7 @@ static int show_help (void)
           "    ~6--no-colour~0    don't print using colours.\n"
           "    ~6--no-gcc~0       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
           "    ~6--no-g++~0       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
+          "    ~6--no-intel~0     don't check for Intel in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--no-prefix~0    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs.    ~2[2]~0\n"
           "    ~6--no-sys~0       don't scan ~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0.\n"
           "    ~6--no-usr~0       don't scan ~3HKCU\\Environment~0.\n"
@@ -2534,6 +2535,7 @@ typedef enum compiler_type {
              CC_GNU_GXX,     /**< Some sort of (prefixed) `*g++.exe`. */
              CC_MSVC,        /**< A MSVC compiler */
              CC_CLANG_CL,    /**< A clang/clang-cl compiler */
+             CC_INTEL,       /**< A Intel oneAPI compiler */
              CC_BORLAND,     /**< A Borland / Embarcadero compiler */
              CC_WATCOM       /**< A Watcom/OpenWatcom compiler */
            } compiler_type;
@@ -2627,6 +2629,11 @@ static void compiler_check_ignore (compiler_info *cc)
   /* "envtool --no-clang .." given and this `cc->type == CC_CLANG_CL`.
    */
   else if (cc->type == CC_CLANG_CL && opt.no_clang)
+     ignore = TRUE;
+
+  /* "envtool --no-intel .." given and this `cc->type == CC_INTEL`.
+   */
+  else if (cc->type == CC_INTEL && opt.no_intel)
      ignore = TRUE;
 
   else if (cc->full_name)
@@ -2986,11 +2993,14 @@ static void gnu_add_gpp_path (void)
 }
 
 #if defined(__CYGWIN__)
-  #define CLANG_DUMP_FMT "-v -dM -xc -c - < /dev/null 2>&1"
-  #define GCC_DUMP_FMT   "%s%s -v -dM -xc -c - < /dev/null 2>&1"
+  #define CLANG_DUMP_FMT  "-v -dM -xc -c - < /dev/null 2>&1"
+  #define INTEL_DUMP_FMT  "-Tc -v -dM -xc -c - < /dev/null 2>&1"
+  #define GCC_DUMP_FMT    "%s%s -v -dM -xc -c - < /dev/null 2>&1"
+
 #else
-  #define CLANG_DUMP_FMT "-o NUL -v -dM -xc -c - < NUL 2>&1"
-  #define GCC_DUMP_FMT   "%s%s -o NUL -v -dM -xc -c - < NUL 2>&1"
+  #define CLANG_DUMP_FMT  "-o NUL -v -dM -xc -c - < NUL 2>&1"
+  #define INTEL_DUMP_FMT   "-Tc -o NUL -v -dM -xc -c - < NUL 2>&1"
+  #define GCC_DUMP_FMT    "%s%s -o NUL -v -dM -xc -c - < NUL 2>&1"
 #endif
 
 static int setup_gcc_includes (const compiler_info *cc)
@@ -3193,6 +3203,23 @@ static void add_clang_cl_compilers (void)
   clang.short_name = "clang-cl.exe";
   clang.full_name  = searchpath (clang.short_name, "PATH");
   add_compiler (&clang);
+}
+
+/**
+ * Search and add supported Intel compilers to the `all_cc` smartlist.
+ */
+static void add_intel_compilers (void)
+{
+  compiler_info intel;
+
+  intel.type       = CC_INTEL;
+  intel.short_name = "icx.exe";
+  intel.full_name  = searchpath (intel.short_name, "PATH");
+  add_compiler (&intel);
+
+  intel.short_name = "dpcpp.exe";
+  intel.full_name  = searchpath (intel.short_name, "PATH");
+  add_compiler (&intel);
 }
 
 /**
@@ -3445,6 +3472,7 @@ static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
     add_gnu_compilers();
     add_msvc_compilers();
     add_clang_cl_compilers();
+    add_intel_compilers();
     add_borland_compilers();
     add_watcom_compilers();
   }
@@ -3746,6 +3774,81 @@ static int do_check_clang_library_paths (void)
      WARN ("\nNo clang.exe programs returned any library paths.\n");
   return (found);
 }
+
+/*
+ * Check along Intel directories
+ */
+static int process_intel_dirs (const char *cc, int *num_dirs)
+{
+  int i, found, max = smartlist_len (dir_array);
+
+  for (i = found = 0; i < max; i++)
+  {
+    const struct directory_array *arr = smartlist_get (dir_array, i);
+
+    TRACE (2, "dir: %s\n", arr->dir);
+    found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
+                          arr->is_dir, arr->exp_ok, cc, HKEY_INC_LIB_FILE, FALSE);
+  }
+  *num_dirs = max;
+  dir_array_free();
+  return (found);
+}
+
+static int setup_intel_includes (const compiler_info *cc)
+{
+  const char *intel = cc->full_name;
+  int found = 0;
+
+  dir_array_free();
+
+  found = get_inc_dirs_from_cache (cc);
+  if (found == 0)
+  {
+    /* We want the output of stderr only. But that seems impossible on CMD/4NT.
+     * Hence redirect stderr + stdout into the same pipe for us to read.
+     * Also assume that the `*gcc` is on PATH.
+     */
+    found_search_line = FALSE;
+
+    found = popen_run (find_include_path_cb, intel, INTEL_DUMP_FMT);
+    if (found > 0)
+         TRACE (1, "found %d include paths for %s.\n", found, intel);
+    else clang_popen_warn (cc, found);
+  }
+  return put_inc_dirs_to_cache (cc);
+}
+
+
+/**
+ * Checking of Intel include-dirs.
+ */
+static int do_check_intel_includes (void)
+{
+  int  i, found, num_dirs = 0;
+  int  max = smartlist_len (all_cc);
+
+  for (i = found = 0; i < max; i++)
+  {
+    const compiler_info *cc = smartlist_get (all_cc, i);
+
+    if (cc->type == CC_INTEL && !cc->ignore &&
+        !stricmp("icx.exe", cc->short_name)
+     // &&   /* Do it for icx.exe only */
+     // setup_intel_includes(cc) > 0
+        )
+    {
+      report_header_set ("Matches in %s %%INCLUDE%% path:\n", cc->full_name);
+      found += process_intel_dirs (cc->short_name, &num_dirs);
+    }
+    FREE (cygwin_root);
+  }
+
+  if (num_dirs == 0)
+     WARN ("icx.exe returned no include paths.\n");
+  return (found);
+}
+
 
 /**
  * Common stuff for Watcom checking.
@@ -4119,19 +4222,20 @@ static const struct option long_options[] = {
            { "no-watcom",   no_argument,       NULL, 0 },    /* 31 */
            { "no-borland",  no_argument,       NULL, 0 },
            { "no-clang",    no_argument,       NULL, 0 },    /* 33 */
-           { "owner",       optional_argument, NULL, 0 },
-           { "check",       no_argument,       NULL, 0 },    /* 35 */
-           { "signed",      optional_argument, NULL, 0 },
-           { "no-cwd",      no_argument,       NULL, 0 },    /* 37 */
-           { "sort",        required_argument, NULL, 0 },
-           { "lua",         no_argument,       NULL, 0 },    /* 39 */
-           { "vcpkg",       optional_argument, NULL, 0 },
-           { "descr",       no_argument,       NULL, 0 },    /* 41 */
-           { "keep",        no_argument,       NULL, 0 },
-           { "grep",        required_argument, NULL, 0 },    /* 43 */
-           { "only",        no_argument,       NULL, 0 },
-           { "case",        no_argument,       NULL, 'c' },  /* 45 */
-           { NULL,          no_argument,       NULL, 0 }
+           { "no-intel",    no_argument,       NULL, 0 },
+           { "owner",       optional_argument, NULL, 0 },    /* 35 */
+           { "check",       no_argument,       NULL, 0 },
+           { "signed",      optional_argument, NULL, 0 },    /* 37 */
+           { "no-cwd",      no_argument,       NULL, 0 },
+           { "sort",        required_argument, NULL, 0 },    /* 39 */
+           { "lua",         no_argument,       NULL, 0 },
+           { "vcpkg",       optional_argument, NULL, 0 },    /* 41 */
+           { "descr",       no_argument,       NULL, 0 },
+           { "keep",        no_argument,       NULL, 0 },    /* 43 */
+           { "grep",        required_argument, NULL, 0 },
+           { "only",        no_argument,       NULL, 0 },    /* 45 */
+           { "case",        no_argument,       NULL, 'c' },
+           { NULL,          no_argument,       NULL, 0 }     /* 47 */
          };
 
 static int *values_tab[] = {
@@ -4169,18 +4273,19 @@ static int *values_tab[] = {
             &opt.no_watcom,           /* 31 */
             &opt.no_borland,
             &opt.no_clang,            /* 33 */
-            &opt.show_owner,
-            &opt.do_check,            /* 35 */
-            (int*)&opt.signed_status,
-            &opt.no_cwd,              /* 37 */
-            (int*)1,                  /* Since option '-S' is handled specially. This address is not used. */
-            &opt.do_lua,              /* 39 */
-            &opt.do_vcpkg,
-            &opt.show_descr,          /* 41 */
-            &opt.keep_temp,
-            (int*)&opt.grep.content,  /* 43 */
-            &opt.grep.only,
-            (int*)&opt.case_sensitive /* 45 */
+            &opt.no_intel,
+            &opt.show_owner,          /* 35 */
+            &opt.do_check,
+            (int*)&opt.signed_status, /* 37 */
+            &opt.no_cwd,
+            (int*)1,                  /* 39, Since option '-S' is handled specially. This address is not used. */
+            &opt.do_lua,
+            &opt.do_vcpkg,            /* 40 */
+            &opt.show_descr,
+            &opt.keep_temp,           /* 42 */
+            (int*)&opt.grep.content,
+            &opt.grep.only,           /* 44 */
+            (int*)&opt.case_sensitive
           };
 
 /**
@@ -5009,6 +5114,9 @@ int MS_CDECL main (int argc, const char **argv)
 
     if (!opt.no_clang)
        found += do_check_clang_includes();
+
+    if (!opt.no_intel)
+       found += do_check_intel_includes();
   }
 
   if (opt.do_cmake)
@@ -5850,6 +5958,10 @@ static int do_check (void)
 #if defined(__MINGW32__)
   #define CFLAGS   "cflags_MinGW.h"
   #define LDFLAGS  "ldflags_MinGW.h"
+
+#elif defined(__INTEL_LLVM_COMPILER)
+  #define CFLAGS   "cflags_icx.h"
+  #define LDFLAGS  "ldflags_icx.h"
 
 #elif defined(__clang__)
   #define CFLAGS   "cflags_clang.h"

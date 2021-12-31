@@ -14,7 +14,14 @@
 #error This program is not longer UNICODE compatible. Good riddance Microsoft.
 #endif
 
-#if defined(__clang__)
+#if defined(__INTEL_LLVM_COMPILER)
+  #ifdef _DEBUG
+    #define BUILDER  "Intel oneAPI DPC++, debug"
+  #else
+    #define BUILDER  "Intel oneAPI DPC++, release"
+  #endif
+
+#elif defined(__clang__)
   #ifdef _DEBUG
     #define BUILDER  "Clang-CL, debug"
   #else
@@ -177,6 +184,10 @@
   #define GCC_VERSION  0
 #endif
 
+/*
+ * Define a '_PRAGMA()' for gcc >= 4.6 and clang.
+ * This includes the Intel LLVM-based compliers too (since '__clang__' is a built-in).
+ */
 #if defined(__clang__) || (GCC_VERSION >= 40600)
   #define _PRAGMA(x) _Pragma (#x)
 #else
@@ -441,6 +452,7 @@ struct prog_options {
        int             no_watcom;
        int             no_borland;
        int             no_clang;
+       int             no_intel;
        int             do_tests;
        int             do_evry;
        int             do_version;
