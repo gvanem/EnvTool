@@ -197,12 +197,12 @@ static void descr_parse (smartlist_t *sl, const char *buf)
   if (file[0] != '?' && descr[0] != '?' && stricmp(file, descr_name))
   {
     struct descr_node *dn = CALLOC (1, sizeof(*dn));
-    char fqfn_name [_MAX_PATH+2];
+    char   fqfn_name [_MAX_PATH+2];
 
     _strlcpy (dn->file_dir, file, sizeof(dn->file_dir));
     _strlcpy (dn->file_descr, descr, sizeof(dn->file_descr));
-     snprintf (fqfn_name, sizeof(fqfn_name), "%s\\%s", curr_dir, file);
-     dn->is_dir = is_directory (fqfn_name);
+    snprintf (fqfn_name, sizeof(fqfn_name), "%s\\%s", curr_dir, file);
+    dn->is_dir = is_directory (fqfn_name);
     smartlist_add (sl, dn);
   }
   TRACE (2, "file: '%s', descr: '%s'.\n", file, descr);
