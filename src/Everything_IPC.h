@@ -74,7 +74,7 @@ extern "C" {
 
 // requires Everything 1.4:
 #define EVERYTHING_IPC_IS_DB_LOADED                                     401 // int is_db_loaded = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_DB_LOADED,0);
-#define EVERYTHING_IPC_IS_DB_BUSY                                       402 // int is_db_busy = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_DB_BUSY,0); // db is busy, issueing another action will cancel the current one (if possible).
+#define EVERYTHING_IPC_IS_DB_BUSY                                       402 // int is_db_busy = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_DB_BUSY,0); // db is busy, issuing another action will cancel the current one (if possible).
 #define EVERYTHING_IPC_IS_ADMIN                                         403 // int is_admin = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_ADMIN,0);
 #define EVERYTHING_IPC_IS_APPDATA                                       404 // int is_appdata = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_APPDATA,0);
 #define EVERYTHING_IPC_REBUILD_DB                                       405 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_REBUILD,0); // forces all indexes to be rescanned.
@@ -614,7 +614,7 @@ typedef struct EVERYTHING_IPC_LISTW
     // index offset of the first result in the item list.
     DWORD offset;
 
-    // variable lengthed item list.
+    // variable length item list.
     // use numitems to determine the actual number of items available.
     EVERYTHING_IPC_ITEMW items[1];
 
@@ -643,7 +643,7 @@ typedef struct EVERYTHING_IPC_LISTA
     // index offset of the first result in the item list.
     DWORD offset;
 
-    // variable lengthed item list.
+    // variable length item list.
     // use numitems to determine the actual number of items available.
     EVERYTHING_IPC_ITEMA items[1];
 
