@@ -521,7 +521,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
           is_dir = TRUE;
         }
       }
-      if (!glob_add(pathbuf,is_dir,__LINE__))
+      if (!glob_add(pathbuf, is_dir, __LINE__))
          return (GLOB_NOSPACE);
     }
     return (0);

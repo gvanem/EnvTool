@@ -141,7 +141,7 @@ was_found:
 /**
  * The public interface to this module.
  * \param[in] file    the file to search for in an environment variable.
- * \param[in] env_var yhe name of the environment variable (e.g. `PATH`).
+ * \param[in] env_var the name of the environment variable (e.g. `PATH`).
  *
  * \note If `file` is found, this function returns a static buffer.
  */

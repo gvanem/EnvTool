@@ -720,12 +720,12 @@ void *smartlist_bsearch (const smartlist_t *sl, const void *key,
 smartlist_t *smartlist_split_str (const char *str, const char *sep)
 {
   smartlist_t *sl = smartlist_new();
-  char        *p, *tok_end;
+  char        *s, *p, *tok_end;
 
 #ifdef USE_strdupa
-  char *s = strdupa (str);
+  s = strdupa (str);
 #else
-  char *s = STRDUP (str);
+  s = STRDUP (str);
 #endif
 
   str_unquote (s);
@@ -733,7 +733,7 @@ smartlist_t *smartlist_split_str (const char *str, const char *sep)
        p = _strtok_r(NULL, sep, &tok_end))
      smartlist_add_strdup (sl, p);
 
-#ifndef USE_strdpa
+#ifndef USE_strdupa
   FREE (s);
 #endif
   return (sl);
