@@ -701,7 +701,7 @@ static BOOL state_await_login (struct state_CTX *ctx)
    */
   if (!strncmp(rx, "230", 3))
   {
-    if (opt.verbose >= 1)
+    if (opt.verbose >= 2)
     {
       send_cmd (ctx, "FEAT");
       ctx->state = state_await_features;
@@ -721,7 +721,7 @@ static BOOL state_await_login (struct state_CTX *ctx)
 }
 
 /**
- * We sent the `FEAT` command if `opt.verbose >= 1`.
+ * We sent the `FEAT` command if `opt.verbose >= 2`.
  *
  * Await the responses. Like:
  *   211-Features:
@@ -763,7 +763,7 @@ static BOOL state_send_pass (struct state_CTX *ctx)
 
   if (!strcmp(rx, "230 Logged on.")) /* ETP server ignores passwords */
   {
-    if (opt.verbose >= 1)
+    if (opt.verbose >= 2)
     {
       send_cmd (ctx, "FEAT");
       ctx->state = state_await_features;
