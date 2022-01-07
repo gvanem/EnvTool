@@ -185,6 +185,7 @@ EVERYTHINGUSERAPI LPCSTR EVERYTHINGAPI Everything_GetResultHighlightedFullPathAn
 // reset state and free any allocated memory
 EVERYTHINGUSERAPI void EVERYTHINGAPI Everything_Reset(void);
 EVERYTHINGUSERAPI void EVERYTHINGAPI Everything_CleanUp(void);
+EVERYTHINGUSERAPI BOOL EVERYTHINGAPI Everything_KillThread(void);
 
 EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_GetMajorVersion(void);
 EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_GetMinorVersion(void);
@@ -192,6 +193,7 @@ EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_GetRevision(void);
 EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_GetBuildNumber(void);
 EVERYTHINGUSERAPI BOOL EVERYTHINGAPI Everything_Exit(void);
 EVERYTHINGUSERAPI BOOL EVERYTHINGAPI Everything_IsDBLoaded(void); // Everything 1.4.1
+EVERYTHINGUSERAPI BOOL EVERYTHINGAPI Everything_IsDBBusy(void); // Everything 1.4.1
 EVERYTHINGUSERAPI BOOL EVERYTHINGAPI Everything_IsAdmin(void); // Everything 1.4.1
 EVERYTHINGUSERAPI BOOL EVERYTHINGAPI Everything_IsAppData(void); // Everything 1.4.1
 EVERYTHINGUSERAPI BOOL EVERYTHINGAPI Everything_RebuildDB(void); // Everything 1.4.1

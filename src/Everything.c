@@ -38,21 +38,11 @@
  *    The EveryThing SDK for user queries.
  */
 
-#if defined(__clang__)
-  /*
-   * Turn off these:
-   *   Everything.c(1165,14):  warning: comparison of unsigned expression < 0 is always false [-Wtautological-compare]
-   *               if (dwIndex < 0)
-   */
-  #pragma clang diagnostic ignored "-Wtautological-compare"
-  #pragma clang diagnostic ignored "-Wtautological-unsigned-zero-compare"
-  #pragma clang diagnostic ignored "-Wmissing-variable-declarations"
-
-#elif defined(_MSC_VER)
-  // disable warnings
-  #pragma warning(disable : 4996) // deprecation
-#endif
-
+/*
+ * Allow using EveryThing SDK as a static library.
+ * (or just compiling this file into a ser-program).
+ * In which case 'EVERYTHINGUSERAPI' should be defined to nothing.
+ */
 #ifndef EVERYTHINGUSERAPI
 #define EVERYTHINGUSERAPI __declspec(dllexport)
 #endif
@@ -73,7 +63,7 @@
 #endif
 
 /*
- * All MS compilers insists that 'main()', signal-handlers, atexit functions and
+ * All MS compilers insists that 'main()', signal-handlers, 'atexit()' functions and
  * var-arg functions must be defined as cdecl. This is only an issue if a program
  * is using 'fastcall' globally (cl option '-Gr').
  */
@@ -784,24 +774,22 @@ exit:
     return 0;
 }
 
-HANDLE Everything_hthread;
+static HANDLE Everything_hthread;
 
 static BOOL EVERYTHINGAPI _Everything_Query(void)
 {
-    HANDLE hthread;
     DWORD thread_id;
 
     // reset the error flag.
     _Everything_LastError = 0;
 
-    hthread = CreateThread(0,0,_Everything_query_thread_proc,0,0,&thread_id);
-    Everything_hthread = hthread;
+    Everything_hthread = CreateThread(0,0,_Everything_query_thread_proc,0,0,&thread_id);
 
-    if (hthread)
+    if (Everything_hthread)
     {
-        WaitForSingleObject(hthread,INFINITE);
+        WaitForSingleObject(Everything_hthread,INFINITE);
 
-        CloseHandle(hthread);
+        CloseHandle(Everything_hthread);
         Everything_hthread = NULL;
     }
     else
@@ -1135,7 +1123,7 @@ DWORD EVERYTHINGAPI Everything_GetLastError(void)
 
 /*
  * Set '_Everything_LastError' to a specific value.
- * Must useful with 'err == EVERYTHING_OK' to avoid a next Everything_XX() function
+ * Most useful with 'err == EVERYTHING_OK' to avoid a next Everything_XX() function
  * to not trigger an unrelated error.
  */
 void EVERYTHINGAPI Everything_SetLastError(DWORD err)
@@ -2258,6 +2246,22 @@ void EVERYTHINGAPI Everything_CleanUp(void)
    _Everything_Initialized = 0;
 }
 
+BOOL EVERYTHINGAPI Everything_KillThread(void)
+{
+    BOOL rc = TRUE;
+
+    _Everything_Lock();
+
+    if (Everything_hthread)
+       rc = TerminateThread(Everything_hthread, 1) &&
+            CloseHandle(Everything_hthread);
+
+    Everything_hthread = NULL;
+
+    _Everything_Unlock();
+    return (rc);
+}
+
 static void *_Everything_Alloc(DWORD size)
 {
     return HeapAlloc(GetProcessHeap(),0,size);
@@ -2323,7 +2327,7 @@ static void _Everything_FreeLists(void)
 
 static BOOL _Everything_IsValidResultIndex(DWORD dwIndex)
 {
-    if (dwIndex < 0)
+    if ((int)dwIndex < 0)
     {
         return FALSE;
     }
@@ -2964,6 +2968,11 @@ static DWORD _Everything_SendAPIDwordCommand(int command,LPARAM lParam)
 BOOL EVERYTHINGAPI Everything_IsDBLoaded(void)
 {
     return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_IS_DB_LOADED,0);
+}
+
+BOOL EVERYTHINGAPI Everything_IsDBBusy(void)
+{
+  return _Everything_SendAPIBoolCommand(EVERYTHING_IPC_IS_DB_BUSY,0);
 }
 
 BOOL EVERYTHINGAPI Everything_IsAdmin(void)

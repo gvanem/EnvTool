@@ -87,21 +87,6 @@ BOOL have_sys_native_dir = FALSE;
 BOOL have_sys_wow64_dir  = FALSE;
 
 /**
- * \def EVERYTHING_IPC_IS_DB_LOADED
- * \def EVERYTHING_IPC_IS_DB_BUSY
- *
- * IPC messages to check if EveryThing has loaded it's database or is busy indexing it's database.
- * These were added in Everything 1.4
- */
-#ifndef EVERYTHING_IPC_IS_DB_LOADED
-#define EVERYTHING_IPC_IS_DB_LOADED 401
-#endif
-
-#ifndef EVERYTHING_IPC_IS_DB_BUSY
-#define EVERYTHING_IPC_IS_DB_BUSY   402
-#endif
-
-/**
  * All program options are kept here.
  */
 struct prog_options opt;
@@ -145,6 +130,7 @@ volatile int halt_flag;
 /** Get the bitness (32/64-bit) of the EveryThing program.
  */
 static enum Bitness evry_bitness = bit_unknown;
+static int  evry_service = -1;
 static void get_evry_bitness (HWND wnd);
 
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
@@ -198,9 +184,16 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
   else if (evry_bitness == bit_64)
      bits = " (64-bit)";
 
+  if (evry_service == -1)
+  {
+    evry_service = SendMessage (wnd, EVERYTHING_WM_IPC, EVERYTHING_IPC_IS_SERVICE, 0);
+    TRACE (1, "evry_service: %d.\n", evry_service);
+  }
+
   C_printf ("  Everything search engine ver. %u.%u.%u.%u%s (c)"
             " David Carpenter; ~6https://www.voidtools.com/~0\n",
             ver->val_1, ver->val_2, ver->val_3, ver->val_4, bits);
+
 
   *p = '\0';
   for (d = num = 0; d < MAX_INDEXED; d++)
@@ -403,7 +396,6 @@ static int show_version (void)
   if (opt.do_version >= 2)
   {
     const char *OS_name = os_name();
-    unsigned    num;
 
     if (!strncmp(OS_name, "Win-10", 6))
     {
@@ -432,16 +424,19 @@ static int show_version (void)
     C_printf ("\n  Supported compilers on ~3PATH~0:\n");
     compiler_init (TRUE, opt.do_version >= 3);
 
-#if 0
-    C_printf ("\n  Pythons on ~3PATH~0:");
-    py_searchpaths();
+    if (opt.do_version >= 3)
+    {
+      unsigned num;
 
-    num = pkg_config_list_installed();
-    TRACE (2, "pkg_config_list_installed(): %u.\n", num);
+      C_printf ("\n  Pythons on ~3PATH~0:");
+      py_searchpaths();
 
-    num = vcpkg_list_installed (opt.do_version >= 3);
-    TRACE (2, "vcpkg_list_installed(): %u.\n", num);
-#endif
+      num = pkg_config_list_installed();
+      TRACE (2, "pkg_config_list_installed(): %u.\n", num);
+
+      num = vcpkg_list_installed (opt.do_version >= 3);
+      TRACE (2, "vcpkg_list_installed(): %u.\n", num);
+    }
   }
   return (0);
 }
@@ -1916,7 +1911,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
  */
 static BOOL evry_is_db_loaded (HWND wnd)
 {
-  BOOL loaded = (BOOL) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_LOADED, 0);
+  BOOL loaded = (BOOL) Everything_IsDBLoaded();
 
   TRACE (1, "wnd: %p, loaded: %d.\n", wnd, loaded);
   return (loaded);
@@ -1927,7 +1922,7 @@ static BOOL evry_is_db_loaded (HWND wnd)
  */
 static BOOL evry_is_busy (HWND wnd)
 {
-  BOOL busy = (BOOL) SendMessage (wnd, WM_USER, EVERYTHING_IPC_IS_DB_BUSY, 0);
+  BOOL busy = (BOOL) Everything_IsDBBusy();
 
   TRACE (1, "wnd: %p, busy: %d.\n", wnd, busy);
   return (busy);
@@ -2886,7 +2881,8 @@ static int eval_options (void)
 
   if (opt.do_check &&
       (opt.do_path  || opt.do_lib || opt.do_include || opt.do_evry   || opt.do_man ||
-       opt.do_cmake || opt.do_pkg || opt.do_vcpkg   || opt.do_python || opt.do_lua))
+       opt.do_cmake || opt.do_pkg || opt.do_vcpkg   || opt.do_python || opt.do_lua ||
+       opt.do_tests))
   {
     WARN ("Option '--check' should be used alone.\n");
     return (0);
@@ -2989,15 +2985,7 @@ static void MS_CDECL halt (int sig)
   CRTDBG_CHECK_OFF();
 
   if (opt.do_evry)
-  {
-    if (Everything_hthread)
-    {
-      TerminateThread (Everything_hthread, 1);
-      CloseHandle (Everything_hthread);
-    }
-    Everything_hthread = NULL;
-    Everything_Reset();
-  }
+     Everything_KillThread();
 
 #ifdef SIGTRAP
   if (sig == SIGTRAP)

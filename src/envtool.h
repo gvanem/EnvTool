@@ -489,7 +489,6 @@ struct prog_options {
 
 extern struct prog_options opt;
 extern char  *program_name;       /* used by getopt_long.c */
-extern HANDLE Everything_hthread; /* set by Everything.c */
 
 extern BOOL have_sys_native_dir, have_sys_wow64_dir;
 
