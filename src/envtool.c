@@ -181,7 +181,7 @@ static int   do_check (void);
 
 /**
  * Show some version details for the EveryThing program.
- * Called on `FindWindow ("EVERYTHING_TASKBAR_NOTIFICATION")` success.
+ * Called on `FindWindow (EVERYTHING_IPC_WNDCLASS)` success.
  */
 static void show_evry_version (HWND wnd, const struct ver_info *ver)
 {
