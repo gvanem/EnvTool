@@ -467,7 +467,7 @@ typedef struct EVERYTHING_IPC_COMMAND_LINE
 #pragma pack (push,1)
 
 //
-// Varible sized query struct sent to everything.
+// Variable sized query struct sent to everything.
 //
 // sent in the form of a WM_COPYDATA message with EVERYTHING_IPC_COPYDATAQUERY as the
 // dwData member in the COPYDATASTRUCT struct.
@@ -549,7 +549,7 @@ typedef struct EVERYTHING_IPC_QUERYA
 }EVERYTHING_IPC_QUERYA;
 
 //
-// Varible sized result list struct received from Everything.
+// Variable sized result list struct received from Everything.
 //
 // Sent in the form of a WM_COPYDATA message to the hwnd specifed in the
 // EVERYTHING_IPC_QUERY struct.
@@ -732,7 +732,7 @@ typedef struct EVERYTHING_IPC_LISTA
 #pragma pack (push,1)
 
 //
-// Varible sized query struct sent to everything.
+// Variable sized query struct sent to everything.
 //
 // sent in the form of a WM_COPYDATA message with EVERYTHING_IPC_COPYDATA_QUERY2 as the
 // dwData member in the COPYDATASTRUCT struct.
