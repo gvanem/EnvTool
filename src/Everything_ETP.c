@@ -761,8 +761,16 @@ static BOOL state_send_pass (struct state_CTX *ctx)
   char  buf [200];
   char *rx = recv_line (ctx, buf, sizeof(buf));
 
-  if (!strcmp(rx, "230 Logged on."))
-       ctx->state = state_send_query;   /* ETP server ignores passwords */
+  if (!strcmp(rx, "230 Logged on.")) /* ETP server ignores passwords */
+  {
+    if (opt.verbose >= 1)
+    {
+      send_cmd (ctx, "FEAT");
+      ctx->state = state_await_features;
+    }
+    else
+      ctx->state = state_send_query;
+  }
   else if (send_cmd(ctx, "PASS %s", ctx->password) < 0)
        ctx->state = state_closing;      /* Transmit failed; close */
   else ctx->state = state_await_login;  /* "PASS" sent okay, await loging confirmation */
