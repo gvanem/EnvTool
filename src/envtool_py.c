@@ -2109,7 +2109,7 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
     if (pp->is_zip)
          rc = process_zip (pi, pp->dir);
     else rc = process_dir (pp->dir, 0, pp->exist, FALSE, pp->is_dir,
-                           TRUE, "sys.path[]", HKEY_PYTHON_PATH, FALSE);
+                           TRUE, "sys.path[]", HKEY_PYTHON_PATH);
     found += rc;
 
 #if 1

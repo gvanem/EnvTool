@@ -41,7 +41,8 @@ static smartlist_t *pkgconfig_pkg  = NULL;  /* A smartlist_t of 'struct pkgconfi
 
 /**
  * \def REG_KEY
- * The Registry sub-branch variable for seach-directories. <br>
+ * The Registry sub-branch variable for seach-directories.
+ *
  * The full key is either `HKEY_CURRENT_USER\Software\pkgconfig\PKG_CONFIG_PATH` or <br>
  * `HKEY_LOCAL_MACHINE\Software\pkgconfig\PKG_CONFIG_PATH`.
  */
@@ -249,13 +250,12 @@ static smartlist_t *pkg_config_reg_keys (HKEY top_key)
   if (rc != ERROR_SUCCESS || type != REG_SZ)
      return (NULL);
 
-  for (i = 0, tok = buf; tok; i++)
+  i = 0;
+  for (tok = _strtok_r(buf, ";", &end); tok;
+       tok = _strtok_r(NULL, ";", &end))
   {
-    if (i == 0)
-        tok = _strtok_r (tok, ";", &end);
-    TRACE (1, "tok[%d]: '%s'\n", i, tok);
+    TRACE (1, "tok[%d]: '%s'\n", i++, tok);
     reg_array_add (top_key, tok, tok);
-    tok = _strtok_r (NULL, ";", &end);
   }
   return reg_array_head();
 }
@@ -435,7 +435,7 @@ int pkg_config_search (const char *search_spec)
        _strlcpy (prefix, "PkgConfig?", sizeof(prefix));
 
     num = process_dir (dir->path, 0, dir->exist, TRUE, dir->is_dir, dir->exp_ok,
-                       prefix, HKEY_PKG_CONFIG_FILE, FALSE);
+                       prefix, HKEY_PKG_CONFIG_FILE);
     if (dir->num_dup == 0 && prev_num > 0 && num > 0)
        do_warn = TRUE;
     found += num;

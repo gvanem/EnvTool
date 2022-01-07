@@ -249,12 +249,12 @@ int cmake_search (void)
           ver.val_1, ver.val_2, ver.val_3, modules_dir);
 
   report_header_set ("Matches in built-in Cmake modules:\n");
-  found = process_dir (modules_dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_CMAKE_FILE, FALSE);
+  found = process_dir (modules_dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_CMAKE_FILE);
   FREE (bin);
   FREE (root);
 
   report_header_set ("Matches in %%%s:\n", env_name);
-  found += do_check_env (env_name, TRUE);
+  found += do_check_env (env_name);
   report_header_set (NULL);
 
   max = smartlist_len (sl);
@@ -263,7 +263,7 @@ int cmake_search (void)
     if (i == 0)
        report_header_set ("Matches in Cmake Registry directories:\n");
     dir = smartlist_get (sl, i);
-    found += process_dir (dir, 0, TRUE, TRUE, 1, TRUE, NULL, HKEY_CMAKE_FILE, FALSE);
+    found += process_dir (dir, 0, TRUE, TRUE, 1, TRUE, NULL, HKEY_CMAKE_FILE);
   }
   smartlist_free_all (sl);
   report_header_set (NULL);
