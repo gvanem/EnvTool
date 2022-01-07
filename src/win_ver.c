@@ -350,6 +350,11 @@ const char *os_update_build_rev (void)
   return get_registry_value ("UBR", REG_DWORD);
 }
 
+const char *os_current_build (void)
+{
+  return get_registry_value ("CurrentBuild", REG_SZ);
+}
+
 /*
  * Return the "InstallDate" from Registry.
  * This is the time-stamp of the last reinstall.
