@@ -100,7 +100,7 @@ static BOOL lua_append_dir (const struct directory_array *dir, BOOL for_LUA_CPAT
 /**
  * Handle one Lua env-var and append it's components to `lua_dirs`.
  */
-static void lua_handle_var (const  char *env_var, BOOL for_LUA_CPATH)
+static void lua_handle_var (const char *env_var, BOOL for_LUA_CPATH)
 {
   const char  *value = getenv (env_var);
   const struct directory_array *dir;

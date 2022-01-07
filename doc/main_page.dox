@@ -15,6 +15,12 @@
  * @}
  */
 
+/**\addtogroup Compiler  compiler include and library search
+ * @{
+ *
+ * @}
+ */
+
 /**\addtogroup Envtool Main functions
  * @{
  *

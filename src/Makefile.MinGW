@@ -62,11 +62,11 @@ endif
 
 EX_LIBS += -lpsapi -limagehlp -lversion -lwintrust -lshlwapi -lcrypt32 -lws2_32
 
-SOURCES = auth.c cache.c cmake.c cfg_file.c color.c description.c dirlist.c envtool.c \
-          envtool_py.c Everything.c Everything_ETP.c get_file_assoc.c getopt_long.c \
-          ignore.c json.c lua.c misc.c pkg-config.c regex.c report.c searchpath.c \
-          show_ver.c smartlist.c sort.c tests.c vcpkg.c win_sqlite3.c win_trust.c \
-          win_ver.c
+SOURCES = auth.c cache.c cmake.c cfg_file.c compiler.c color.c description.c dirlist.c \
+          envtool.c envtool_py.c Everything.c Everything_ETP.c get_file_assoc.c \
+          getopt_long.c ignore.c json.c lua.c misc.c pkg-config.c regex.c report.c \
+          searchpath.c show_ver.c smartlist.c sort.c tests.c vcpkg.c win_sqlite3.c \
+          win_trust.c win_ver.c
 
 OBJECTS  = $(notdir $(SOURCES:.c=.o))
 PROGRAMS = envtool.exe win_glob.exe win_ver.exe win_trust.exe dirlist.exe

@@ -767,6 +767,7 @@ INPUT = main_page.dox           \
         ../src/cache.c          \
         ../src/cfg_file.c       \
         ../src/color.c          \
+        ../src/compiler.c       \
         ../src/Everything.c     \
         ../src/Everything_ETP.c \
         ../src/description.c    \
@@ -791,6 +792,7 @@ INPUT = main_page.dox           \
         ../src/auth.h           \
         ../src/cache.h          \
         ../src/color.h          \
+        ../src/compiler.h       \
         ../src/description.h    \
         ../src/dirlist.h        \
         ../src/envtool.h        \

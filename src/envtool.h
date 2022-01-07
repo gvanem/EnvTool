@@ -453,6 +453,7 @@ struct prog_options {
        int             no_borland;
        int             no_clang;
        int             no_intel;
+       int             no_msvc;
        int             do_tests;
        int             do_evry;
        int             do_version;
@@ -468,21 +469,21 @@ struct prog_options {
        int             do_check;
        int             do_help;
        int             case_sensitive;
-       int             keep_temp;         /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
-       int             under_conemu;      /**< TRUE if running under ConEmu console-emulator */
-       int             under_winterm;     /**< TRUE if running under WindowsTerminal */
-       int             under_appveyor;    /**< TRUE if running under AppVeyor */
-       int             under_github;      /**< TRUE if running under Github Actions */
-       int             under_cygwin;      /**< TRUE if Cygwin compiled */
-       enum SortMethod sort_methods[10];  /**< the specified sort methods */
-       BOOL            evry_raw;          /**< use raw non-regex searches */
-       UINT            evry_busy_wait;    /**< max number of seconds to wait for a busy EveryThing */
+       int             keep_temp;          /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
+       int             under_conemu;       /**< TRUE if running under ConEmu console-emulator */
+       int             under_winterm;      /**< TRUE if running under WindowsTerminal */
+       int             under_appveyor;     /**< TRUE if running under AppVeyor */
+       int             under_github;       /**< TRUE if running under Github Actions */
+       int             under_cygwin;       /**< TRUE if Cygwin compiled */
+       enum SortMethod sort_methods [10];  /**< the specified sort methods */
+       BOOL            evry_raw;           /**< use raw non-regex searches */
+       UINT            evry_busy_wait;     /**< max number of seconds to wait for a busy EveryThing */
        smartlist_t    *evry_host;
        char           *file_spec;
        beep_info       beep;
        command_line    cmd_line;
-       void           *cfg_file;          /**< The config-file structure returned by `cfg_init()`. */
-       ULONGLONG       shadow_dtime;      /**< The files delta-time to ignore in `is_shadow_candidate()`. */
+       void           *cfg_file;           /**< The config-file structure returned by `cfg_init()`. */
+       ULONGLONG       shadow_dtime;       /**< The files delta-time to ignore in `is_shadow_candidate()`. */
        grep_info       grep;
      };
 
@@ -505,7 +506,7 @@ extern void incr_total_size (UINT64 size);
 extern int report_file (struct report *r);
 
 extern int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
-                        BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key, BOOL recursive);
+                        BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key);
 
 extern void         print_raw (const char *file, const char *before, const char *after);
 extern smartlist_t *split_env_var (const char *env_name, const char *value);
@@ -524,6 +525,7 @@ struct directory_array {
        int          num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
        BOOL         check_empty; /**< check if it contains at least 1 file? */
        BOOL         done;        /**< alreay processed */
+    // char        *env_var;     /**< the env-var these directories came from (or NULL) */
        smartlist_t *dirent2;     /**< List of `struct dirent2` for this directory; used in `check_shadow_files()` only */
      };
 
@@ -543,16 +545,18 @@ struct registry_array {
 /**
  * Interface functions for the `dir_array` and `reg_array` smartlists in envtool.c.
  */
+extern struct directory_array *dir_array_add (const char *dir, BOOL is_cwd);
+extern struct registry_array  *reg_array_add (HKEY key, const char *fname, const char *fqfn);
+
 extern smartlist_t *dir_array_head (void);
 extern void         dir_array_free (void);
-extern void         dir_array_add (const char *dir, int is_cwd);
+extern void         dir_array_wiper (void *);
 
 extern smartlist_t *reg_array_head (void);
 extern void         reg_array_free (void);
-extern void         reg_array_add (HKEY key, const char *fname, const char *fqfn);
 
 extern smartlist_t *get_matching_files (const char *dir, const char *file_spec);
-extern int          do_check_env (const char *env_name, BOOL recursive);
+extern int          do_check_env (const char *env_name);
 
 /**
  * \def REG_APP_PATH
@@ -673,7 +677,6 @@ extern int    safe_stat_sys         (const char *file, struct stat *st, DWORD *w
 extern char       *make_cyg_path (const char *path, char *result);
 extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);
 
-extern const char *compiler_version (void);
 extern const char *get_user_name (void);
 extern BOOL        is_user_admin (void);
 extern BOOL        is_user_admin2 (void);
@@ -882,6 +885,7 @@ extern const char *os_name (void);
 extern const char *os_bits (void);
 extern const char *os_release_id (void);
 extern const char *os_update_build_rev (void);
+extern const char *os_current_build (void);
 extern const char *os_full_version (void);
 extern time_t      os_last_install_date (void);
 extern time_t      os_first_install_date (void);

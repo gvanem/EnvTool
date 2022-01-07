@@ -68,7 +68,6 @@ typedef int (MS_CDECL *QsortCmpFunc) (const void *, const void *);
 typedef int (MS_CDECL *ScandirCmpFunc) (const void **, const void **);
 typedef int (MS_CDECL *ScandirSelectFunc) (const struct dirent2 *);
 
-
 /*
  * arg1 = directory name
  * arg2 = unallocated array of pointers to dirent(direct) strctures

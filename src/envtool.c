@@ -54,6 +54,7 @@
 #include "cmake.h"
 #include "tests.h"
 #include "description.h"
+#include "compiler.h"
 
 /**
  * <!-- \includedoc README.md ->
@@ -141,24 +142,6 @@ static int        re_alloc;       /* the above `re_hnd` was allocated */
 
 volatile int halt_flag;
 
-/**
- * The list of prefixes for gnu C/C++ compilers.
- *
- * \eg we try `gcc.exe` ... `avr-gcc.exe` to figure out the
- *     `%C_INCLUDE_PATH`, `%CPLUS_INCLUDE_PATH` and `%LIBRARY_PATH`.
- *     Unless one of the `<path>/<prefix>-gcc.exe` are in the
- *     `[Compiler]` ignore-list.
- *
- * \todo add more prefixes from `%APPDATA%/envtool.cfg` here?
- */
-static const char *gnu_prefixes[] = {
-                  "",
-                  "x86_64-w64-mingw32-",
-                  "i386-mingw32-",
-                  "i686-w64-mingw32-",
-                  "avr-"
-                };
-
 /** Get the bitness (32/64-bit) of the EveryThing program.
  */
 static enum Bitness evry_bitness = bit_unknown;
@@ -166,9 +149,6 @@ static void get_evry_bitness (HWND wnd);
 
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
 static int   do_check (void);
-static void  search_and_add_all_cc (BOOL print_info, BOOL print_lib_path);
-static void  print_build_cflags (void);
-static void  print_build_ldflags (void);
 
 /**
  * \todo Add support for *kpathsea*-like path searches (which some TeX programs uses). <br>
@@ -444,14 +424,15 @@ static int show_version (void)
     print_core_temp_info();
 
     C_puts ("\n  Compile command and ~3CFLAGS~0:");
-    print_build_cflags();
+    compiler_print_build_cflags();
 
     C_puts ("\n  Link command and ~3LDFLAGS~0:");
-    print_build_ldflags();
+    compiler_print_build_ldflags();
 
-    C_printf ("\n  Compilers on ~3PATH~0:\n");
-    search_and_add_all_cc (TRUE, opt.do_version >= 3);
+    C_printf ("\n  Supported compilers on ~3PATH~0:\n");
+    compiler_init (TRUE, opt.do_version >= 3);
 
+#if 0
     C_printf ("\n  Pythons on ~3PATH~0:");
     py_searchpaths();
 
@@ -460,6 +441,7 @@ static int show_version (void)
 
     num = vcpkg_list_installed (opt.do_version >= 3);
     TRACE (2, "vcpkg_list_installed(): %u.\n", num);
+#endif
   }
   return (0);
 }
@@ -484,11 +466,11 @@ static void usage (const char *fmt, ...)
  */
 static int show_help (void)
 {
-  #define PFX_GCC  "~4<prefix>~0-~6gcc~0"
-  #define PFX_GPP  "~4<prefix>~0-~6g++~0"
+  #define PFX_GCC  "~4<prefix>-~3gcc"
+  #define PFX_GPP  "~4<prefix>-~3g++"
 
   const char **py = py_get_variants();
-  int   i;
+  const char  *pfx;
 
   C_printf ("Environment check & search tool.\n\n"
             "Usage: %s ~6[options] <--mode> <file-spec>~0\n", who_am_I);
@@ -514,16 +496,13 @@ static int show_help (void)
           "    ~6--no-ansi~0      don't print colours using ANSI sequences (effective for CygWin/ConEmu only).\n"
           "    ~6--no-app~0       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
           "                              ~3HKLM\\" REG_APP_PATH "~0.\n"
-          "    ~6--no-borland~0   don't check for Borland in ~6--include~0 or ~6--lib~0 mode.\n"
-          "    ~6--no-clang~0     don't check for Clang in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--no-colour~0    don't print using colours.\n"
-          "    ~6--no-gcc~0       don't spawn " PFX_GCC " prior to checking.      ~2[2]~0\n"
-          "    ~6--no-g++~0       don't spawn " PFX_GPP " prior to checking.      ~2[2]~0\n"
-          "    ~6--no-intel~0     don't check for Intel in ~6--include~0 or ~6--lib~0 mode.\n"
+          "    ~6--no-cwd~0       don't add current directory to the search-paths.\n"
+          "    ~6--no-~3<comp>~0    in ~6--include~0 or ~6--lib~0 mode, do not check for compiler:\n"
+          "                   ~3comp={" PFX_GCC ", " PFX_GPP ", borland, clang, intel, msvc, watcom}~0.\n"
           "    ~6--no-prefix~0    don't check any ~4<prefix>~0-ed ~6gcc/g++~0 programs.    ~2[2]~0\n"
           "    ~6--no-sys~0       don't scan ~3HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment~0.\n"
           "    ~6--no-usr~0       don't scan ~3HKCU\\Environment~0.\n"
-          "    ~6--no-watcom~0    don't check for Watcom in ~6--include~0 or ~6--lib~0 mode.\n"
           "    ~6--owner~0        shown owner of the file (shows all owners).\n"
           "    ~6--owner~0=~3spec~0   shown only files/directories matching owner ~3spec~0.\n"
           "    ~6--owner~0=~3!spec~0  shown only files/directories ~4not~0 matching owner ~3spec~0.\n"
@@ -535,7 +514,6 @@ static int show_help (void)
   C_puts ("    ~6--signed~0       check for ~4all~0 digital signature with the ~6--pe~0 option.\n"
           "    ~6--signed=0~0     report only ~4PE~0-files files that are ~6unsigned~0.\n"
           "    ~6--signed=1~0     report only ~4PE~0-files files that are ~6signed~0.\n"
-          "    ~6--no-cwd~0       don't add current directory to the search-paths.\n"
           "    ~6-c~0, ~6--case~0     be case-sensitive.\n"
           "    ~6-d~0, ~6--debug~0    set debug level (level 2, ~3-dd~0 sets ~3PYTHONVERBOSE=1~0 in ~6--python~0 mode).\n"
           "    ~6-D~0, ~6--dir~0      looks only for directories matching ~6<file-spec>~0.\n"
@@ -578,13 +556,22 @@ static int show_help (void)
 
           "\n"
           "  ~2[2]~0 Unless ~6--no-prefix~0 is used, the ~3%C_INCLUDE_PATH%~0, ~3%CPLUS_INCLUDE_PATH%~0 and\n"
-          "      ~3%LIBRARY_PATH%~0 are also used by spawning " PFX_GCC " and " PFX_GPP ".\n"
-          "      These ~4<prefix>~0-es are built-in: ");
+          "      ~3%LIBRARY_PATH%~0 are also used by spawning " PFX_GCC "~0 and " PFX_GPP "~0.\n"
+          "      These ~4<prefix>~0-es are built-in:");
 
-  for (i = 1; i < DIM(gnu_prefixes); i++)
+  for (pfx = compiler_GCC_prefix_first(); pfx; )
   {
-    size_t len = strlen (gnu_prefixes[i]);
-    C_printf ("~6%.*s~0%s", (int)(len-1), gnu_prefixes[i], i <= DIM(gnu_prefixes)-2 ? ", " : ".");
+    if (*pfx == '\0')
+    {
+      pfx = compiler_GCC_prefix_next();
+      continue;
+    }
+
+    C_printf (" ~6%.*s~0", (int)(strlen(pfx)-1), pfx);
+    pfx = compiler_GCC_prefix_next();
+    if (pfx)
+         C_putc (',');
+    else C_putc ('.');
   }
 
   C_puts ("\n\n"
@@ -632,7 +619,7 @@ smartlist_t *dir_array_head (void)
  * Since this function could be called with a `dir` from `expand_env_var()`,
  * we check here if it returned with no `%`.
  */
-static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at0)
+static struct directory_array *dir_array_add_or_insert (const char *dir, BOOL is_cwd, BOOL  insert_at0)
 {
   struct directory_array *d = CALLOC (1, sizeof(*d));
   struct stat st;
@@ -643,15 +630,15 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
   if (!opt.lua_mode && safe_stat(dir, &st, NULL) == 0)
      is_dir = exists = _S_ISDIR (st.st_mode);
 
-  d->cyg_dir = NULL;
-  d->dir     = STRDUP (dir);
-  d->exp_ok  = exp_ok;
-  d->exist   = exp_ok && exists;
-  d->is_dir  = is_dir;
-  d->is_cwd  = is_cwd;
+  d->cyg_dir  = NULL;
+  d->dir      = STRDUP (dir);
+  d->exp_ok   = exp_ok;
+  d->exist    = exp_ok && exists;
+  d->is_dir   = is_dir;
+  d->is_cwd   = is_cwd;
 #if 0
-  d->file    = file;
-  d->line    = line;
+  d->file     = file;
+  d->line     = line;
 #endif
 
   /* Can we have >1 native dirs?
@@ -710,7 +697,7 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
   else smartlist_add (dir_array, d);
 
   if (is_cwd || !exp_ok)
-     return;
+     return (NULL);
 
   max = smartlist_len (dir_array);
   for (i = 0; i < max-1; i++)
@@ -720,59 +707,17 @@ static void dir_array_add_or_insert (const char *dir, int is_cwd, BOOL insert_at
     if (str_equal(dir, d2->dir))
        d->num_dup++;
   }
+  return (d);
 }
 
-void dir_array_add (const char *dir, int is_cwd)
+struct directory_array *dir_array_add (const char *dir, BOOL is_cwd)
 {
-  dir_array_add_or_insert (dir, is_cwd, FALSE);
+  return dir_array_add_or_insert (dir, is_cwd, FALSE);
 }
 
-void dir_array_prepend (const char *dir, int is_cwd)
+struct directory_array *dir_array_prepend (const char *dir, BOOL is_cwd)
 {
-  dir_array_add_or_insert (dir, is_cwd, TRUE);
-}
-
-static int dir_array_dump (const char *where, const char *note)
-{
-  int i, max;
-
-  TRACE (2, "%s now%s:\n", where, note);
-
-  max = smartlist_len (dir_array);
-  for (i = 0; i < max; i++)
-  {
-    const struct directory_array *dir = smartlist_get (dir_array, i);
-
-    TRACE (2, "  dir_array[%d]: exist:%d, num_dup:%d, %s\n",
-            (int)i, dir->exist, dir->num_dup, dir->dir);
-
-#ifdef __CYGWIN__
-    TRACE (2, "%53s%s\n", "", dir->cyg_dir);
-#endif
-  }
-  return (max);
-}
-
-/**
- * `smartlist_make_uniq()` helper.
- *
- * \param[in] _a  The first `dir_array` element to check.
- * \param[in] _b  The second `dir_array` element to check.
- *
- * No need to use `stricmp()` or `str_equal()` since we already checked for
- * duplicates when items where added. Use the `num_dup` count instead.
- */
-static int dir_array_compare (const void **_a, const void **_b)
-{
-  struct directory_array *a = *(struct directory_array **) _a;
-  struct directory_array *b = *(struct directory_array **) _b;
-
-  if (b->num_dup > 0)  /* this will get removed */
-  {
-    a->num_dup = 0;
-    return (0);
-  }
-  return (1);
+  return dir_array_add_or_insert (dir, is_cwd, TRUE);
 }
 
 /**
@@ -793,9 +738,9 @@ static void _reg_array_free (void *_r)
 /**
  * `smartlist_wipe()` and `smartlist_make_uniq()` helper.
  *
- * \param[in] _d  The item in the `reg_array` smartlist to free.
+ * \param[in] _d  The item in the `dir_array` smartlist to free.
  */
-static void _dir_array_free (void *_d)
+void dir_array_wiper (void *_d)
 {
   struct directory_array *d = (struct directory_array*) _d;
   int    i, max = d->dirent2 ? smartlist_len (d->dirent2) : 0;
@@ -811,38 +756,12 @@ static void _dir_array_free (void *_d)
 
   FREE (d->dir);
   FREE (d->cyg_dir);
+//FREE (d->env_var);
   FREE (d);
 }
 
 /**
- * The GNU-C report of directories is a mess. Especially all the duplicates and
- * non-canonical names. CygWin is more messy than others. So just remove the
- * duplicates.
- *
- * Loop over the `dir_array` smartlist and remove all non-unique items.
- * Also used for Watcom's include-path.
- *
- * \param[in]  where  Where this function was used;
- *                    equals `"%NT_INCLUDE%"` for `do_check_watcom_includes()` or
- *                    `"library paths"` for `setup_gcc_library_path()`.
- */
-static int dir_array_make_unique (const char *where)
-{
-  int old_len, new_len;
-
-  old_len = dir_array_dump (where, ", non-unique");
-  smartlist_make_uniq (dir_array, dir_array_compare, _dir_array_free);
-  new_len = dir_array_dump (where, ", unique");
-  return (old_len - new_len);    /* This should always be 0 or positive */
-}
-
-smartlist_t *reg_array_head (void)
-{
-  return (reg_array);
-}
-
-/**
- * Add elements to the `reg_array` smartlist:
+ * Add file-name elements to the `reg_array` smartlist:
  *  \param[in] key     the key the entry came from: `HKEY_CURRENT_USER` or `HKEY_LOCAL_MACHINE`.
  *  \param[in] fname   the result from `RegEnumKeyEx()`; name of each key.
  *  \param[in] fqfn    the result from `enum_sub_values()`. The Fully Qualified File Name.
@@ -850,7 +769,7 @@ smartlist_t *reg_array_head (void)
  * Note: `basename (fqfn)` may NOT be equal to `fname` (aliasing). That's the reason
  *       we store `real_fname` too.
  */
-void reg_array_add (HKEY key, const char *fname, const char *fqfn)
+struct registry_array  *reg_array_add (HKEY key, const char *fname, const char *fqfn)
 {
   struct registry_array *reg;
   struct stat  st;
@@ -861,7 +780,7 @@ void reg_array_add (HKEY key, const char *fname, const char *fqfn)
   if (base == fqfn)
   {
     TRACE (1, "fqfn (%s) contains no '\\' or '/'\n", fqfn);
-    return;
+    return (NULL);
   }
 
   reg = CALLOC (1, sizeof(*reg));
@@ -876,6 +795,7 @@ void reg_array_add (HKEY key, const char *fname, const char *fqfn)
   reg->exist      = (rc == 0) && FILE_EXISTS (fqfn);
   reg->key        = key;
   _fix_drive (reg->path);
+  return (reg);
 }
 
 /**
@@ -922,6 +842,11 @@ static void reg_array_sort (void)
   reg_array_print ("after smartlist_sort():\n");
 }
 
+smartlist_t *reg_array_head (void)
+{
+  return (reg_array);
+}
+
 void reg_array_free (void)
 {
   smartlist_wipe (reg_array, _reg_array_free);
@@ -929,7 +854,7 @@ void reg_array_free (void)
 
 void dir_array_free (void)
 {
-  smartlist_wipe (dir_array, _dir_array_free);
+  smartlist_wipe (dir_array, dir_array_wiper);
 }
 
 /**
@@ -1023,7 +948,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   i = 0;
   if (!opt.no_cwd && !is_cwd)
   {
-    dir_array_add (current_dir, 1);
+    dir_array_add (current_dir, TRUE);
     cwd_added = TRUE;
   }
 
@@ -1058,8 +983,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
     if (is_cwd)
     {
       if (i > 0 && !opt.under_conemu)
-         WARN ("Having \"%s\" not first in \"%s\" is asking for trouble.\n",
-               tok, env_name);
+         WARN ("Having \"%s\" not first in \"%s\" is asking for trouble.\n", tok, env_name);
       tok = current_dir;
     }
 #if !defined(__CYGWIN__)
@@ -1076,11 +1000,11 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
     if (str_equal(tok, current_dir))
     {
       if (!cwd_added)
-         dir_array_add (tok, 1);
+         dir_array_add (tok, TRUE);
       cwd_added = TRUE;
     }
     else
-      dir_array_add (tok, 0);
+      dir_array_add (tok, FALSE);
 
     tok = _strtok_r (NULL, sep, &_end);
   }
@@ -1088,7 +1012,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   /* Insert CWD at position 0 if not done already
    */
   if (!cwd_added && !opt.no_cwd)
-     dir_array_prepend (current_dir, 1);
+     dir_array_prepend (current_dir, TRUE);
 
   FREE (val);
   return (dir_array);
@@ -1461,7 +1385,7 @@ static int do_check_env2 (HKEY key, const char *env, const char *value)
     const struct directory_array *arr = smartlist_get (list, i);
 
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
-                          arr->is_dir, arr->exp_ok, env, key, FALSE);
+                          arr->is_dir, arr->exp_ok, env, key);
   }
   dir_array_free();
   return (found);
@@ -1629,8 +1553,7 @@ static BOOL regex_match (const char *str)
  * to the global `opt.file_spec`.
  */
 int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
-                 BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key,
-                 BOOL recursive)
+                 BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key)
 {
   HANDLE          handle;
   WIN32_FIND_DATA ff_data;
@@ -1699,6 +1622,8 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   {
     struct stat   st;
     char  *base, *file = ff_data.cFileName;
+    char  *true_fname = NULL;
+    char  *end_pos;
     int    match, len;
     BOOL   is_junction;
     BOOL   ignore = ((file[0] == '.' && file[1] == '\0') ||                   /* current dir entry */
@@ -1740,6 +1665,18 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
         }
       }
       continue;
+    }
+
+    if (opt.case_sensitive && subdir)
+    {
+      true_fname = fqfn;
+      if (get_actual_filename(&true_fname, FALSE))
+      {
+        _strlcpy (fqfn, true_fname, sizeof(fqfn));
+        FREE (true_fname);
+        end_pos = 1 + path_ltrim (fqfn, path);
+        TRACE (2, "subdir: '%s', end_pos: '%s'.\n", subdir, end_pos);
+      }
     }
 
     file  = slashify2 (fqfn, fqfn, DIR_SEP);
@@ -1798,7 +1735,6 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   }
 
   FindClose (handle);
-  ARGSUSED (recursive);
   return (found);
 }
 
@@ -2345,7 +2281,7 @@ static int do_check_evry (void)
 /**
  * The main work-horse of this program.
  */
-int do_check_env (const char *env_name, BOOL recursive)
+int do_check_env (const char *env_name)
 {
   smartlist_t *list;
   int          i, max, found = 0;
@@ -2380,8 +2316,7 @@ int do_check_env (const char *env_name, BOOL recursive)
 
     if (!arr->done)
        found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
-                             arr->is_dir, arr->exp_ok, env_name, NULL,
-                             recursive);
+                             arr->is_dir, arr->exp_ok, env_name, NULL);
     arr->done = TRUE;
   }
   dir_array_free();
@@ -2401,7 +2336,7 @@ static int check_man_dir (const char *dir, const char *env_name)
   else _dir = dir;
 
   TRACE (1, "Looking for \"%s\" in \"%s\".\n", opt.file_spec, _dir);
-  return process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE, FALSE);
+  return process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE);
 }
 
 /**
@@ -2415,9 +2350,9 @@ static int do_check_manpath (void)
 {
   struct directory_array *arr;
   smartlist_t *list;
-  int    i, j, max, found = 0;
-  char  *orig_e;
-  BOOL   save1, save2, done_cwd = FALSE;
+  int          i, j, max, found = 0;
+  char        *orig_e;
+  BOOL         save1, save2, done_cwd = FALSE;
   static const char env_name[] = "MANPATH";
 
   /* \todo
@@ -2524,1667 +2459,6 @@ static int do_check_vcpkg (void)
 }
 
 /**
- * Handling of GNU-compilers (`*gcc.exe`, `*g++.exe`), MSVC,
- * clang-cl, Borland and Watcom.
- *
- * \enum compiler_type
- */
-typedef enum compiler_type {
-             CC_UNKNOWN = 0, /**< Unknown compiler (not initialised value) */
-             CC_GNU_GCC,     /**< Some sort of (prefixed) `*gcc.exe`. */
-             CC_GNU_GXX,     /**< Some sort of (prefixed) `*g++.exe`. */
-             CC_MSVC,        /**< A MSVC compiler */
-             CC_CLANG_CL,    /**< A clang/clang-cl compiler */
-             CC_INTEL,       /**< A Intel oneAPI compiler */
-             CC_BORLAND,     /**< A Borland / Embarcadero compiler */
-             CC_WATCOM       /**< A Watcom/OpenWatcom compiler */
-           } compiler_type;
-
-/** \typedef compiler_info
- */
-typedef struct compiler_info {
-        char          *short_name;  /**< the short name we're looking for on `%PATH` */
-        char          *full_name;   /**< the full name if found `%PATH` */
-        compiler_type  type;        /**< what type is it? */
-        BOOL           ignore;      /**< shall we ignore it? */
-        BOOL           no_prefix;   /**< shall we check gnu prefixed gcc/g++? */
-      } compiler_info;
-
-/**
- * The information for all added compilers is in this list;
- * an array of `compiler_info` created by `search_and_add_all_cc()`.
- */
-static smartlist_t *all_cc = NULL;
-
-static size_t longest_cc        = 0;
-static BOOL   ignore_all_gcc    = FALSE;
-static BOOL   ignore_all_gpp    = FALSE;
-static BOOL   ignore_all_clang  = FALSE;
-static BOOL   looks_like_cygwin = FALSE;
-static BOOL   found_search_line = FALSE;
-static char  *cygwin_root       = NULL;
-static char   cygwin_fqfn [_MAX_PATH];
-static char  *watcom_dir[4];
-
-/**
- * Free the memory allocated by `search_and_add_all_cc()`.
- */
-static void free_all_compilers (void)
-{
-  int i, max = all_cc ? smartlist_len (all_cc) : 0;
-
-  for (i = 0; i < max; i++)
-  {
-    compiler_info *cc = smartlist_get (all_cc, i);
-
-    FREE (cc->short_name);
-    FREE (cc->full_name);
-    FREE (cc);
-  }
-  smartlist_free (all_cc);
-}
-
-/**
- * Check if we shall ignore this compiler.
- *
- * + if `cc->full_name` is non-NULL (i.e. found), check the ignore-list for that.
- * + if `cc->full_name` is NULL, check the ignore-list for the `cc->short_name`.
- *
- * \eg if the config-file contains a `"ignore = i386-mingw32-gcc.exe"`, and
- *     `"i386-mingw32-gcc.exe"` is not found, don't try to spawn it (since it
- *     will fail).
- *
- * \param[in] cc the the `compiler_info` to check.
- */
-static void compiler_check_ignore (compiler_info *cc)
-{
-  BOOL ignore = FALSE;
-
-  /* "envtool --no-prefix .." given and this `cc->short_name` is
-   * a prefixed `*-gcc.exe` or `*-g++.exe`.
-   */
-  if (cc->no_prefix)
-     ignore = TRUE;
-
-  /* "envtool --no-gcc .." given and this `cc->type == CC_GNU_GCC`.
-   */
-  else if (cc->type == CC_GNU_GCC && opt.no_gcc)
-     ignore = TRUE;
-
-  /* "envtool --no-g++ .." given and this `cc->type == CC_GNU_GXX`.
-   */
-  else if (cc->type == CC_GNU_GXX && opt.no_gpp)
-     ignore = TRUE;
-
-  /* "envtool --no-watcom .." given and this `cc->type == CC_WATCOM`.
-   */
-  else if (cc->type == CC_WATCOM && opt.no_watcom)
-     ignore = TRUE;
-
-  /* "envtool --no-borland .." given and this `cc->type == CC_BORLAND`.
-   */
-  else if (cc->type == CC_BORLAND && opt.no_borland)
-     ignore = TRUE;
-
-  /* "envtool --no-clang .." given and this `cc->type == CC_CLANG_CL`.
-   */
-  else if (cc->type == CC_CLANG_CL && opt.no_clang)
-     ignore = TRUE;
-
-  /* "envtool --no-intel .." given and this `cc->type == CC_INTEL`.
-   */
-  else if (cc->type == CC_INTEL && opt.no_intel)
-     ignore = TRUE;
-
-  else if (cc->full_name)
-    ignore = cfg_ignore_lookup ("[Compiler]", cc->full_name);
-
-  /* Last chance to check ignore.
-   */
-  if (!ignore)
-     ignore = cfg_ignore_lookup ("[Compiler]", cc->short_name);
-
-  TRACE (1, "Checking %s (%s), ignore: %d.\n",
-          cc->short_name, cc->full_name ? cc->full_name : "<not found>", ignore);
-
-  cc->ignore = ignore;
-}
-
-/**
- * Add a compiler to the `all_cc` smartlist.
- */
-static void add_compiler (const compiler_info *_cc)
-{
-  compiler_info *cc = MALLOC (sizeof(*cc));
-
-  *cc = *_cc;
-
-  if (cc->type != CC_GNU_GCC && cc->type != CC_GNU_GXX)
-     cc->no_prefix = FALSE;
-
-  cc->short_name = STRDUP (_cc->short_name);
-
-  if (_cc->full_name && _cc->full_name[0] != '-')
-       cc->full_name = STRDUP (_cc->full_name);
-  else cc->full_name = NULL;
-  smartlist_add (all_cc, cc);
-}
-
-/**
- * Cache functions for compilers.
- * Parses the cache keywords `compiler_exe_X`, `compiler_inc_X_Y` and `compiler_lib_X_Y`.
- */
-static int get_all_cc_from_cache (void)
-{
-  int i = 0, found = 0;
-
-  while (1)
-  {
-    compiler_info cc;
-    char format [50];
-
-    snprintf (format, sizeof(format), "compiler_exe_%d = %%d,%%d,%%d,%%s,%%s", i);
-    if (cache_getf (SECTION_COMPILER, format,
-                    &cc.type, &cc.ignore, &cc.no_prefix, &cc.short_name, &cc.full_name) != 5)
-       break;
-    add_compiler (&cc);
-    found++;
-    i++;
-  }
-  TRACE (1, "Found %d cached compilers.\n", found);
-  return (found);
-}
-
-static void put_all_cc_to_cache (void)
-{
-  int i, max = smartlist_len (all_cc);
-
-  for (i = 0; i < max; i++)
-  {
-    const compiler_info *cc = smartlist_get (all_cc, i);
-    char  format [50];
-
-    snprintf (format, sizeof(format), "compiler_exe_%d = %%d,%%d,%%d,%%s,%%s", i);
-    cache_putf (SECTION_COMPILER, format, cc->type, cc->ignore, cc->no_prefix,
-                cc->short_name, cc->full_name ? cc->full_name : "-");
-  }
-}
-
-static int get_inc_dirs_from_cache (const compiler_info *cc)
-{
-  char format [50], *inc_dir;
-  int  i = 0, found = 0;
-
-  while (1)
-  {
-    snprintf (format, sizeof(format), "compiler_inc_%d_%d = %%s", cc->type, i);
-    if (cache_getf(SECTION_COMPILER, format, &inc_dir) != 1)
-       break;
-    dir_array_add (inc_dir, FALSE);
-    found++;
-    i++;
-  }
-  TRACE (1, "Found %d cached inc-dirs for '%s'.\n", found, cc->short_name);
-  return (found);
-}
-
-static int get_lib_dirs_from_cache (const compiler_info *cc)
-{
-  char format [50], *lib_dir;
-  int  i = 0, found = 0;
-
-  while (1)
-  {
-    snprintf (format, sizeof(format), "compiler_lib_%d_%d = %%s", cc->type, i);
-    if (cache_getf(SECTION_COMPILER, format, &lib_dir) != 1)
-       break;
-    dir_array_add (lib_dir, FALSE);
-    found++;
-    i++;
-  }
-  TRACE (1, "Found %d cached lib-dirs for '%s'.\n", found, cc->short_name);
-  return (found);
-}
-
-static int put_inc_dirs_to_cache (const compiler_info *cc)
-{
-  int i, max = smartlist_len (dir_array);
-
-  for (i = 0; i < max; i++)
-  {
-    const struct directory_array *d = smartlist_get (dir_array, i);
-
-    cache_putf (SECTION_COMPILER, "compiler_inc_%d_%d = %s", cc->type, i, d->dir);
-  }
-  return (max);
-}
-
-static int put_lib_dirs_to_cache (const compiler_info *cc)
-{
-  int i, max = smartlist_len (dir_array);
-
-  for (i = 0; i < max; i++)
-  {
-    const struct directory_array *d = smartlist_get (dir_array, i);
-
-    cache_putf (SECTION_COMPILER, "compiler_lib_%d_%d = %s", cc->type, i, d->dir);
-  }
-  return (max);
-}
-
-/**
- * Having several gcc compilers installed makes it nearly impossible to
- * set `C_INCLUDE_PATH` to the desired compiler's include-dir. So Envtool
- * simply asks `*gcc.exe` for what it think is the include search-path.
- * Do that by spawning the `*gcc.exe` and parsing the include paths.
- *
- * Same goes for the `LIBRARY_PATH`.
- */
-static void check_if_cygwin (const char *path)
-{
-  static const char cyg_usr[] = "/usr/";
-  static const char cyg_drv[] = "/cygdrive/";
-
-  if (looks_like_cygwin)
-     return;
-
-  if (!memcmp(path, &cyg_usr, sizeof(cyg_usr)-1) || !memcmp(path, &cyg_drv, sizeof(cyg_drv)-1))
-  {
-    looks_like_cygwin = TRUE;
-    TRACE (2, "looks_like_cygwin = %d, cygwin_root: '%s'\n", looks_like_cygwin, cygwin_root);
-  }
-}
-
-/**
- * In case the `gcc` is a CygWin gcc, we need to figure out the root-directory.
- * Since `gcc` reports `C_INCLUDE_PATH` like `"/usr/lib/gcc/i686-w64-mingw32/6.4.0/include"`,
- * we must prefix this as `"<cygwin_root>/usr/lib/gcc/i686-w64-mingw32/6.4.0/include"`.
- *
- * Otherwise `FILE_EXISTS()` wont work for non-Cygwin targets.
- * An alternative would be to parse the `"<cygwin_root>/etc/fstab"` file!
- */
-static void setup_cygwin_root (const compiler_info *cc)
-{
-  looks_like_cygwin = FALSE;
-  cygwin_root = NULL;
-  cygwin_fqfn[0] = '\0';
-
-  if (cc->full_name && !cc->ignore)
-  {
-    char *bin_dir;
-
-    slashify2 (cygwin_fqfn, cc->full_name, '/');
-    bin_dir = strstr (cygwin_fqfn, "/bin");
-    if (bin_dir)
-    {
-      cygwin_root = STRDUP (cygwin_fqfn);
-      *strstr (cygwin_root, "/bin") = '\0';
-    }
-  }
-}
-
-static int find_include_path_cb (char *buf, int index)
-{
-  static const char start[] = "#include <...> search starts here:";
-  static const char end[]   = "End of search list.";
-  const  char *p;
-
-  if (!found_search_line && !memcmp(buf, &start, sizeof(start)-1))
-  {
-    found_search_line = TRUE;
-    return (0);
-  }
-
-  if (found_search_line)
-  {
-    p = str_ltrim (buf);
-    check_if_cygwin (p);
-
-    if (!memcmp(buf, &end, sizeof(end)-1)) /* got: "End of search list.". No more paths excepted. */
-    {
-      found_search_line = FALSE;
-      return (-1);
-    }
-
-#if defined(__CYGWIN__)
-    if (looks_like_cygwin)
-    {
-      char result [_MAX_PATH];
-      int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, p, result, sizeof(result));
-
-      if (rc == 0)
-      {
-        TRACE (2, "CygWin path detected. Converting '%s' -> '%s'\n", p, result);
-        p = _fix_drive (result);
-      }
-      /* otherwise add 'p' as-is */
-    }
-    else
-#endif
-    {
-      char buf2 [_MAX_PATH];
-
-#if !defined(__CYGWIN__)
-      if (looks_like_cygwin && cygwin_root)
-      {
-        snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, str_trim(buf));
-        p = buf2;
-      }
-      else
-#endif
-        p = _fix_path (str_trim(buf), buf2);
-    }
-
-    dir_array_add (p, !stricmp(current_dir, p));
-    TRACE (3, "line: '%s'\n", p);
-    return (1);
-  }
-
-  ARGSUSED (index);
-  return (0);
-}
-
-static int find_library_path_cb (char *buf, int index)
-{
-  static const char prefix[] = "LIBRARY_PATH=";
-  char   buf2 [_MAX_PATH];
-  char   sep[2], *p, *tok, *rc, *end;
-  int    i = 0;
-
-  if (strncmp(buf,prefix,sizeof(prefix)-1) || strlen(buf) <= sizeof(prefix))
-     return (0);
-
-  p = buf + sizeof(prefix) - 1;
-
-  check_if_cygwin (p);
-
-  sep[0] = looks_like_cygwin ? ':' : ';';
-  sep[1] = '\0';
-
-  for (i = 0, tok = strtok(p,sep); tok; tok = strtok(NULL,sep), i++)
-  {
-#if defined(__CYGWIN__)
-    if (looks_like_cygwin)
-    {
-      char result [_MAX_PATH];
-      int  rc1 = cygwin_conv_path (CCP_POSIX_TO_WIN_A, tok, result, sizeof(result));
-
-      if (rc1 == 0)
-           rc = _fix_drive (result);
-      else rc = tok;  /* otherwise add 'tok' as-is */
-    }
-    else
-#endif
-    {
-#if !defined(__CYGWIN__)
-      if (looks_like_cygwin && cygwin_root)
-      {
-        snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, tok);
-        rc = _fix_path (buf2, buf2);
-        end = rc ? strrchr (rc, '\\') : NULL;
-        if (end)
-           *end = '\0';
-      }
-      else
-#endif
-      {
-        rc = _fix_path (tok, buf2);
-        end = rc ? strrchr (rc, '\\') : NULL;
-        if (end)
-           *end = '\0';
-      }
-    }
-    dir_array_add (rc, FALSE);
-    TRACE (3, "tok %d: '%s'\n", i, rc);
-  }
-  ARGSUSED (index);
-  return (i);
-}
-
-/**
- * Print a warning on last error from a gnu `popen_run()` callback.
- */
-static void gnu_popen_warn (const char *gcc, int rc)
-{
-  const char *err = popen_last_line();
-
-  if (*err != '\0')
-     err = strstr (err, "error: ");
-
-  WARN ("Calling %s returned %d.\n", cygwin_fqfn[0] ? cygwin_fqfn : gcc, rc);
-  if (err && !opt.quiet)
-     C_printf (":\n  %s.\n", err);
-}
-
-/**
- * The include-directory for C++ headers is not reported in the
- * `find_include_path_cb()` callback.
- *
- * Insert a `x/c++` to the list where a `c++` subdirectory is found.
- */
-static void gnu_add_gpp_path (void)
-{
-  struct directory_array *d;
-  int    i, j, max = smartlist_len (dir_array);
-  char   fqfn [_MAX_PATH];
-
-  for (i = 0; i < max; i++)
-  {
-    d = smartlist_get (dir_array, i);
-    snprintf (fqfn, sizeof(fqfn), "%s%c%s", d->dir, DIR_SEP, "c++");
-    if (is_directory(fqfn))
-    {
-      /* This will be added at `dir_array[max+1]`.
-       */
-      dir_array_add (fqfn, 0);
-
-#if 0
-      /* Insert the new `c++` directory at the `i`-th element.
-       */
-      j = smartlist_len (dir_array) - 1;
-      d = smartlist_get (dir_array, j);
-      smartlist_insert (dir_array, i, d);
-#else
-      ARGSUSED (j);
-#endif
-      break;
-    }
-  }
-}
-
-#if defined(__CYGWIN__)
-  #define CLANG_DUMP_FMT  "-v -dM -xc -c - < /dev/null 2>&1"
-  #define INTEL_DUMP_FMT  "-Tc -v -dM -xc -c - < /dev/null 2>&1"
-  #define GCC_DUMP_FMT    "%s%s -v -dM -xc -c - < /dev/null 2>&1"
-
-#else
-  #define CLANG_DUMP_FMT  "-o NUL -v -dM -xc -c - < NUL 2>&1"
-  #define INTEL_DUMP_FMT   "-Tc -o NUL -v -dM -xc -c - < NUL 2>&1"
-  #define GCC_DUMP_FMT    "%s%s -o NUL -v -dM -xc -c - < NUL 2>&1"
-#endif
-
-static int setup_gcc_includes (const compiler_info *cc)
-{
-  const char *gcc = cc->full_name;
-  const char *save_temps = "";
-  int   duplicates, found = 0;
-
-  if (!gcc)
-  {
-    TRACE (1, "'gcc == NULL'!\n");
-    return (0);
-  }
-
-  dir_array_free();
-
-  /* We want the output of stderr only. But that seems impossible on CMD/4NT.
-   * Hence redirect stderr + stdout into the same pipe for us to read.
-   * Also assume that the `*gcc` is on PATH.
-   */
-  found_search_line = FALSE;
-
-  setup_cygwin_root (cc);
-
-  /* Figure out why Cygwin refuses to return it's 'include paths'
-   */
-  if (opt.debug >= 1 && !strnicmp(gcc+2, "\\Cygwin", 7))
-     save_temps = " -save-temps";
-
-  found = get_inc_dirs_from_cache (cc);
-
-  if (found == 0)
-     found = popen_run (find_include_path_cb, gcc, GCC_DUMP_FMT, save_temps, "");
-
-  if (found > 0)
-  {
-    TRACE (1, "found %d include paths for %s.\n", found, gcc);
-    if (cc->type == CC_GNU_GXX)
-       gnu_add_gpp_path();
-  }
-  else
-    gnu_popen_warn (gcc, found);
-
-  duplicates = dir_array_make_unique ("C_INCLUDE_PATH");
-  if (duplicates > 0)
-     TRACE (1, "found %d duplicates in `%%C_INCLUDE_PATH%%` for %s.\n", duplicates, gcc);
-
-  return put_inc_dirs_to_cache (cc);
-}
-
-static int setup_gcc_library_path (const compiler_info *cc, BOOL warn)
-{
-  const char *m_cpu, *gcc = cc->full_name;
-  int   found, duplicates;
-
-  if (!gcc)
-  {
-    TRACE (1, "'gcc == NULL'!\n");
-    return (0);
-  }
-
-  dir_array_free();
-
-  /* Tell `*gcc.exe` to return 32 or 64-bot or both types of libs.
-   * (assuming it supports the `-m32/-m64` switches.
-   */
-  if (opt.only_32bit)
-       m_cpu = " -m32";
-  else if (opt.only_64bit)
-       m_cpu = " -m64";
-  else m_cpu = "";
-
-  /* We want the output of stderr only. But that seems impossible on CMD/4NT.
-   * Hence redirect stderr + stdout into the same pipe for us to read.
-   * Also assume that the `*gcc` is on PATH.
-   */
-  found_search_line = FALSE;
-
-  setup_cygwin_root (cc);
-
-  found = get_lib_dirs_from_cache (cc);
-
-  if (found == 0)
-     found = popen_run (find_library_path_cb, gcc, GCC_DUMP_FMT, m_cpu, "");
-  if (found <= 0)
-  {
-    if (warn)
-       gnu_popen_warn (gcc, found);
-    return (found);
-  }
-
-  TRACE (1, "found %d library paths for %s.\n", found, gcc);
-
-#if defined(__CYGWIN__)
-  /*
-   * The Windows-API lib-dir isn't among the defaults. Just add it
-   * at the end of list anyway. In case it was already reported, we'll
-   * remove it below.
-   */
-  if (looks_like_cygwin)
-  {
-    char result [_MAX_PATH];
-    int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, "/usr/lib/w32api", result, sizeof(result));
-
-    if (rc == 0)
-       dir_array_add (result, FALSE);
-  }
-#endif
-
-  duplicates = dir_array_make_unique ("library paths");
-  if (duplicates > 0)
-     TRACE (1, "found %d duplicates in library paths for %s.\n", duplicates, gcc);
-
-  return put_lib_dirs_to_cache (cc);
-}
-
-/**
- * Check library-paths found in setup_gcc_library_path(). <br>
- * Check include-paths found in setup_gcc_includes().
- */
-static int process_gcc_dirs (const char *gcc, int *num_dirs)
-{
-  int i, found, max = smartlist_len (dir_array);
-
-  for (i = found = 0; i < max; i++)
-  {
-    const struct directory_array *arr = smartlist_get (dir_array, i);
-    char  dir [_MAX_PATH];
-
-    _fix_path (arr->dir, dir);
-    TRACE (2, "dir: %s\n", dir);
-    found += process_dir (dir, arr->num_dup, arr->exist, arr->check_empty,
-                          arr->is_dir, arr->exp_ok, gcc, HKEY_INC_LIB_FILE, FALSE);
-  }
-  *num_dirs = max;
-  dir_array_free();
-  return (found);
-}
-
-/**
- * Add all supported GNU gcc/g++ compilers to the `all_cc` smartlist.
- * But only add the first `"*gcc.exe"` / `"*g++.exe"` found on `PATH`.
- *
- * The first pair added has no prefix (simply `"gcc.exe"` / `"g++.exe"`).
- * The others pairs use the prefixes in `gnu_prefixes[]`.
- */
-static void add_gnu_compilers (void)
-{
-  size_t i;
-
-  for (i = 0; i < DIM(gnu_prefixes); i++)
-  {
-    compiler_info cc;
-    char short_name[30];
-
-    snprintf (short_name, sizeof(short_name)-1, "%sgcc.exe", gnu_prefixes[i]);
-    cc.no_prefix  = (i > 0 && opt.gcc_no_prefixed);
-    cc.type       = CC_GNU_GCC;
-    cc.short_name = short_name;
-    cc.full_name  = searchpath (short_name, "PATH");
-    add_compiler (&cc);
-
-    snprintf (short_name, sizeof(short_name)-1, "%sg++.exe", gnu_prefixes[i]);
-    cc.no_prefix  = (i > 0 && opt.gcc_no_prefixed);
-    cc.type       = CC_GNU_GXX;
-    cc.short_name = short_name;
-    cc.full_name  = searchpath (short_name, "PATH");
-    add_compiler (&cc);
-  }
-}
-
-/**
- * Simple; only add the first `cl.exe` found on `PATH`.
- * \todo
- *   do as with `envtool --path cl.exe` does and add all `cl.exe` found
- *   on PATH to the list.
- */
-static void add_msvc_compilers (void)
-{
-  compiler_info cl;
-
-  cl.type       = CC_MSVC;
-  cl.short_name = "cl.exe";
-  cl.full_name  = searchpath (cl.short_name, "PATH");
-  add_compiler (&cl);
-}
-
-/**
- * Search and add supported clang compilers to the `all_cc` smartlist.
- */
-static void add_clang_cl_compilers (void)
-{
-  compiler_info clang;
-
-  clang.type       = CC_CLANG_CL;
-  clang.short_name = "clang.exe";
-  clang.full_name  = searchpath (clang.short_name, "PATH");
-  add_compiler (&clang);
-
-  clang.short_name = "clang-cl.exe";
-  clang.full_name  = searchpath (clang.short_name, "PATH");
-  add_compiler (&clang);
-}
-
-/**
- * Search and add supported Intel compilers to the `all_cc` smartlist.
- */
-static void add_intel_compilers (void)
-{
-  compiler_info intel;
-
-  intel.type       = CC_INTEL;
-  intel.short_name = "icx.exe";
-  intel.full_name  = searchpath (intel.short_name, "PATH");
-  add_compiler (&intel);
-
-  intel.short_name = "dpcpp.exe";
-  intel.full_name  = searchpath (intel.short_name, "PATH");
-  add_compiler (&intel);
-}
-
-/**
- * Search and add supported Borland compilers to the `all_cc` smartlist.
- */
-static void add_borland_compilers (void)
-{
-  compiler_info bcc;
-
-  bcc.type       = CC_BORLAND;
-  bcc.short_name = "bcc32.exe";
-  bcc.full_name  = searchpath (bcc.short_name, "PATH");
-  add_compiler (&bcc);
-
-  bcc.short_name = "bcc32c.exe";
-  bcc.full_name  = searchpath (bcc.short_name, "PATH");
-  add_compiler (&bcc);
-}
-
-/**
- * Search and add supported Watcom compilers to the `all_cc` smartlist.
- */
-static void add_watcom_compilers (void)
-{
-  static const char *wcc[] = {
-                    "wcc386.exe",
-                    "wpp386.exe",
-#if 0
-                    /* x86 16-bit C/C++ compilers
-                     */
-                    "wcc.exe",
-                    "wpp.exe",
-
-                    /* MIPS / PowerPC, C compilers
-                     */
-                    "wccmps.exe",
-                    "wccppc.exe",
-#endif
-                    /* Museum stuff; Alpha AXP, C/C++ compilers
-                     */
-                    "wccaxp.exe",
-                    "wppaxp.exe"
-                  };
-  int i;
-
-  for (i = 0; i < DIM(wcc); i++)
-  {
-    compiler_info wc;
-
-    wc.type       = CC_WATCOM;
-    wc.short_name = (char*) wcc[i];
-    wc.full_name  = searchpath (wc.short_name, "PATH");
-    add_compiler (&wc);
-  }
-}
-
-/**
- * This is used to find the longest `cc->short_name`. For aligning the 1st column
- * (e.g. `"cl.exe"`) to fit the compiler with the longest `cc->short_name`.
- * I.e. `"x86_64-w64-mingw32-gcc.exe"`.
- */
-static size_t get_longest_short_name (void)
-{
-  int    i, max = smartlist_len (all_cc);
-  size_t longest = 0;
-
-  for (i = 0; i < max; i++)
-  {
-    const  compiler_info *cc = smartlist_get (all_cc, i);
-    size_t len = strlen (cc->short_name);
-
-    if (!cc->ignore && len > longest)
-       longest = len;
-  }
-  return (longest);
-}
-
-/**
- * Print the internal `"*gcc"` or `"*g++"` `LIBRARY_PATH` returned from
- * `setup_gcc_library_path()`.
- * I.e. only the directories \b not in `%LIBRARY_PATH%`.
- *
- * If we have no `%LIBRARY_PATH%`, the `copy[]` will contain only internal
- * directories.
- */
-static void print_gcc_internal_dirs (const char *env_name, const char *env_value)
-{
-  struct directory_array *arr;
-  smartlist_t            *list;
-  char                  **copy;
-  char                    slash = (opt.show_unix_paths ? '/' : '\\');
-  int                     i, j, max;
-  static BOOL done_note = FALSE;
-
-  max = smartlist_len (dir_array);
-  if (max == 0)
-     return;
-
-  copy = alloca ((max+1) * sizeof(char*));
-  for (i = 0; i < max; i++)
-  {
-    arr = smartlist_get (dir_array, i);
-    copy[i] = STRDUP (arr->dir);
-    slashify2 (copy[i], copy[i], slash);
-  }
-  copy[i] = NULL;
-  TRACE (3, "Made a 'copy[]' of %d directories.\n", max);
-
-  dir_array_free();
-
-  list = split_env_var (env_name, env_value);
-  max  = list ? smartlist_len (list) : 0;
-  TRACE (3, "smartlist for '%s' have %d entries.\n", env_name, max);
-
-  for (i = 0; copy[i]; i++)
-  {
-    BOOL  found = FALSE;
-    const char *dir;
-
-    for (j = 0; j < max; j++)
-    {
-      arr = smartlist_get (list, j);
-      dir = slashify2 (arr->dir, arr->dir, slash);
-      if (!stricmp(dir, copy[i]))
-      {
-        found = TRUE;
-        break;
-      }
-    }
-    if (!found)
-    {
-      C_printf ("%*s%s %s\n", (int)(longest_cc+8), "", copy[i], done_note ? "" : "~3(1)~0");
-      done_note = TRUE;
-    }
-  }
-
-  for (i = 0; copy[i]; i++)
-      FREE (copy[i]);
-  dir_array_free();
-}
-
-/**
- * Called during `envtool -VV` to print:
- * ```
- *  Compilers on PATH:
- *    gcc.exe                    -> f:\MingW32\TDM-gcc\bin\gcc.exe
- *    ...
- * ```
- *
- * `envtool -VVV (print_lib_path = TRUE)` will print the internal
- * `*gcc` or `*g++` library paths too.
- */
-static int print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
-{
-  BOOL   is_gnu;
-  int    rc = 0;
-  size_t len = strlen (cc->short_name);
-
-  C_printf ("    %s%*s -> ", cc->short_name, (int)(longest_cc-len), "");
-  if (cc->full_name)
-       C_printf ("~6%s~0\n", cc->full_name);
-  else C_printf ("~5Not found~0\n");
-
-  if (!cc->full_name || cc->ignore || !print_lib_path)
-     return (rc);
-
-  is_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GXX);
-  if (is_gnu && setup_gcc_library_path(cc,FALSE) > 0)
-  {
-    char *env = getenv_expand ("LIBRARY_PATH");
-
-    print_gcc_internal_dirs ("LIBRARY_PATH", env);
-    FREE (env);
-    rc = 1;
-  }
-  FREE (cygwin_root);
-  return (rc);
-}
-
-/**
- * Return TRUE if we shall ignore all gnu-type compilers.
- */
-static BOOL ignore_all_gnus (compiler_type type)
-{
-  int i, num_gnu = 0, gnu_ignore = 0;
-  int max = smartlist_len (all_cc);
-
-  for (i = 0; i < max; i++)
-  {
-    const compiler_info *cc = smartlist_get (all_cc, i);
-
-    if (cc->type != type)
-       continue;
-
-     num_gnu++;
-     if (cc->ignore)
-        gnu_ignore++;
-  }
-  return (gnu_ignore >= num_gnu);
-}
-
-/**
- * Return TRUE if we shall ignore all clang compilers
- * (can only be 2).
- */
-static BOOL ignore_all_clangs (compiler_type type)
-{
-  int i, num_clang = 0, clang_ignore = 0;
-  int max = smartlist_len (all_cc);
-
-  for (i = 0; i < max; i++)
-  {
-    const compiler_info *cc = smartlist_get (all_cc, i);
-
-    if (cc->type != type)
-       continue;
-
-     num_clang++;
-     if (cc->ignore)
-        clang_ignore++;
-  }
-  return (clang_ignore >= num_clang);
-}
-
-/**
- * In `--lib` or `--inc` mode, search the `PATH` for all supported compilers.
- *
- * \param[in] print_info      If called from `show_version()`, print additional
- *                            information on each compiler (unless it is in the ignore-list).
- * \param[in] print_lib_path  If called from `show_version()` and `envtool -VVV` was used,
- *                            print the internal GCC library paths too.
- */
-static void search_and_add_all_cc (BOOL print_info, BOOL print_lib_path)
-{
-  struct compiler_info *cc;
-  BOOL   at_least_one_gnu = FALSE;
-  int    i, max, ignored, num_gxx;
-  int    save_u;
-
-  ASSERT (all_cc == NULL);
-  all_cc = smartlist_new();
-
-  save_u = opt.show_unix_paths;
-  if (!print_info)
-     opt.show_unix_paths = 0;
-
-  max = get_all_cc_from_cache();
-  if (max == 0)
-  {
-    add_gnu_compilers();
-    add_msvc_compilers();
-    add_clang_cl_compilers();
-    add_intel_compilers();
-    add_borland_compilers();
-    add_watcom_compilers();
-  }
-
-  opt.show_unix_paths = save_u;
-
-  max = smartlist_len (all_cc);
-  for (i = 0; i < max; i++)
-      compiler_check_ignore (smartlist_get(all_cc, i));
-
-  longest_cc = get_longest_short_name();
-
-  ignore_all_gcc   = ignore_all_gnus (CC_GNU_GCC);
-  ignore_all_gpp   = ignore_all_gnus (CC_GNU_GXX);
-  ignore_all_clang = ignore_all_clangs (CC_CLANG_CL);
-
-  TRACE (1, "ignore_all_gcc: %d, ignore_all_gpp: %d.\n", ignore_all_gcc, ignore_all_gpp);
-
-  put_all_cc_to_cache();
-
-  if (!print_info)
-     return;
-
-  /* Count the # of compilers that were ignored.
-   * And print some info if it wasn't ignored.
-   */
-  for (i = ignored = num_gxx = 0; i < max; i++)
-  {
-    cc = smartlist_get (all_cc, i);
-    if (cc->ignore)
-         ignored++;
-    else num_gxx += print_compiler_info (cc, print_lib_path);
-
-    if (!at_least_one_gnu)
-       at_least_one_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GXX);
-  }
-
-  /* Print the footnote only if at least 1 'gcc*' / 'g++*' was actually found on PATH.
-   */
-  if (print_lib_path && at_least_one_gnu && num_gxx > 0)
-     C_puts ("    ~3(1)~0: internal GCC library paths.\n");
-
-  if (ignored == 0)
-     return;
-
-  /* Show the ignored ones
-   */
-  C_puts ("\n    Ignored:\n");
-  for (i = 0; i < max; i++)
-  {
-    cc = smartlist_get (all_cc, i);
-    if (cc->ignore)
-       C_printf ("      %s%s\n",
-                 cc->full_name ? cc->full_name : cc->short_name,
-                 cc->full_name == NULL ? "  ~5Not found~0" : "");
-  }
-}
-
-/**
- * Common to both gcc/g++ checking of include-dirs.
- */
-static int check_gnu_includes (compiler_type type, int *num_dirs)
-{
-  int   i, max, found;
-  const compiler_info *cc;
-  const char          *env;
-
-  *num_dirs = 0;
-  max = smartlist_len (all_cc);
-
-  for (i = found = 0; i < max; i++)
-  {
-    cc = smartlist_get (all_cc, i);
-    if (cc->type == type && !cc->ignore && setup_gcc_includes(cc) > 0)
-    {
-      env = (cc->type == CC_GNU_GCC) ? "%C_INCLUDE_PATH%" : "%CPLUS_INCLUDE_PATH%";
-      report_header_set ("Matches in %s %s path:\n", cc->full_name, env);
-      found += process_gcc_dirs (cc->short_name, num_dirs);
-    }
-    FREE (cygwin_root);
-  }
-  return (found);
-}
-
-static int do_check_gcc_includes (void)
-{
-  int num_dirs;
-  int found = check_gnu_includes (CC_GNU_GCC, &num_dirs);
-
-  if (num_dirs == 0 && !ignore_all_gcc)  /* Hardly possible unless we ignore all `*gcc` */
-     WARN ("No gcc.exe programs returned any include paths.\n");
-  return (found);
-}
-
-static int do_check_gpp_includes (void)
-{
-  int num_dirs;
-  int found = check_gnu_includes (CC_GNU_GXX, &num_dirs);
-
-  if (num_dirs == 0 && !ignore_all_gpp)  /* Impossible unless we ignore all `*g++.exe` */
-     WARN ("No g++.exe programs returned any include paths.\n");
-  return (found);
-}
-
-static int do_check_gcc_library_paths (void)
-{
-  int   found = 0;
-  int   num_dirs = 0;
-  int   i, max;
-  BOOL  is_gnu;
-  const compiler_info *cc;
-  const char          *gcc;
-
-  max = smartlist_len (all_cc);
-
-  for (i = 0; i < max; i++)
-  {
-    cc     = smartlist_get (all_cc, i);
-    is_gnu = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GXX);
-    if (is_gnu && !cc->ignore && setup_gcc_library_path(cc,TRUE) > 0)
-    {
-      gcc = cc->short_name;
-      report_header_set ("Matches in %s %%LIBRARY_PATH%% path:\n", cc->full_name);
-      found += process_gcc_dirs (gcc, &num_dirs);
-    }
-    FREE (cygwin_root);
-  }
-
-  if (num_dirs == 0 && !ignore_all_gcc)  /* Impossible unless we ignore all `*gcc` */
-     WARN ("No gcc.exe programs returned any LIBRARY_PATH paths!?.\n");
-
-  return (found);
-}
-
-/*
- * Check along clang directories
- */
-static int process_clang_dirs (const char *cc, int *num_dirs)
-{
-  int i, found, max = smartlist_len (dir_array);
-
-  for (i = found = 0; i < max; i++)
-  {
-    const struct directory_array *arr = smartlist_get (dir_array, i);
-
-    TRACE (2, "dir: %s\n", arr->dir);
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
-                          arr->is_dir, arr->exp_ok, cc, HKEY_INC_LIB_FILE, FALSE);
-  }
-  *num_dirs = max;
-  dir_array_free();
-  return (found);
-}
-
-static void clang_popen_warn (const compiler_info *cc, int rc)
-{
-  const char *err = popen_last_line();
-
-  if (*err != '\0')
-     err = strstr (err, "error: ");
-
-  WARN ("Calling %s returned %d.\n", cc->full_name, rc);
-  if (err && !opt.quiet)
-     C_printf (":\n  %s.\n", err);
-}
-
-static int setup_clang_includes (const compiler_info *cc)
-{
-  const char *clang = cc->full_name;
-  int found = 0;
-
-  dir_array_free();
-
-  found = get_inc_dirs_from_cache (cc);
-  if (found == 0)
-  {
-    /* We want the output of stderr only. But that seems impossible on CMD/4NT.
-     * Hence redirect stderr + stdout into the same pipe for us to read.
-     * Also assume that the `*gcc` is on PATH.
-     */
-    found_search_line = FALSE;
-
-    found = popen_run (find_include_path_cb, clang, CLANG_DUMP_FMT);
-    if (found > 0)
-         TRACE (1, "found %d include paths for %s.\n", found, clang);
-    else clang_popen_warn (cc, found);
-  }
-  return put_inc_dirs_to_cache (cc);
-}
-
-static int find_clang_library_path_cb (char *buf, int index)
-{
-  static const char prefix[] = "libraries: =";
-  char  *p, *tok;
-  int    i = 0;
-
-  if (strncmp(buf,prefix,sizeof(prefix)-1) || strlen(buf) <= sizeof(prefix))
-     return (0);
-
-  p = buf + sizeof(prefix) - 1;
-
-  for (i = 0, tok = strtok(p, ";"); tok; tok = strtok(NULL, ";"), i++)
-  {
-    char buf1 [_MAX_PATH];
-    char buf2 [_MAX_PATH];
-
-    _strlcpy (buf1, tok, sizeof(buf1));
-    _strlcpy (buf2, buf1, sizeof(buf2));
-
-    str_cat (buf1, sizeof(buf1), "\\lib\\windows");
-    str_cat (buf2, sizeof(buf2), "\\..\\..");
-
-    _fix_path (buf1, buf1);
-    _fix_path (buf2, buf2);
-
-    TRACE (2, "buf1: '%s'\n", buf1);
-    dir_array_add (buf1, FALSE);
-
-    TRACE (2, "buf2: '%s'\n", buf2);
-    dir_array_add (buf2, FALSE);
-  }
-  ARGSUSED (index);
-  return (2*i);
-}
-
-static int setup_clang_library_path (const compiler_info *cc)
-{
-  int found;
-
-  dir_array_free();
-
-  /* We want the output of stderr only. But that seems impossible on CMD/4NT.
-   * Hence redirect stderr + stdout into the same pipe for us to read.
-   * Also assume that the `*gcc` is on PATH.
-   */
-  found_search_line = FALSE;
-
-  found = get_lib_dirs_from_cache (cc);
-
-  if (found == 0)
-     found = popen_run (find_clang_library_path_cb, cc->full_name, "-print-search-dirs");
-  if (found > 0)
-       TRACE (1, "found %d library paths for %s.\n", found, cc->full_name);
-  else clang_popen_warn (cc, found);
-
-  return put_lib_dirs_to_cache (cc);
-}
-
-/**
- * Checking of clang include-dirs.
- */
-static int do_check_clang_includes (void)
-{
-  int  i, found, num_dirs = 0;
-  int  max = smartlist_len (all_cc);
-
-  for (i = found = 0; i < max; i++)
-  {
-    const compiler_info *cc = smartlist_get (all_cc, i);
-
-    if (cc->type == CC_CLANG_CL && !cc->ignore &&
-        !stricmp("clang.exe", cc->short_name)  &&   /* Do it for clang.exe only */
-        setup_clang_includes(cc) > 0)
-    {
-      report_header_set ("Matches in %s %%INCLUDE%% path:\n", cc->full_name);
-      found += process_clang_dirs (cc->short_name, &num_dirs);
-    }
-    FREE (cygwin_root);
-  }
-
-  if (num_dirs == 0 && !ignore_all_clang)  /* Impossible unless we ignore all `clang*.exe` */
-     WARN ("No clang.exe programs returned any include paths.\n");
-  return (found);
-}
-
-/**
- * Checking of special clang library-dirs.
- */
-static int do_check_clang_library_paths (void)
-{
-  int  i, found, num_dirs = 0;
-  int  max = smartlist_len (all_cc);
-
-  for (i = found = 0; i < max; i++)
-  {
-    const compiler_info *cc = smartlist_get (all_cc, i);
-
-    if (cc->type == CC_CLANG_CL && !cc->ignore &&
-        !stricmp("clang.exe", cc->short_name)  &&   /* Do it for clang.exe only */
-        setup_clang_library_path(cc) > 0)
-    {
-      report_header_set ("Matches in %s %%LIB%% path:\n", cc->full_name);
-      found += process_clang_dirs (cc->short_name, &num_dirs);
-    }
-    FREE (cygwin_root);
-  }
-
-  if (num_dirs == 0)
-     WARN ("\nNo clang.exe programs returned any library paths.\n");
-  return (found);
-}
-
-/*
- * Check along Intel directories
- */
-static int process_intel_dirs (const char *cc, int *num_dirs)
-{
-  int i, found, max = smartlist_len (dir_array);
-
-  for (i = found = 0; i < max; i++)
-  {
-    const struct directory_array *arr = smartlist_get (dir_array, i);
-
-    TRACE (2, "dir: %s\n", arr->dir);
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
-                          arr->is_dir, arr->exp_ok, cc, HKEY_INC_LIB_FILE, FALSE);
-  }
-  *num_dirs = max;
-  dir_array_free();
-  return (found);
-}
-
-static int setup_intel_includes (const compiler_info *cc)
-{
-  const char *intel = cc->full_name;
-  int found = 0;
-
-  dir_array_free();
-
-  found = get_inc_dirs_from_cache (cc);
-  if (found == 0)
-  {
-    /* We want the output of stderr only. But that seems impossible on CMD/4NT.
-     * Hence redirect stderr + stdout into the same pipe for us to read.
-     * Also assume that the `*gcc` is on PATH.
-     */
-    found_search_line = FALSE;
-
-    found = popen_run (find_include_path_cb, intel, INTEL_DUMP_FMT);
-    if (found > 0)
-         TRACE (1, "found %d include paths for %s.\n", found, intel);
-    else clang_popen_warn (cc, found);
-  }
-  return put_inc_dirs_to_cache (cc);
-}
-
-
-/**
- * Checking of Intel include-dirs.
- */
-static int do_check_intel_includes (void)
-{
-  int  i, found, num_dirs = 0;
-  int  max = smartlist_len (all_cc);
-
-  for (i = found = 0; i < max; i++)
-  {
-    const compiler_info *cc = smartlist_get (all_cc, i);
-
-    if (cc->type == CC_INTEL && !cc->ignore &&
-        !stricmp("icx.exe", cc->short_name)
-     // &&   /* Do it for icx.exe only */
-     // setup_intel_includes(cc) > 0
-        )
-    {
-      report_header_set ("Matches in %s %%INCLUDE%% path:\n", cc->full_name);
-      found += process_intel_dirs (cc->short_name, &num_dirs);
-    }
-    FREE (cygwin_root);
-  }
-
-  if (num_dirs == 0)
-     WARN ("icx.exe returned no include paths.\n");
-  return (found);
-}
-
-
-/**
- * Common stuff for Watcom checking.
- */
-static int setup_watcom_dirs (const char *dir0, const char *dir1, const char *dir2)
-{
-  const compiler_info *cc;
-  int   i, found, ignored, max;
-  BOOL  dir2_found;
-
-  max = smartlist_len (all_cc);
-  for (i = found = ignored = 0; i < max; i++)
-  {
-    cc = smartlist_get (all_cc, i);
-    if (!cc->full_name || cc->type != CC_WATCOM)
-       continue;
-
-    found++;
-    if (cc->ignore)
-       ignored++;
-  }
-
-  if (found == 0)
-  {
-    TRACE (1, "No Watcom compilers found.\n");
-    return (0);
-  }
-
-  if (ignored >= found)
-  {
-    TRACE (1, "All Watcom compilers were ignored.\n");
-    return (0);
-  }
-
-  if (!getenv("WATCOM"))
-  {
-    TRACE (1, "%%WATCOM%% not defined.\n");
-    return (0);
-  }
-
-  if (!opt.no_cwd)
-     dir_array_add (current_dir, 1);
-
-  watcom_dir[0] = getenv_expand (dir0);
-  watcom_dir[1] = getenv_expand (dir1);
-  watcom_dir[2] = getenv_expand (dir2);
-
-  /* This directory exist only on newer Watcom distos.
-   * Like "%WATCOM%\\lh" for Linux headers.
-   */
-  dir2_found = is_directory (watcom_dir[2]);
-
-  dir_array_add (watcom_dir[0], 0);
-  dir_array_add (watcom_dir[1], 0);
-  if (dir2_found)
-     dir_array_add (watcom_dir[2], 0);
-
-  return (1);
-}
-
-static void free_watcom_dirs (void)
-{
-  FREE (watcom_dir[0]);
-  FREE (watcom_dir[1]);
-  FREE (watcom_dir[2]);
-  FREE (watcom_dir[3]);
-}
-
-/**
- * Check in Watcom's include-directories:
- * \code
- *   %WATCOM%\h
- *   %WATCOM%\nt
- *   %WATCOM%\lh    (Linux headers in recent OpenWatcom)
- * \endcode
- *
- * And full path given by `%NT_INCLUDE%`.
- *
- * \note We do not spawn `"wcc*.exe"` to ask for it's internal include-directory
- *   (as we do for `"gcc*"`). Simply search along the above directories.
- *   Does not searches `"%INCLUDE%"`.
- */
-static int do_check_watcom_includes (void)
-{
-  int i, max, save, found = 0;
-
-  watcom_dir[3] = getenv_expand ("%NT_INCLUDE%");
-
-  if (!watcom_dir[3])
-       TRACE (1, "Env-var %s not defined.\n", "%NT_INCLUDE%");
-  else split_env_var ("%NT_INCLUDE%", watcom_dir[3]);
-
-  /* This will append to what was inserted in `dir_array` above.
-   * Do not add `".\\"` again (set `opt.no_cwd` to 1).
-   */
-  save = opt.no_cwd;
-  opt.no_cwd = 1;
-  if (!setup_watcom_dirs("%WATCOM%\\h", "%WATCOM%\\h\\nt", "%WATCOM%\\lh"))
-     goto quit;
-
-  /* The above adding of `"%NT_INCLUDE"` will probably create duplicate
-   * entries. Remove them.
-   */
-  dir_array_make_unique ("%NT_INCLUDE%");
-
-  report_header_set ("Matches in %%NT_INCLUDE:\n");
-
-  max = smartlist_len (dir_array);
-  for (i = 0; i < max; i++)
-  {
-    struct directory_array *arr = smartlist_get (dir_array, i);
-
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, TRUE,
-                          arr->is_dir, arr->exp_ok, "WATCOM", HKEY_INC_LIB_FILE, FALSE);
-  }
-
-quit:
-  opt.no_cwd = save;
-  free_watcom_dirs();
-  dir_array_free();
-  return (found);
-}
-
-/**
- * Check in Watcom's library-directories:
- * \code
- *   %WATCOM%\lib386
- *   %WATCOM%\lib386\nt
- *   %WATCOM%\lib386\linux    (Linux libs in recent OpenWatcom)
- * \endcode
- */
-static int do_check_watcom_library_paths (void)
-{
-  int i, max, found;
-
-  if (!setup_watcom_dirs("%WATCOM%\\lib386", "%WATCOM%\\lib386\\nt", "%WATCOM%\\lib386\\linux"))
-     return (0);
-
-  report_header_set ("Matches in %%WATCOM libraries:\n");
-
-  max = smartlist_len (dir_array);
-  for (i = found = 0; i < max; i++)
-  {
-    struct directory_array *arr = smartlist_get (dir_array, i);
-
-    found += process_dir (arr->dir, arr->num_dup, arr->exist, TRUE,
-                          arr->is_dir, arr->exp_ok, "WATCOM", HKEY_INC_LIB_FILE, FALSE);
-  }
-  dir_array_dump ("Watcom libs", "");
-  free_watcom_dirs();
-  dir_array_free();
-  return (found);
-}
-
-/**
- * Common stuff for Borland checking.
- */
-static char *bcc_root = NULL;
-
-typedef void (*bcc_parser_func) (smartlist_t *sl, char *line);
-
-/**
- * Check in Borland's include-directories which are given by the format in
- * `<bcc_root>\bcc32c.cfg`:
- * ```
- *  -isystem @\..\include\dinkumware64
- *  -isystem @\..\include\windows\crtl
- * ```
- *
- * Or the older format in `<bcc_root>\bcc32.cfg`:
- * ```
- *  -I<inc_path1>;<inc_path2>...
- * ```
- */
-static void bcc32_cfg_parse_inc (smartlist_t *sl, char *line)
-{
-  const char *isystem = "-isystem @\\..\\";
-
-  line = str_strip_nl (str_ltrim(line));
-  TRACE (2, "line: %s.\n", line);
-
-  if (!strnicmp(line, isystem, strlen(isystem)))
-  {
-    char dir [MAX_PATH];
-
-    snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(isystem));
-    TRACE (2, "dir: %s.\n", dir);
-    dir_array_add (dir, FALSE);
-  }
-  else if (!strncmp(line, "-I", 2))
-  {
-    split_env_var ("Borland INC", str_ltrim(line+2));
-  }
-  ARGSUSED (sl);
-}
-
-/**
- * Check in Borland's library-directories which are given by the format in
- * `<bcc_root>\bcc32c.cfg`:
- * ```
- *   -L@\..\lib\win32c\debug
- *   -L@\..\lib\win32c\release
- * ```
- *
- * Or the older format in `<bcc_root>\bcc32.cfg`:
- * ```
- *  -L<lib_path1>;<lib_path2>...
- * ```
- */
-static void bcc32_cfg_parse_lib (smartlist_t *sl, char *line)
-{
-  const char *Ldir = "-L@\\..\\";
-
-  line = str_strip_nl (str_ltrim(line));
-  TRACE (2, "line: %s.\n", line);
-
-  if (!strnicmp(line, Ldir, strlen(Ldir)))
-  {
-    char dir [MAX_PATH];
-
-    snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, line + strlen(Ldir));
-    TRACE (2, "dir: %s.\n", dir);
-    dir_array_add (dir, FALSE);
-  }
-  else if (!strncmp(line, "-L", 2))
-  {
-    split_env_var ("Borland LIB", str_ltrim(line+2));
-  }
-  ARGSUSED (sl);
-}
-
-/**
- * Setup Borland directories for either a INC or LIB search.
- */
-static BOOL setup_borland_dirs (const compiler_info *cc, bcc_parser_func parser)
-{
-  smartlist_t *dir_list;
-  char        *bin_dir;
-
-  bcc_root = strlwr (STRDUP(cc->full_name));
-  bin_dir = strrchr (bcc_root, '\\');
-  if (bin_dir)
-     *bin_dir = '\0';
-
-  bin_dir = strrchr (bcc_root, '\\');
-  if (bin_dir)
-     *bin_dir = '\0';
-
-  TRACE (2, "bcc_root: %s, short_name: %s\n", bcc_root, cc->short_name);
-
-  /* The `bcc*.cfg` filename:
-   *   <bcc_root>\bccX.exe -> <bcc_root>\bccX.cfg
-   */
-  dir_list = smartlist_read_file ((smartlist_parse_func)parser,
-                                  "%s\\bin\\%.*s.cfg",
-                                  bcc_root, strrchr(cc->short_name, '.') - cc->short_name,
-                                  cc->short_name);
-  if (!dir_list)
-  {
-    FREE (bcc_root);
-    return (FALSE);
-  }
-  smartlist_free (dir_list);  /* No need for this */
-  return (TRUE);
-}
-
-static int do_check_borland_inc_lib (const char *inc_lib, const char *matches, bcc_parser_func parser)
-{
-  int   ignored, bcc_found, found = 0;
-  int   i, j, max_i, max_j;
-  const compiler_info *cc;
-
-  max_i = smartlist_len (all_cc);
-
-  for (i = bcc_found = ignored = 0; i < max_i; i++)
-  {
-    cc = smartlist_get (all_cc, i);
-    if (!cc->full_name || cc->type != CC_BORLAND)
-       continue;
-
-    bcc_found++;
-    if (cc->ignore)
-       ignored++;
-
-    if (!cc->ignore && setup_borland_dirs(cc, parser))
-    {
-      report_header_set (matches, cc->full_name);
-
-      max_j = smartlist_len (dir_array);
-      for (j = 0; j < max_j; j++)
-      {
-        struct directory_array *arr = smartlist_get (dir_array, j);
-
-        TRACE (1, "arr->dir: %s.\n", arr->dir);
-
-        found += process_dir (arr->dir, arr->num_dup, arr->exist, TRUE,
-                              arr->is_dir, arr->exp_ok, inc_lib,
-                              HKEY_INC_LIB_FILE, FALSE);
-      }
-      dir_array_free();
-      FREE (bcc_root);
-    }
-  }
-
-  if (bcc_found == 0)
-  {
-    TRACE (1, "No Borland compilers found.\n");
-    return (0);
-  }
-  if (ignored >= bcc_found)
-  {
-    TRACE (1, "All Borland compilers were ignored.\n");
-    return (0);
-  }
-  return (found);
-}
-
-/**
- * Check all `bcc*.exe` found on `PATH` for an `INC` search.
- */
-static int do_check_borland_includes (void)
-{
-  return do_check_borland_inc_lib ("Borland INC", "Matches in %s headers:\n",
-                                   bcc32_cfg_parse_inc);
-}
-
-/**
- * Check all `bcc*.exe` found on `PATH` for a `LIB` search.
- */
-static int do_check_borland_library_paths (void)
-{
-  return do_check_borland_inc_lib ("Borland LIB", "Matches in %s libraries:\n",
-                                   bcc32_cfg_parse_lib);
-}
-
-/**
  * getopt_long() processing.
  */
 static const struct option long_options[] = {
@@ -4223,19 +2497,20 @@ static const struct option long_options[] = {
            { "no-borland",  no_argument,       NULL, 0 },
            { "no-clang",    no_argument,       NULL, 0 },    /* 33 */
            { "no-intel",    no_argument,       NULL, 0 },
-           { "owner",       optional_argument, NULL, 0 },    /* 35 */
-           { "check",       no_argument,       NULL, 0 },
-           { "signed",      optional_argument, NULL, 0 },    /* 37 */
-           { "no-cwd",      no_argument,       NULL, 0 },
-           { "sort",        required_argument, NULL, 0 },    /* 39 */
-           { "lua",         no_argument,       NULL, 0 },
-           { "vcpkg",       optional_argument, NULL, 0 },    /* 41 */
-           { "descr",       no_argument,       NULL, 0 },
-           { "keep",        no_argument,       NULL, 0 },    /* 43 */
-           { "grep",        required_argument, NULL, 0 },
-           { "only",        no_argument,       NULL, 0 },    /* 45 */
-           { "case",        no_argument,       NULL, 'c' },
-           { NULL,          no_argument,       NULL, 0 }     /* 47 */
+           { "no-msvc",     no_argument,       NULL, 0 },    /* 35 */
+           { "owner",       optional_argument, NULL, 0 },
+           { "check",       no_argument,       NULL, 0 },    /* 37 */
+           { "signed",      optional_argument, NULL, 0 },
+           { "no-cwd",      no_argument,       NULL, 0 },    /* 39 */
+           { "sort",        required_argument, NULL, 0 },
+           { "lua",         no_argument,       NULL, 0 },    /* 41 */
+           { "vcpkg",       optional_argument, NULL, 0 },
+           { "descr",       no_argument,       NULL, 0 },    /* 43 */
+           { "keep",        no_argument,       NULL, 0 },
+           { "grep",        required_argument, NULL, 0 },    /* 45 */
+           { "only",        no_argument,       NULL, 0 },
+           { "case",        no_argument,       NULL, 'c' },  /* 47 */
+           { NULL,          no_argument,       NULL, 0 }
          };
 
 static int *values_tab[] = {
@@ -4274,18 +2549,19 @@ static int *values_tab[] = {
             &opt.no_borland,
             &opt.no_clang,            /* 33 */
             &opt.no_intel,
-            &opt.show_owner,          /* 35 */
-            &opt.do_check,
-            (int*)&opt.signed_status, /* 37 */
-            &opt.no_cwd,
-            (int*)1,                  /* 39, Since option '-S' is handled specially. This address is not used. */
-            &opt.do_lua,
-            &opt.do_vcpkg,            /* 40 */
-            &opt.show_descr,
-            &opt.keep_temp,           /* 42 */
-            (int*)&opt.grep.content,
-            &opt.grep.only,           /* 44 */
-            (int*)&opt.case_sensitive
+            &opt.no_msvc,             /* 35 */
+            &opt.show_owner,
+            &opt.do_check,            /* 37 */
+            (int*)&opt.signed_status,
+            &opt.no_cwd,              /* 39, Since option '-S' is handled specially. This address is not used. */
+            (int*)1,
+            &opt.do_lua,              /* 41 */
+            &opt.do_vcpkg,
+            &opt.show_descr,          /* 43 */
+            &opt.keep_temp,
+            (int*)&opt.grep.content,  /* 45 */
+            &opt.grep.only,
+            (int*)&opt.case_sensitive /* 47 */
           };
 
 /**
@@ -4451,7 +2727,7 @@ static void set_short_option (int o, const char *arg)
          opt.show_size = 1;
          break;
     case 'S':
-         if (!set_sort_method(arg,&err_opt))
+         if (!set_sort_method(arg, &err_opt))
             usage ("Illegal \"-S\" method '%s'. Use a combination of: %s\n",
                    err_opt, get_sort_methods());
          break;
@@ -4663,7 +2939,7 @@ static void MS_CDECL cleanup (void)
   FREE (opt.file_spec);
   FREE (opt.grep.content);
 
-  free_all_compilers();
+  compiler_exit();
 
   if (re_alloc)
      regfree (&re_hnd);
@@ -5008,7 +3284,7 @@ int MS_CDECL main (int argc, const char **argv)
      opt.no_sys_env = opt.no_usr_env = opt.no_app_path = 1;
 
   if (opt.do_lib || opt.do_include)
-     search_and_add_all_cc (FALSE, FALSE);
+     compiler_init (FALSE, FALSE);
 
   if (!(opt.do_path || opt.do_lib || opt.do_include))
      opt.no_sys_env = opt.no_usr_env = 1;
@@ -5074,49 +3350,55 @@ int MS_CDECL main (int argc, const char **argv)
        found += do_check_registry();
 
     report_header_set ("Matches in %%PATH:\n");
-    found += do_check_env ("PATH", FALSE);
+    found += do_check_env ("PATH");
   }
 
   if (opt.do_lib)
   {
-    report_header_set ("Matches in %%LIB:\n");
-    found += do_check_env ("LIB", FALSE);
+    if (!opt.no_gcc)
+       found += compiler_check_libraries (CC_GNU_GCC);
 
-    if (!opt.no_watcom)
-       found += do_check_watcom_library_paths();
+    if (!opt.no_gpp)
+       found += compiler_check_libraries (CC_GNU_GXX);
+
+    if (!opt.no_msvc)
+       found += compiler_check_libraries (CC_MSVC);
 
     if (!opt.no_borland)
-       found += do_check_borland_library_paths();
-
-    if (!(opt.no_gcc && opt.no_gpp))   /* Ignore all 'gcc.exe' and g++.exe' */
-       found += do_check_gcc_library_paths();
+       found += compiler_check_libraries (CC_BORLAND);
 
     if (!opt.no_clang)
-       found += do_check_clang_library_paths();
+       found += compiler_check_libraries (CC_CLANG);
+
+    if (!opt.no_intel)
+       found += compiler_check_libraries (CC_INTEL);
+
+    if (!opt.no_watcom)
+       found += compiler_check_libraries (CC_WATCOM);
   }
 
   if (opt.do_include)
   {
-    report_header_set ("Matches in %%INCLUDE:\n");
-    found += do_check_env ("INCLUDE", FALSE);
-
-    if (!opt.no_watcom)
-       found += do_check_watcom_includes();
-
-    if (!opt.no_borland)
-      found += do_check_borland_includes();
-
     if (!opt.no_gcc)
-       found += do_check_gcc_includes();
+       found += compiler_check_includes (CC_GNU_GCC);
 
     if (!opt.no_gpp)
-       found += do_check_gpp_includes();
+       found += compiler_check_includes (CC_GNU_GXX);
+
+    if (!opt.no_msvc)
+       found += compiler_check_includes (CC_MSVC);
+
+    if (!opt.no_borland)
+       found += compiler_check_includes (CC_BORLAND);
 
     if (!opt.no_clang)
-       found += do_check_clang_includes();
+       found += compiler_check_includes (CC_CLANG);
 
     if (!opt.no_intel)
-       found += do_check_intel_includes();
+       found += compiler_check_includes (CC_INTEL);
+
+    if (!opt.no_watcom)
+       found += compiler_check_includes (CC_WATCOM);
   }
 
   if (opt.do_cmake)
@@ -5953,49 +4235,3 @@ static int do_check (void)
   FREE (sys_env_lib);
   return (0);
 }
-
-#if !defined(__DOXYGEN__)
-#if defined(__MINGW32__)
-  #define CFLAGS   "cflags_MinGW.h"
-  #define LDFLAGS  "ldflags_MinGW.h"
-
-#elif defined(__INTEL_LLVM_COMPILER)
-  #define CFLAGS   "cflags_icx.h"
-  #define LDFLAGS  "ldflags_icx.h"
-
-#elif defined(__clang__)
-  #define CFLAGS   "cflags_clang.h"
-  #define LDFLAGS  "ldflags_clang.h"
-
-#elif defined(_MSC_VER)
-  #define CFLAGS   "cflags_MSVC.h"
-  #define LDFLAGS  "ldflags_MSVC.h"
-
-#elif defined(__CYGWIN__)
-  #define CFLAGS   "cflags_CygWin.h"
-  #define LDFLAGS  "ldflags_CygWin.h"
-#endif
-#endif  /* !__DOXYGEN__ */
-
-static void print_build_cflags (void)
-{
-#if defined(CFLAGS) && !defined(DOING_MAKE_DEPEND)
-  #include CFLAGS
-  C_puts ("\n    ");
-  C_puts_long_line (cflags, 4);
-#else
-  C_puts (" Unknown\n");
-#endif
-}
-
-static void print_build_ldflags (void)
-{
-#if defined(LDFLAGS) && !defined(DOING_MAKE_DEPEND)
-  #include LDFLAGS
-  C_puts ("\n    ");
-  C_puts_long_line (ldflags, 4);
-#else
-  C_puts (" Unknown\n");
-#endif
-}
-
