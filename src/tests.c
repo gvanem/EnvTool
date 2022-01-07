@@ -1,6 +1,7 @@
 /**\file    tests.c
  * \ingroup Misc
  * \brief   Functions for testing various features.
+ *          Called on `envtool -t` or `envtool --test`.
  */
 #include <stdio.h>
 #include <stdlib.h>

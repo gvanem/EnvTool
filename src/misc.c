@@ -4726,7 +4726,6 @@ int is_cygwin_tty (int fd)
   }
 
   p_NtQueryObject = GETPROCADDRESS (func_NtQueryObject, mod, "NtQueryObject");
-
   if (!p_NtQueryObject)
   {
     TRACE (2, "NtQueryObject() not found in ntdll.dll.\n");
@@ -4735,7 +4734,6 @@ int is_cygwin_tty (int fd)
 
   memset (ntfn, 0, ntfn_size);
   status = (*p_NtQueryObject) ((HANDLE)h_fd, ObjectNameInformation, ntfn, ntfn_size, &ntfn_size);
-
   if (!NT_SUCCESS(status))
   {
     TRACE (2, "NtQueryObject() failed; status: %ld\n", status);
