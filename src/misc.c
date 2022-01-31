@@ -2083,11 +2083,12 @@ int safe_stat_sys (const char *file, struct stat *st, DWORD *win_err)
  */
 int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 {
-  DWORD  err = 0;
-  DWORD  attr = 0;
-  BOOL   is_dir;
-  HANDLE hnd = INVALID_HANDLE_VALUE;
-  size_t len = strlen (file);
+  DWORD   err = 0;
+  DWORD   attr = 0;
+  BOOL    is_dir;
+  HANDLE  hnd = INVALID_HANDLE_VALUE;
+  size_t  len = strlen (file);
+  wchar_t w_file [32*1024] = { 0 };
 
   if (win_err)
      *win_err = 0;
@@ -2096,8 +2097,6 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
    */
   if (len >= 260)   /* MAX_PATH */
   {
-    wchar_t w_file [32*1024];
-
     wcscpy (w_file, L"\\\\?\\");
     if (mbchar_to_wchar(w_file+4, DIM(w_file)-4, file))
        attr = GetFileAttributesW (w_file);
@@ -2115,7 +2114,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 #endif
 
   if (attr == 0)
-    attr = GetFileAttributes (file);
+     attr = GetFileAttributes (file);
 
   if (attr == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_SHARING_VIOLATION)
      return safe_stat_sys (file, st, win_err);
@@ -2123,24 +2122,29 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
   memset (st, '\0', sizeof(*st));
   st->st_size = (off_t)-1;     /* signal if stat() fails */
 
-  is_dir = (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
-  if (is_dir)
-     return stat (file, st);
+  if (w_file[0] == 0)
+  {
+    is_dir = (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
+    if (is_dir)
+       return stat (file, st);
 
-  if (attr != INVALID_FILE_ATTRIBUTES && !(attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
-     return stat (file, st);
+    if (attr != INVALID_FILE_ATTRIBUTES && !(attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
+       return stat (file, st);
+  }
 
   /**
    * Need to check for other Hidden/System files here.
+   * Also for files >= MAX_PATH.
    */
-  if (attr != INVALID_FILE_ATTRIBUTES && (attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
+  if (attr != INVALID_FILE_ATTRIBUTES && (w_file[0] || (attr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM))))
   {
     FILETIME      c_ftime;  /* Get 'lpCreationTime' */
     FILETIME      m_ftime;  /* Get 'lpLastWriteTime' */
     LARGE_INTEGER fsize;
 
-    hnd = CreateFile (file, GENERIC_READ, FILE_SHARE_READ,
-                      NULL, OPEN_EXISTING, attr, NULL);
+    if (w_file[0])
+         hnd = CreateFileW (w_file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, attr, NULL);
+    else hnd = CreateFileA (file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, attr, NULL);
 
     if (hnd != INVALID_HANDLE_VALUE)
     {
@@ -2159,8 +2163,11 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
   else
     err = GetLastError();
 
-  TRACE (1, "file: '%s', attr: 0x%08lX, hnd: %p, err: %lu, mtime: %" U64_FMT " fsize: %s\n",
-         file, (unsigned long)attr, hnd, err, (UINT64)st->st_mtime, get_file_size_str(st->st_size));
+  if (w_file[0])
+      TRACE (1, "w_file: '%S', attr: 0x%08lX, hnd: %p, err: %lu, mtime: %" U64_FMT " fsize: %s\n",
+             w_file, (unsigned long)attr, hnd, err, (UINT64)st->st_mtime, get_file_size_str(st->st_size));
+  else TRACE (1, "file: '%s', attr: 0x%08lX, hnd: %p, err: %lu, mtime: %" U64_FMT " fsize: %s\n",
+              file, (unsigned long)attr, hnd, err, (UINT64)st->st_mtime, get_file_size_str(st->st_size));
 
   if (win_err)
      *win_err = err;
