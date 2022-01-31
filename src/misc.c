@@ -2084,12 +2084,24 @@ int safe_stat_sys (const char *file, struct stat *st, DWORD *win_err)
 int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 {
   DWORD  err = 0;
-  DWORD  attr;
+  DWORD  attr = 0;
   BOOL   is_dir;
   HANDLE hnd = INVALID_HANDLE_VALUE;
+  size_t len = strlen (file);
 
   if (win_err)
      *win_err = 0;
+
+  /* https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfileattributesa
+   */
+  if (len >= 260)   /* MAX_PATH */
+  {
+    wchar_t w_file [32*1024];
+
+    wcscpy (w_file, L"\\\\?\\");
+    if (mbchar_to_wchar(w_file+4, DIM(w_file)-4, file))
+       attr = GetFileAttributesW (w_file);
+  }
 
 #if defined(__CYGWIN__)
   /**
@@ -2101,6 +2113,8 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
      attr = 0;   /* Pass on to Cygwin's stat() */
   else
 #endif
+
+  if (attr == 0)
     attr = GetFileAttributes (file);
 
   if (attr == INVALID_FILE_ATTRIBUTES && GetLastError() == ERROR_SHARING_VIOLATION)
@@ -4567,6 +4581,21 @@ BOOL wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
   WIDECHAR_ERR (0, NULL); /* clear any previous error */
 
   TRACE (2, "rc: %d, result: '%s'\n", rc, result);
+  return (TRUE);
+}
+
+BOOL mbchar_to_wchar (wchar_t *result, size_t result_size, const char *a_buf)
+{
+  size_t size_needed = MultiByteToWideChar (CP_ACP, 0, a_buf, -1, NULL, 0);
+
+  if (size_needed == 0 || size_needed >= result_size)  /* including NUL-termination */
+     return (FALSE);
+
+  if (!MultiByteToWideChar(CP_ACP, 0, a_buf, strlen(a_buf)+1, result, size_needed))
+  {
+    TRACE (2, "GetLastError(): %s.\n", win_strerror(GetLastError()));
+    return (FALSE);
+  }
   return (TRUE);
 }
 

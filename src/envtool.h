@@ -649,7 +649,8 @@ extern char *slashify       (const char *path, char use);
 extern char *slashify2      (char *buf, const char *path, char use);
 extern char *win_strerror   (unsigned long err);
 extern char *ws2_strerror   (int err);
-extern BOOL  wchar_to_mbchar(char *result, size_t result_size, const wchar_t *buf);
+extern BOOL  mbchar_to_wchar(wchar_t *result, size_t result_size, const char    *a_buf);
+extern BOOL  wchar_to_mbchar(char    *result, size_t result_size, const wchar_t *w_buf);
 
 extern void  set_error_mode (int on_off);
 extern int  _file_exists    (const char *file);

@@ -1857,15 +1857,27 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
   struct report r;
   BOOL        is_dir = FALSE;
   const char *file2;
-  DWORD       attr;
+  size_t      len = strlen (file);
+  DWORD       attr = 0;
 
   memset (&st, '\0', sizeof(st));
   *is_shadow = FALSE;
 
+  if (len >= 260)   /* MAX_PATH */
+  {
+    wchar_t w_file [32*1024];
+
+    wcscpy (w_file, L"\\\\?\\");
+    if (mbchar_to_wchar(w_file+4, DIM(w_file)-4, file))
+       attr = GetFileAttributesW (w_file);
+  }
+
   /* Do not use the slower `safe_stat()` unless needed.
    * See below.
    */
-  attr = GetFileAttributes (file);
+  if (attr == 0)
+     attr = GetFileAttributes (file);
+
   if (attr != INVALID_FILE_ATTRIBUTES)
      is_dir = (attr & FILE_ATTRIBUTE_DIRECTORY);
 
