@@ -157,6 +157,15 @@ Or how much space is *wasted* in your Python cache-files. This would tell you qu
   592 matches found for "__pycache__*". Totalling 125 MB (131,391,488 bytes).
 ```
 
+Or report all >= 500 MByte files on the `c:` partition:
+```
+  envtool --evry -s c:\* "size:>500MB"
+  01 Feb 2022 - 07:10:28 -    3 GB: c:\hiberfil.sys
+  27 Jan 2022 - 10:58:54 -    8 GB: c:\pagefile.sys
+  ...
+  6 matches found for "c:\* size:>500MB". Totalling 14 GB (14,585,290,752 bytes).
+```
+
 **E.g. 9**: More than one option-mode can combined. For example:
 `envtool.exe --man --evry awk*.[1-9]*`:
 
