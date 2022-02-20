@@ -22,7 +22,7 @@
  * + 7: dark cyan foreground.
  * + 8: white on bright red background (not yet).
  *
- * by G. Vanem <gvanem@yahoo.no> 2011.
+ * by G. Vanem <gvanem@yahoo.no> 2011 - 2022.
  */
 #include <stdio.h>
 #include <stdlib.h>

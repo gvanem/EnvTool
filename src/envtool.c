@@ -14,7 +14,7 @@
  *          for consistency (reports missing directories in `%INCLUDE%`) and
  *          prints all the locations of `afxwin.h`.
  *
- * By Gisle Vanem <gvanem@yahoo.no> 2011 - 2020.
+ * By Gisle Vanem <gvanem@yahoo.no> 2011 - 2022.
  *
  * Functions fnmatch() was taken from djgpp and modified:
  *   Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details
@@ -4036,10 +4036,14 @@ static void print_env_val (const char *val, size_t indent)
 /**
  * Compare an environment value from SYSTEM and USER.
  * Ignore differences in case and trailing slashes ('\\' or '/') or ';'.
+ *
+ * \todo if an env-var looks like 1 or more directories and one of it's values
+ *       is a junction, check it's target before comparing each directory.
  */
 static void compare_user_sys_env (const char *env_var, const char *sys_value, int indent1)
 {
-  const char *end, *user_value = getenv (env_var);
+  const char *end;
+  const char *user_value = getenv (env_var);
   char       *sys_val = getenv_expand_sys (sys_value);
   size_t      len, indent2;
 
@@ -4055,6 +4059,14 @@ static void compare_user_sys_env (const char *env_var, const char *sys_value, in
   }
   if (*end == ';')
      len--;
+
+#if 0
+  if (sys_value && user_value && strchr(sys_value, ';') && strchr(user_value, ';'))
+  {
+    user_env = split_env_var (user_value);
+    sys_env  = split_env_var (sys_value);
+  }
+#endif
 
   C_printf ("  ~3%-*s~0", indent1, env_var);
   indent2 = indent1 + sizeof("SYSTEM = ") + 2;

@@ -6,7 +6,7 @@
  * The output from `call_python_func()` is captured and can be parsed.
  * Look at `py_print_modinfo()` for an example.
  *
- * By Gisle Vanem <gvanem@yahoo.no> 2011 - 2020.
+ * By Gisle Vanem <gvanem@yahoo.no> 2011 - 2022.
  */
 
 #include <stddef.h>
