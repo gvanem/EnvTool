@@ -682,6 +682,9 @@ extern BOOL        is_user_admin (void);
 extern BOOL        is_user_admin2 (void);
 extern int         is_cygwin_tty (int fd);
 extern BOOL        print_core_temp_info (void);
+extern void        spinner_start (void);
+extern void        spinner_stop (void);
+extern void        spinner_pause (BOOL on_off);
 
 extern void        format_and_print_line (const char *line, int indent);
 extern void        print_long_line (const char *line, size_t indent);

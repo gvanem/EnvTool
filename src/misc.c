@@ -4925,6 +4925,9 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   return (TRUE);
 }
 
+/**
+ * Print the information from the CoreTemp driver.
+ */
 BOOL print_core_temp_info (void)
 {
   CORE_TEMP_SHARED_DATA ct_data;
@@ -4948,3 +4951,66 @@ BOOL print_core_temp_info (void)
   C_printf ("\"Core Temp\" is not running.\n");
   return (FALSE);
 }
+
+/**
+ * A simple rotating spinner text-bar running it's own thread.
+ */
+static HANDLE spinner_hnd = INVALID_HANDLE_VALUE;
+static BOOL   spin_pause = FALSE;
+static int    spin_idx = 0;
+
+/**
+ * The timer-callback that performs the spinner-bar.
+ */
+static void CALLBACK spinner_handler (void *param, BOOLEAN timer_fired)
+{
+  if (spin_pause)
+     return;
+
+  fputc ("-\\|//" [spin_idx++], stdout);
+  fputc ('\b', stdout);
+  spin_idx &= 3;
+
+  ARGSUSED (param);
+  ARGSUSED (timer_fired);
+}
+
+/**
+ * Create a kernel32 timer with a 200 msec period.
+ */
+void spinner_start (void)
+{
+  DWORD flags = WT_EXECUTELONGFUNCTION;
+
+  if (spinner_hnd && spinner_hnd != INVALID_HANDLE_VALUE)
+     return;
+
+  if (!CreateTimerQueueTimer(&spinner_hnd, NULL, spinner_handler, NULL, 200, 200, flags))
+  {
+    TRACE (1, "CreateTimerQueueTimer() failed %s\n", win_strerror(GetLastError()));
+    spinner_hnd = NULL;
+  }
+}
+
+/**
+ * Pause printing of the spinner bar.
+ */
+void spinner_pause (BOOL on_off)
+{
+  spin_pause = on_off;
+}
+
+/**
+ * Stop the spinner timer-thread.
+ */
+void spinner_stop (void)
+{
+  if (spinner_hnd && spinner_hnd != INVALID_HANDLE_VALUE)
+  {
+    fputc (' ', stdout);
+    DeleteTimerQueueTimer (NULL, spinner_hnd, NULL);
+  }
+  spin_idx = 0;
+  spinner_hnd = INVALID_HANDLE_VALUE;
+}
+
