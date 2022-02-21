@@ -374,7 +374,8 @@ int report_file (struct report *r)
        return (0);
   }
 
-  if (r->key == HKEY_PYTHON_PATH && str_endswith(r->file, ".dist-info"))
+  if (r->key == HKEY_PYTHON_PATH &&
+      (str_endswith(r->file, ".dist-info") || str_endswith(r->file, ".egg-info")))
      show_this_file = FALSE;
 
  /*
