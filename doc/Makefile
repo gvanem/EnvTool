@@ -23,7 +23,6 @@ else
 endif
 
 clean:
-	rm -f $(OUTPUT_GENERATED)
+	rm -fr output
 	rm -f $(DOC_GENERATED)
-	- rmdir output
 	@echo '"clean" done.'
