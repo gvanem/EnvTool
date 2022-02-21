@@ -193,18 +193,11 @@ typedef struct python_info {
 static struct python_info all_py_programs[] = {
 
     /* PyPy */
-    { "pypy.exe",   PYPY_PYTHON,   FALSE, { "%s\\libpypy-c.dll", NULL }, },
+    { "pypy.exe",   PYPY_PYTHON, FALSE, { "%s\\libpypy-c.dll", NULL }, },
 
     /* CPython */
-    { "python.exe", PY3_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
-    { "python.exe", PY2_PYTHON,    TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
-
-    /* IronPython */
-    { "ipy.exe",    IRON2_PYTHON,  FALSE, { "~\\IronPython.dll", NULL }, },
-    { "ipy64.exe",  IRON2_PYTHON,  FALSE, { "~\\IronPython.dll", NULL }, },
-
-    /* JavaPython */
-    { "jython.exe", JYTHON_PYTHON, FALSE, { "~\\jpython.dll", NULL }, }
+    { "python.exe", PY3_PYTHON,  TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
+    { "python.exe", PY2_PYTHON,  TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
   };
 
 /**
@@ -344,25 +337,17 @@ DEF_FUNC (const char*, Anaconda_GetVersion,    (void));
 static int *Py_InspectFlag = NULL;
 
 static const struct search_list short_names[] = {
-                  { ALL_PYTHONS,   "all"     },
-                  { PY2_PYTHON,    "py2"     },
-                  { PY3_PYTHON,    "py3"     },
-                  { IRON2_PYTHON,  "ipy"     },
-                  { IRON2_PYTHON,  "ipy2"    },
-                  { IRON3_PYTHON,  "ipy3"    },
-                  { PYPY_PYTHON,   "pypy"    },
-                  { JYTHON_PYTHON, "jython"  }
+                  { ALL_PYTHONS,   "all"  },
+                  { PY2_PYTHON,    "py2"  },
+                  { PY3_PYTHON,    "py3"  },
+                  { PYPY_PYTHON,   "pypy" },
                 };
 
 static const struct search_list full_names[] = {
-                  { ALL_PYTHONS,   "All"         },
-                  { PY2_PYTHON,    "Python2"     },
-                  { PY3_PYTHON,    "Python3"     },
-                  { IRON2_PYTHON,  "IronPython"  },
-                  { IRON2_PYTHON,  "IronPython2" },
-                  { IRON3_PYTHON,  "IronPython3" },
-                  { PYPY_PYTHON,   "PyPy"        },
-                  { JYTHON_PYTHON, "Jython"      }
+                  { ALL_PYTHONS,   "All"     },
+                  { PY2_PYTHON,    "Python2" },
+                  { PY3_PYTHON,    "Python3" },
+                  { PYPY_PYTHON,   "PyPy"    },
                 };
 
 /**
@@ -433,17 +418,8 @@ const char **py_get_variants (void)
       case PY3_PYTHON:
            result [j++] = "py3";
            break;
-      case IRON2_PYTHON:
-           result [j++] = "ipy2";
-           break;
-      case IRON3_PYTHON:
-           result [j++] = "ipy3";
-           break;
       case PYPY_PYTHON:
            result [j++] = "pypy";
-           break;
-      case JYTHON_PYTHON:
-           result [j++] = "jython";
            break;
       case DEFAULT_PYTHON:
            result [j++] = "py";
@@ -922,7 +898,7 @@ static BOOL py_init_embedding (struct python_info *pi)
   LOAD_FUNC (pi, 1, PyMem_RawFree);          /* CPython 3.x */
   LOAD_FUNC (pi, 1, initposix);              /* In Cygwin's libpython2.x.dll */
   LOAD_FUNC (pi, 1, PyInit_posix);           /* In Cygwin's libpython3.x.dll */
-  LOAD_FUNC (pi, 1, Anaconda_GetVersion);    /* In Anaconda's python3x.dll. Not used yet. */
+  LOAD_FUNC (pi, 1, Anaconda_GetVersion);    /* In Anaconda's python3x.dll. */
 
   LOAD_INT_PTR (pi, Py_InspectFlag);
 
@@ -2679,9 +2655,14 @@ void py_searchpaths (void)
               fname[0] ? fname : "Not found");
 
     if (pi->is_embeddable && !check_bitness(pi,&bitness))
-       C_printf (" (embeddable, but not %s-bit)", bitness);
+       C_printf (" (embeddable, but not %s-bit", bitness);
     else if (pi->dll_name)
-       C_printf (" (%sembeddable)", pi->is_embeddable ? "": "not ");
+       C_printf (" (%sembeddable", pi->is_embeddable ? "": "not ");
+
+    if (Anaconda_GetVersion)
+       C_printf (", Anaconda: %s", (*Anaconda_GetVersion)());
+
+    C_putc (')');
 
     if (pi->is_default)
        C_puts ("  ~3(1)~0");

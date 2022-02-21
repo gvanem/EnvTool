@@ -107,8 +107,6 @@ The following modes handles these environment variables:
                                      <table>
                                        <tr><td>\c all    <td>Use all Python programs found on \c \%PATH\%.
                                                              This is the default.
-                                       <tr><td>\c ipy2   <td>Use an IronPython program only.
-                                       <tr><td>\c jython <td>Use a Jython program only.
                                        <tr><td>\c py2    <td>Use a Python2 program only.
                                        <tr><td>\c py3    <td>Use a Python3 program only.
                                        <tr><td>\c pypy   <td>Use a PyPy program only.
