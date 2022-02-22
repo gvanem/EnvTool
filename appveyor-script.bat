@@ -45,6 +45,7 @@ exit /b 1
   set APPDATA=%APPVEYOR_BUILD_FOLDER%
   set INCLUDE=%INCLUDE%;c:\Python34\include
   set VCPKG_ROOT=c:\Tools\vcpkg
+  set COLUMNS=120
 
   cd %APPDATA%
   call :create_auth_files

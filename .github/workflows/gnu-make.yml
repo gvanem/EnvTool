@@ -16,5 +16,5 @@ jobs:
       run: make -f Makefile.MinGW FORTIFY_SOURCE=0 USE_DEBUG=0 USE_64BIT=1 -C ./src
 
     - name: Run tests
-      run: .\appveyor-script.bat test
+      run: set INCLUDE=%INCLUDE%;c:\hostedtoolcache\windows\Python\3.9.10\include & set COLUMNS=120 & .\appveyor-script.bat test
 
