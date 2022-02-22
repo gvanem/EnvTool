@@ -69,7 +69,7 @@ exit /b 1
   .\envtool -VVV
 
   @call :green_msg Testing grep search and --inc mode:
-  .\envtool --inc --no-gcc --no-g++ --no-clang --grep PyOS_ pys*.h
+  .\envtool --inc --grep PyOS_ pys*.h
 
   @call :green_msg Testing test output (show owner in test_PE_wintrust()):
   .\envtool --test --owner
