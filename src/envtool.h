@@ -596,11 +596,11 @@ int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1
 #if !defined(strdupa)
   #if defined(__GNUC__) || defined(__clang__)
     #define strdupa(s)  (__extension__ ({ \
-                         const char *s_in = (s);                  \
-                            size_t s_len = strlen (s_in) + 1;        \
-                            char *s_out  = alloca (s_len);           \
-                            (char*) memcpy (s_out, s_in, s_len);     \
-                         }))
+                         const char *s_in = (s);                \
+                         size_t      s_len = strlen (s_in) + 1; \
+                         char       *s_out = alloca (s_len);    \
+                         (char*) memcpy (s_out, s_in, s_len);   \
+                        }))
   #else
     #define strdupa(s)  strcpy (alloca(strlen(s) + 1), s)
   #endif
@@ -616,6 +616,7 @@ extern char *str_sep        (char **s, const char *delim);
 extern char *str_acat       (char *s1, const char *s2);
 extern int   str_cat        (char *dst, size_t dst_size, const char *src);
 extern char *str_ndup       (const char *s, size_t sz);
+extern char *str_nstr       (const char *s1, const char *s2, size_t len);
 extern char *str_join       (char *const *arr, const char *sep);
 extern char *str_strip_nl   (char *s);
 extern char *str_ltrim      (char *s);
@@ -651,6 +652,7 @@ extern char *win_strerror   (unsigned long err);
 extern char *ws2_strerror   (int err);
 extern BOOL  mbchar_to_wchar(wchar_t *result, size_t result_size, const char    *a_buf);
 extern BOOL  wchar_to_mbchar(char    *result, size_t result_size, const wchar_t *w_buf);
+extern char *fopen_mem      (const char *file, size_t *_f_size);
 
 extern void  set_error_mode (int on_off);
 extern int  _file_exists    (const char *file);

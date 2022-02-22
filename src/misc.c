@@ -368,8 +368,8 @@ int check_if_zip (const char *fname)
   f = fopen (fname, "rb");
   if (f)
   {
-    rc = (fread(&buf,1,sizeof(buf),f) == sizeof(buf) &&
-          !memcmp(&buf,&header,sizeof(buf)));
+    rc = (fread(&buf, 1, sizeof(buf),f) == sizeof(buf) &&
+          !memcmp(&buf, &header, sizeof(buf)));
     fclose (f);
   }
   if (rc)
@@ -409,8 +409,8 @@ int check_if_gzip (const char *fname)
   f = fopen (fname, "rb");
   if (f)
   {
-    if (fread(&buf,1,sizeof(buf),f) == sizeof(buf) &&
-        (!memcmp(&buf,&header1,sizeof(buf)) || !memcmp(&buf,&header2,sizeof(buf))) )
+    if (fread(&buf, 1, sizeof(buf), f) == sizeof(buf) &&
+        (!memcmp(&buf, &header1, sizeof(buf)) || !memcmp(&buf, &header2, sizeof(buf))) )
        rc = 1;
     fclose (f);
   }
@@ -2197,6 +2197,54 @@ char *create_temp_file (void)
 }
 
 /**
+ * Allocate memory for `file`. Then return memory with allocated file-content.
+ */
+char *fopen_mem (const char *file, size_t *_f_size)
+{
+  struct stat st;
+  FILE       *f;
+  char       *f_ptr;
+  size_t      f_read, f_size;
+  DWORD       win_err;
+
+  memset (&st, '\0', sizeof(st));
+  if (safe_stat(file, &st, &win_err) || st.st_size == 0)
+  {
+    TRACE (1, "Failed to get the file-size of %s. win_err: %lu\n", file, win_err);
+    return (NULL);
+  }
+
+  f = fopen (file, "rb");
+  if (!f)
+  {
+    TRACE (1, "Failed to open %s.\n", file);
+    return (NULL);
+  }
+
+  if (st.st_size >= ULONG_MAX)
+  {
+    TRACE (1, "File %s is too big %" S64_FMT ".\n", file, st.st_size);
+    fclose (f);
+    return (NULL);
+  }
+
+  f_size = (size_t) st.st_size;
+  f_ptr = MALLOC (f_size + 1);
+  f_read = fread (f_ptr, 1, f_size, f);
+  fclose (f);
+  if (f_read != f_size)
+  {
+    TRACE (1, "Failed to read the whole file %s. Only %u bytes, errno: %d (%s)\n",
+           file, (unsigned)f_read, errno, strerror(errno));
+    FREE (f_ptr);
+    return (NULL);
+  }
+  *_f_size = f_size;
+  f_ptr [f_read] = '\0';
+  return (f_ptr);
+}
+
+/**
  * Turn off default error-mode. E.g. if a CD-ROM isn't ready, we'll get a GUI
  * popping up to notify us. Turn that off and handle such errors ourself.
  *
@@ -2831,6 +2879,31 @@ char *str_ndup (const char *s, size_t sz)
   strncpy (dup, s, sz);
   dup [sz] = '\0';
   return (dup);
+}
+
+/**
+ * A `strstr()` limited to `len` characters.
+ *
+ * \retval  Returns a pointer to the located string inside `haystack`.
+ *          Or NULL if `needle` was not found in `haystack`.
+ *
+ * From: https://stackoverflow.com/questions/23999797/implementing-strnstr
+ */
+char *str_nstr (const char *haystack, const char *needle, size_t len)
+{
+  size_t needle_len = strnlen (needle, len);
+  int    i;
+
+  if (needle_len == 0)
+     return (char*)haystack;
+
+  for (i = 0; i <= (int)len - needle_len; i++)
+  {
+    if ((haystack[0] == needle[0]) && !strnicmp(haystack, needle, needle_len))
+       return (char*)haystack;
+    haystack++;
+  }
+  return (NULL);
 }
 
 /**
@@ -4982,14 +5055,19 @@ void spinner_start (void)
 {
   DWORD flags = WT_EXECUTELONGFUNCTION;
 
+  if (!_isatty(STDOUT_FILENO))
+     return;
+
   if (spinner_hnd && spinner_hnd != INVALID_HANDLE_VALUE)
      return;
 
-  if (!CreateTimerQueueTimer(&spinner_hnd, NULL, spinner_handler, NULL, 200, 200, flags))
+  if (!CreateTimerQueueTimer(&spinner_hnd, NULL, spinner_handler, NULL, 100, 100, flags))
   {
     TRACE (1, "CreateTimerQueueTimer() failed %s\n", win_strerror(GetLastError()));
     spinner_hnd = NULL;
   }
+  else
+    fputc (' ', stdout);
 }
 
 /**

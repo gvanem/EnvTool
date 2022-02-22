@@ -382,54 +382,6 @@ BOOL vcpkg_set_only_installed (BOOL True)
 }
 
 /**
- * Allocate memory for `file`. Then return memory with allocated file-content.
- */
-static char *fopen_mem (const char *file, size_t *_f_size)
-{
-  struct stat st;
-  FILE       *f;
-  char       *f_ptr;
-  size_t      f_read, f_size;
-  DWORD       win_err;
-
-  memset (&st, '\0', sizeof(st));
-  if (safe_stat(file, &st, &win_err) || st.st_size == 0)
-  {
-    WARN ("Failed to get the file-size of %s. win_err: %lu\n", file, win_err);
-    return (NULL);
-  }
-
-  f = fopen (file, "rb");
-  if (!f)
-  {
-    WARN ("Failed to open %s.\n", file);
-    return (NULL);
-  }
-
-  if (st.st_size >= ULONG_MAX)
-  {
-    WARN ("File %s is too big %" S64_FMT ".\n", file, st.st_size);
-    fclose (f);
-    return (NULL);
-  }
-
-  f_size = (size_t) st.st_size;
-  f_ptr = MALLOC (f_size + 1);
-  f_read = fread (f_ptr, 1, f_size, f);
-  fclose (f);
-  if (f_read != f_size)
-  {
-    WARN ("Failed to read the whole file %s. Only %u bytes, errno: %d (%s)\n",
-          file, (unsigned)f_read, errno, strerror(errno));
-    FREE (f_ptr);
-    return (NULL);
-  }
-  *_f_size = f_size;
-  f_ptr [f_read] = '\0';
-  return (f_ptr);
-}
-
-/**
  * Manage a list of already found packages visited in `print_sub_dependencies()`.
  * So they are not recursed and printed more than once.
  */
@@ -2648,6 +2600,11 @@ static void print_package_info (vcpkg_package *package, FMT_buf *fmt_buf, int in
   {
     BUF_PRINTF (fmt_buf, "%*s%s\n", i > 0 ? indent : 0, "",
                 (const char*)smartlist_get (package->install_info, i));
+    if (i >= 10)
+    {
+      BUF_PRINTF (fmt_buf, "%*s...\n", indent, "");
+      break;
+    }
   }
 
   if (opt.show_size)
@@ -3010,9 +2967,13 @@ void vcpkg_extras (const struct ver_data *v, int pad_len)
 
   C_puts ("  Checking vcpkg packages ...");
   C_flush();
+  if (opt.debug == 0)
+     spinner_start();
 
   num1 = vcpkg_get_num_installed();
   num2 = vcpkg_get_num_CONTROLS() + vcpkg_get_num_JSON();
+
+  spinner_stop();
 
   C_printf ("\r%-*s -> ~6%s~0", pad_len, v->found, slashify(v->exe, v->slash));
   if (num1 >= 1)
