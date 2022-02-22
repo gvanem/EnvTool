@@ -374,10 +374,6 @@ int report_file (struct report *r)
        return (0);
   }
 
-  if (r->key == HKEY_PYTHON_PATH &&
-      (str_endswith(r->file, ".dist-info") || str_endswith(r->file, ".egg-info")))
-     show_this_file = FALSE;
-
  /*
   * Recursively get the size of files under directory matching `file`.
   * For a Python search with 'opt.show_size' (i.e. 'envtool --py -s foo*'),
