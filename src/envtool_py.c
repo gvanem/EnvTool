@@ -45,18 +45,29 @@ typedef struct python_path {
         int  is_zip;           /**< or is it a zip; an .egg, .zip or a .whl file. */
       } python_path;
 
-/** \typedef python_module
- *  The layout of each `pi->modules[]` entry.
+/**
+ * \typedef python_module
+ * The layout of each `pi->modules[]` entry.
+ *
+ * This information is obtained from parsing `PKG-INFO` or `METADATA` files.
  */
 typedef struct python_module {
-        char name [30];               /**<  */
-        char version [40];            /**< This length should match the `p.version` in `PY_LIST_MODULES()` */
-        char location [_MAX_PATH];    /**<  */
-        char meta_path [_MAX_PATH];   /**< path to `METADATA` or `PKG-INFO` file. Equals "-" if none. */
-        BOOL is_zip;                  /**<  */
-        BOOL is_actual;               /**< Already called `get_actual_filename (&m->location)` */
+        char  name [30];               /**< the name of the module */
+        char  version [40];            /**< this length should match the `p.version` in `PY_LIST_MODULES()` */
+        char  location [_MAX_PATH];    /**< it's install location */
+        char  dist_info [_MAX_PATH];   /**< filename for `METADATA` or `PKG-INFO` file. Equals "-" if none */
+        char *summary;                 /**< A one line summary of it's purpose */
+        char *homepage;                /**< the web-address of the project  */
+        char *author;                  /**< the name of the author */
+        char *author_email;            /**< the email-address of the author */
+        char *installer;               /**< the installer used for this package (pip, conda) */
+        char *requires;                /**< the package this module depends on. Currently only handles one */
+        char *requires_py;             /**< the required Python versions. */
+        BOOL  is_zip;                  /**< is it installed as a .egg/.whl? */
+        BOOL  is_actual;               /**< Already called `get_actual_filename (&m->location)` */
 
-       /** \todo
+       /**
+        * \todo
         * Put the module/package `RECORD` information here as a smartlist of `struct record_info`.
         * smartlist_t *record;
         */
@@ -737,6 +748,13 @@ static void free_module (void *_m)
 {
   struct python_module *m = (struct python_module*) _m;
 
+  FREE (m->summary);
+  FREE (m->homepage);
+  FREE (m->author);
+  FREE (m->author_email);
+  FREE (m->installer);
+  FREE (m->requires);
+  FREE (m->requires_py);
   FREE (m);
 }
 
@@ -1079,6 +1097,140 @@ static const char *py_filename (const char *file)
   return (buf);
 }
 
+static char *fmem_search (const char *f_mem, size_t f_size, const char *search)
+{
+  size_t len, f_max = min (2000, f_size);
+  char  *p, *ret = NULL;
+
+  if (!search)
+     ret = str_ndup (f_mem, f_max);
+  else
+  {
+    ret = str_nstr (f_mem, search, f_max);
+    len = strlen (search);
+    if (ret && (ret + len < f_mem + f_max))
+       ret = STRDUP (ret + len);
+  }
+
+  TRACE (1, "search: '%-10.10s', f_mem: 0x%p, f_max: %4zu, ret: 0x%p.\n", search ? search : "NULL", f_mem, f_max, ret);
+
+  if (ret)
+  {
+    p = strchr (ret, '\r');
+    if (p)
+       *p = '\0';
+    p = strchr (ret, '\n');
+    if (p)
+       *p = '\0';
+  }
+  return (ret);
+}
+
+static char *fcheck_open_mem (struct python_module *m, const char *file, size_t *f_size)
+{
+  if (file)
+  {
+    char  fqfn [_MAX_PATH];
+    char *pkg_dir = dirname (m->dist_info);
+
+    snprintf (fqfn, sizeof(fqfn), "%s%c%s", pkg_dir, DIR_SEP, file);
+    FREE (pkg_dir);
+    file = fqfn;
+  }
+  else
+    file = m->dist_info;
+
+  *f_size = 0;
+  if (FILE_EXISTS(file))
+     return fopen_mem (file, f_size);
+  return (NULL);
+}
+
+static void py_get_meta_details (struct python_module *m)
+{
+  if (!m->is_zip)
+  {
+    char  *f_mem, *p, *q;
+    size_t f_size;
+
+    f_mem = fcheck_open_mem (m, NULL, &f_size);
+    if (f_mem)
+    {
+      m->summary      = fmem_search (f_mem, f_size, "Summary: ");
+      m->homepage     = fmem_search (f_mem, f_size, "Home-page: ");
+      m->author       = fmem_search (f_mem, f_size, "Author: ");
+      m->author_email = fmem_search (f_mem, f_size, "Author-email: ");
+      m->requires_py  = fmem_search (f_mem, f_size, "Requires-Python: ");
+
+      if (!m->homepage)
+         m->homepage = fmem_search (f_mem, f_size, "Project-URL: Source code, ");
+
+      /* Fix lines such as:
+       *   Author-email: Hynek Schlawack <hs@ox.cx>
+       *
+       * Split into 'm->author' and 'm->author_email' fields.
+       */
+      if (m->author_email)
+      {
+        p = strchr (m->author_email, '<');
+        q = strchr (m->author_email, '>');
+        if (p && q > p)
+        {
+          FREE (m->author_email);
+          m->author_email = str_ndup (p+1, q-p);
+        }
+        if (m->author && p)
+        {
+          p = str_ndup (m->author, p - m->author);
+          FREE (m->author);
+          m->author = p;
+        }
+      }
+      if (m->author)
+      {
+        p = strchr (m->author, '<');
+        if (p && p[-1] == ' ')
+          p[-1] = '\0';
+      }
+      FREE (f_mem);
+    }
+
+    f_mem = fcheck_open_mem (m, "INSTALLER", &f_size);
+    if (f_mem)
+    {
+      m->installer = fmem_search (f_mem, f_size, NULL);
+      FREE (f_mem);
+    }
+    f_mem = fcheck_open_mem (m, "requires.txt", &f_size);
+    if (f_mem)
+    {
+      m->requires = fmem_search (f_mem, f_size, NULL);
+      FREE (f_mem);
+    }
+  }
+
+  if (!m->summary)
+     m->summary = STRDUP ("<unknown>");
+
+  if (!m->homepage)
+     m->homepage = STRDUP ("<unknown>");
+
+  if (!m->author)
+     m->author = STRDUP ("<unknown>");
+
+  if (!m->author_email)
+     m->author_email = STRDUP ("?");
+
+  if (!m->installer)
+     m->installer = STRDUP ("<unknown>");
+
+  if (!m->requires)
+     m->requires = STRDUP ("<none>");
+
+  if (!m->requires_py)
+     m->requires_py = STRDUP ("<unknown>");
+}
+
 /**
  * A simple embedded test; capture the output from Python's
  * `print()` function.
@@ -1265,7 +1417,7 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
  * their location and version.
  *
  * \param[in] spec         Print only those module-names `m->name` that matches `spec`.
- * \param[in] get_details  Print more details, like meta information.
+ * \param[in] get_details  Print more details, like dist-info information.
  *
  * \retval The number of modules printed.
  */
@@ -1284,7 +1436,7 @@ static int py_print_modinfo (const char *spec, BOOL get_details)
        continue;
 
 #if 0
-    if (opt.use_cache && m->meta_path[0] && !FILE_EXISTS(m->meta_path))
+    if (opt.use_cache && m->dist_info[0] && !FILE_EXISTS(m->dist_info))
     {
       cache_delf (SECTION_PYTHON, "python_modules%d_%d", g_pi->py_index, i);
       FREE (m);
@@ -1298,52 +1450,45 @@ static int py_print_modinfo (const char *spec, BOOL get_details)
     if (m->is_zip)
        zips_found++;
 
+    C_printf ("~6%3d:~0 ", found);
+
     if (get_details)
     {
       const char *loc = py_filename (m->location);
 
-      C_printf ("~6%3d:~0 %-25s %-10s -> %s%s\n", found, m->name, m->version,
-                m->is_actual ? m->location : loc,
-                m->is_zip ? " (ZIP)" : "");
-
-      if (m->meta_path[0] != '-')
-         C_printf ("      meta: %s\n", py_filename(m->meta_path));
-
       _strlcpy (m->location, loc, sizeof(m->location));
       m->is_actual = TRUE;
+
+      C_printf (" name:      %s\n", m->name);
+      C_printf ("      version:   %s\n", m->version);
+      C_printf ("      location:  %s%s\n", m->location, m->is_zip ? " (ZIP)" : "");
+
+      if (m->dist_info[0] != '-')
+      {
+        int raw = C_setraw (1);
+
+        py_get_meta_details (m);
+        C_printf ("      dist-info: %s\n", py_filename(m->dist_info));
+        C_printf ("      summary:   %s\n", m->summary);
+        C_printf ("      home-page: %s\n", m->homepage);
+        C_printf ("      author:    %s <%s>\n", m->author, m->author_email);
+        C_printf ("      installer: %s\n", m->installer);
+        C_printf ("      requires:  %s\n", m->requires);
+        C_printf ("      py-req:    %s\n", m->requires_py);
+        C_setraw (raw);
+      }
       C_putc ('\n');
     }
     else
-      C_printf ("   %s%s\n", m->version, m->is_zip ? " (ZIP)" : "");
+    {
+      C_printf ("%-30s %-10s%s\n", m->name, m->version, m->is_zip ? " (ZIP)" : "");
+    }
   }
+
   if (match_all && !get_details)
      C_printf ("~6Found %d modules~0 (%d are ZIP/EGG files).\n", found, zips_found);
   return (found);
 }
-
-/**
- * \todo
- * Check if there is a `RECORD` file on `m->meta_path`.
- * If there is:
- *   \li build a list of files for this package.
- *   \li extract the size and SHA256 value for the file from a RECORD-line like:
- *   \code
- *       wheel/__init__.py,sha256=YumT_ajakW9VAgnV3umrUYypy6VzpbLKE-OPbVnWm8M,96
- *       ^                        ^                                           ^
- *       |                        |                                           |__ `__init__.py` size
- *       |                        |___ Base64 encoded?
- *       |_ relative to parent dir?
- *   \endcode
- */
-static void py_get_meta_info (struct python_module *m)
-{
-#if 0
-
-#else
-  ARGSUSED (m);
-#endif
-}
-
 
 /**
  * \def PY_LIST_MODULES
@@ -1355,7 +1500,7 @@ static void py_get_meta_info (struct python_module *m)
  *       https://docs.python.org/3/reference/import.html#packages
  */
 #define PY_LIST_MODULES()                                                              \
-        "import os, sys, re, zipfile\n"                                                \
+        "import os, sys, zipfile\n"                                                    \
         "\n"                                                                           \
         "def list_modules (spec):\n"                                                   \
         "  try:\n"                                                                     \
@@ -1377,7 +1522,7 @@ static void py_get_meta_info (struct python_module *m)
         "      meta = p._get_metadata_path_for_display (p.PKG_INFO)\n"                 \
         "    except AttributeError:\n"                                                 \
         "      meta = \"-\"\n"                                                         \
-        "    package_list.append ('%s;%s;%s;%s' % (p.key,ver,loc,meta))\n"             \
+        "    package_list.append ('%s;%s;%s;%s' % (p.key, ver, loc, meta))\n"          \
         "\n"                                                                           \
         "  for p in sorted (package_list):\n"                                          \
         "    print (p)\n"                                                              \
@@ -1533,21 +1678,19 @@ static void py_get_module_info (struct python_info *pi)
       {
         struct python_module m;
 
+        memset (&m, '\0', sizeof(m));
         _strlcpy (m.name, module, sizeof(m.name));
         _strlcpy (m.version, version, sizeof(m.version));
         _strlcpy (m.location, fname, sizeof(m.location));
-        _strlcpy (m.meta_path, "-", sizeof(m.meta_path));
-        m.is_actual = m.is_zip = FALSE;
+        _strlcpy (m.dist_info, "-", sizeof(m.dist_info));
         if (str_endswith(fname, " (ZIP)"))
         {
           m.location [strlen(m.location) - sizeof(" (ZIP)") + 1] = '\0';
           m.is_zip = TRUE;
         }
         if (meta[0] != '-')
-        {
-          _strlcpy (m.meta_path, meta, sizeof(m.meta_path));
-          py_get_meta_info (&m);
-        }
+           _strlcpy (m.dist_info, meta, sizeof(m.dist_info));
+
         py_add_module (pi, &m);
       }
       else
@@ -1725,7 +1868,9 @@ static int process_zip (struct python_info *pi, const char *zfile)
   else str = popen_run_py (pi, prog);
 
 #if 0
-  /** \todo Add zip content to cache? */
+  /**
+   * \todo Add zip content to cache?
+   */
   if (opt.use_cache)
   {
     snprintf (prog, sizeof(prog), PY_ZIP_LIST(), opt.debug, opt.case_sensitive, "*", zfile);
@@ -1747,10 +1892,6 @@ static int process_zip (struct python_info *pi, const char *zfile)
          continue;
       if (!report_zip_file(zfile, line))
          break;
-#if 0
-      if (opt.verbose)
-         py_print_modinfo (opt.file_spec, TRUE);
-#endif
     }
   }
   popen_append_clear();
@@ -2030,6 +2171,36 @@ static int get_dll_name (struct python_info *pi, const char **libs)
 }
 
 /**
+ * Check the Python path directory `pp->dir` and `opt.file_spec` against
+ * a matching `*.dist-info` or a `*.egg-info` sub-directory.
+ *
+ * If at least one is found, these sub-directories shall be ignored.
+ */
+static BOOL check_if_dist_info_dirs (const struct python_path *pp)
+{
+  char dist_info_spec [_MAX_PATH];
+  char egg_info_spec  [_MAX_PATH];
+  WIN32_FIND_DATA ff;
+  HANDLE          hnd;
+  BOOL            is_dist_info, is_egg_info;
+
+  snprintf (dist_info_spec, sizeof(dist_info_spec), "%s%c%s*.dist-info", pp->dir, DIR_SEP, opt.file_spec);
+  snprintf (egg_info_spec, sizeof(dist_info_spec), "%s%c%s*.egg-info", pp->dir, DIR_SEP, opt.file_spec);
+
+  hnd = FindFirstFile (dist_info_spec, &ff);
+  FindClose (hnd);
+  is_dist_info = (hnd != INVALID_HANDLE_VALUE);
+
+  hnd = FindFirstFile (egg_info_spec, &ff);
+  FindClose (hnd);
+  is_egg_info = (hnd != INVALID_HANDLE_VALUE);
+
+  if (is_dist_info || is_egg_info)
+     TRACE (1, "%s -> is_dist_info: %d, is_egg_info: %d\n", pp->dir, is_dist_info, is_egg_info);
+  return (is_dist_info || is_egg_info);
+}
+
+/**
  * Run a Python, figure out the `sys.path[]` array and search along that
  * for matches. If a `sys.path[]` component contains a ZIP/EGG-file, use
  * `process_zip()` to list files inside it for a match.
@@ -2082,22 +2253,23 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
     if (opt.debug == 0 && !pp->exist && !stricmp(get_file_ext(pp->dir), "zip"))
        pp->exist = pp->is_dir = TRUE;
 
+    if (check_if_dist_info_dirs(pp))
+       continue;
+
     if (pp->is_zip)
          rc = process_zip (pi, pp->dir);
     else rc = process_dir (pp->dir, 0, pp->exist, FALSE, pp->is_dir,
                            TRUE, "sys.path[]", HKEY_PYTHON_PATH);
     found += rc;
 
-#if 1
-    /* If there was a hit for `opt.file_spec` along the `sys.path[]`, this could also
-     * be a hit for a matching module.
-     */
-    if (rc >= 1 && opt.verbose)
+    if (opt.verbose && !pp->is_zip)
     {
-      C_printf ("  ~2Getting module-info matching ~6%s~0\n", opt.file_spec);
-      py_print_modinfo (opt.file_spec, TRUE);
+      /* If there was a hit for `opt.file_spec` along the `sys.path[]`, this could also
+       * be a hit for a matching module.
+       */
+      if (rc >= 1)
+         py_print_modinfo (opt.file_spec, TRUE);
     }
-#endif
   }
   return (found);
 }
@@ -2324,22 +2496,23 @@ static int get_modules_from_cache (struct python_info *pi)
   {
     struct python_module m;
     char   format [50];
-    char  *mod_name, *mod_version, *location, *meta_path;
+    char  *mod_name, *mod_version, *location, *dist_info;
     int    rc, is_zip;
 
     snprintf (format, sizeof(format), "python_modules%d_%d = %%s,%%s,%%d,%%s,%%s", pi->py_index, i);
-    rc = cache_getf (SECTION_PYTHON, format, &mod_name, &mod_version, &is_zip, &location, &meta_path);
+    rc = cache_getf (SECTION_PYTHON, format, &mod_name, &mod_version, &is_zip, &location, &dist_info);
     TRACE (3, "rc: %d.\n", rc);
 
     if (rc < 5)
        break;
 
+    memset (&m, '\0', sizeof(m));
     m.is_zip    = is_zip;
     m.is_actual = TRUE;
     _strlcpy (m.name, mod_name, sizeof(m.name));
     _strlcpy (m.version, mod_version, sizeof(m.version));
     _strlcpy (m.location, location, sizeof(m.location));
-    _strlcpy (m.meta_path, meta_path, sizeof(m.meta_path));
+    _strlcpy (m.dist_info, dist_info, sizeof(m.dist_info));
     if (!py_add_module(pi, &m))
        dups++;
     i++;
@@ -2473,16 +2646,16 @@ static void write_to_cache (const struct python_info *pi)
   for (i = 0; i < max; i++)
   {
     const struct python_module *m = smartlist_get (pi->modules, i);
-    const char  *meta_path = "-";
+    const char  *dist_info = "-";
 
-    if (m->meta_path[0] != '-')
+    if (m->dist_info[0] != '-')
     {
-      if (m->is_zip || m->is_actual)
-           meta_path = m->meta_path;
-      else meta_path = py_filename (m->meta_path);
+      if (m->is_actual)
+           dist_info = m->dist_info;
+      else dist_info = py_filename (m->dist_info);
     }
     cache_putf (SECTION_PYTHON, "python_modules%d_%d = %s,%s,%d,%s,%s",
-                pi->py_index, i, m->name, m->version, m->is_zip, m->location, meta_path);
+                pi->py_index, i, m->name, m->version, m->is_zip, m->location, dist_info);
   }
 
   max = smartlist_len (pi->sys_path);
@@ -2533,11 +2706,13 @@ static void py_test_internal (struct python_info *pi)
   C_puts ("Python paths:\n");
   print_sys_path (pi, 0);
 
-  if (reinit && pi->is_embeddable && !test_python_funcs(pi,reinit))
+  if (reinit && pi->is_embeddable && !test_python_funcs(pi, reinit))
      C_puts ("Embedding failed.");
+  else if (Anaconda_GetVersion)
+     C_printf ("\nAnacondaGetVersion(): \"%s\"\n\n", (*Anaconda_GetVersion)());
 
   C_printf ("~6List of modules for %s:~0\n", py_filename(pi->exe_name));
-  py_print_modinfo ("*", TRUE);
+  py_print_modinfo ("*", opt.verbose ? TRUE : FALSE);
   C_putc ('\n');
 }
 
@@ -2655,14 +2830,9 @@ void py_searchpaths (void)
               fname[0] ? fname : "Not found");
 
     if (pi->is_embeddable && !check_bitness(pi,&bitness))
-       C_printf (" (embeddable, but not %s-bit", bitness);
+       C_printf (" (embeddable, but not %s-bit)", bitness);
     else if (pi->dll_name)
-       C_printf (" (%sembeddable", pi->is_embeddable ? "": "not ");
-
-    if (Anaconda_GetVersion)
-       C_printf (", Anaconda: %s", (*Anaconda_GetVersion)());
-
-    C_putc (')');
+       C_printf (" (%sembeddable)", pi->is_embeddable ? "": "not ");
 
     if (pi->is_default)
        C_puts ("  ~3(1)~0");
