@@ -365,6 +365,18 @@ static int put_lib_dirs_to_cache (const compiler_info *cc)
 }
 
 /**
+ * Return compilers full name with correct slash characters.
+ */
+static const char *compiler_full_name (const compiler_info *cc)
+{
+  static char fqfn [_MAX_PATH];
+
+  if (opt.show_unix_paths)
+     return slashify2 (fqfn, cc->full_name, '/');
+  return (cc->full_name);
+}
+
+/**
  * This is used to find the longest `cc->short_name`. For aligning the 1st column
  * (e.g. `"cl.exe"`) to fit the compiler with the longest `cc->short_name`.
  * I.e. `"x86_64-w64-mingw32-gcc.exe"`.
@@ -497,10 +509,12 @@ void compiler_init (BOOL print_info, BOOL print_lib_path)
   for (i = 0; i < max; i++)
   {
     cc = smartlist_get (all_cc, i);
-    if (cc->ignore)
-       C_printf ("      %s%s\n",
-                 cc->full_name ? cc->full_name : cc->short_name,
-                 cc->full_name == NULL ? "  ~5Not found~0" : "");
+    if (!cc->ignore)
+       continue;
+
+    if (cc->full_name)
+         C_printf ("      %s\n", compiler_full_name(cc));
+    else C_printf ("      %s  ~5Not found~0\n", cc->short_name);
   }
 }
 
@@ -1236,7 +1250,7 @@ static int GCC_print_compiler_info (const compiler_info *cc, BOOL print_lib_path
 
   C_printf ("    %s%*s -> ", cc->short_name, (int)(longest_cc-len), "");
   if (cc->full_name)
-       C_printf ("~6%s~0\n", cc->full_name);
+       C_printf ("~6%s~0\n", compiler_full_name(cc));
   else C_printf ("~5Not found~0\n");
 
   if (!cc->full_name || cc->ignore || !print_lib_path)
@@ -1262,15 +1276,6 @@ static void compiler_last_warn (const compiler_info *cc, const char *env_var, in
 {
   if (num_dirs == 0 && check_ignore_all(cc->type) == 0)
      WARN ("No %s programs returned any %s paths!?.\n", cc->short_name, env_var);
-}
-
-static const char *compiler_full_name (const compiler_info *cc)
-{
-  static char fqfn [_MAX_PATH];
-
-  if (opt.show_unix_paths)
-     return slashify2 (fqfn, cc->full_name, '/');
-  return (cc->full_name);
 }
 
 int compiler_check_includes (compiler_type type)
