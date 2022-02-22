@@ -390,11 +390,11 @@ static int show_version (void)
 
   py_init();
 
+  spinner_stop();
+
   if (_isatty(STDOUT_FILENO))
        C_printf ("\r                             \r");
   else C_putc ('\n');
-
-  spinner_stop();
 
   show_ext_versions();
 
@@ -582,10 +582,10 @@ static int show_help (void)
     unsigned v = py_variant_value (*py, NULL);
 
     if (v == ALL_PYTHONS)
-         C_printf ("      ~6%-6s~0 use all of the below Python programs (when found).\n", *py);
-    else C_printf ("      ~6%-6s~0 use a %s program only.\n", *py, py_variant_name(v));
+         C_printf ("      ~6%-5s~0 use all of the below Python programs (when found).\n", *py);
+    else C_printf ("      ~6%-5s~0 use a %s program only.\n", *py, py_variant_name(v));
   }
-  C_puts ("             otherwise use only first Python found on PATH (i.e. the default).\n"
+  C_puts ("            otherwise use only first Python found on PATH (i.e. the default).\n"
           "      A ~6--py=~0[=~3X~0] ~6--test file.py~0 will execute ~6file.py~0 at end of tests.\n");
 
   C_puts ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 and ~6CONTROL~0 files.\n"
@@ -2937,6 +2937,7 @@ static void MS_CDECL cleanup (void)
      py_exit();
 
   Everything_CleanUp();
+  spinner_stop();
 
   dir_array_free();
 
