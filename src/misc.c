@@ -2897,7 +2897,7 @@ char *str_nstr (const char *haystack, const char *needle, size_t len)
   if (needle_len == 0)
      return (char*)haystack;
 
-  for (i = 0; i <= (int)len - needle_len; i++)
+  for (i = 0; i <= (int)(len - needle_len); i++)
   {
     if ((haystack[0] == needle[0]) && !strnicmp(haystack, needle, needle_len))
        return (char*)haystack;
