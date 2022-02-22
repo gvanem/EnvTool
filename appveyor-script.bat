@@ -74,10 +74,10 @@ exit /b 1
   .\envtool --test --owner
 
   @call :green_msg Testing Python2 test output:
-  .\envtool --test --python=py2
+  .\envtool --test --python=py2 --verbose
 
   @call :green_msg Testing Python3 test output:
-  .\envtool --test --python=py3
+  .\envtool --test --python=py3 --verbose
 
   @call :green_msg Testing VCPKG output:
   .\envtool --vcpkg=all azure-u*
@@ -86,7 +86,7 @@ exit /b 1
   .\envtool -d --test --evry:ftp.github.com:21
 
   @call :green_msg Testing verbose check output:
-  .\envtool --check -v
+  .\envtool --check --verbose
 
   :: @call :green_msg Testing win_glob:
   :: .\win_glob -fr "c:\Program Files (x86)\CMake"
