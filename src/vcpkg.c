@@ -2738,7 +2738,7 @@ typedef struct _Locations {
 static const Locations locations[] = {
           { "VCPKG_DEFAULT_BINARY_CACHE", "" },
           { "LOCALAPPDATA", "\\vcpkg\\archives" },
-          { "APPDATA",      "\\vcpkg\archives" }
+          { "APPDATA",      "\\vcpkg\\archives" }
         };
 
 static char *get_cache_dir (void)
