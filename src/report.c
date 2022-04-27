@@ -228,6 +228,8 @@ quit:
  */
 static int found_everything_db_dirty = 0;
 
+static int found_access_denied = 0;
+
 /**
  * Local functions.
  */
@@ -338,12 +340,19 @@ int report_file (struct report *r)
        have_it = FALSE;
 #endif
 
-    if (r->mtime == 0 &&
-        have_it && !(r->is_dir ^ opt.dir_mode))
+    if (r->mtime == 0 && have_it && !(r->is_dir ^ opt.dir_mode))
     {
-      if (r->fsize == (__int64)-1)   /* Could actually be a file from 01-01-1970 */
-         found_everything_db_dirty = 1;
-      note = " (6)  ";
+      if (r->last_err == ERROR_ACCESS_DENIED)
+      {
+        found_access_denied = 1;
+        note = " (7)  ";
+      }
+      else
+      {
+        if (r->fsize == (__int64)-1)   /* Could actually be a file from 01-01-1970 */
+           found_everything_db_dirty = 1;
+        note = " (6)  ";
+      }
     }
   }
   else if (r->key == HKEY_EVERYTHING_ETP)
@@ -840,6 +849,9 @@ void report_final (int found)
 
    if (found_everything_db_dirty)
       C_puts ("~3 (6): EveryThing database is not up-to-date.~0\n");
+
+   if (found_access_denied)
+      C_puts ("~3 (7): Access denied on special files.~0\n");
 
   if (do_warn)
      C_printf ("\n"

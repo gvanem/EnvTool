@@ -12,6 +12,7 @@ struct report {
        BOOL        is_junction;
        BOOL        is_cwd;
        HKEY        key;
+       DWORD       last_err;
        const char *filler;
        const char *content;
        int       (*pre_action) (struct report *r);
