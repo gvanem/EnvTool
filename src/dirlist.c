@@ -721,7 +721,9 @@ static void print_dirent2 (const struct dirent2 *de, int idx, const struct od2x_
   int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
   int slash;
 
-  C_printf ("~1%4d ~0(%lu): ", idx, (unsigned long)recursion_level);
+  C_printf ("~1%5d ~0(%lu): ", idx, (unsigned long)recursion_level);
+  if (recursion_level < 10)
+     C_putc (' ');
   C_printf ("~4%-7s~6", is_junction ? "<LINK>" : is_dir ? "<DIR>" : "");
 
   /* Junctions need special handling.
