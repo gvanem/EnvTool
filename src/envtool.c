@@ -545,6 +545,7 @@ static int show_help (void)
           "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
           "\n"
           "      To perform raw searches, append a modifier like:\n"
+          "        envtool ~6--evry~0 -s ~3* \"size:>2gb\"~0                 - find all >2GByte files on all drives.\n"
           "        envtool ~6--evry~0 ~3*.exe~0 rc:today                     - find all ~3*.exe~0 files changed today.\n"
           "        envtool ~6--evry~0 ~3*.mp3~0 title:Hello                  - find all ~3*.mp3~0 files with a title starting with Hello.\n"
           "        envtool ~6--evry~0 ~3f*~0 empty:                          - find all empty directories matching ~3f*~0.\n"
@@ -1632,6 +1633,13 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     TRACE (1, "ff_data.cFileName \"%s\", ff_data.dwFileAttributes: 0x%08lX, ignore: %d.\n",
             ff_data.cFileName, ff_data.dwFileAttributes, ignore);
 
+    if (key == HKEY_PYTHON_PATH && (ff_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+      if (str_endswith(ff_data.cFileName, ".dist-info") ||
+          str_endswith(ff_data.cFileName, ".egg-info"))
+         ignore = TRUE;
+    }
+
     if (ignore)
        continue;
 
@@ -1863,7 +1871,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
   BOOL        is_dir = FALSE;
   const char *file2;
   size_t      len = strlen (file);
-  DWORD       attr = 0;
+  DWORD       win_err, attr = 0;
 
   memset (&st, '\0', sizeof(st));
   *is_shadow = FALSE;
@@ -1903,7 +1911,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
      */
     if (mtime == 0)
     {
-      safe_stat (file, &st, NULL);
+      safe_stat (file, &st, &win_err);
       mtime = st.st_mtime;
     }
     if (fsize == (__int64)-1)
@@ -1919,6 +1927,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
   r.mtime       = mtime;
   r.fsize       = is_dir ? (__int64)-1 : fsize;
   r.is_dir      = is_dir;
+  r.last_err    = win_err;
   r.key         = HKEY_EVERYTHING;
   return report_file (&r);
 }
@@ -3002,8 +3011,16 @@ static void MS_CDECL halt (int sig)
   halt_flag++;
   CRTDBG_CHECK_OFF();
 
-  if (opt.do_evry)
-     Everything_KillThread();
+  /*
+   * Since 'Everything_KillThread()' uses a critical section,
+   * kill the thread directly.
+   */
+  if (opt.do_evry && Everything_hthread)
+  {
+    TerminateThread (Everything_hthread, 1);
+    CloseHandle (Everything_hthread);
+    Everything_hthread = NULL;
+  }
 
 #ifdef SIGTRAP
   if (sig == SIGTRAP)
@@ -4151,21 +4168,20 @@ struct environ_fspec {
      };
 
 static struct environ_fspec envs[] = {
-            { "*.exe",   "PATH"                },
-            { "*.lib",   "LIB"                 },
-            { "*.a",     "LIBRARY_PATH"        },
-            { "*.h",     "INCLUDE"             },
-            { "*.h",     "C_INCLUDE_PATH"      },
-            { "*",       "CPLUS_INCLUDE_PATH"  },
-            { NULL,      "MANPATH"             },
-            { NULL,      "PKG_CONFIG_PATH"     },
-            { "*.py?",   "PYTHONPATH"          },
-            { "*.cmake", "CMAKE_MODULE_PATH"   },
-            { "*.pm",    "AUTOM4TE_PERLLIBDIR" },
-            { "*.pm",    "PERLLIBDIR"          },
-            { NULL,      "CLASSPATH"           },  /* No support for these. But do it anyway. */
-            { "*.go",    "GOPATH"              },
-            { NULL,      "FOO"                 }   /* Check that non-existing env-vars are also checked */
+            { "*.exe",   "PATH"               },
+            { "*.lib",   "LIB"                },
+            { "*.a",     "LIBRARY_PATH"       },
+            { "*.h",     "INCLUDE"            },
+            { "*.h",     "C_INCLUDE_PATH"     },
+            { "*",       "CPLUS_INCLUDE_PATH" },
+            { NULL,      "MANPATH"            },
+            { NULL,      "PKG_CONFIG_PATH"    },
+            { "*.py?",   "PYTHONPATH"         },
+            { "*.cmake", "CMAKE_MODULE_PATH"  },
+            { "*.pm",    "PERLLIBDIR"         },
+            { NULL,      "CLASSPATH"          },  /* No support for these. But do it anyway. */
+            { "*.go",    "GOPATH"             },
+            { NULL,      "FOO"                }   /* Check that non-existing env-vars are also checked */
           };
 
 static int do_check (void)
@@ -4188,7 +4204,7 @@ static int do_check (void)
   {
     const char *env  = envs[i].env;
     const char *spec = envs[i].fspec;
-    int   indent = (int) (sizeof("AUTOM4TE_PERLLIBDIR") - strlen(env));
+    int   indent = (int) (sizeof("CPLUS_INCLUDE_PATH") - strlen(env));
 
     C_printf ("Checking ~3%%%s%%~0:%*c", env, indent, ' ');
     if (opt.verbose)
