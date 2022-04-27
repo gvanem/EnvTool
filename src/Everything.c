@@ -774,7 +774,7 @@ exit:
     return 0;
 }
 
-static HANDLE Everything_hthread;
+HANDLE Everything_hthread;
 
 static BOOL EVERYTHINGAPI _Everything_Query(void)
 {

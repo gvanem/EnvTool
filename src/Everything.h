@@ -244,6 +244,8 @@ EVERYTHINGUSERAPI DWORD EVERYTHINGAPI Everything_IncRunCountFromFileNameA(LPCSTR
 #define Everything_IncRunCountFromFileName Everything_IncRunCountFromFileNameA
 #endif
 
+extern HANDLE Everything_hthread;
+
 #ifdef __cplusplus
 }
 #endif
