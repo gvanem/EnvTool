@@ -3072,6 +3072,14 @@ static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
   return (rc);
 }
 
+#ifndef ERROR_VIRUS_INFECTED
+#define ERROR_VIRUS_INFECTED   225L
+#endif
+
+#ifndef ERROR_VIRUS_DELETED
+#define ERROR_VIRUS_DELETED    226L
+#endif
+
 /**
  * Return err-number+string for `err`. Use only with `GetLastError()`.
  * Does not handle libc `errno` values. Remove trailing `[\r\n]`.
@@ -3090,6 +3098,12 @@ char *win_strerror (unsigned long err)
 
   else if (err == ERROR_BAD_EXE_FORMAT)
      strcpy (err_buf, "Bad EXE format");
+
+  else if (err == ERROR_VIRUS_INFECTED)
+     strcpy (err_buf, "Virus Infected!");
+
+  else if (err == ERROR_VIRUS_DELETED)
+     strcpy (err_buf, "Virus Deleted!");
 
   else if (!FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err,
                            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
