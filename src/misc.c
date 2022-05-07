@@ -4130,6 +4130,237 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
   return (i);
 }
 
+/*
+ * Scraped from:
+ *  https://stackoverflow.com/questions/14147138/capture-output-of-spawned-process-to-string
+ *
+ * and heavily modifed.
+ */
+struct popen2_st {
+       HANDLE               child_stdout_read;
+       HANDLE               reader;
+       PROCESS_INFORMATION  pi;
+       char                 cmd_buf [1000];
+       char                 stdout_data [16*1024];
+       popen_callback       callback;
+       DWORD                callback_ret;
+       DWORD                exit_code;
+       int                  timeout; /* timeout in milliseconds or -1 for INIFINTE */
+     };
+
+static int peek_pipe (HANDLE pipe, char *data, int size)
+{
+  char   buffer [4*1024];
+  DWORD  read = 0;
+  DWORD  available = 0;
+  BOOL   rc = PeekNamedPipe (pipe, NULL, sizeof(buffer), NULL, &available, NULL);
+  int    n, bytes;
+
+  if (!rc)
+     return (-1);
+
+  else if (available > 0)
+  {
+    bytes = min (sizeof(buffer), available);
+    rc = ReadFile (pipe, buffer, bytes, &read, NULL);
+    if (!rc)
+       return (-1);
+
+    if (data && size > 0)
+    {
+      n = min (size - 1, (int)read);
+      memcpy (data, buffer, n);
+      data[n + 1] = '\0';   /* zero terminate */
+      return (n);
+    }
+  }
+  return (0);
+}
+
+static DWORD WINAPI threaded_pipe_read (void *arg)
+{
+  struct popen2_st *popen = (struct popen2_st*) arg;
+  ULONGLONG         start_t = GetTickCount64();
+  ULONGLONG         spent_t;
+  BOOL              got_newline;
+  char             *out       = popen->stdout_data;
+  int               out_bytes = sizeof(popen->stdout_data) - 1;
+  char             *p = out;
+  int               line = 0, rc = 0, read_stdout;
+
+  for (;;)
+  {
+    read_stdout = peek_pipe (popen->child_stdout_read, out, out_bytes);
+    if (read_stdout < 0)  /* pipe got closed */
+       break;
+
+    if (popen->timeout > 0)
+    {
+      spent_t = GetTickCount64() - start_t;
+      if (spent_t > popen->timeout)    /* read-timeout on pipe */
+         break;
+    }
+    if (read_stdout > 0)
+    {
+      got_newline = (strpbrk (p, "\r\n") != NULL);
+      TRACE (2, "got_newline: %d, got %d bytes from pipe: '%s'\n", got_newline, read_stdout, p);
+
+      out       += read_stdout;
+      out_bytes -= read_stdout;
+
+      if (got_newline && popen->callback)
+      {
+        rc = (*popen->callback) (p, line++);
+        popen->callback_ret += rc;
+        p = out;
+        if (rc < 0)
+           break;
+      }
+    }
+
+    /* If nothing has been read from pipe,
+     * wait for at least 1 millisecond (more likely 16)
+     */
+    if (read_stdout == 0)
+       WaitForSingleObject (popen->child_stdout_read, 1);
+  }
+  *out = '\0';
+  return (0);
+}
+
+static DWORD create_child_process (struct popen2_st *popen)
+{
+  SECURITY_ATTRIBUTES sa = { 0 };
+  STARTUPINFO         siStartInfo = { 0 };
+  HANDLE              child_stdout_write = INVALID_HANDLE_VALUE;
+  DWORD               err;
+  BOOL                rc;
+
+  sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+  sa.bInheritHandle = TRUE;
+  sa.lpSecurityDescriptor = NULL;
+
+  if (!CreatePipe(&popen->child_stdout_read, &child_stdout_write, &sa, 0))
+     return GetLastError();
+
+  if (!SetHandleInformation(popen->child_stdout_read, HANDLE_FLAG_INHERIT, 0))
+     return GetLastError();
+
+  siStartInfo.cb = sizeof(STARTUPINFO);
+  siStartInfo.hStdOutput = child_stdout_write;
+  siStartInfo.dwFlags   |= STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+  siStartInfo.wShowWindow = SW_HIDE;
+  SetLastError (0);
+  rc = CreateProcessA (NULL,
+                       popen->cmd_buf,     /* the command to run */
+                       NULL,               /* process security attributes */
+                       NULL,               /* primary thread security attributes */
+                       TRUE,               /* handles are inherited */
+                       CREATE_NO_WINDOW,   /* creation flags */
+                       NULL,               /* use parent's environment */
+                       NULL,               /* use parent's current directory */
+                       &siStartInfo,       /* STARTUPINFO pointer */
+                       &popen->pi);        /* receives PROCESS_INFORMATION */
+
+  err = GetLastError();
+  CloseHandle (child_stdout_write);
+  if (!rc)
+  {
+    CloseHandle (popen->child_stdout_read);
+    popen->child_stdout_read = INVALID_HANDLE_VALUE;
+  }
+  return (rc ? ERROR_SUCCESS : err);
+}
+
+static DWORD popen_threaded (struct popen2_st *popen)
+{
+  DWORD rc;
+
+  popen->exit_code = 0;
+  popen->stdout_data[0] = '\0';
+
+  rc = create_child_process (popen);
+  if (rc == ERROR_SUCCESS)
+  {
+    popen->reader = CreateThread (NULL, 0, threaded_pipe_read, popen, 0, NULL);
+    if (!popen->reader)
+    {
+      rc = GetLastError();
+      TerminateProcess (popen->pi.hProcess, ECANCELED);
+    }
+    else
+    {
+      BOOL thread_done  = WaitForSingleObject (popen->pi.hThread, popen->timeout) == 0;
+      BOOL process_done = WaitForSingleObject (popen->pi.hProcess, popen->timeout) == 0;
+
+      if (!thread_done || !process_done)
+         TerminateProcess (popen->pi.hProcess, ETIME);
+
+      GetExitCodeProcess (popen->pi.hProcess, &popen->exit_code);
+      CloseHandle (popen->pi.hThread);
+      CloseHandle (popen->pi.hProcess);
+      CloseHandle (popen->child_stdout_read);
+      popen->child_stdout_read = INVALID_HANDLE_VALUE;
+      WaitForSingleObject (popen->reader, INFINITE); // join thread
+      CloseHandle (popen->reader);
+    }
+  }
+  popen->stdout_data [sizeof(popen->stdout_data) - 1] = '\0';
+  return (rc);
+}
+
+/**
+ * A var-arg wrapper similar to `popen_run()`.
+ *
+ * But uses `CreateProcess()` and `PeekNamedPipe()` in a separate thread to read
+ * `stdout` from the child-process.
+ */
+DWORD popen_run2 (popen_callback callback, const char *cmd, const char *arg, ...)
+{
+  struct popen2_st popen;
+  size_t left = sizeof(popen.cmd_buf) - 1;
+  char  *p = popen.cmd_buf;
+  DWORD  rc;
+
+  memset (&popen, '\0', sizeof(popen));
+  popen.callback = callback;
+  popen.timeout  = -1;
+
+  _strlcpy (p, cmd, left);
+  p    += strlen (cmd);
+  left -= strlen (cmd);
+  *p = '\0';
+
+  if (arg)
+  {
+    va_list args;
+    int     len;
+
+    *p++ = ' ';
+    left--;
+    va_start (args, arg);
+    len = vsnprintf (p, left, arg, args);
+    if (len < 0 || len >= (int)left)  /* 'popen.cmd_buf[]' too small */
+         left = 0;
+    else left -= len;
+    va_end (args);
+  }
+
+  rc = popen_threaded (&popen);
+  if (rc != ERROR_SUCCESS)
+  {
+    TRACE (1, "popen_threaded() failed(): %s.\n", win_strerror(rc));
+    return (0);
+  }
+  TRACE (2, "popen.exit_code: %lu, popen.stdout: '%s'\n", popen.exit_code, popen.stdout_data);
+
+  if (popen.exit_code || popen.stdout_data[0] == '\0')
+     rc = 0;
+  else if (callback)
+     rc = popen.callback_ret;
+  return (rc);
+}
+
 /**
  * Returns the expanded version of an environment variable.
  * Stolen from curl. But I wrote the Win32 part of it...
@@ -5046,6 +5277,14 @@ static HANDLE spinner_hnd = INVALID_HANDLE_VALUE;
 static BOOL   spin_pause = FALSE;
 static int    spin_idx = 0;
 
+#ifdef USE_FANCY_BAR
+  static int  spin_y_pos;
+  static char spin_bar[] = "\xB1\xB1\xB1\xB1\xB1\xB1\xB1\xB1\xB1\xB1\xB1\xB1\xB1\xB1\xB1\r";
+
+  static HANDLE  hStdout = INVALID_HANDLE_VALUE;
+  static CONSOLE_SCREEN_BUFFER_INFO csbi;
+#endif
+
 /**
  * The timer-callback that performs the spinner-bar.
  */
@@ -5054,9 +5293,20 @@ static void CALLBACK spinner_handler (void *param, BOOLEAN timer_fired)
   if (spin_pause)
      return;
 
+#ifdef USE_FANCY_BAR
+  COORD coord;
+
+  coord.X = spin_idx++;
+  coord.Y = spin_y_pos;
+  SetConsoleCursorPosition (hStdout, coord);
+  C_puts ("~2*~0");
+  spin_idx %= sizeof(spin_bar);
+
+#else
   fputc ("-\\|//" [spin_idx++], stdout);
   fputc ('\b', stdout);
   spin_idx &= 3;
+#endif
 
   ARGSUSED (param);
   ARGSUSED (timer_fired);
@@ -5075,13 +5325,23 @@ void spinner_start (void)
   if (spinner_hnd && spinner_hnd != INVALID_HANDLE_VALUE)
      return;
 
-  if (!CreateTimerQueueTimer(&spinner_hnd, NULL, spinner_handler, NULL, 100, 100, flags))
+  if (!CreateTimerQueueTimer(&spinner_hnd, NULL, spinner_handler, NULL, 200, 200, flags))
   {
     TRACE (1, "CreateTimerQueueTimer() failed %s\n", win_strerror(GetLastError()));
     spinner_hnd = NULL;
   }
   else
+  {
+    spin_idx = 0;
+#ifdef USE_FANCY_BAR
+    hStdout = GetStdHandle (STD_OUTPUT_HANDLE);
+    GetConsoleScreenBufferInfo (hStdout, &csbi);
+    spin_y_pos = csbi.dwCursorPosition.Y;
+    C_printf ("~8%s~0", spin_bar);
+#else
     fputc (' ', stdout);
+#endif
+  }
 }
 
 /**
@@ -5099,10 +5359,13 @@ void spinner_stop (void)
 {
   if (spinner_hnd && spinner_hnd != INVALID_HANDLE_VALUE)
   {
+#ifdef USE_FANCY_BAR
+    printf ("%*s~0", strlen(spin_bar), "");
+#else
     fputc (' ', stdout);
+#endif
     DeleteTimerQueueTimer (NULL, spinner_hnd, NULL);
   }
   spin_idx = 0;
   spinner_hnd = INVALID_HANDLE_VALUE;
 }
-

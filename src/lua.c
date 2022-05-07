@@ -316,15 +316,15 @@ static int lua_version_cb (char *buf, int index)
 {
   struct ver_info ver = { 0,0,0,0 };
   const char *fmt = prefer_luajit ? "LuaJIT %d.%d.%d" : "Lua %d.%d.%d";
-
-  ARGSUSED (index);
+  int   rc = 0;
 
   if (sscanf(buf, fmt, &ver.val_1, &ver.val_2, &ver.val_3) >= 2)
   {
     memcpy (&lua_ver, &ver, sizeof(lua_ver));
-    return (1);
+    rc = 1;
   }
-  return (0);
+  TRACE (2, "%s() returned %d, index: %d.\n", __FUNCTION__, rc, index);
+  return (rc);
 }
 
 /**
@@ -333,7 +333,7 @@ static int lua_version_cb (char *buf, int index)
 BOOL lua_get_info (char **exe, struct ver_info *ver)
 {
   static char exe_copy [_MAX_PATH];
-  int  _prefer_luajit = 0;
+  int    rc, _prefer_luajit = 0;
 
   *exe = NULL;
   *ver = lua_ver;
@@ -358,7 +358,8 @@ BOOL lua_get_info (char **exe, struct ver_info *ver)
     cache_getf (SECTION_LUA, "lua_version = %d,%d,%d", &lua_ver.val_1, &lua_ver.val_2, &lua_ver.val_3);
   }
 
-  TRACE (2, "lua_exe: %s, ver: %d.%d.%d. _prefer_luajit: %d\n", lua_exe, lua_ver.val_1, lua_ver.val_2, lua_ver.val_3, _prefer_luajit);
+  TRACE (2, "lua_exe: %s, ver: %d.%d.%d. _prefer_luajit: %d\n",
+         lua_exe, lua_ver.val_1, lua_ver.val_2, lua_ver.val_3, _prefer_luajit);
 
   if (lua_exe && !FILE_EXISTS(lua_exe))
   {
@@ -381,9 +382,28 @@ BOOL lua_get_info (char **exe, struct ver_info *ver)
   cache_putf (SECTION_LUA, "lua_exe = %s", lua_exe);
   cache_putf (SECTION_LUA, "luajit.enable = %d", prefer_luajit);
 
-  if (lua_ver.val_1 + lua_ver.val_2 == 0 &&
-      popen_run(lua_version_cb, lua_exe, "-v") > 0)
-     cache_putf (SECTION_LUA, "lua_version = %d,%d,%d", lua_ver.val_1, lua_ver.val_2, lua_ver.val_3);
+  if (lua_ver.val_1 + lua_ver.val_2 == 0)
+  {
+    DWORD err_mode = SetErrorMode (SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+
+    rc = popen_run2 (lua_version_cb, lua_exe, "-v");
+    TRACE (2, "popen_run2(): rc: %d.\n", rc);
+    SetErrorMode (err_mode);
+
+    if (rc > 0)
+       cache_putf (SECTION_LUA, "lua_version = %d,%d,%d", lua_ver.val_1, lua_ver.val_2, lua_ver.val_3);
+
+    /* The hopeless case were 'lua_exe' was found but failed to run a
+     * simple "lua.exe -v". Hence just don't do this again.
+     */
+    if (rc <= 0)
+    {
+      cache_del (SECTION_LUA, "lua_exe");
+      cache_del (SECTION_LUA, "lua_version");
+      memset (&lua_ver, '\0', sizeof(lua_ver));
+      *exe = lua_exe = NULL;
+    }
+  }
 
   *ver = lua_ver;
   TRACE (2, "%s: ver: %d.%d.%d.\n", lua_get_exe(), ver->val_1, ver->val_2, ver->val_3);
