@@ -1871,7 +1871,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
   BOOL        is_dir = FALSE;
   const char *file2;
   size_t      len = strlen (file);
-  DWORD       win_err, attr = 0;
+  DWORD       win_err = 0, attr = 0;
 
   memset (&st, '\0', sizeof(st));
   *is_shadow = FALSE;
