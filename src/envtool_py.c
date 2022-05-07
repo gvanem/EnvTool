@@ -412,7 +412,7 @@ static int MS_CDECL compare_strings (const void *_s1, const void *_s2)
  */
 const char **py_get_variants (void)
 {
-  static char *result [DIM(all_py_programs)+1];
+  static char *result [DIM(all_py_programs)+2];
   const struct python_info *pi;
   int   i, j;
 
