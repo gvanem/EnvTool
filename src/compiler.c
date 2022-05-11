@@ -1756,7 +1756,7 @@ static int dir_array_dump (smartlist_t *dir_array, const char *where, const char
  * non-canonical names. CygWin is more messy than others. So just remove the
  * duplicates.
  *
- * Futhermore a `"gcc -print-search-dirs"` will print several library directorories
+ * Futhermore a `"gcc -print-search-dirs"` will print several library directories
  * that doesn't exist.
  *
  * Hence loop over the `dir_array` smartlist and remove all non-unique items.
@@ -1766,6 +1766,8 @@ static int dir_array_dump (smartlist_t *dir_array, const char *where, const char
  *                      equals `"%NT_INCLUDE%"` for `compiler_check_watcom_includes()`,
  *                      equals `"%CPATH%"` `compiler_check_intel_includes()` or
  *                      `"library paths"` for `*cc->setup_library_path)`.
+ *
+ * \param[in] compiler_full_name The full pathname of the compiler to work on.
  */
 static int dir_array_make_unique (const char *env_var, const char *compiler_full_name)
 {

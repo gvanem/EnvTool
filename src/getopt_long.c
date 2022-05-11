@@ -201,6 +201,13 @@ static void warnx (const char *fmt, ...)
 /**
  * Parse long options in `argc` / `argv` argument vector.
  *
+ * \param[in] nargv         The argument vector.
+ * \param[in] options       The short options.
+ * \param[in] long_options  The long options.
+ * \param[in] idx           The index to store in (optional).
+ * \param[in] short_too     Check for short options too.
+ * \param[in] flags         Various flags.
+ *
  * \retval -1     if `short_too` is set and the option does not match `long_options`.
  * \retval BADCH  if no match found.
  * \retval BADARG if option is missing required argument.
@@ -679,7 +686,7 @@ static char **build_array (char *buf, const char *delim, int *len)
  *
  * One unescaped word in file is one element.
  *
- * Escaped lines (like `\"foo\"`) will have the outer quotes stripped off.
+ * Escaped lines (like <tt>\"foo\"</tt>) will have the outer quotes stripped off.
  *
  * A file like:
  * \code

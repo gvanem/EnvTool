@@ -901,9 +901,10 @@ static void check_component (const char *env_name, char *tok, int is_cwd)
  * gets cleared in `dir_array_free()` first (in case it was used already).
  *
  * Add current working directory first if `opt.no_cwd == 0` and
- * environment variable does NOT starts with "." or ".\".
+ * environment variable does NOT starts with `"."` or `".\"`.
  *
- * Convert CygWin style paths to Windows paths: `"/cygdrive/x/.."` -> `"x:/.."`.
+ * Convert CygWin style paths to Windows paths: <br>
+ * <tt>"/cygdrive/x/.."</tt> -> <tt>"x:/.."</tt>.
  */
 smartlist_t *split_env_var (const char *env_name, const char *value)
 {
