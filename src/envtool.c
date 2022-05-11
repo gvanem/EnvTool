@@ -3062,7 +3062,7 @@ static void init_all (const char *argv0)
   opt.under_conemu   = C_conemu_detected();
   opt.under_winterm  = C_winterm_detected();
   opt.under_appveyor = (stricmp(user, "APPVYR-WIN\\appveyor") == 0);
-  opt.under_github   = (stricmp(user, "??\\??") == 0);
+  opt.under_github   = str_endswith (user, "\\runneradmin");
   opt.evry_busy_wait = 2;
 
 #ifdef __CYGWIN__

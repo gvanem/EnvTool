@@ -753,12 +753,14 @@ static void test_libssp (void)
 }
 
 /**
- * This should run when user-name is `APPVYR-WIN\appveyor`.
+ * This should run when user-name is:
+ *  + `APPVYR-WIN\appveyor` on AppVeyor. Or something like:
+ *  + `fv-az319-316\runneradmin` on Gihub Actions.
  *
  * Check if it finds `cmake.exe` on it's `%PATH%` which should contain
  * `c:\Program Files (x86)\CMake\bin`.
  */
-static void test_AppVeyor (void)
+static void test_AppVeyor_GitHub (void)
 {
   const char *cmake;
   int   rc, save;
@@ -866,8 +868,8 @@ int do_tests (void)
   test_SHGetFolderPath();
   test_ReparsePoints();
 
-  if (opt.under_appveyor)
-     test_AppVeyor();
+  if (opt.under_appveyor || opt.under_github)
+     test_AppVeyor_GitHub();
 
   test_auth();
   test_libssp();
