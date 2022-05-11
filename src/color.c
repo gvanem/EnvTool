@@ -285,7 +285,7 @@ int C_init_colour_map (unsigned short col, ...)
   }
 
   if (i == DIM(colour_map))
-     FATAL ("'colour_map[]' has room for max %d values.\n", i);
+     FATAL ("'colour_map[]' has room for maximum %d values.\n", i);
 
   /* Set the rest to default colours in case not all elements was filled.
    */
@@ -513,8 +513,8 @@ const char *get_parent_process_name (void)
  */
 static const char *wincon_to_ansi (WORD col)
 {
-  static char ret[20];  /* max: "\x1B[30;1;40;1m" == 12 */
-  static BYTE wincon_to_SGR[8] = { 0, 4, 2, 6, 1, 5, 3, 7 };
+  static char ret [20];  /* max: "\x1B[30;1;40;1m" == 12 */
+  static BYTE wincon_to_SGR [8] = { 0, 4, 2, 6, 1, 5, 3, 7 };
   BYTE   fg, bg, SGR;
   size_t left = sizeof(ret);
   BOOL   bold;
@@ -529,7 +529,7 @@ static const char *wincon_to_ansi (WORD col)
 
   if (bold)
        p += snprintf (p, left, "\x1B[%d;1m", 30 + SGR);
-  else p += snprintf (p, left, "\x1B[%d;0m", 30 + SGR);
+  else p += snprintf (p, left, "\x1B[%dm", 30 + SGR);
   left -= (ret - p);
 
   bold = (col & BACKGROUND_INTENSITY);
