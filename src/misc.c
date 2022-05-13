@@ -31,6 +31,7 @@
 #if defined(__CYGWIN__)
   #include <cygwin/version.h>
   #include <pwd.h>
+
 #elif defined(__MINGW32__)
   #include <sec_api/string_s.h>
 #endif
@@ -5034,8 +5035,6 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
  */
 #undef FILE_EXISTS
 
-#include <io.h>
-#include <wchar.h>
 #include <winternl.h>
 
 #if defined(_MSC_VER)
