@@ -18,6 +18,10 @@
 #include "cfg_file.h"
 #include "compiler.h"
 
+#if defined(__CYGWIN__)
+#include <cygwin/version.h>
+#endif
+
 /**
  * \typedef inc_setup_func
  * The function to the setup function for searching include files.
@@ -922,6 +926,7 @@ static int GCC_LLVM_find_library_path_cb (char *buf, int index)
 
     dir_array_add (rc, FALSE);
   }
+  ARGSUSED (end);
   return (i);
 }
 
