@@ -50,7 +50,7 @@ static GUID  IID_ISetupConfiguration2;
 static void *g_this = NULL;
 static IID  *g_iid = NULL;
 
-static void print_and_compare_guid_str (const GUID *guid, const char *in)
+static void print_and_compare_guid_str (const GUID *guid, const char *ascii_in)
 {
   char    a_result [40];
   wchar_t w_result [40];
@@ -63,7 +63,7 @@ static void print_and_compare_guid_str (const GUID *guid, const char *in)
     if (len == 0)
        strcpy (a_result, "{??}");
   }
-  TRACE (1, "GUID: %s, %sthe same.\n", a_result, strcmp(in,a_result) ? "not " : "");
+  TRACE (1, "GUID: %s, %sthe same.\n", a_result, strcmp(ascii_in, a_result) ? "not " : "");
 }
 
 static void build_GUIDs (void)
