@@ -2093,7 +2093,7 @@ static int do_check_evry (void)
 
   request_flags = Everything_GetRequestFlags();
 
-  /* The request flags: EVERYTHING_REQUEST_SIZE and/or EVERYTHING_REQUEST_DATE_MODIFIED
+  /* The request flags: EVERYTHING_REQUEST_SIZE and/or EVERYTHING_REQUEST_DATE_ACCESSED
    * needs v. 1.4.1 or later.
    * Ref:
    *   https://www.voidtools.com/support/everything/sdk/everything_setrequestflags/
@@ -2101,10 +2101,10 @@ static int do_check_evry (void)
    * But do not request the file size/time since that could be "old information" when
    * files are frequently updated.
    */
-#if 0
+#if 1
   if (version >= 0x010401)
   {
-    request_flags |= EVERYTHING_REQUEST_SIZE | EVERYTHING_REQUEST_DATE_MODIFIED;
+    request_flags |= EVERYTHING_REQUEST_SIZE | EVERYTHING_REQUEST_DATE_ACCESSED;
     Everything_SetRequestFlags (request_flags);
     request_flags = Everything_GetRequestFlags();  /* should be the same as set above */
   }
@@ -2174,7 +2174,7 @@ static int do_check_evry (void)
 
   /* Sort results by path (ignore case).
    * This will fail if `request_flags` has either `EVERYTHING_REQUEST_SIZE`
-   * or `EVERYTHING_REQUEST_DATE_MODIFIED` since version 2 of the query protocol
+   * or `EVERYTHING_REQUEST_DATE_ACCESSED` since version 2 of the query protocol
    * is used.
    * Ref: The comment in Everything.c; "//TODO: sort list2"
    */
@@ -2232,21 +2232,21 @@ static int do_check_evry (void)
 
     response_flags = 0;
 
-    if (request_flags & EVERYTHING_REQUEST_DATE_MODIFIED)
+    if (request_flags & EVERYTHING_REQUEST_DATE_ACCESSED)
     {
       FILETIME ft;
 
-      if (Everything_GetResultDateModified(i, &ft))
+      if (Everything_GetResultDateAccessed(i, &ft))
       {
-        response_flags |= EVERYTHING_REQUEST_DATE_MODIFIED;
+        response_flags |= EVERYTHING_REQUEST_DATE_ACCESSED;
         mtime = FILETIME_to_time_t (&ft);
-        TRACE (2, "%3lu: Everything_GetResultDateModified(), mtime: %.24s\n",
+        TRACE (2, "%3lu: Everything_GetResultDateAccessed(), mtime: %.24s\n",
                 i, mtime ? ctime(&mtime) : "<N/A>");
       }
       else
       {
         err = Everything_GetLastError();
-        TRACE (2, "%3lu: Everything_GetResultDateModified(), err: %s\n",
+        TRACE (2, "%3lu: Everything_GetResultDateAccessed(), err: %s\n",
                 i, evry_strerror(err));
       }
     }
@@ -2269,7 +2269,7 @@ static int do_check_evry (void)
       }
     }
 
-    if ((response_flags & EVERYTHING_REQUEST_DATE_MODIFIED) == 0 ||
+    if ((response_flags & EVERYTHING_REQUEST_DATE_ACCESSED) == 0 ||
         (response_flags & EVERYTHING_REQUEST_SIZE) == 0 )
     {
       struct stat st;
@@ -3253,6 +3253,8 @@ int MS_CDECL main (int argc, const char **argv)
   if (opt.under_conemu || opt.under_appveyor || opt.under_github || opt.under_cygwin || C_trace_level() >= 2)
      C_use_ansi_colours = 1;
 
+  if (opt.no_ansi)
+     C_use_ansi_colours = 0;
   if (opt.no_colours)
      C_use_colours = C_use_ansi_colours = 0;
 
