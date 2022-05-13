@@ -119,12 +119,10 @@ vclean: clean
 	rm -f $(PROGRAMS) $(PROGRAMS:.exe=.map)
 
 cflags_MinGW.h: Makefile.MinGW
-	echo 'const char *cflags = "$(CC) $(CFLAGS)";' > $@
-	@echo
+	$(file > $@,const char *cflags = "$(CC) $(CFLAGS)";)
 
 ldflags_MinGW.h: Makefile.MinGW
-	echo 'const char *ldflags = "$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)";' > $@
-	@echo
+	$(file > $@,const char *ldflags = "$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)";)
 
 DEP_REPLACE = sed -e 's/\(.*\)\.o: /\n\1.o: /'
 

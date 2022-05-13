@@ -126,12 +126,10 @@ win_trust.exe: win_trust.c dirlist.c misc.c color.c searchpath.c smartlist.c
 	@echo
 
 cflags_CygWin.h: Makefile.CygWin
-	echo 'const char *cflags = "$(CC) $(CFLAGS)";' > $@
-	@echo
+	$(file > $@,const char *cflags = "$(CC) $(CFLAGS)";)
 
 ldflags_CygWin.h: Makefile.CygWin
-	echo 'const char *ldflags = "$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)";' > $@
-	@echo
+	$(file > $@,const char *ldflags = "$(CC) $(LDFLAGS) -o envtool.exe $(OBJECTS) envtool.res $(EX_LIBS)";)
 
 clean:
 	rm -f $(OBJECTS) envtool.res envtool.exe envtool.map cflags_Cygwin.h ldflags_Cygwin.h
