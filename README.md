@@ -1,6 +1,6 @@
 # EnvTool v1.4:
 
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/gvanem/envtool?branch=master&svg=true&pendingText=MSVC%20build%20-%20Pending&passingText=MSVC%20build%20-%20OK")](https://ci.appveyor.com/project/gvanem/envtool)
+[![Build Status](https://ci.appveyor.com/api/projects/status/github/gvanem/envtool?branch=master&svg=true&pendingText=MSVC%20build%20-%20Pending&passingText=MSVC%20build%20-%20OK)](https://ci.appveyor.com/project/gvanem/envtool)
 [![MinGW Build](https://github.com/gvanem/EnvTool/actions/workflows/gnu-make.yml/badge.svg)](https://github.com/gvanem/EnvTool/actions/workflows/gnu-make.yml)
 
 A tool to search along various environment variables for files (or a wildcard). The following modes
