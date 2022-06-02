@@ -2093,7 +2093,7 @@ static int do_check_evry (void)
 
   request_flags = Everything_GetRequestFlags();
 
-  /* The request flags: EVERYTHING_REQUEST_SIZE and/or EVERYTHING_REQUEST_DATE_ACCESSED
+  /* The request flags: EVERYTHING_REQUEST_SIZE and/or EVERYTHING_REQUEST_DATE_MODIFIED
    * needs v. 1.4.1 or later.
    * Ref:
    *   https://www.voidtools.com/support/everything/sdk/everything_setrequestflags/
@@ -2104,7 +2104,7 @@ static int do_check_evry (void)
 #if 1
   if (version >= 0x010401)
   {
-    request_flags |= EVERYTHING_REQUEST_SIZE | EVERYTHING_REQUEST_DATE_ACCESSED;
+    request_flags |= EVERYTHING_REQUEST_SIZE | EVERYTHING_REQUEST_DATE_MODIFIED;
     Everything_SetRequestFlags (request_flags);
     request_flags = Everything_GetRequestFlags();  /* should be the same as set above */
   }
@@ -2174,7 +2174,7 @@ static int do_check_evry (void)
 
   /* Sort results by path (ignore case).
    * This will fail if `request_flags` has either `EVERYTHING_REQUEST_SIZE`
-   * or `EVERYTHING_REQUEST_DATE_ACCESSED` since version 2 of the query protocol
+   * or `EVERYTHING_REQUEST_DATE_MODIFIED` since version 2 of the query protocol
    * is used.
    * Ref: The comment in Everything.c; "//TODO: sort list2"
    */
@@ -2232,13 +2232,13 @@ static int do_check_evry (void)
 
     response_flags = 0;
 
-    if (request_flags & EVERYTHING_REQUEST_DATE_ACCESSED)
+    if (request_flags & EVERYTHING_REQUEST_DATE_MODIFIED)
     {
       FILETIME ft;
 
       if (Everything_GetResultDateAccessed(i, &ft))
       {
-        response_flags |= EVERYTHING_REQUEST_DATE_ACCESSED;
+        response_flags |= EVERYTHING_REQUEST_DATE_MODIFIED;
         mtime = FILETIME_to_time_t (&ft);
         TRACE (2, "%3lu: Everything_GetResultDateAccessed(), mtime: %.24s\n",
                 i, mtime ? ctime(&mtime) : "<N/A>");
@@ -2269,7 +2269,7 @@ static int do_check_evry (void)
       }
     }
 
-    if ((response_flags & EVERYTHING_REQUEST_DATE_ACCESSED) == 0 ||
+    if ((response_flags & EVERYTHING_REQUEST_DATE_MODIFIED) == 0 ||
         (response_flags & EVERYTHING_REQUEST_SIZE) == 0 )
     {
       struct stat st;
@@ -2904,6 +2904,9 @@ static int eval_options (void)
   }
 
   if (!opt.PE_check && !opt.do_vcpkg && !opt.do_man && !opt.do_cmake && (opt.only_32bit || opt.only_64bit))
+     opt.PE_check = TRUE;
+
+  if (!opt.PE_check && opt.signed_status != SIGN_CHECK_NONE)
      opt.PE_check = TRUE;
 
   if (opt.do_check &&
