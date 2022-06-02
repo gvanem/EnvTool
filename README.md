@@ -220,6 +220,18 @@ should be used instead.
  ignore = unins00*.exe  # Ignore uninstall programs everywhere.
 ```
 
+**E.g. 12**: `envtool --evry --signed chrome.dll` does a signature check of all
+  `chrome.dll` files:
+
+```
+        18 May 2022 - 06:45:16: c:\Users\Gisle\AppData\Local\Google\Chrome\Application\102.0.5005.63\chrome.dll
+        ver 102.0.5005.63, 64-bit, Chksum OK      (Verified, Google LLC).
+        09 Jul 2004 - 12:16:08: f:\gv\dx-radio\WiNRADiO\DRMplayer\MMPlayerSR\components\chrome.dll
+        ver 0.0.0.0, 32-bit, Chksum OK            (Not signed).
+```
+
+  Here the `--pe` option is implicitly turned on.
+
 ---
 
 C-source included in `./src`. Makefiles for MinGW, Cygwin, clang-cl and MSVC.
