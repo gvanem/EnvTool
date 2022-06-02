@@ -237,6 +237,17 @@ static void check_ignore (compiler_info *cc)
 }
 
 /**
+ * The config-file handler for the `[Compiler]` section.
+ * Currently only handles `"ignore = xx"` pairs.
+ */
+BOOL compiler_cfg_handler (const char *section, const char *key, const char *value)
+{
+  if (!stricmp(key, "ignore"))
+     return cfg_ignore_handler (section, key, value);
+  return (FALSE);
+}
+
+/**
  * Cache functions for compilers.
  * Parses the cache keywords `compiler_exe_X`, `compiler_inc_X_Y` and `compiler_lib_X_Y`.
  */

@@ -3111,47 +3111,70 @@ static void init_all (const char *argv0)
 /**
  * The config-file handler for "beep.*" key/value pairs.
  */
-static void cfg_beep_handler (const char *key, const char *value)
+static BOOL cfg_beep_handler (const char *key, const char *value)
 {
   if (!stricmp(key, "enable"))
-     opt.beep.enable = atoi (value);
-
-  else if (!stricmp(key, "limit"))
-     opt.beep.limit = (unsigned) atoi (value);
-
-  else if (!stricmp(key, "freq"))
-     opt.beep.freq = (unsigned) atoi (value);
-
-  else if (!stricmp(key, "msec"))
-     opt.beep.msec = (unsigned) atoi (value);
+  {
+    opt.beep.enable = atoi (value);
+    return (TRUE);
+  }
+  if (!stricmp(key, "limit"))
+  {
+    opt.beep.limit = (unsigned) atoi (value);
+    return (TRUE);
+  }
+  if (!stricmp(key, "freq"))
+  {
+    opt.beep.freq = (unsigned) atoi (value);
+    return (TRUE);
+  }
+  if (!stricmp(key, "msec"))
+  {
+    opt.beep.msec = (unsigned) atoi (value);
+    return (TRUE);
+  }
+  return (FALSE);
 }
 
 /**
  * The config-file handler for "ETP.*" key/value pairs.
  */
-static void cfg_ETP_handler (const char *key, const char *value)
+static BOOL cfg_ETP_handler (const char *key, const char *value)
 {
   if (!stricmp(key, "buffered_io"))
-     opt.use_buffered_io = atoi (value);
-
-  else if (!stricmp(key, "nonblock_io"))
-     opt.use_nonblock_io = atoi (value);
+  {
+    opt.use_buffered_io = atoi (value);
+    return (TRUE);
+  }
+  if (!stricmp(key, "nonblock_io"))
+  {
+    opt.use_nonblock_io = atoi (value);
+    return (TRUE);
+  }
+  return (FALSE);
 }
 
 /**
  * The config-file handler for "grep.*" key/value pairs.
  */
-static void cfg_grep_handler (const char *key, const char *value)
+static BOOL cfg_grep_handler (const char *key, const char *value)
 {
   if (!stricmp(key, "max_matches"))
-     opt.grep.max_matches = atoi (value);
+  {
+    opt.grep.max_matches = atoi (value);
+    return (TRUE);
+  }
+  return (FALSE);
 }
 
 /**
  * The config-file handler for key/value pairs in the "[Shadow]" section.
  */
-static void shadow_ignore_handler (const char *section, const char *key, const char *value)
+static BOOL shadow_ignore_handler (const char *section, const char *key, const char *value)
 {
+  if (!stricmp(key, "ignore"))
+     return cfg_ignore_handler (section, key, value);
+
   if (!stricmp(key, "dtime"))
   {
     char     *end;
@@ -3161,9 +3184,9 @@ static void shadow_ignore_handler (const char *section, const char *key, const c
          TRACE (1, "illegal dtime: '%s'\n", value);
     else opt.shadow_dtime = 10000000ULL * val;        /* Convert to 100 nsec file-time units */
     TRACE (1, "opt.shadow_dtime: %0.f sec.\n", (double)opt.shadow_dtime/1E7);
+    return (TRUE);
   }
-  else
-    cfg_ignore_handler (section, key, value);
+  return (FALSE);
 }
 
 #ifdef NOT_YET
@@ -3171,10 +3194,11 @@ static void shadow_ignore_handler (const char *section, const char *key, const c
  * "colour.1 = bright yellow"   -> Map color "~1" to bright yellow on default background ( == 6 | FOREGROUND_INTENSITY)
  * "colour.2 = bri red on blue" -> Map color "~2" to bright red on blue background ( == 4 | FOREGROUND_INTENSITY + 16*4)
  */
-static void colour_handler (const char *key, const char *value)
+static BOOL colour_handler (const char *key, const char *value)
 {
   int key_idx = atoi (key);
   C_init_colour (key_idx, value);
+  return (TRUE);
 }
 #endif
 
@@ -3182,50 +3206,57 @@ static void colour_handler (const char *key, const char *value)
  * The config-file parser for key/value pairs *not* in any section
  * (at the start of the `%APPDATA%/envtool.cfg` file).
  */
-static void envtool_cfg_handler (const char *section, const char *key, const char *value)
+static BOOL envtool_cfg_handler (const char *section, const char *key, const char *value)
 {
   if (!strnicmp(key, "beep.", 5))
   {
     TRACE (2, "%s: Calling 'cfg_beep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
-    cfg_beep_handler (key+5, value);
+    return cfg_beep_handler (key+5, value);
   }
-  else if (!strnicmp(key, "cache.", 6))
+  if (!strnicmp(key, "cache.", 6))
   {
     TRACE (2, "%s: Calling 'cache_config (\"%s\", \"%s\")'.\n", section, key+6, value);
-    cache_config (key+6, value);
+    return cache_config (key+6, value);
   }
-  else if (!strnicmp(key, "ETP.", 4))
+  if (!strnicmp(key, "ETP.", 4))
   {
     TRACE (2, "%s: Calling 'cfg_ETP_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
-    cfg_ETP_handler (key+4, value);
+    return cfg_ETP_handler (key+4, value);
   }
-  else if (!strnicmp(key, "grep.", 5))
+  if (!strnicmp(key, "grep.", 5))
   {
     TRACE (2, "%s: Calling 'cfg_grep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
-    cfg_grep_handler (key+5, value);
+    return cfg_grep_handler (key+5, value);
   }
-  else if (!strnicmp(key, "lua.", 4))
+  if (!strnicmp(key, "lua.", 4))
   {
     TRACE (2, "%s: Calling 'lua_cfg_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
-    lua_cfg_handler (key+4, value);
+    return lua_cfg_handler (key+4, value);
   }
 #ifdef NOT_YET
-  else if (!strnicmp(key, "colour.", 6))
+  if (!strnicmp(key, "colour.", 6))
   {
     TRACE (2, "%s: Calling 'colour_handler (\"%s\", \"%s\")'.\n", section, key+6, value);
-    colour_handler (key+6, value);
+    return colour_handler (key+6, value);
   }
 #endif
+  return (FALSE);
 }
 
 /**
  * The config-file handler for key/value pairs in the "[Everything]" section.
  */
-static void evry_cfg_handler (const char *section, const char *key, const char *value)
+static BOOL evry_cfg_handler (const char *section, const char *key, const char *value)
 {
+  if (!stricmp(key, "ignore"))
+     return cfg_ignore_handler (section, key, value);
+
   if (!stricmp(key, "busy_wait"))
-       opt.evry_busy_wait = atoi (value);
-  else cfg_ignore_handler (section, key, value);
+  {
+    opt.evry_busy_wait = atoi (value);
+    return (TRUE);
+  }
+  return (FALSE);
 }
 
 /**
@@ -3268,9 +3299,9 @@ int MS_CDECL main (int argc, const char **argv)
 
   opt.cfg_file = cfg_init ("%APPDATA%/envtool.cfg",
                            "",               envtool_cfg_handler,
-                           "[Compiler]",     cfg_ignore_handler,
+                           "[Compiler]",     compiler_cfg_handler,
                            "[Registry]",     cfg_ignore_handler,
-                           "[Python]",       cfg_ignore_handler,
+                           "[Python]",       py_cfg_handler,
                            "[PE-resources]", cfg_ignore_handler,
                            "[EveryThing]",   evry_cfg_handler,
                            "[Login]",        auth_envtool_handler,

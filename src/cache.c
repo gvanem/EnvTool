@@ -180,16 +180,24 @@ void cache_exit (void)
 /**
  * The `envtool.cfg` handler called from `envtool_cfg_handler()` in envtool.c.
  */
-void cache_config (const char *key, const char *value)
+BOOL cache_config (const char *key, const char *value)
 {
   if (!stricmp(key, "filename"))
-     cache.filename = getenv_expand2 (value);
-
-  else if (!stricmp(key, "filename_prev"))
-     cache.filename_prev = getenv_expand2 (value);
-
-  else if (!stricmp(key, "enable"))
-     opt.use_cache = atoi (value);
+  {
+    cache.filename = getenv_expand2 (value);
+    return (TRUE);
+  }
+  if (!stricmp(key, "filename_prev"))
+  {
+    cache.filename_prev = getenv_expand2 (value);
+    return (TRUE);
+  }
+  if (!stricmp(key, "enable"))
+  {
+    opt.use_cache = atoi (value);
+    return (TRUE);
+  }
+  return (FALSE);
 }
 
 /**

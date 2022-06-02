@@ -4,6 +4,8 @@
 #ifndef _CFG_FILE_H
 #define _CFG_FILE_H
 
+#include <windows.h>
+
 /**
  * \typedef struct CFG_FILE
  * The opaque structure returned by `cfg_init()`.
@@ -14,7 +16,7 @@ typedef struct CFG_FILE CFG_FILE;
  * \typedef cfg_handler
  * A config-file handler should match this prototype.
  */
-typedef void (*cfg_handler) (const char *section,
+typedef BOOL (*cfg_handler) (const char *section,
                              const char *key,
                              const char *value);
 

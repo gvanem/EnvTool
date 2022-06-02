@@ -301,10 +301,14 @@ int lua_search (const char *search_spec)
 /**
  * Config-file handler for kewords starting with `lua.`
  */
-void lua_cfg_handler (const char *key, const char *value)
+BOOL lua_cfg_handler (const char *key, const char *value)
 {
   if (!stricmp(key, "luajit.enable"))
-     prefer_luajit = atoi (value);
+  {
+    prefer_luajit = atoi (value);
+    return (TRUE);
+  }
+  return (FALSE);
 }
 
 const char *lua_get_exe (void)

@@ -221,7 +221,7 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
  *   ```
  * And add to the `login_list [LOGIN_ENVTOOL_CFG]` smartlist.
  */
-void auth_envtool_handler (const char *section, const char *key, const char *value)
+BOOL auth_envtool_handler (const char *section, const char *key, const char *value)
 {
   char user [256];
   char passw[256];
@@ -244,6 +244,7 @@ void auth_envtool_handler (const char *section, const char *key, const char *val
     smartlist_add (login_list[LOGIN_ENVTOOL_CFG], li);
   }
   ARGSUSED (section);
+  return (TRUE);
 }
 
 /**

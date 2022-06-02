@@ -25,7 +25,7 @@ typedef enum CacheSections {
 extern void        cache_init   (void);
 extern void        cache_exit   (void);
 extern int         cache_test   (void);
-extern void        cache_config (const char *key, const char *value);
+extern BOOL        cache_config (const char *key, const char *value);
 extern void        cache_put    (CacheSections section, const char *key, const char *value);
 extern void        cache_putf   (CacheSections section, _Printf_format_string_ const char *fmt, ...) ATTR_PRINTF(2,3);
 extern const char *cache_get    (CacheSections section, const char *key);

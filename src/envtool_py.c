@@ -2482,6 +2482,17 @@ static int match_python_exe (const char *dir)
 }
 
 /**
+ * The config-file handler for the `[Python]` section.
+ * Currently only handles `"ignore = xx"` pairs.
+ */
+BOOL py_cfg_handler (const char *section, const char *key, const char *value)
+{
+  if (!stricmp(key, "ignore"))
+      return cfg_ignore_handler (section, key, value);
+  return (FALSE);
+}
+
+/**
  * Build up the `pi->modules` list from the file-cache.
  */
 static int get_modules_from_cache (struct python_info *pi)

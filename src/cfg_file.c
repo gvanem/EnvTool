@@ -143,6 +143,23 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
   return (NULL);
 }
 
+/*
+ * warn_clang_style(). Print a warning for a cfg-file warning similar to how clang does it:
+ *  c:\Users\Gisle\AppData\Roaming\envtool.cfg(97): Section [Shadow], Unhandled setting: 'xdtime=100000'.
+ *                                                                                        ^~~~~~~~~~~~~
+ */
+static void warn_clang_style (const CFG_FILE *cf, const char *section, const char *key, const char *value)
+{
+  size_t kv_len = 1 + strlen (key) + strlen (value);
+  int    save;
+  int    len = C_printf ("~6%s(%u): ~5Section %s, Unhandled setting: '%s=%s'\n~2", cf->fname, cf->line, section, key, value);
+
+  save = C_setraw (1);
+  C_printf ("%-*s^%s\n", len - kv_len - 2, "", str_repeat('~', kv_len));
+  C_setraw (save);
+  C_puts ("~0");
+}
+
 /**
  * Parse the config-file given in `cf->file`.
  * Build the `cf->list` smartlist as it is parsed.
@@ -187,7 +204,10 @@ static void parse_config_file (CFG_FILE *cf)
 
     handler = lookup_section_handler (cf, cfg->section);
     if (handler)
-      (*handler) (cfg->section, cfg->key, cfg->value);
+    {
+      if (!(*handler) (cfg->section, cfg->key, cfg->value))
+         warn_clang_style (cf, cfg->section, cfg->key, cfg->value);
+    }
     else
     {
       if (!cfg->section || cfg->section[0] == '\0')

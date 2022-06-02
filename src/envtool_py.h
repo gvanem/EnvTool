@@ -31,6 +31,7 @@ extern const char **py_get_variants  (void);
 extern const char  *py_variant_name  (enum python_variants v);
 extern int          py_variant_value (const char *short_name, const char *full_name);
 extern char        *py_execfile      (const char **py_argv, BOOL capture);
+extern BOOL         py_cfg_handler   (const char *section, const char *key, const char *value);
 
 #endif  /* _ENVTOOL_PY_H */
 
