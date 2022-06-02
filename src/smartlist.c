@@ -411,6 +411,35 @@ int smartlist_write_file (smartlist_t *sl, const char *file_fmt, ...)
 }
 
 /**
+ * \todo Open a Registry key and return the wanted records as a smartlist.
+ * \param[in] reg_fmt  The top-key and subkey is specified as a var-arg string.
+ *
+ * E.g.
+ * ```
+ *  void parse_cmake_packages (smartlist_t *sl, const char *key, const char *value)
+ *  {
+ *    struct registry_array *ra = ...  // compare key/value and process as needed
+ *    smartlist_add (sl, ra);
+ *  }
+ *
+ *  smartlist_t *sl = smartlist_read_registry (parse_cmake_packages,
+ *                                             "HKLM\\Software\\Kitware\\CMake\\%s",
+ *                                             "Packages");
+ *  struct registry_array *ra = sl ? smartlist_get (sl, 0) : NULL;
+ *  while (ra) {
+ *    // process 'sl'
+ *  }
+ *  smartlist_wipe (sl, free_cmake_package);
+ * ```
+ */
+smartlist_t *smartlist_read_registry (smartlist_parse_reg_func parse, const char *reg_fmt, ...)
+{
+  ARGSUSED (parse);
+  ARGSUSED (reg_fmt);
+  return (NULL);
+}
+
+/**
  * Append each element from `sl2` to the end of `sl1`.
  */
 size_t smartlist_append (smartlist_t *sl1, const smartlist_t *sl2)
