@@ -15,11 +15,15 @@
  * \def CFG_SECTION_LEN   Maximum length of a section name.
  * \def CFG_KEYWORD_LEN   Maximum length of a keyword.
  * \def CFG_VALUE_LEN     Maximum length of a value.
+ * \def FGETS_BUF_LEN     Length of the `fgets()` buffer
+ * \def SSCANF_BUF_LEN    Length of the `sscanf()` buffer
  */
 #define CFG_MAX_SECTIONS  10
 #define CFG_SECTION_LEN   40
 #define CFG_KEYWORD_LEN   40
 #define CFG_VALUE_LEN    512
+#define FGETS_BUF_LEN    (CFG_VALUE_LEN + CFG_KEYWORD_LEN + 2)
+#define SSCANF_BUF_LEN   (CFG_KEYWORD_LEN + CFG_VALUE_LEN + 2*6 + 7)  /* 2 * strlen("%[^= ]") + strlen(" = [^\r\n]") */
 
 typedef struct CFG_FILE {
         FILE        *file;
@@ -63,10 +67,8 @@ static unsigned config_get_line (CFG_FILE *cf)
 
   while (1)
   {
-    char buf [1000];
-    char fmt [100];
-
-    ASSERT (sizeof(buf) >= CFG_VALUE_LEN + CFG_KEYWORD_LEN + 2);
+    char buf [FGETS_BUF_LEN];
+    char fmt [SSCANF_BUF_LEN];
 
     if (!fgets(buf, sizeof(buf), cf->file))   /* EOF */
        return (0);
@@ -150,12 +152,22 @@ static cfg_handler lookup_section_handler (CFG_FILE *cf, const char *section)
  */
 static void warn_clang_style (const CFG_FILE *cf, const char *section, const char *key, const char *value)
 {
-  size_t kv_len = 1 + strlen (key) + strlen (value);
-  int    save;
-  int    len = C_printf ("~6%s(%u): ~5Section %s, Unhandled setting: '%s=%s'\n~2", cf->fname, cf->line, section, key, value);
+  size_t kv_len = strlen (key) + strlen (value);
+  int    save, len;
+  char   slash = (opt.show_unix_paths ? '/' : '\\');
+  char   cfg_name [_MAX_PATH];
+
+  slashify2 (cfg_name, cf->fname, slash);
+  if (kv_len > 50)
+  {
+    C_printf ("~6%s(%u):\n", cfg_name, cf->line);
+    len = C_printf ("~5  Section %s, Unhandled setting: '%s=%s'\n~2", section, key, value);
+  }
+  else
+    len = C_printf ("~6%s(%u): ~5Section %s, Unhandled setting: '%s=%s'\n~2", cfg_name, cf->line, section, key, value);
 
   save = C_setraw (1);
-  C_printf ("%-*s^%s\n", len - kv_len - 2, "", str_repeat('~', kv_len));
+  C_printf ("%-*s^%s\n", len - kv_len - 3, "", str_repeat('~', kv_len));
   C_setraw (save);
   C_puts ("~0");
 }
