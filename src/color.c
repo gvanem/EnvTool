@@ -687,7 +687,7 @@ int C_putc (int ch)
 
       C_flush();
       C_set_colour (color);
-      return (1);
+      return (0);
     }
 
     if (ch == '~')
