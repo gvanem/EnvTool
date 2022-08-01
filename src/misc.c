@@ -3293,7 +3293,7 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
  */
 void free_at (void *ptr, const char *file, unsigned line)
 {
-  struct mem_head *head = (struct mem_head*)ptr;
+  struct mem_head *head = (struct mem_head*) ptr;
 
   head--;
   if (!ptr)
@@ -5177,6 +5177,29 @@ typedef struct CORE_TEMP_SHARED_DATA {
         unsigned char  ucDeltaToTjMax;
       } CORE_TEMP_SHARED_DATA;
 
+typedef struct CORE_TEMP_SHARED_DATA_EX {
+        unsigned int   uiLoad [256];
+        unsigned int   uiTjMax [128];
+        unsigned int   uiCoreCnt;
+        unsigned int   uiCPUCnt;
+        float          fTemp [256];
+        float          fVID;
+        float          fCPUSpeed;
+        float          fFSBSpeed;
+        float          fMultipier;
+        char           sCPUName [100];
+        unsigned char  ucFahrenheit;
+        unsigned char  ucDeltaToTjMax;
+
+        // Added for Ver. 2 of the protocol.
+        unsigned char ucTdpSupported;
+        unsigned char ucPowerSupported;
+        unsigned int  uiStructVersion;
+        unsigned int  uiTdp [128];
+        float         fPower [128];
+        float         fMultipliers [256];
+      } CORE_TEMP_SHARED_DATA_EX;
+
 typedef BOOL (WINAPI *func_GetCoreTempInfo) (CORE_TEMP_SHARED_DATA *pData);
 
 #ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
@@ -5189,7 +5212,11 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   ULONG   index;
   UINT    i, j;
   char    temp_type;
+#ifdef _WIN64
   HMODULE ct_dll = LoadLibraryEx ("GetCoreTempInfo.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+#else
+  HMODULE ct_dll = LoadLibrary ("GetCoreTempInfo.dll");
+#endif
 
   if (!ct_dll)
   {
@@ -5230,12 +5257,17 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
     C_printf ("%s~6CPU #%d~0, Tj.max: ~6%d%c~0:\n", indent, i, ct_data->uiTjMax[i], temp_type);
     for (j = 0; j < ct_data->uiCoreCnt; j++)
     {
+      const char *indent2 = "";
+
+      if (j < 10 && ct_data->uiCoreCnt >= 10)
+         indent2 = " ";
+
       index = j + (i * ct_data->uiCoreCnt);
       if (ct_data->ucDeltaToTjMax)
-           C_printf ("%s  ~6Core #%lu~0: %.2f%c to Tj.max, %2d%% load\n",
-                     indent, index, (double)ct_data->fTemp[index], temp_type, ct_data->uiLoad[index]);
-      else C_printf ("%s  ~6Core #%lu~0: %.2f%c, %2d%% load\n",
-                     indent, index, (double)ct_data->fTemp[index], temp_type, ct_data->uiLoad[index]);
+           C_printf ("%s  ~6Core #%s%lu~0: %.2f%c to Tj.max, %2d%% load\n",
+                     indent, indent2, index, (double)ct_data->fTemp[index], temp_type, ct_data->uiLoad[index]);
+      else C_printf ("%s  ~6Core #%s%lu~0: %.2f%c, %2d%% load\n",
+                     indent, indent2, index, (double)ct_data->fTemp[index], temp_type, ct_data->uiLoad[index]);
     }
   }
   FreeLibrary (ct_dll);
