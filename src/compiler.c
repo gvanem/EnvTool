@@ -862,6 +862,15 @@ static int GCC_LLVM_find_include_path_cb (char *buf, int index)
 #if !defined(__CYGWIN__)
       if (looks_like_cygwin && cygwin_root)
       {
+        /**
+         *\todo
+         * This part should convert any Posix paths to Windows paths.
+         * Like what the 'cygpath' program does:
+         *   f:\Cygwin64\cygpath -w /cygdrive/f/CygWin64/bin/../lib/gcc/x86_64-pc-cygwin/11/include
+         *   -> f:\CygWin64\lib\gcc\x86_64-pc-cygwin\11\include
+         *
+         * Hence add a 'cygwin_conv_path()' function for non-Cygwin targets.
+         */
         snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, q);
         p = buf2;
       }
