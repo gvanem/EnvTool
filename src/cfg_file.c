@@ -167,7 +167,7 @@ static void warn_clang_style (const CFG_FILE *cf, const char *section, const cha
     len = C_printf ("~6%s(%u): ~5Section %s, Unhandled setting: '%s=%s'\n~2", cfg_name, cf->line, section, key, value);
 
   save = C_setraw (1);
-  C_printf ("%-*s^%s\n", len - kv_len - 3, "", str_repeat('~', kv_len));
+  C_printf ("%-*s^%s\n", (int)(len - kv_len - 3), "", str_repeat('~', kv_len));
   C_setraw (save);
   C_puts ("~0");
 }
