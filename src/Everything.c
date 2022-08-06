@@ -74,6 +74,16 @@
 #endif
 
 /*
+ * Turn off these warnings:
+ *  Everything.c(2673,56): warning: cast from 'FARPROC' (aka 'long long (*)()') to 'BOOL (*)(HWND, UINT, DWORD, _EVERYTHING_PCHANGEFILTERSTRUCT)
+ *  __attribute__((stdcall))' (aka 'int (*)(struct HWND__ *, unsigned int, unsigned long, struct _EVERYTHING_tagCHANGEFILTERSTRUCT *)')
+ *  converts to incompatible function type [-Wcast-function-type]
+ */
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wcast-function-type"
+#endif
+
+/*
  * From 'gcc -m64':
  *   Everything.c:33:26: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
  */
