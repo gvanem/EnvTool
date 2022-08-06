@@ -228,7 +228,11 @@ static const char *get_os_version (void)
        return (is_home_os(p_os) ? "Win-8.1 Home" : "Win-8.1");
 
     if (os_ver == 0xA0000)
-       return ((p_os->wProductType == VER_NT_WORKSTATION) ? "Win-10" : "Win-10 Server");
+    {
+      if (p_os->dwBuildNumber >= 22000)
+          return ((p_os->wProductType == VER_NT_WORKSTATION) ? "Win-11" : "Win-11 Server");
+      return ((p_os->wProductType == VER_NT_WORKSTATION) ? "Win-10" : "Win-10 Server");
+    }
 
     if (HIWORD(os_ver) == 4)
        return ("Win-NT 4.x");
