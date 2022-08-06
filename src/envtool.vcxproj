@@ -82,6 +82,7 @@
       <ShowProgress>NotSet</ShowProgress>
       <Version>
       </Version>
+      <AdditionalOptions>-libpath:"$(WindowsSdkDir)/lib/$(WindowsSdkVer)/um/x86" -libpath:"$(WindowsSdkDir)/lib/$(WindowsSdkVer)/ucrt/x86" -libpath:"$(VCToolkitInstallDir)/lib/x86"</AdditionalOptions>
       <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;psapi.lib;crypt32.lib;shlwapi.lib;ws2_32.lib;ole32.lib;oleaut32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SetChecksum>true</SetChecksum>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
@@ -114,6 +115,7 @@
       <ShowProgress>NotSet</ShowProgress>
       <Version>
       </Version>
+      <AdditionalOptions>-libpath:"$(WindowsSdkDir)/lib/$(WindowsSdkVer)/um/x86" -libpath:"$(WindowsSdkDir)/lib/$(WindowsSdkVer)/ucrt/x86" -libpath:"$(VCToolkitInstallDir)/lib/x86"</AdditionalOptions>
       <AdditionalDependencies>version.lib;advapi32.lib;imagehlp.lib;wintrust.lib;psapi.lib;crypt32.lib;shlwapi.lib;ws2_32.lib;ole32.lib;oleaut32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SetChecksum>true</SetChecksum>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
