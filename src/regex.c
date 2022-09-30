@@ -48,6 +48,13 @@
    */
   #pragma clang diagnostic ignored "-Wconversion"
   #pragma clang diagnostic ignored "-Wcovered-switch-default"
+
+#elif defined(_MSC_VER)
+
+  /* And these:
+   *   warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data
+   */
+  #pragma warning (disable:4267)
 #endif
 
 // #define REGEX_MALLOC 1
@@ -4296,6 +4303,8 @@ int regexec (const regex_t *preg, const char *string, size_t nmatch, regmatch_t 
   int      len = strlen (string);
   int      ret;
   BOOL     want_reg_info = !preg->no_sub && nmatch > 0;
+
+  memset (&regs, '\0', sizeof(regs));
 
   private_preg = *preg;
 
