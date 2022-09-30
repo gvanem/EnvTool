@@ -753,8 +753,7 @@ static void dump_argv (const struct command_line *c, unsigned line)
   {
     p = c->argv[i];
     debugf_line = line;
-    TRACE (2, "c->argv[%2d]: %-40.40s (0x%p)\n",
-           i, (p && IsBadReadPtr(p,40)) ? "<bogus>" : p, p);
+    TRACE (2, "c->argv[%2d]: %-40.40s (0x%p)\n", i, p, p);
   }
 }
 
