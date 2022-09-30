@@ -5391,7 +5391,7 @@ void spinner_stop (void)
   if (spinner_hnd && spinner_hnd != INVALID_HANDLE_VALUE)
   {
 #ifdef USE_FANCY_BAR
-    printf ("%*s~0", strlen(spin_bar), "");
+    printf ("%*s~0", (int)strlen(spin_bar), "");
 #else
     fputc (' ', stdout);
 #endif
