@@ -47,20 +47,17 @@
 static CLSID CLSID_SetupConfiguration;
 static GUID  IID_ISetupConfiguration;
 static GUID  IID_ISetupConfiguration2;
-static void *g_this = NULL;
 static IID  *g_iid = NULL;
 
 static void print_and_compare_guid_str (const GUID *guid, const char *ascii_in)
 {
   char    a_result [40];
   wchar_t w_result [40];
-  DWORD   len;
 
   strcpy (a_result, "{??}");
   if (StringFromGUID2(guid, w_result, (int)DIM(w_result)))
   {
-    len = WideCharToMultiByte (CP_ACP, 0, w_result, -1, a_result, (int)sizeof(a_result), NULL, NULL);
-    if (len == 0)
+    if (!wchar_to_mbchar(a_result, sizeof(a_result), w_result))
        strcpy (a_result, "{??}");
   }
   TRACE (1, "GUID: %s, %sthe same.\n", a_result, strcmp(ascii_in, a_result) ? "not " : "");
@@ -77,8 +74,12 @@ static void build_GUIDs (void)
   #define SET_GUID(a) do { a_str = a; w_str = _T(a); } while (0)
 
   /*
+   * Visual-Studio 2022 keys:
+   *   HKEY_CLASSES_ROOT\CLSID\{177F0C4A-1CD3-4DE7-A32C-71DBBB9FA36D}
+   *   HKEY_CLASSES_ROOT\CLSID\{D84C3A54-4501-436D-B4F9-750E5F727802}
+   *
    * HKEY_CLASSES_ROOT\CLSID\{177F0C4A-1CD3-4DE7-A32C-71DBBB9FA36D}\InprocServer32 ->
-   * c:\ProgramData\Microsoft\VisualStudio\Setup\x86\Microsoft.VisualStudio.Setup.Configuration.Native.dll
+   *   c:\ProgramData\Microsoft\VisualStudio\Setup\x86\Microsoft.VisualStudio.Setup.Configuration.Native.dll
    */
   SET_GUID ("{177F0C4A-1CD3-4DE7-A32C-71DBBB9FA36D}");
   hr = CLSIDFromString (w_str, &CLSID_SetupConfiguration);
@@ -223,12 +224,11 @@ DECLARE_INTERFACE_ (ISetupConfiguration2, ISetupConfiguration)
   STDMETHOD_ (HRESULT, Release) (THIS);
 };
 
-static char str [1000];
-
-static BOOL get_install_name (ISetupInstance2 *inst)
+static BOOL get_install_name (void *This, ISetupInstance2 *inst)
 {
   OLECHAR *name;
-  HRESULT  hr = (*inst->lpVtbl->GetDisplayName) (g_this, LOCALE_USER_DEFAULT, &name);
+  HRESULT  hr = (*inst->lpVtbl->GetDisplayName) (This, LOCALE_USER_DEFAULT, &name);
+  char     str [1000];
 
   if (FAILED(hr))
   {
@@ -241,10 +241,11 @@ static BOOL get_install_name (ISetupInstance2 *inst)
   return (TRUE);
 }
 
-static BOOL get_install_version (ISetupInstance *inst)
+static BOOL get_install_version (void *This, ISetupInstance *inst)
 {
   OLECHAR *ver;
-  HRESULT  hr = (*inst->lpVtbl->GetInstallationVersion) (g_this, &ver);
+  HRESULT  hr = (*inst->lpVtbl->GetInstallationVersion) (This, &ver);
+  char     str [1000];
 
   if (FAILED(hr))
   {
@@ -257,10 +258,11 @@ static BOOL get_install_version (ISetupInstance *inst)
   return (TRUE);
 }
 
-static BOOL get_install_path (ISetupInstance *inst)
+static BOOL get_install_path (void *This, ISetupInstance *inst)
 {
   OLECHAR *path;
-  HRESULT  hr = (*inst->lpVtbl->GetInstallationPath) (g_this, &path);
+  HRESULT  hr = (*inst->lpVtbl->GetInstallationPath) (This, &path);
+  char     str [1000];
 
   if (FAILED(hr))
   {
@@ -273,13 +275,14 @@ static BOOL get_install_path (ISetupInstance *inst)
   return (TRUE);
 }
 
-static BOOL get_installed_packages (ISetupInstance2 *inst)
+static BOOL get_installed_packages (void *This, ISetupInstance2 *inst)
 {
   SAFEARRAY              *sa_packages = NULL;
   ISetupPackageReference *package  = NULL;
   IUnknown              **packages = NULL;
   LONG    i, ub = 0;
-  HRESULT hr = (*inst->lpVtbl->GetPackages) (g_this, &sa_packages);
+  HRESULT hr = (*inst->lpVtbl->GetPackages) (This, &sa_packages);
+  char    str [1000];
 
   if (FAILED(hr))
   {
@@ -307,7 +310,7 @@ static BOOL get_installed_packages (ISetupInstance2 *inst)
 
     package = NULL;
 
-    hr = (*packages[i]->lpVtbl->QueryInterface) (g_this, g_iid, (void**)&package);
+    hr = (*packages[i]->lpVtbl->QueryInterface) (This, g_iid, (void**)&package);
     if (FAILED(hr))
     {
       TRACE (1, "QueryInterface() for package %ld failed\n", i);
@@ -315,7 +318,7 @@ static BOOL get_installed_packages (ISetupInstance2 *inst)
       goto error;
     }
 
-    hr = (*package->lpVtbl->GetId) (g_this, &id);
+    hr = (*package->lpVtbl->GetId) (This, &id);
     if (FAILED(hr))
     {
       TRACE (1, "GetId() for package %ld failed\n", i);
@@ -347,16 +350,22 @@ error:
   return (FALSE);
 }
 
-static BOOL find_all_instances (void)
+
+/**
+ * This function will load `Microsoft.VisualStudio.Setup.Configuration.Native.dll`
+ * to do the required work via COM.
+ */
+static BOOL find_all_instances (void *This)
 {
   ISetupConfiguration2 *sc2   = NULL;
   IEnumSetupInstances  *enm   = NULL;
   ISetupInstance       *inst  = NULL;
   ISetupInstance2      *inst2 = NULL;
-  ISetupConfiguration  *sc    = (ISetupConfiguration*) g_this;
+  ISetupConfiguration  *sc    = (ISetupConfiguration*) This;
+  ULONG                 fetched;
+  HRESULT               hr = (*sc->lpVtbl->QueryInterface) (This, g_iid, (void**)&sc2);
 
-  ULONG   fetched;
-  HRESULT hr = (*sc->lpVtbl->QueryInterface) (g_this, g_iid, (void**)&sc2);
+  TRACE (1, "sc->lpVtbl: 0x%p\n", sc->lpVtbl);
 
   if (FAILED(hr))
   {
@@ -364,7 +373,7 @@ static BOOL find_all_instances (void)
     goto error;
   }
 
-  hr = (*sc2->lpVtbl->EnumAllInstances) (g_this, &enm);
+  hr = (*sc2->lpVtbl->EnumAllInstances) (This, &enm);
   if (FAILED(hr))
   {
     TRACE (1, "hr: %s\n", win_strerror(hr));
@@ -377,35 +386,35 @@ static BOOL find_all_instances (void)
     goto error;
   }
 
-  while (SUCCEEDED((*enm->lpVtbl->Next)(g_this, 1, &inst, &fetched)) && fetched)
+  while (SUCCEEDED((*enm->lpVtbl->Next)(This, 1, &inst, &fetched)) && fetched)
   {
-    hr = (*inst->lpVtbl->QueryInterface) (g_this, g_iid, (void**)&inst2);
+    hr = (*inst->lpVtbl->QueryInterface) (This, g_iid, (void**)&inst2);
 
     if (FAILED(hr) ||
-        !get_install_name(inst2) ||
-        !get_install_version(inst) ||
-        !get_install_path(inst) ||
-        !get_installed_packages(inst2))
+        !get_install_name(This, inst2) ||
+        !get_install_version(This, inst) ||
+        !get_install_path(This, inst) ||
+        !get_installed_packages(This, inst2))
       goto error;
   }
 
-  (*enm->lpVtbl->Release) (g_this);
-  (*sc2->lpVtbl->Release) (g_this);
-  (*sc->lpVtbl->Release) (g_this);
+  (*enm->lpVtbl->Release) (This);
+  (*sc2->lpVtbl->Release) (This);
+  (*sc->lpVtbl->Release) (This);
   return (TRUE);
 
 error:
   if (inst2)
-    (*inst2->lpVtbl->Release) (g_this);
+    (*inst2->lpVtbl->Release) (This);
 
   if (enm)
-    (*enm->lpVtbl->Release) (g_this);
+    (*enm->lpVtbl->Release) (This);
 
   if (sc2)
-    (*sc2->lpVtbl->Release) (g_this);
+    (*sc2->lpVtbl->Release) (This);
 
   if (sc)
-    (*sc->lpVtbl->Release) (g_this);
+    (*sc->lpVtbl->Release) (This);
 
   return (FALSE);
 }
@@ -421,6 +430,7 @@ BOOL find_vstudio_init (void)
 {
   BOOL    rc = FALSE;
   HRESULT hr = CoInitializeEx (NULL, COINIT_MULTITHREADED);
+  void   *This = NULL;
 
   /* Increase debug-level when running on AppVeyor (to see more details).
    */
@@ -433,19 +443,22 @@ BOOL find_vstudio_init (void)
   TRACE_NL (1);
 
   if (hr == RPC_E_CHANGED_MODE)
-     hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED);
+  {
+    TRACE (1, "hr: RPC_E_CHANGED_MODE\n");
+    hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED);
+  }
 
   if (FAILED(hr))
   {
     TRACE (1, "hr: %s\n", win_strerror(hr));
-    return (FALSE);
+    goto error;
   }
 
   hr = CoCreateInstance ((const IID*)&CLSID_SetupConfiguration,
                          NULL,
                          CLSCTX_INPROC_SERVER,
                          g_iid,
-                         &g_this);
+                         &This);
   if (FAILED(hr))
   {
     if (hr == REGDB_E_CLASSNOTREG)
@@ -453,14 +466,11 @@ BOOL find_vstudio_init (void)
     else TRACE (1, "hr: %s\n", win_strerror(hr));
   }
   else
-  {
-    ISetupConfiguration *_g_this = (ISetupConfiguration*) g_this;
-
-    TRACE (1, "_g_this->lpVtbl: 0x%p\n", _g_this->lpVtbl);
-    rc = find_all_instances();
-  }
+    rc = find_all_instances (This);
 
   TRACE_NL (1);
+
+error:
   CoUninitialize();
   return (rc);
 }
