@@ -4917,7 +4917,7 @@ BOOL mbchar_to_wchar (wchar_t *result, size_t result_size, const char *a_buf)
   if (size_needed == 0 || size_needed >= result_size)  /* including NUL-termination */
      return (FALSE);
 
-  if (!MultiByteToWideChar(CP_ACP, 0, a_buf, strlen(a_buf)+1, result, size_needed))
+  if (!MultiByteToWideChar(CP_ACP, 0, a_buf, (int)strlen(a_buf)+1, result, (int)size_needed))
   {
     TRACE (2, "GetLastError(): %s.\n", win_strerror(GetLastError()));
     return (FALSE);

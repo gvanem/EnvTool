@@ -218,7 +218,7 @@ static void usage (const char *I_am)
 int MS_CDECL main (int argc, char **argv)
 {
   const char *argv0 = argv[0];
-  const char *extension_to_test;
+  const char *extension_to_test = "?";
   char       *program_descr, *program_exe;
 
   opt.debug = 0;

@@ -2194,7 +2194,7 @@ static int do_check_evry (void)
   {
     char   prev [_MAX_PATH];
     char   file [_MAX_PATH];
-    UINT64 fsize = (__int64)-1;  /* since a 0-byte file is valid */
+    UINT64 fsize = (UINT64) -1;  /* since a 0-byte file is valid */
     time_t mtime = 0;
     BOOL   is_shadow = FALSE;
     int    ignore;
@@ -2872,7 +2872,7 @@ static void set_long_option (int o, const char *arg)
  */
 static void parse_cmdline (int _argc, const char **_argv)
 {
-  command_line *c = &opt.cmd_line;
+  struct command_line *c = &opt.cmd_line;
 
   c->env_opt       = "ENVTOOL_OPTIONS";
   c->short_opt     = "+chH:vVdDkorsS:tTuq";

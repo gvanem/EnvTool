@@ -2812,7 +2812,7 @@ unsigned vcpkg_list_installed (BOOL detailed)
 
   vcpkg_init();
 
-  fmt_buf.buffer = NULL;
+  fmt_buf.buffer = fmt_buf.buffer_start = NULL;
   total_size = 0;
 
   if (installed_packages)
@@ -3211,7 +3211,7 @@ static BOOL is_plat_supported (const VCPKG_plat_list p_list, unsigned platform)
      return (TRUE);
 
   for (i = 0; i < VCPKG_MAX_PLAT; i++)
-      if (platform == p_list[i])
+      if (platform == (unsigned)p_list[i])
          return (TRUE);
   return (FALSE);
 }
@@ -3574,6 +3574,7 @@ static int json_parse_status_buf (smartlist_t *packages, const char *file, char 
            JSON_typestr(t[i].type), t[i].size, (int)len, str);
     i += t[i+1].size + 1;
   }
+  ARGSUSED (packages);
   return (rc);
 }
 

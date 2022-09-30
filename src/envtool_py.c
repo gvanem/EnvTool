@@ -33,7 +33,7 @@ typedef void PyObject;
 /** \typedef Py_ssize_t
  *  The storage-size type.
  */
-typedef long Py_ssize_t;
+typedef intptr_t Py_ssize_t;
 
 /** \typedef python_path
  *  The layout of each `sys.path[]` entry.
@@ -1696,10 +1696,7 @@ static void py_get_module_info (struct python_info *pi)
  */
 static BOOL check_bitness (struct python_info *pi, char **needed_bits)
 {
-  if (sizeof(void*) == 4)
-     our_bitness = bit_32;
-  else if (sizeof(void*) == 8)
-     our_bitness = bit_64;
+  our_bitness = (sizeof(void*) == 4) ? bit_32 : bit_64;
 
   if (pi->bitness == bit_unknown)
      pi->bitness_ok = (pi->dll_name && check_if_PE(pi->dll_name, &pi->bitness));
@@ -2090,6 +2087,9 @@ static int get_dll_name (struct python_info *pi, const char **libs)
   size_t      i, len, num = DIM (pi->libraries);
 
   _st1 = _st2 = FALSE;
+
+  memset (&st1, '\0', sizeof(st1));
+  memset (&st2, '\0', sizeof(st2));
 
   for (i = 0, lib_fmt = libs[0]; lib_fmt && i < num; lib_fmt = libs[++i])
   {
