@@ -816,8 +816,20 @@ static int test_python_funcs (void)
   {
     char *py_argv [10];
     char  buf [_MAX_PATH];
+    int   i, j;
 
-    memcpy (&py_argv, (const void*)(c->argv + c->argc0), sizeof(py_argv));
+    memset (&py_argv, '\0', sizeof(py_argv));
+    i = 0;
+    for (j = c->argc0; c->argv[j]; i++, j++)
+    {
+      if (i == DIM(py_argv)-1)
+      {
+        WARN ("Too many Python args. Max: %u.\n", DIM(py_argv)-1);
+        break;
+      }
+      py_argv [i] = c->argv[j];
+    }
+
     py_argv[0] = _fix_path (py_argv[0], buf);
     str = py_execfile ((const char**)py_argv, FALSE);
   }
