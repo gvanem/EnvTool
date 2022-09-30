@@ -3438,8 +3438,9 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
 
   /* Loop over all keys of the root object;
    * The `key` is at `t[i].start` and it's value is at `t[i+1].start`.
+   * Test for `i > 0` if we get a wrap du to `i += t[i+1].size + 1`.
    */
-  for (i = 1; i < rc; i++)
+  for (i = 1; i < rc && i > 0; i++)
   {
     if (t[i].size == 0)
        TRACE (3, "Illegal token at index %d!!.\n", i);
@@ -3536,6 +3537,8 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
       len = t[i].end - t[i].start;
       TRACE (2, "Unhandled key/value (type %s, size: %u): '%.*s'\n", JSON_typestr(t[i].type), t[i].size, (int)len, str);
       i += t[i+1].size + 1;
+      if (i < 0)
+         TRACE (3, "Negative i: %d!!\n", i);
     }
   }
   return (rc);
