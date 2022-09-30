@@ -577,15 +577,17 @@ static BOOL state_send_query (struct state_CTX *ctx)
 {
   const char *sort = NULL;  /* No sorting by default */
 
-  /* If a raw query, send `file_spec` query as-is.
-   * But as for 'Everything_SetSearchA()', a 'content:foo bar' string MUST
-   * be quoted.
+  /**
+   * If a raw query, send `file_spec` query as-is.
+   *
+   * But as for 'Everything_SetSearchA()', a 'content:foo bar' string MUST be quoted.
    */
   if (opt.evry_raw)
      send_cmd (ctx, "EVERYTHING SEARCH %s", evry_raw_query());
   else
   {
-    /* Always send a "REGEX 1", but translate from a shell-pattern if
+    /**
+     * Always send a "REGEX 1", but translate from a shell-pattern if
      * `opt.use_regex == 0`.
      */
     send_cmd (ctx, "EVERYTHING REGEX 1");
@@ -1027,16 +1029,17 @@ BOOL state_envtool_cfg_lookup (struct state_CTX *ctx)
 /**
  * Check if `ctx->raw_url` matches one of these formats:
  *
- *  \li `user:passwd@host_or_IP-address<:port>`    Both user-name and password (+ port).
- *  \li `user@host_or_IP-address<:port>`           Only user-name (+ port).
- *  \li `host_or_IP-address<:port>`                Only host/IP-address (+ port).
+ *  \li `user:passwd@host_or_IP-address<:port>` :   Both user-name and password (+ port).
+ *  \li `user@host_or_IP-address<:port>` :          Only user-name (+ port).
+ *  \li `host_or_IP-address<:port>` :               Only host/IP-address (+ port).
  *
  * \param[in] ctx  the context we work with.
  *
  * \todo Fix the `~/.netrc` vs `~/.authinfo` preference selection:
  *       if a non-default entry is found in `~/.netrc`, do not try to use a default
- *       entry from `~/.authinfo`. Or vice versa. Hence we *must* parse both files
- *       first before we send any `USER` or `PASSWORD` commands.
+ *       entry from `~/.authinfo`. Or vice versa. <br>
+ *       Hence we *must* parse both files first before we send any
+ *       `USER` or `PASSWORD` commands.
  */
 static BOOL state_parse_url (struct state_CTX *ctx)
 {
@@ -1044,11 +1047,11 @@ static BOOL state_parse_url (struct state_CTX *ctx)
 
   ETP_tracef (ctx, "Cracking the host-spec: '%s'.\n", ctx->raw_url);
 
-  /* Assume we must use `~/.netrc` or `~/.authifo`.
+  /** Assume we must use `~/.netrc` or `~/.authifo`.
    */
   ctx->use_netrc = ctx->use_authinfo = TRUE;
 
-  /* Check simple case of "host_or_IP-address<:port>" first.
+  /** Check simple case of "host_or_IP-address<:port>" first.
    */
   n = parse_host_spec (ctx, "%200[^:]:%d", ctx->hostname, &ctx->port);
 
@@ -1056,14 +1059,14 @@ static BOOL state_parse_url (struct state_CTX *ctx)
      ctx->use_netrc = ctx->use_authinfo = TRUE;
   else
   {
-    /* Check for "user:passwd@host_or_IP-address<:port>".
+    /** Check for "user:passwd@host_or_IP-address<:port>".
      */
     n = parse_host_spec (ctx, "%30[^:@]:%30[^:@]@%200[^:]:%d", ctx->username, ctx->password, ctx->hostname, &ctx->port);
     if (n == 3 || n == 4)
        ctx->use_netrc = ctx->use_authinfo = FALSE;
     else
     {
-      /* Check for "user@host_or_IP-address<:port>".
+      /** Check for "user@host_or_IP-address<:port>".
        */
       n = parse_host_spec (ctx, "%30[^:@]@%200[^:@]:%d", ctx->username, ctx->hostname, &ctx->port);
       if (n == 2 || n == 3)
@@ -1145,6 +1148,8 @@ static BOOL state_init (struct state_CTX *ctx)
  *
  * \param[in] ctx   the context we work with.
  * \retval    FALSE forces run_state_machine() to quit it's loop
+ *
+ * Calls `WSACleanup()` if `CYGWIN_POSIX` is not defined.
  */
 static BOOL state_exit (struct state_CTX *ctx)
 {
@@ -1253,6 +1258,8 @@ static void connect_common_final (struct state_CTX *ctx, int err)
 
 /**
  * Set socket blocking state.
+ * \li If `CYGWIN_POSIX` is defined, call `ioctl()`.
+ * \li If `CYGWIN_POSIX` is not defined, call `ioctlsocket()`.
  */
 static void set_nonblock (SOCKET sock, DWORD non_block)
 {
