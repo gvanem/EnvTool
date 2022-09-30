@@ -130,7 +130,9 @@ volatile int halt_flag;
 /** Get the bitness (32/64-bit) of the EveryThing program.
  */
 static enum Bitness evry_bitness = bit_unknown;
-static int  evry_service = -1;
+static int          evry_service = -1;
+static int          evry_machine = -1;  /* EVERYTHING_IPC_TARGET_MACHINE_* */
+
 static void get_evry_bitness (HWND wnd);
 
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
@@ -188,6 +190,11 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
   {
     evry_service = SendMessage (wnd, EVERYTHING_WM_IPC, EVERYTHING_IPC_IS_SERVICE, 0);
     TRACE (1, "evry_service: %d.\n", evry_service);
+  }
+  if (evry_machine == -1)
+  {
+    evry_machine = SendMessage (wnd, EVERYTHING_WM_IPC, EVERYTHING_IPC_GET_TARGET_MACHINE, 0);
+    TRACE (1, "evry_machine: %d.\n", evry_machine);
   }
 
   C_printf ("  Everything search engine ver. %u.%u.%u.%u%s (c)"
@@ -1832,7 +1839,6 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
 
 /**
  * \todo
- * \parblock
  *   If the result returns a file on a remote disk (X:) and the
  *   remote computer is down, EveryThing will return the the entry in
  *   it's database. But then the stat() below will fail after a long
@@ -1862,8 +1868,6 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  *   ^^
  *   ```
  *  where to get this state?
- *
- * \endparblock
  */
 static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL *is_shadow)
 {
