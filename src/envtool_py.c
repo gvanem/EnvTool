@@ -250,10 +250,6 @@ static char  *popen_out = NULL;
 static size_t popen_out_sz = 0;
 static BOOL   popen_py_crash = FALSE;
 
-#if !defined(_DEBUG)
-  static HANDLE exc_hnd = NULL;
-#endif
-
 static int  get_python_version (const char *exe_name);
 static BOOL py_add_module (struct python_info *pi, const struct python_module *m);
 
@@ -712,9 +708,9 @@ static void py_set_inspect_flag (int v)
 /**
  * Free the Python DLL handle allocated by `py_init_embedding()`.
  */
-static void py_exit_embedding (struct python_info *pi)
+static void py_exit_embedding (HANDLE *hnd)
 {
-  if (pi->dll_hnd)
+  if (*hnd)
   {
     py_set_inspect_flag (0);
     Py_InspectFlag = NULL;
@@ -724,9 +720,9 @@ static void py_exit_embedding (struct python_info *pi)
       (*Py_Finalize)();
     }
     if (!IsDebuggerPresent())
-       CloseHandle (pi->dll_hnd);
+       CloseHandle (*hnd);
+    *hnd = NULL;
   }
-  pi->dll_hnd = NULL;
 }
 
 /**
@@ -776,7 +772,7 @@ static void free_py_program (void *_pi)
   FREE (pi->user_site_path);
 
   if (pi->is_embeddable)
-     py_exit_embedding (pi);
+     py_exit_embedding (&pi->dll_hnd);
 
   if (pi->sys_path)
   {
@@ -801,13 +797,6 @@ void py_exit (void)
     smartlist_wipe (py_programs, free_py_program);
     smartlist_free (py_programs);
   }
-
-#if !defined(_DEBUG)
-  if (exc_hnd)
-     FreeLibrary (exc_hnd);
-  exc_hnd = NULL;
-#endif
-
   g_pi = NULL;
 }
 
@@ -864,7 +853,7 @@ static PyObject *setup_stdout_catcher (void)
   PyObject *obj = (*PyObject_GetAttrString) (mod, "catcher");  /* get a reference to `catcher` created above */
 
   TRACE (5, "code: '%s'\n", code);
-  TRACE (4, "mod: %p, rc: %d, obj: %p\n", mod, rc, obj);
+  TRACE (4, "mod: 0x%p, rc: %d, obj: 0x%p\n", mod, rc, obj);
   return (obj);
 }
 
@@ -954,7 +943,7 @@ static BOOL py_init_embedding (struct python_info *pi)
   /* Fail, fall through */
 
 failed:
-  py_exit_embedding (pi);
+  py_exit_embedding (&pi->dll_hnd);
   return (FALSE);
 }
 
@@ -1025,7 +1014,7 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
   rc = (*PyRun_SimpleString) (prog);
 
   err = (*PyErr_Occurred)();
-  TRACE (2, "rc: %d, err: %p\n", rc, err);
+  TRACE (2, "rc: %d, err: 0x%p\n", rc, err);
 
   if (rc < 0)
   {
@@ -1042,7 +1031,7 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
    */
   obj = (*PyObject_GetAttrString) (pi->catcher, "value");
 
-  TRACE (4, "rc: %d, obj: %p\n", rc, obj);
+  TRACE (4, "rc: %d, obj: 0x%p\n", rc, obj);
 
   if (rc == 0 && obj)
   {
@@ -3017,17 +3006,6 @@ void py_init (void)
   size_t f_len = strlen (__FILE());
   int    i, max;
 
-#if !defined(_DEBUG)
-  if (!exc_hnd)
-  {
-    DWORD exc_err;
-
-    exc_hnd = LoadLibrary ("exc-abort.dll");
-    exc_err = GetLastError();
-    TRACE (2, "LoadLibrary (\"exc-abort.dll\"): hnd: %p, err: %lu\n", exc_hnd, exc_err);
-  }
-#endif
-
   py_programs = smartlist_new();
 
   if (!get_pythons_from_cache())
@@ -3210,7 +3188,7 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
    * Calling again `py_init_embedding()` will set the `PySys_SetArgvEx()` function pointer
    * and also call `setup_stdout_catcher()`.
    */
-  py_exit_embedding (pi);
+  py_exit_embedding (&pi->dll_hnd);
 
   if (!py_init_embedding(pi))
   {
