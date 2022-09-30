@@ -32,61 +32,61 @@ extern "C" {
 
 // EVERYTHING_WM_IPC (send to the Everything taskbar notification window)
 // the Everything taskbar notification window is always created when Everything is running. (even when the taskbar notification icon is hidden)
-// HWND everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
-// SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_*,lParam)
+// HWND everything_taskbar_notification_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+// SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_*,lParam)
 
 // version format: major.minor.revision.build
 // example: 1.4.1.877
-#define EVERYTHING_IPC_GET_MAJOR_VERSION                                0 // int major_version = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_MAJOR_VERSION,0);
-#define EVERYTHING_IPC_GET_MINOR_VERSION                                1 // int minor_version = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_MINOR_VERSION,0);
-#define EVERYTHING_IPC_GET_REVISION                                     2 // int revision = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_REVISION,0);
-#define EVERYTHING_IPC_GET_BUILD_NUMBER                                 3 // int build = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_BUILD,0);
+#define EVERYTHING_IPC_GET_MAJOR_VERSION                                0 // int major_version = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_MAJOR_VERSION,0);
+#define EVERYTHING_IPC_GET_MINOR_VERSION                                1 // int minor_version = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_MINOR_VERSION,0);
+#define EVERYTHING_IPC_GET_REVISION                                     2 // int revision = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_REVISION,0);
+#define EVERYTHING_IPC_GET_BUILD_NUMBER                                 3 // int build = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_BUILD,0);
 #define EVERYTHING_IPC_EXIT                                             4 // returns 1 if the program closes.
-#define EVERYTHING_IPC_GET_TARGET_MACHINE                               5 // int target_machine = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_TARGET_MACHINE,0); returns 0 if not supported. returns a EVERYTHING_IPC_TARGET_MACHINE_* value. requires Everything 1.4.1
+#define EVERYTHING_IPC_GET_TARGET_MACHINE                               5 // int target_machine = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_GET_TARGET_MACHINE,0); returns 0 if not supported. returns a EVERYTHING_IPC_TARGET_MACHINE_* value. requires Everything 1.4.1
 
 // uninstall options
-#define EVERYTHING_IPC_DELETE_START_MENU_SHORTCUTS                      100 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_START_MENU_SHORTCUTS,0);
-#define EVERYTHING_IPC_DELETE_QUICK_LAUNCH_SHORTCUT                     101 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_QUICK_LAUNCH_SHORTCUT,0);
-#define EVERYTHING_IPC_DELETE_DESKTOP_SHORTCUT                          102 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_DESKTOP_SHORTCUT,0);
-#define EVERYTHING_IPC_DELETE_FOLDER_CONTEXT_MENU                       103 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_FOLDER_CONTEXT_MENU,0);
-#define EVERYTHING_IPC_DELETE_RUN_ON_SYSTEM_STARTUP                     104 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_RUN_ON_SYSTEM_STARTUP,0);
-#define EVERYTHING_IPC_DELETE_URL_PROTOCOL                              105 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_URL_PROTOCOL,0);
+#define EVERYTHING_IPC_DELETE_START_MENU_SHORTCUTS                      100 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_START_MENU_SHORTCUTS,0);
+#define EVERYTHING_IPC_DELETE_QUICK_LAUNCH_SHORTCUT                     101 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_QUICK_LAUNCH_SHORTCUT,0);
+#define EVERYTHING_IPC_DELETE_DESKTOP_SHORTCUT                          102 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_DESKTOP_SHORTCUT,0);
+#define EVERYTHING_IPC_DELETE_FOLDER_CONTEXT_MENU                       103 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_FOLDER_CONTEXT_MENU,0);
+#define EVERYTHING_IPC_DELETE_RUN_ON_SYSTEM_STARTUP                     104 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_RUN_ON_SYSTEM_STARTUP,0);
+#define EVERYTHING_IPC_DELETE_URL_PROTOCOL                              105 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_URL_PROTOCOL,0);
 
 // install options
-#define EVERYTHING_IPC_CREATE_START_MENU_SHORTCUTS                      200 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_START_MENU_SHORTCUTS,0);
-#define EVERYTHING_IPC_CREATE_QUICK_LAUNCH_SHORTCUT                     201 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_QUICK_LAUNCH_SHORTCUT,0);
-#define EVERYTHING_IPC_CREATE_DESKTOP_SHORTCUT                          202 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_DESKTOP_SHORTCUT,0);
-#define EVERYTHING_IPC_CREATE_FOLDER_CONTEXT_MENU                       203 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_FOLDER_CONTEXT_MENU,0);
-#define EVERYTHING_IPC_CREATE_RUN_ON_SYSTEM_STARTUP                     204 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_RUN_ON_SYSTEM_STARTUP,0);
-#define EVERYTHING_IPC_CREATE_URL_PROTOCOL                              205 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_URL_PROTOCOL,0);
+#define EVERYTHING_IPC_CREATE_START_MENU_SHORTCUTS                      200 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_START_MENU_SHORTCUTS,0);
+#define EVERYTHING_IPC_CREATE_QUICK_LAUNCH_SHORTCUT                     201 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_QUICK_LAUNCH_SHORTCUT,0);
+#define EVERYTHING_IPC_CREATE_DESKTOP_SHORTCUT                          202 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_DESKTOP_SHORTCUT,0);
+#define EVERYTHING_IPC_CREATE_FOLDER_CONTEXT_MENU                       203 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_FOLDER_CONTEXT_MENU,0);
+#define EVERYTHING_IPC_CREATE_RUN_ON_SYSTEM_STARTUP                     204 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_RUN_ON_SYSTEM_STARTUP,0);
+#define EVERYTHING_IPC_CREATE_URL_PROTOCOL                              205 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_CREATE_URL_PROTOCOL,0);
 
 // get option status; 0 = no, 1 = yes, 2 = indeterminate (partially installed)
-#define EVERYTHING_IPC_IS_START_MENU_SHORTCUTS                          300 // int ret = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_START_MENU_SHORTCUTS,0);
-#define EVERYTHING_IPC_IS_QUICK_LAUNCH_SHORTCUT                         301 // int ret = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_QUICK_LAUNCH_SHORTCUT,0);
-#define EVERYTHING_IPC_IS_DESKTOP_SHORTCUT                              302 // int ret = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_DESKTOP_SHORTCUT,0);
-#define EVERYTHING_IPC_IS_FOLDER_CONTEXT_MENU                           303 // int ret = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_FOLDER_CONTEXT_MENU,0);
-#define EVERYTHING_IPC_IS_RUN_ON_SYSTEM_STARTUP                         304 // int ret = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_RUN_ON_SYSTEM_STARTUP,0);
-#define EVERYTHING_IPC_IS_URL_PROTOCOL                                  305 // int ret = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_URL_PROTOCOL,0);
-#define EVERYTHING_IPC_IS_SERVICE                                       306 // int ret = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_SERVICE,0);
+#define EVERYTHING_IPC_IS_START_MENU_SHORTCUTS                          300 // int ret = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_START_MENU_SHORTCUTS,0);
+#define EVERYTHING_IPC_IS_QUICK_LAUNCH_SHORTCUT                         301 // int ret = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_QUICK_LAUNCH_SHORTCUT,0);
+#define EVERYTHING_IPC_IS_DESKTOP_SHORTCUT                              302 // int ret = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_DESKTOP_SHORTCUT,0);
+#define EVERYTHING_IPC_IS_FOLDER_CONTEXT_MENU                           303 // int ret = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_FOLDER_CONTEXT_MENU,0);
+#define EVERYTHING_IPC_IS_RUN_ON_SYSTEM_STARTUP                         304 // int ret = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_RUN_ON_SYSTEM_STARTUP,0);
+#define EVERYTHING_IPC_IS_URL_PROTOCOL                                  305 // int ret = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_URL_PROTOCOL,0);
+#define EVERYTHING_IPC_IS_SERVICE                                       306 // int ret = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_SERVICE,0);
 
 // indexing
-#define EVERYTHING_IPC_IS_NTFS_DRIVE_INDEXED                            400 // int is_indexed = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_NTFS_DRIVE_INDEXED,drive_index); drive_index: 0-25 = 0=A:, 1=B:, 2=C:...
+#define EVERYTHING_IPC_IS_NTFS_DRIVE_INDEXED                            400 // int is_indexed = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_NTFS_DRIVE_INDEXED,drive_index); drive_index: 0-25 = 0=A:, 1=B:, 2=C:...
 
 // requires Everything 1.4:
-#define EVERYTHING_IPC_IS_DB_LOADED                                     401 // int is_db_loaded = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_DB_LOADED,0);
-#define EVERYTHING_IPC_IS_DB_BUSY                                       402 // int is_db_busy = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_DB_BUSY,0); // db is busy, issuing another action will cancel the current one (if possible).
-#define EVERYTHING_IPC_IS_ADMIN                                         403 // int is_admin = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_ADMIN,0);
-#define EVERYTHING_IPC_IS_APPDATA                                       404 // int is_appdata = (int)SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_APPDATA,0);
-#define EVERYTHING_IPC_REBUILD_DB                                       405 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_REBUILD,0); // forces all indexes to be rescanned.
-#define EVERYTHING_IPC_UPDATE_ALL_FOLDER_INDEXES                        406 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_UPDATE_ALL_FOLDER_INDEXES,0); // rescan all folder indexes.
-#define EVERYTHING_IPC_SAVE_DB                                          407 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_SAVE_DB,0); // save the db to disk.
-#define EVERYTHING_IPC_SAVE_RUN_HISTORY                                 408 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_SAVE_RUN_HISTORY,0); // save run history to disk.
-#define EVERYTHING_IPC_DELETE_RUN_HISTORY                               409 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_RUN_HISTORY,0); // deletes all run history from memory and disk.
-#define EVERYTHING_IPC_IS_FAST_SORT                                     410 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_FAST_SORT,EVERYTHING_IPC_SORT_*); // is the sort information indexed?
-#define EVERYTHING_IPC_IS_FILE_INFO_INDEXED                             411 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_FILE_INFO_INDEXED,EVERYTHING_IPC_FILE_INFO_*); // is the file/folder info indexed?
+#define EVERYTHING_IPC_IS_DB_LOADED                                     401 // int is_db_loaded = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_DB_LOADED,0);
+#define EVERYTHING_IPC_IS_DB_BUSY                                       402 // int is_db_busy = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_DB_BUSY,0); // db is busy, issueing another action will cancel the current one (if possible).
+#define EVERYTHING_IPC_IS_ADMIN                                         403 // int is_admin = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_ADMIN,0);
+#define EVERYTHING_IPC_IS_APPDATA                                       404 // int is_appdata = (int)SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_APPDATA,0);
+#define EVERYTHING_IPC_REBUILD_DB                                       405 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_REBUILD,0); // forces all indexes to be rescanned.
+#define EVERYTHING_IPC_UPDATE_ALL_FOLDER_INDEXES                        406 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_UPDATE_ALL_FOLDER_INDEXES,0); // rescan all folder indexes.
+#define EVERYTHING_IPC_SAVE_DB                                          407 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_SAVE_DB,0); // save the db to disk.
+#define EVERYTHING_IPC_SAVE_RUN_HISTORY                                 408 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_SAVE_RUN_HISTORY,0); // save run history to disk.
+#define EVERYTHING_IPC_DELETE_RUN_HISTORY                               409 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_DELETE_RUN_HISTORY,0); // deletes all run history from memory and disk.
+#define EVERYTHING_IPC_IS_FAST_SORT                                     410 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_FAST_SORT,EVERYTHING_IPC_SORT_*); // is the sort information indexed?
+#define EVERYTHING_IPC_IS_FILE_INFO_INDEXED                             411 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_IS_FILE_INFO_INDEXED,EVERYTHING_IPC_FILE_INFO_*); // is the file/folder info indexed?
 
 // Everything 1.5
-#define EVERYTHING_IPC_QUEUE_REBUILD_DB                                 412 // SendMessage(everything_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_QUEUE_REBUILD_DB,0); // forces all indexes to be rescanned when the db is ready.
+#define EVERYTHING_IPC_QUEUE_REBUILD_DB                                 412 // SendMessage(everything_taskbar_notification_hwnd,EVERYTHING_WM_IPC,EVERYTHING_IPC_QUEUE_REBUILD_DB,0); // forces all indexes to be rescanned when the db is ready.
 
 // send the following to an existing Everything search window (requires Everything 1.4.1)
 // SendMessage(FindWindow(EVERYTHING_IPC_SEARCH_CLIENT_WNDCLASS,0),EVERYTHING_WM_IPC,EVERYTHING_IPC_*,0);
@@ -356,33 +356,33 @@ extern "C" {
 #define EVERYTHING_IPC_ID_RESULT_LIST_SORT_BY_DATE_ACCESSED             41311
 #define EVERYTHING_IPC_ID_RESULT_LIST_SORT_BY_DATE_RUN                  41312
 
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_NAME_COLUMN                41400
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_PATH_COLUMN                41401
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_SIZE_COLUMN                41402
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_EXTENSION_COLUMN           41403
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_TYPE_COLUMN                41404
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_DATE_MODIFIED_COLUMN       41405
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_DATE_CREATED_COLUMN        41406
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_ATTRIBUTES_COLUMN          41407
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_FILE_LIST_FILENAME_COLUMN  41408
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_RUN_COUNT_COLUMN           41409
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_NAME_COLUMN                    41400
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_PATH_COLUMN                    41401
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_SIZE_COLUMN                    41402
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_EXTENSION_COLUMN               41403
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_TYPE_COLUMN                    41404
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_DATE_MODIFIED_COLUMN           41405
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_DATE_CREATED_COLUMN            41406
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_ATTRIBUTES_COLUMN              41407
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_FILE_LIST_FILENAME_COLUMN      41408
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_RUN_COUNT_COLUMN               41409
 #define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_DATE_RECENTLY_CHANGED_COLUMN   41410
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_DATE_ACCESSED_COLUMN       41411
-#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_DATE_RUN_COLUMN            41412
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_DATE_ACCESSED_COLUMN           41411
+#define EVERYTHING_IPC_ID_RESULT_LIST_TOGGLE_DATE_RUN_COLUMN                41412
 
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_NAME_COLUMN_TO_FIT           41600
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_PATH_COLUMN_TO_FIT           41601
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_SIZE_COLUMN_TO_FIT           41602
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_EXTENSION_COLUMN_TO_FIT      41603
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_TYPE_COLUMN_TO_FIT           41604
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_DATE_MODIFIED_COLUMN_TO_FIT  41605
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_DATE_CREATED_COLUMN_TO_FIT   41606
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_ATTRIBUTES_COLUMN_TO_FIT     41607
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_FILE_LIST_FILENAME_COLUMN_TO_FIT 41608
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_RUN_COUNT_COLUMN_TO_FIT      41609
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_NAME_COLUMN_TO_FIT                   41600
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_PATH_COLUMN_TO_FIT                   41601
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_SIZE_COLUMN_TO_FIT                   41602
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_EXTENSION_COLUMN_TO_FIT              41603
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_TYPE_COLUMN_TO_FIT                   41604
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_DATE_MODIFIED_COLUMN_TO_FIT          41605
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_DATE_CREATED_COLUMN_TO_FIT           41606
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_ATTRIBUTES_COLUMN_TO_FIT             41607
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_FILE_LIST_FILENAME_COLUMN_TO_FIT     41608
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_RUN_COUNT_COLUMN_TO_FIT              41609
 #define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_DATE_RECENTLY_CHANGED_COLUMN_TO_FIT  41610
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_DATE_ACCESSED_COLUMN_TO_FIT  41611
-#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_DATE_RUN_COLUMN_TO_FIT       41612
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_DATE_ACCESSED_COLUMN_TO_FIT          41611
+#define EVERYTHING_IPC_ID_RESULT_LIST_SIZE_DATE_RUN_COLUMN_TO_FIT               41612
 
 #define EVERYTHING_IPC_ID_FILE_CUSTOM_VERB01                            41500
 #define EVERYTHING_IPC_ID_FILE_CUSTOM_VERB02                            41501
@@ -614,7 +614,7 @@ typedef struct EVERYTHING_IPC_LISTW
     // index offset of the first result in the item list.
     DWORD offset;
 
-    // variable length item list.
+    // variable lengthed item list.
     // use numitems to determine the actual number of items available.
     EVERYTHING_IPC_ITEMW items[1];
 
@@ -643,7 +643,7 @@ typedef struct EVERYTHING_IPC_LISTA
     // index offset of the first result in the item list.
     DWORD offset;
 
-    // variable length item list.
+    // variable lengthed item list.
     // use numitems to determine the actual number of items available.
     EVERYTHING_IPC_ITEMA items[1];
 
@@ -853,7 +853,7 @@ typedef struct EVERYTHING_IPC_LIST2
 // cds.dwData = EVERYTHING_IPC_COPYDATA_GET_RUN_COUNTA;
 // cds.lpData = TEXT("C:\\folder\\file.txt");
 // cds.cbData = size in bytes of cds.lpData including null terminator.
-// SendMessage(everything_hwnd,WM_COPYDATA,(WPARAM)(HWND)notify_hwnd,(LPARAM)(COPYDATASTRUCT *)&cds);
+// SendMessage(everything_taskbar_notification_hwnd,WM_COPYDATA,(WPARAM)(HWND)notify_hwnd,(LPARAM)(COPYDATASTRUCT *)&cds);
 
 #define EVERYTHING_IPC_COPYDATA_GET_RUN_COUNTA                          19
 #define EVERYTHING_IPC_COPYDATA_GET_RUN_COUNTW                          20
@@ -876,7 +876,7 @@ typedef struct EVERYTHING_IPC_RUN_HISTORY
 // cds.dwData = EVERYTHING_IPC_COPYDATA_GET_RUN_COUNTA;
 // cds.lpData = (EVERYTHING_IPC_RUN_HISTORY *)run_history;
 // cds.cbData = size in bytes of cds.lpData including null terminator.
-// SendMessage(everything_hwnd,WM_COPYDATA,(WPARAM)(HWND)notify_hwnd,(LPARAM)(COPYDATASTRUCT *)&cds);
+// SendMessage(everything_taskbar_notification_hwnd,WM_COPYDATA,(WPARAM)(HWND)notify_hwnd,(LPARAM)(COPYDATASTRUCT *)&cds);
 
 #define EVERYTHING_IPC_COPYDATA_SET_RUN_COUNTA                          21
 #define EVERYTHING_IPC_COPYDATA_SET_RUN_COUNTW                          22
@@ -886,7 +886,7 @@ typedef struct EVERYTHING_IPC_RUN_HISTORY
 // cds.dwData = EVERYTHING_IPC_COPYDATA_GET_RUN_COUNTA;
 // cds.lpData = TEXT("C:\\folder\\file.txt");
 // cds.cbData = size in bytes of cds.lpData including null terminator.
-// SendMessage(everything_hwnd,WM_COPYDATA,(WPARAM)(HWND)notify_hwnd,(LPARAM)(COPYDATASTRUCT *)&cds);
+// SendMessage(everything_taskbar_notification_hwnd,WM_COPYDATA,(WPARAM)(HWND)notify_hwnd,(LPARAM)(COPYDATASTRUCT *)&cds);
 
 #define EVERYTHING_IPC_COPYDATA_INC_RUN_COUNTA                          23
 #define EVERYTHING_IPC_COPYDATA_INC_RUN_COUNTW                          24

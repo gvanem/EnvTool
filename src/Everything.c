@@ -249,7 +249,7 @@ void EVERYTHINGAPI Everything_SetSearchA(LPCSTR lpString)
         _Everything_Free(_Everything_Search);
     }
 
-    size = _Everything_StringLengthA(lpString) + 2;
+    size = _Everything_StringLengthA(lpString) + 1;
 
     _Everything_Search = _Everything_Alloc(size);
     if (_Everything_Search)
@@ -573,6 +573,8 @@ static LRESULT WINAPI _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wParam,L
                         }
 
                         PostQuitMessage(0);
+
+                        return TRUE;
                     }
                     else
                     if (_Everything_QueryVersion == 1)
@@ -674,7 +676,7 @@ static void _Everything_GetSearchTextA(LPSTR buf)
 
     if (_Everything_Search)
     {
-        len = _Everything_GetSearchLengthW();
+        len = _Everything_GetSearchLengthA();
 
         if (_Everything_IsUnicodeSearch)
         {
@@ -940,7 +942,7 @@ static BOOL _Everything_SendIPCQuery(void)
             }
 
             // alloc
-            query = _Everything_Alloc(2+size);
+            query = _Everything_Alloc(size);
 
             if (query)
             {
@@ -2146,6 +2148,7 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
     if (message == WM_COPYDATA)
     {
         COPYDATASTRUCT *cds = (COPYDATASTRUCT *)lParam;
+        BOOL ret = TRUE;  // assume success
 
         if (cds)
         {
@@ -2166,9 +2169,10 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
                     else
                     {
                         _Everything_LastError = EVERYTHING_ERROR_MEMORY;
+                        ret = FALSE;
                     }
 
-                    return TRUE;
+                    return ret;
                 }
                 else
                 if (_Everything_QueryVersion == 1)
@@ -2188,9 +2192,10 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
                         else
                         {
                             _Everything_LastError = EVERYTHING_ERROR_MEMORY;
+                            ret = FALSE;
                         }
 
-                        return TRUE;
+                        return ret;
                     }
                     else
                     {
@@ -2207,9 +2212,10 @@ BOOL EVERYTHINGAPI Everything_IsQueryReply(UINT message,WPARAM wParam,LPARAM lPa
                         else
                         {
                             _Everything_LastError = EVERYTHING_ERROR_MEMORY;
+                            ret = FALSE;
                         }
 
-                        return TRUE;
+                        return ret;
                     }
                 }
             }
