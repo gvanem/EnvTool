@@ -617,6 +617,7 @@ extern char *str_acat       (char *s1, const char *s2);
 extern int   str_cat        (char *dst, size_t dst_size, const char *src);
 extern char *str_ndup       (const char *s, size_t sz);
 extern char *str_nstr       (const char *s1, const char *s2, size_t len);
+extern void *str_memmem     (const void *m1, size_t m1_len, const void *m2, size_t m2_len);
 extern char *str_join       (char *const *arr, const char *sep);
 extern char *str_strip_nl   (char *s);
 extern char *str_ltrim      (char *s);
@@ -675,6 +676,7 @@ extern BOOL  _has_drive2            (const char *path);
 extern BOOL   is_directory          (const char *file);
 extern int    safe_stat             (const char *file, struct stat *st, DWORD *win_err);
 extern int    safe_stat_sys         (const char *file, struct stat *st, DWORD *win_err);
+extern UINT   count_digit           (UINT64 n);
 
 extern char       *make_cyg_path (const char *path, char *result);
 extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);

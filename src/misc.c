@@ -2883,26 +2883,53 @@ char *str_ndup (const char *s, size_t sz)
 }
 
 /**
+ * Taken from Newlib:
+ *
+ * Locates the first occurrence in the memory region pointed to
+ * by `haystack` with length `haystack_len` of the sequence of bytes
+ * pointed to by `needle` of length `needle_len`.
+ */
+void *str_memmem (const void *haystack, size_t haystack_len, const void *needle, size_t needle_len)
+{
+  const char *hs = haystack;
+  const char *ne = needle;
+  const char *end;
+  int         c;
+  size_t      i;
+
+  if (needle_len == 0)
+     return (void *)hs;
+
+  end = hs + haystack_len - needle_len;
+  for (c = ne[0] ; hs <= end; hs++)
+  {
+    if (hs[0] != c)
+       continue;
+    for (i = needle_len - 1; i != 0; i--)
+       if (hs[i] != ne[i])
+          break;
+    if (i == 0)
+       return (void*) hs;
+  }
+  return (NULL);
+}
+
+/**
  * A `strstr()` limited to `len` characters.
  *
  * \retval  Returns a pointer to the located string inside `haystack`.
  *          Or NULL if `needle` was not found in `haystack`.
- *
- * From: https://stackoverflow.com/questions/23999797/implementing-strnstr
  */
-char *str_nstr (const char *haystack, const char *needle, size_t len)
+char *str_nstr (const char *haystack, const char *needle, size_t haystack_len)
 {
-  size_t needle_len = strnlen (needle, len);
-  int    i;
+  size_t needle_len = strnlen (needle, haystack_len);
+  char  *s;
 
-  if (needle_len == 0)
-     return (char*)haystack;
-
-  for (i = 0; i <= (int)(len - needle_len); i++)
+  if (needle_len < haystack_len || !needle[needle_len])
   {
-    if ((haystack[0] == needle[0]) && !strnicmp(haystack, needle, needle_len))
-       return (char*)haystack;
-    haystack++;
+    s = str_memmem (haystack, haystack_len, needle, needle_len);
+    if (s && !memchr(haystack, '\0', s - haystack))
+       return (s);
   }
   return (NULL);
 }
@@ -3179,7 +3206,7 @@ char *strdup_at (const char *str, const char *file, unsigned line)
   head = malloc (len);
 
   if (!head)
-     FATAL ("strdup() failed at %s, line %u\n", file, line);
+     FATAL ("'strdup()' failed at %s, line %u\n", file, line);
 
   memcpy (head+1, str, len - sizeof(*head));
   head->marker = MEM_MARKER;
@@ -3200,7 +3227,7 @@ wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
   head = malloc (len);
 
   if (!head)
-     FATAL ("wcsdup() failed at %s, line %u\n", file, line);
+     FATAL ("'wcsdup()' failed at %s, line %u\n", file, line);
 
   memcpy (head+1, str, len - sizeof(*head));
   head->marker = MEM_MARKER;
@@ -3222,7 +3249,7 @@ void *malloc_at (size_t size, const char *file, unsigned line)
   head = malloc (size);
 
   if (!head)
-     FATAL ("malloc (%u) failed at %s, line %u\n",
+     FATAL ("'malloc (%u)' failed at %s, line %u\n",
             (unsigned)(size-sizeof(*head)), file, line);
 
   head->marker = MEM_MARKER;
@@ -3244,7 +3271,7 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
   head = calloc (1, size);
 
   if (!head)
-     FATAL ("calloc (%u, %u) failed at %s, line %u\n",
+     FATAL ("'calloc (%u, %u)' failed at %s, line %u\n",
             (unsigned)num, (unsigned)(size-sizeof(*head)), file, line);
 
   head->marker = MEM_MARKER;
@@ -3274,7 +3301,7 @@ void *realloc_at (void *ptr, size_t size, const char *file, unsigned line)
   p--;
 
   if (p->marker != MEM_MARKER)
-     FATAL ("realloc() of unknown block at %s, line %u\n", file, line);
+     FATAL ("'realloc()' of unknown block at %s, line %u\n", file, line);
 
   if (p->size - sizeof(*p) < size)
   {
@@ -3297,13 +3324,13 @@ void free_at (void *ptr, const char *file, unsigned line)
 
   head--;
   if (!ptr)
-     FATAL ("free(NULL) called at %s, line %u\n", file, line);
+     FATAL ("'free(NULL)' called at %s, line %u\n", file, line);
 
   if (head->marker == MEM_FREED)
-     FATAL ("double free() of block detected at %s, line %u\n", file, line);
+     FATAL ("double 'free()' of block detected at %s, line %u\n", file, line);
 
   if (head->marker != MEM_MARKER)
-     FATAL ("free() of unknown block at %s, line %u.\n", file, line);
+     FATAL ("'free()' of unknown block at %s, line %u.\n", file, line);
 
   head->marker = MEM_FREED;
   del_from_mem_list (head, __LINE__);
@@ -3621,6 +3648,24 @@ const char *get_file_size_str (UINT64 size)
 const char *empty_time (void)
 {
   return (opt.decimal_timestamp ? "00000000.000000" : "01 Jan 1970 - 00:00:00");
+}
+
+/**
+ * Return number of digits in `n`.
+ */
+UINT count_digit (UINT64 n)
+{
+  UINT count = 0;
+
+  if (n == 0)
+     return (1);
+
+  while (n)
+  {
+    n /= 10ULL;
+    count++;
+  }
+  return (count);
 }
 
 /**
