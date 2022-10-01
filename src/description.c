@@ -426,6 +426,7 @@ int main (int argc, char **argv)
 
   file_descr_exit();
   mem_report();
+  C_exit();
   crtdbug_exit();
   return (0);
 }
