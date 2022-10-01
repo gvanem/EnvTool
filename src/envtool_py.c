@@ -1088,7 +1088,7 @@ static const char *py_filename (const char *file)
 
 static char *fmem_search (const char *f_mem, size_t f_size, const char *search)
 {
-  size_t len, f_max = min (2000, f_size);
+  size_t len, f_max = min (5000, f_size);
   char  *p, *ret = NULL;
 
   if (!search)
@@ -1101,7 +1101,7 @@ static char *fmem_search (const char *f_mem, size_t f_size, const char *search)
        ret = STRDUP (ret + len);
   }
 
-  TRACE (1, "search: '%-10.10s', f_mem: 0x%p, f_max: %4zu, ret: 0x%p.\n", search ? search : "NULL", f_mem, f_max, ret);
+  TRACE (1, "search: '%-12.12s', f_mem: 0x%p, f_max: %4zu, ret: 0x%p.\n", search ? search : "NULL", f_mem, f_max, ret);
 
   if (ret)
   {
@@ -1139,7 +1139,7 @@ static void py_get_meta_details (struct python_module *m)
 {
   if (!m->is_zip)
   {
-    char  *f_mem, *p, *q;
+    char  *f_mem;
     size_t f_size;
 
     f_mem = fcheck_open_mem (m, NULL, &f_size);
@@ -1154,6 +1154,9 @@ static void py_get_meta_details (struct python_module *m)
       if (!m->homepage)
          m->homepage = fmem_search (f_mem, f_size, "Project-URL: Source code, ");
 
+      if (!m->homepage)
+         m->homepage = fmem_search (f_mem, f_size, "Project-URL: homepage, ");
+
       /* Fix lines such as:
        *   Author-email: Hynek Schlawack <hs@ox.cx>
        *
@@ -1161,25 +1164,29 @@ static void py_get_meta_details (struct python_module *m)
        */
       if (m->author_email)
       {
-        p = strchr (m->author_email, '<');
-        q = strchr (m->author_email, '>');
+        char *p = strchr (m->author_email, '<');
+        char *q = strchr (m->author_email, '>');
+        char *email, *author;
+
         if (p && q > p)
         {
-          FREE (m->author_email);
+          email = m->author_email;
           m->author_email = str_ndup (p+1, q-p);
+          FREE (email);
         }
         if (m->author && p)
         {
-          p = str_ndup (m->author, p - m->author);
-          FREE (m->author);
-          m->author = p;
+          author = m->author;
+          m->author = str_ndup (m->author, p - m->author);
+          FREE (author);
         }
       }
       if (m->author)
       {
-        p = strchr (m->author, '<');
+        char *p = strchr (m->author, '<');
+
         if (p && p[-1] == ' ')
-          p[-1] = '\0';
+           p[-1] = '\0';
       }
       FREE (f_mem);
     }
@@ -1277,12 +1284,12 @@ static char *tmp_fputs (const struct python_info *pi, const char *buf)
     FREE (tmp);
     return (NULL);
   }
-  fprintf (fil, "#\n"
-                "# Temp-file %s for command \"%s %s\".\n"
-                "# Created %s (%s).\n"
-                "#\n", tmp, pi->exe_name, tmp,
-                get_time_str(time(NULL)), _tzname[0]);
-  fwrite (buf, 1, strlen(buf), fil);
+  fprintf (fil,
+           "#\n"
+           "# Temp-file %s for command \"%s %s\".\n"
+           "# Created %s.\n"
+           "#\n%s\n",
+           tmp, pi->exe_name, tmp, get_time_str(time(NULL)), buf);
   fclose (fil);
   return (tmp);
 }
@@ -1401,6 +1408,23 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
   return (popen_out);
 }
 
+const char *get_date_str (const struct python_module *m)
+{
+  struct stat st;
+  int    rc;
+
+  if (m->dist_info[0] == '-')
+     return ("?");
+
+  if (m->is_zip)
+       rc = safe_stat (m->location, &st, NULL);
+  else rc = safe_stat (m->dist_info, &st, NULL);
+
+  if (rc != 0)
+     return ("?");
+  return get_time_str (st.st_mtime);
+}
+
 /**
  * Print the list of installed Python modules with
  * their location and version.
@@ -1414,8 +1438,7 @@ static int py_print_modinfo (const char *spec, BOOL get_details)
 {
   BOOL match_all = !strcmp (spec, "*");
   int  found = 0, zips_found = 0;
-
-  int i, max = g_pi->modules ? smartlist_len (g_pi->modules) : 0;
+  int  i, max = smartlist_len (g_pi->modules);
 
   for (i = 0; i < max; i++)
   {
@@ -1450,6 +1473,7 @@ static int py_print_modinfo (const char *spec, BOOL get_details)
 
       C_printf (" name:      %s\n", m->name);
       C_printf ("      version:   %s\n", m->version);
+      C_printf ("      date:      %s\n", get_date_str(m));
       C_printf ("      location:  %s%s\n", m->location, m->is_zip ? " (ZIP)" : "");
 
       if (m->dist_info[0] != '-')
@@ -1614,9 +1638,9 @@ static void py_get_module_info (struct python_info *pi)
   if (opt.use_cache && smartlist_len(pi->modules) > 0)
      TRACE (1, "Calling %s() with a cache should not be neccesary.\n", __FUNCTION__);
 
-  if (pi->is_embeddable)
+  if (pi->is_embeddable && pi->bitness_ok)
   {
-    if (!pi->bitness_ok || !py_init_embedding(pi))
+    if (!py_init_embedding(pi))
        return;
 
     /**
@@ -2299,9 +2323,9 @@ static struct python_info *py_select_next (enum python_variants which)
 
   /* Prepare for next call to `py_select_next()`.
    */
-  if (!okay)
-       py_index = -1;
-  else py_index = i + 1;
+  if (okay)
+       py_index = i + 1;
+  else py_index = -1;
   return (okay ? pi : NULL);
 }
 
@@ -2699,15 +2723,15 @@ static void enum_pythons_on_path (void)
  */
 static void py_test_internal (struct python_info *pi)
 {
-  BOOL reinit = (g_pi == pi) ? FALSE : TRUE; /* Need to call py_init_embedding() again? */
+  BOOL reinit = (g_pi == pi);   /* Need to call py_init_embedding() again? */
 
   g_pi = pi;
   get_sys_path (pi);
   C_puts ("Python paths:\n");
   print_sys_path (pi, 0);
 
-  if (reinit && pi->is_embeddable && !test_python_funcs(pi, reinit))
-     C_puts ("Embedding failed.");
+  if (reinit && pi->is_embeddable && pi->bitness_ok && !test_python_funcs(pi, reinit))
+     C_puts ("Embedding failed.\n");
   else if (Anaconda_GetVersion)
      C_printf ("\nAnacondaGetVersion(): \"%s\"\n\n", (*Anaconda_GetVersion)());
 
@@ -2829,7 +2853,7 @@ void py_searchpaths (void)
               fname[0] ? '6' : '5',
               fname[0] ? fname : "Not found");
 
-    if (pi->is_embeddable && !check_bitness(pi,&bitness))
+    if (pi->is_embeddable && !check_bitness(pi, &bitness))
        C_printf (" (embeddable, but not %s-bit)", bitness);
     else if (pi->dll_name)
        C_printf (" (%sembeddable)", pi->is_embeddable ? "": "not ");
