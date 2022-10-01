@@ -85,7 +85,7 @@
                            else ExitProcess (GetCurrentProcessId()); \
                          } while (0)
 
-static int c_trace = 0;
+static int c_trace = -1;
 extern int is_cygwin_tty (int fd);
 
 #ifndef C_BUF_SIZE
@@ -349,7 +349,8 @@ void C_exit (void)
   c_head = c_tail = NULL;
   c_out = NULL;
   c_exited = TRUE;
-  DeleteCriticalSection (&crit);
+  if (c_trace >= 0)  /* C_init() was called */
+     DeleteCriticalSection (&crit);
 }
 
 /**
