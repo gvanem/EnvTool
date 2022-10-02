@@ -283,7 +283,7 @@ const char *os_name (void)
 
 const char *os_bits (void)
 {
-#ifdef _WIN64
+#if (IS_WIN64)
   return ("64");
 #else
   char dir [_MAX_PATH];
