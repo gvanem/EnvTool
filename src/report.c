@@ -318,6 +318,10 @@ int report_file (struct report *r)
     found_in_hkey_local_machine_sess_man++;
     note = " (4)  ";
   }
+  else if (r->key == HKEY_PYTHON_PATH)
+  {
+    possible_PE_file = FALSE;
+  }
   else if (r->key == HKEY_PYTHON_EGG)
   {
     found_in_python_egg++;
