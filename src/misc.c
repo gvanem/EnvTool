@@ -354,7 +354,7 @@ const char *check_if_shebang (const char *fname)
  */
 int check_if_zip (const char *fname)
 {
-  static const char header[4] = { 'P', 'K', 3, 4 };
+  static const char header [4] = { 'P', 'K', 3, 4 };
   const char *ext;
   char   buf [sizeof(header)];
   FILE  *f;
@@ -369,12 +369,11 @@ int check_if_zip (const char *fname)
   f = fopen (fname, "rb");
   if (f)
   {
-    rc = (fread(&buf, 1, sizeof(buf),f) == sizeof(buf) &&
+    rc = (fread(&buf, 1, sizeof(buf), f) == sizeof(buf) &&
           !memcmp(&buf, &header, sizeof(buf)));
     fclose (f);
   }
-  if (rc)
-     TRACE (1, "\"%s\" is a ZIP-file.\n", fname);
+  TRACE (2, "\"%s\" is %sa ZIP-file.\n", fname, rc ? "" : "not ");
   return (rc);
 }
 
@@ -386,13 +385,13 @@ int check_if_zip (const char *fname)
  */
 int check_if_gzip (const char *fname)
 {
-  static const BYTE header1[4] = { 0x1F, 0x8B, 0x08, 0x08 };
-  static const BYTE header2[4] = { 0x1F, 0x8B, 0x08, 0x00 };
+  static const BYTE header1 [4] = { 0x1F, 0x8B, 0x08, 0x08 };
+  static const BYTE header2 [4] = { 0x1F, 0x8B, 0x08, 0x00 };
   const char *ext;
-  char   buf [sizeof(header1)];
-  FILE  *f;
-  BOOL   is_gzip, is_tgz;
-  int    rc = 0;
+  char         buf [sizeof(header1)];
+  FILE        *f;
+  BOOL         is_gzip, is_tgz;
+  int          rc = 0;
 
   /** Accept only `.gz`, `.tgz` or `.tar.gz` extensions.
    */
@@ -416,7 +415,7 @@ int check_if_gzip (const char *fname)
     fclose (f);
   }
   TRACE_NL (2);
-  TRACE (2, "\"%s\" is %sa GZIP-file.\n", fname, rc == 1 ? "": "not ");
+  TRACE (2, "\"%s\" is %sa GZIP-file.\n", fname, rc ? "": "not ");
   return (rc);
 }
 
@@ -605,8 +604,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   /* Probably not a PE-file at all.
    * Check `nt < file_buf` too in case `e_lfanew` folds `nt` to a negative value.
    */
-  if ( (char*)nt > file_buf + sizeof(file_buf) ||
-       (char*)nt < file_buf )
+  if ((char*)nt > file_buf + sizeof(file_buf) || (char*)nt < file_buf)
   {
     TRACE (3, "%s: NT-header at wild offset.\n", fname);
     return (FALSE);
@@ -655,7 +653,7 @@ int verify_PE_checksum (const char *fname)
   ASSERT (nt);
 
   if (last_bitness == bit_32)
-    file_sum = nt->OptionalHeader.CheckSum;
+     file_sum = nt->OptionalHeader.CheckSum;
 
   else if (last_bitness == bit_64)
   {
@@ -707,8 +705,8 @@ time_t FILETIME_to_time_t (const FILETIME *ft)
   SYSTEMTIME st, lt;
   struct tm  tm;
 
-  if (!FileTimeToSystemTime(ft,&st) ||
-      !SystemTimeToTzSpecificLocalTime(NULL,&st,&lt))
+  if (!FileTimeToSystemTime(ft, &st) ||
+      !SystemTimeToTzSpecificLocalTime(NULL, &st, &lt))
      return (0);
 
   memset (&tm, '\0', sizeof(tm));
@@ -1228,13 +1226,17 @@ char *str_rtrim (char *str)
   int    ch;
 
   ASSERT (str != NULL);
-  n = strlen (str) - 1;
-  while (n)
+  n = strlen (str)
+  if (n > 0)
   {
-    ch = (int)str [n];
-    if (VALID_CH(ch) && !isspace(ch))
-       break;
-    str[n--] = '\0';
+    n--;
+    while (n)
+    {
+      ch = (int)str [n];
+      if (VALID_CH(ch) && !isspace(ch))
+         break;
+      str[n--] = '\0';
+    }
   }
   return (str);
 }
@@ -1255,7 +1257,8 @@ char *str_trim (char *s)
  */
 BOOL str_startswith (const char *s1, const char *s2)
 {
-  size_t s1_len, s2_len;
+  size_t s1_len;
+  size_t s2_len;
 
   s1 = str_ltrim ((char*)s1);
   s1_len = strlen (s1);
@@ -1562,7 +1565,7 @@ char *str_dword (DWORD val)
 }
 
 /**
- * Return string like "is"  for 'val == 0' or 'val == 1' or
+ * Return string like "is" for 'val == 0' or 'val == 1' or
  *                    "are" for 0 or 'val > 1'.
  */
 char *str_plural (DWORD val, const char *singular, const char *plural)
@@ -3166,16 +3169,16 @@ char *ws2_strerror (int err)
 #else
 
 /**
- * Returns a string for a network related error-code.
+ * Returns a string for Winsock error-code.
  * \param[in] err  the error-code.
  *
- * Return error-string for `err` for Winsock error-codes.
  * These strings are stored by `kernel32.dll` and not in
  * `ws2_32.dll`.
  */
 char *ws2_strerror (int err)
 {
   static char buf [500];
+  char        err_buf [510];
 
   if (err == 0)
      return ("No error");
@@ -3185,8 +3188,12 @@ char *ws2_strerror (int err)
   if (kernel32_hnd &&
       FormatMessageA (FORMAT_MESSAGE_FROM_HMODULE,
                      kernel32_hnd, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                     buf, sizeof(buf), NULL))
-     return str_strip_nl (buf);
+                     err_buf, sizeof(err_buf), NULL))
+  {
+    str_strip_nl (buf);
+    snprintf (buf, sizeof(buf), "(%d) %s", err, err_buf);
+    return (buf);
+  }
 
   snprintf (buf, sizeof(buf), "%d?", err);
   return (buf);
@@ -5257,7 +5264,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   ULONG   index;
   UINT    i, j;
   char    temp_type;
-#ifdef _WIN64
+#if (IS_WIN64)
   HMODULE ct_dll = LoadLibraryEx ("GetCoreTempInfo.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 #else
   HMODULE ct_dll = LoadLibrary ("GetCoreTempInfo.dll");
