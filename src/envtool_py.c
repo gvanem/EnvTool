@@ -708,21 +708,29 @@ static void py_set_inspect_flag (int v)
 /**
  * Free the Python DLL handle allocated by `py_init_embedding()`.
  */
-static void py_exit_embedding (HANDLE *hnd)
+static void py_exit_embedding (struct python_info *pi)
 {
-  if (*hnd)
+  if (!pi->dll_hnd)
+     return;
+
+  py_set_inspect_flag (0);
+  Py_InspectFlag = NULL;
+  if (Py_Finalize)
   {
-    py_set_inspect_flag (0);
-    Py_InspectFlag = NULL;
-    if (Py_Finalize)
+    /* Check if "AppVerifier (Network tests)" is active in our process
+     */
+    if (GetModuleHandle("vfnet.dll"))
+       TRACE (1, "'vfnet.dll' present; calling Py_Finalize() is not safe.\n");
+    else
     {
       TRACE (4, "Calling Py_Finalize().\n");
       (*Py_Finalize)();
     }
-    if (!IsDebuggerPresent())
-       CloseHandle (*hnd);
-    *hnd = NULL;
   }
+
+  if (!IsDebuggerPresent())
+     CloseHandle (pi->dll_hnd);
+  pi->dll_hnd = NULL;
 }
 
 /**
@@ -772,7 +780,7 @@ static void free_py_program (void *_pi)
   FREE (pi->user_site_path);
 
   if (pi->is_embeddable)
-     py_exit_embedding (&pi->dll_hnd);
+     py_exit_embedding (pi);
 
   if (pi->sys_path)
   {
@@ -943,7 +951,7 @@ static BOOL py_init_embedding (struct python_info *pi)
   /* Fail, fall through */
 
 failed:
-  py_exit_embedding (&pi->dll_hnd);
+  py_exit_embedding (pi);
   return (FALSE);
 }
 
@@ -1319,12 +1327,11 @@ static int popen_append_out (char *str, int index)
     popen_out_sz += 4 * strlen (str);
     popen_out = REALLOC (popen_out, popen_out_sz);
   }
+  if (index == 0)
+     popen_out[0] = '\0';
 
   TRACE (2, "index: %d, strlen(popen_out): %d, popen_out_sz: %d\n",
          index, (int)strlen(popen_out), (int)popen_out_sz);
-
-  if (index == 0)
-     popen_out[0] = '\0';
 
   str_cat (popen_out, popen_out_sz, str);
   str_cat (popen_out, popen_out_sz-1, "\n");
@@ -1355,6 +1362,7 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
   const char *py_exe = pi->exe_name;
   int         rc;
 
+  popen_append_clear();
   popen_tmp = tmp_fputs (pi, prog);
   if (!popen_tmp)
   {
@@ -1834,46 +1842,49 @@ static int report_zip_file (const char *zip_file, char *output)
  * \def PY_ZIP_LIST
  *   This text goes into a buffer used by `call_python_func()`.
  */
-#define PY_ZIP_LIST()                                                               \
-        "import os, sys, fnmatch, zipfile\n"                                        \
-        "\n"                                                                        \
-        "def trace (s):\n"                                                          \
-        "  if %d >= 3:\n"                         /* opt.debug */                   \
-        "    sys.stderr.write (s)\n"                                                \
-        "\n"                                                                        \
-        "def print_zip (f):\n"                                                      \
-        "  base = os.path.basename (f.filename)\n"                                  \
-        "  trace ('egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"           \
-        "  if %d:\n"                              /* opt.case_sensitive */          \
-        "    match = fnmatch.fnmatchcase\n"                                         \
-        "  else:\n"                                                                 \
-        "    match = fnmatch.fnmatch\n"                                             \
-        "\n"                                                                        \
-        "  file_spec = '%s'\n"                    /* opt.file_spec */               \
-        "  if match(f.filename, file_spec) or match(base, file_spec):\n"            \
-        "    date = \"%%4d%%02d%%02d\"  %% (f.date_time[0:3])\n"                    \
-        "    time = \"%%02d%%02d%%02d\" %% (f.date_time[3:6])\n"                    \
-        "    str = \"%%d %%s.%%s %%s\"  %% (f.file_size, date, time, f.filename)\n" \
-        "    trace ('str: \"%%s\"\\n' %% str)\n"                                    \
-        "    print (str)\n"                                                         \
-        "\n"                                                                        \
-        "zf = zipfile.ZipFile (r'%s', 'r')\n"   /* zfile */                         \
-        "for f in zf.infolist():\n"                                                 \
-        "  print_zip (f)\n"
+#define PY_ZIP_LIST()                                                                \
+        "import os, sys, fnmatch, zipfile\n"                                         \
+        "class opt():\n"                                                             \
+        "  debug          = %d\n"                                                    \
+        "  case_sensitive = %d\n"                                                    \
+        "  file_spec      = '%s'\n"                                                  \
+        "  zip_file       = r'%s'\n"                                                 \
+        "\n"                                                                         \
+        "def trace (s):\n"                                                           \
+        "  if opt.debug >= 3:\n"                                                     \
+        "     sys.stderr.write (s)\n"                                                \
+        "\n"                                                                         \
+        "def print_zip (f):\n"                                                       \
+        "  base = os.path.basename (f.filename)\n"                                   \
+        "  trace ('egg-file: %%s, base: %%s\\n' %% (f.filename, base))\n"            \
+        "  if opt.case_sensitive:\n"                                                 \
+        "     match = fnmatch.fnmatchcase\n"                                         \
+        "  else:\n"                                                                  \
+        "     match = fnmatch.fnmatch\n"                                             \
+        "  if match(f.filename, opt.file_spec) or match(base, opt.file_spec):\n"     \
+        "     date = \"%%4d%%02d%%02d\"  %% (f.date_time[0:3])\n"                    \
+        "     time = \"%%02d%%02d%%02d\" %% (f.date_time[3:6])\n"                    \
+        "     str = \"%%d %%s.%%s %%s\"  %% (f.file_size, date, time, f.filename)\n" \
+        "     trace ('str: \"%%s\"\\n' %% str)\n"                                    \
+        "     print (str)\n"                                                         \
+        "\n"                                                                         \
+        "zf = zipfile.ZipFile (opt.zip_file, 'r')\n"                                 \
+        "for f in zf.infolist():\n"                                                  \
+        "    print_zip (f)\n"
 
-static int process_zip (struct python_info *pi, const char *zfile)
+static int process_zip (struct python_info *pi, const char *zip_file)
 {
   char  prog [sizeof(PY_ZIP_LIST()) + _MAX_PATH + 100];
   char *line, *tok_end, *str = NULL;
   int   found = 0;
   int   len = snprintf (prog, sizeof(prog), PY_ZIP_LIST(),
-                        opt.debug, opt.case_sensitive, opt.file_spec, zfile);
+                        opt.debug, opt.case_sensitive, opt.file_spec, zip_file);
 
   if (len < 0)
      FATAL ("`char prog[%d]` buffer too small. Approx. %d bytes needed.\n",
             (int)sizeof(prog), (int) (sizeof(PY_ZIP_LIST()) + _MAX_PATH));
 
-  if (pi->is_embeddable)
+  if (pi->is_embeddable && pi->bitness_ok)
        str = call_python_func (pi, prog, __LINE__);
   else str = popen_run_py (pi, prog);
 
@@ -1883,10 +1894,12 @@ static int process_zip (struct python_info *pi, const char *zfile)
    */
   if (opt.use_cache)
   {
-    snprintf (prog, sizeof(prog), PY_ZIP_LIST(), opt.debug, opt.case_sensitive, "*", zfile);
-    for (i,z) in enumerate(zip_content):
+    snprintf (prog, sizeof(prog), PY_ZIP_LIST(), opt.debug, opt.case_sensitive, "*", zip_file);
+    for (i,s) in enumerate(zip_content.split())
+    {
       snprintf (format, sizeof(format), "python_zip%d_%d = %%s,%%s", py_index, i);
-      cache_putf (SECTION_PYTHON, format, zfile, z);
+      cache_putf (SECTION_PYTHON, format, zip_file, s);
+    }
   }
 #endif
 
@@ -1900,16 +1913,17 @@ static int process_zip (struct python_info *pi, const char *zfile)
 
       if (!strncmp(line, "str: ", 5))   /* if opt.debug >= 3; ignore these from stderr */
          continue;
-      if (!report_zip_file(zfile, line))
+      if (!report_zip_file(zip_file, line))
          break;
     }
   }
-  popen_append_clear();
 
-  if (str && found == 0)
-     TRACE (1, "No matches in %s for %s.\n", zfile, opt.file_spec);
+  if (str == popen_out)
+       popen_append_clear();
+  else FREE (str);
 
-  FREE (str);
+  if (found == 0)
+     TRACE (1, "No matches in %s for %s.\n", zip_file, opt.file_spec);
   return (found);
 }
 
@@ -2224,14 +2238,14 @@ static BOOL check_if_dist_info_dirs (const struct python_path *pp)
 static int py_search_internal (struct python_info *pi, BOOL reinit)
 {
   char *str = NULL;
-  int   i, max, found;
+  int   i, max, found, found_zip;
   BOOL  use_cache = (opt.use_cache && smartlist_len(pi->modules) > 0);
 
   ASSERT (pi == g_pi);
 
   TRACE (1, "pi->variant: %d.\n", pi->variant);
 
-  if (pi->is_embeddable)
+  if (pi->is_embeddable && pi->bitness_ok)
   {
     if (reinit && !py_init_embedding(pi))
        return (0);
@@ -2253,7 +2267,7 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
     get_sys_path (pi);
   }
 
-  found = 0;
+  found = found_zip = 0;
   max = smartlist_len (pi->sys_path);
 
   for (i = 0; i < max; i++)
@@ -2270,21 +2284,28 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
        continue;
 
     if (pp->is_zip)
-         rc = process_zip (pi, pp->dir);
-    else rc = process_dir (pp->dir, 0, pp->exist, FALSE, pp->is_dir,
-                           TRUE, "sys.path[]", HKEY_PYTHON_PATH);
-    found += rc;
-
-    if (opt.verbose && !pp->is_zip)
     {
-      /* If there was a hit for `opt.file_spec` along the `sys.path[]`, this could also
-       * be a hit for a matching module.
-       */
-      if (rc >= 1)
-         py_print_modinfo (opt.file_spec, TRUE);
+      rc = process_zip (pi, pp->dir);
+      found_zip += rc;
+    }
+    else
+    {
+      rc = process_dir (pp->dir, 0, pp->exist, FALSE, pp->is_dir,
+                        TRUE, "sys.path[]", HKEY_PYTHON_PATH);
+      found += rc;
     }
   }
-  return (found);
+
+  if (opt.verbose && found >= 1)
+  {
+    /* If there was a hit for `opt.file_spec` along the `sys.path[]`,
+     * this could also be a hit for a matching module.
+     */
+    report_header_set ("Matches in \"%s\" modules:\n", pi->exe_name);
+    py_print_modinfo (opt.file_spec, TRUE);
+  }
+
+  return (found + found_zip);
 }
 
 /**
@@ -3212,7 +3233,7 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
    * Calling again `py_init_embedding()` will set the `PySys_SetArgvEx()` function pointer
    * and also call `setup_stdout_catcher()`.
    */
-  py_exit_embedding (&pi->dll_hnd);
+  py_exit_embedding (pi);
 
   if (!py_init_embedding(pi))
   {
