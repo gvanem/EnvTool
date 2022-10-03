@@ -1052,7 +1052,7 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
      */
     (*PyObject_CallMethod) (pi->catcher, "reset", NULL);
   }
-  TRACE (3, "PyString_Size(): %ld, output:\n%s\n", size, str);
+  TRACE (3, "PyString_Size(): %ld, output:\n%s\n", (long)size, str);
 
   /* Count the lines in the output `str` and compare `size` against what
    * a DOS-ified string-size would become (`dos_size`).
@@ -1073,7 +1073,7 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
     FREE (copy);
     okay = (dos_size == size+lines);
     TRACE (3, "dos_size: %ld, size+lines: %ld, lines: %d; %s\n",
-           dos_size, size+lines, lines, okay ? "OK" : "discrepancy in dos_size");
+           (long)dos_size, (long)(size+lines), lines, okay ? "OK" : "discrepancy in dos_size");
   }
   return (str);
 }

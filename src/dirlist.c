@@ -979,7 +979,8 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
   static int       width = 8;
 
   n = scandir2 (dir, &namelist, NULL, NULL);
-  TRACE (1, "recursion_level: %d, dir: '%s', n: %d\n", recursion_level, dir, n);
+  TRACE (1, "recursion_level: %lu, dir: '%s', n: %d\n",
+         (unsigned long)recursion_level, dir, n);
   if (n < 0)
      return (sum);
 
