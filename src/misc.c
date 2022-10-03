@@ -1226,7 +1226,7 @@ char *str_rtrim (char *str)
   int    ch;
 
   ASSERT (str != NULL);
-  n = strlen (str)
+  n = strlen (str);
   if (n > 0)
   {
     n--;
