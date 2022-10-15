@@ -1030,7 +1030,9 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
          break;
   }
 
+  C_setraw (1);
   C_printf ("%s %s\n", buf, opts->unixy_paths ? make_unixy_path(dir) : dir);
+  C_setraw (0);
 
   while (n--)
   {
