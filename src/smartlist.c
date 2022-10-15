@@ -127,9 +127,14 @@ smartlist_t *smartlist_new (void)
 {
   smartlist_t *sl = MALLOC (sizeof(*sl));
 
+  if (!sl)
+     return (NULL);
+
   sl->num_used = 0;
   sl->capacity = SMARTLIST_DEFAULT_CAPACITY;
   sl->list = CALLOC (sizeof(void*), sl->capacity);
+  if (!sl->list)
+     FREE (sl);
   return (sl);
 }
 
@@ -751,11 +756,20 @@ smartlist_t *smartlist_split_str (const char *str, const char *sep)
   smartlist_t *sl = smartlist_new();
   char        *s, *p, *tok_end;
 
+  if (!sl)
+     return (NULL);
+
 #ifdef USE_strdupa
   s = strdupa (str);
 #else
   s = STRDUP (str);
 #endif
+
+  if (!s)
+  {
+    smartlist_free (sl);
+    return (NULL);
+  }
 
   str_unquote (s);
   for (p = _strtok_r(s, sep, &tok_end); p;
@@ -811,6 +825,9 @@ char *smartlist_join_str (smartlist_t *sl, const char *sep)
       len += strlen ((const char*)smartlist_get(sl, i)) + sep_len;
 
   ret = p = MALLOC (len+1);
+  if (!p)
+     return (NULL);
+
   for (i = 0; i < max; i++)
   {
     q = smartlist_get (sl, i);
@@ -886,6 +903,8 @@ char *smartlist_add_strdup_dbg (smartlist_t *sl, const char *string, const char 
   ASSERT_VAL (sl);
 
   copy = STRDUP (string);
+  if (!copy)
+     FATAL ("`strdup()` failed in 'smartlist_add_strdup (%s, \"%.10s\")' from %s(%u).\n", sl_name, string, file, line);
   smartlist_add (sl, copy);
   return (copy);
 }

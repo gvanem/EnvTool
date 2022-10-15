@@ -4059,9 +4059,12 @@ static char *popen_setup (const char *cmd)
   /* Allocate an extended command-line for `_popen()`.
    */
   cmd2 = MALLOC (len);
-  strcpy (cmd2, setdos);
-  strcat (cmd2, comspec);
-  strcat (cmd2, cmd);
+  if (cmd2)
+  {
+    strcpy (cmd2, setdos);
+    strcat (cmd2, comspec);
+    strcat (cmd2, cmd);
+  }
   return (cmd2);
 #endif
 }

@@ -177,6 +177,9 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   }
 
   _new = MALLOC (_MAX_PATH);
+  if (!_new)
+     return (FALSE);
+
   file = is_sfn ? *file_p : buf;
 
   if (GetLongPathNameA(file, _new, _MAX_PATH) == 0)
