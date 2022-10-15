@@ -1455,8 +1455,8 @@ static void dump_packages_cache (void)
   UINT64       f_size = 0;
   int          i, j, i_max, j_max;
 
-  C_printf ("%s\nPackage            Size              ZIP\n",
-            str_repeat('=', 120));
+  C_printf ("%s\nPackage            Architecture         Size              ZIP\n",
+            str_repeat('=', 153));
 
   cache = get_cache_dir();
   if (!cache)
@@ -1495,7 +1495,7 @@ static void dump_packages_cache (void)
         break;
       }
     }
-    C_printf ("%-18.18s %-15.15s %c %s\n", package->package, size, note, zip);
+    C_printf ("%-18.18s %-20.20s %-15.15s %c %s\n", package->package, package->arch, size, note, zip);
   }
   C_printf ("\n! = No .zip cache for package.\n\n");
 
