@@ -1773,7 +1773,7 @@ char *basename (const char *fname)
 /**
  * Return the malloc'ed directory part of a filename.
  */
-#if defined(__GNUC__)
+#if defined(__GNUC__) && (__GNUC__ >= 7)
   _PRAGMA (GCC diagnostic push)
   _PRAGMA (GCC diagnostic ignored "-Wstringop-truncation")
 #endif
@@ -1834,7 +1834,7 @@ char *dirname (const char *fname)
   return (dirpart);
 }
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) && (__GNUC__ >= 7)
   _PRAGMA (GCC diagnostic pop)
 #endif
 

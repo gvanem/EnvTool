@@ -232,7 +232,7 @@ static const char *lookup_file_descr (const smartlist_t *sl, const char *file_di
   return (NULL);
 }
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && (__GNUC__ >= 7)
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 #endif
 

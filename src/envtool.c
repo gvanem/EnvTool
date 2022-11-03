@@ -77,7 +77,7 @@
 #endif
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && (__GNUC__ >= 7)
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 #endif
 
