@@ -1864,7 +1864,7 @@ static BOOL pop_env (const char *env_name, char **value)
   #define DBG_REL "release"
 #endif
 
-#if defined(__MINGW32__) || defined(__CYGWIN__)
+#if defined(__GNUC__)
 static const char *gcc_version (void)
 {
   static char ver [20];
@@ -1895,6 +1895,13 @@ static char cc_info_buf [100];
     if (comp)      /* Cut off version at " Compiler 202x" */
        len = comp - ver;
     snprintf (cc_info_buf, sizeof(cc_info_buf), "%.*s, %s", len, ver, DBG_REL);
+    return (cc_info_buf);
+  }
+
+#elif defined(IS_ZIG_CC)
+  const char *compiler_version (void)
+  {
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "gcc %s, zig", gcc_version());
     return (cc_info_buf);
   }
 
@@ -1999,6 +2006,10 @@ static char cc_info_buf [100];
 #if defined(__INTEL_LLVM_COMPILER)
   #define CFLAGS   "cflags_icx.h"
   #define LDFLAGS  "ldflags_icx.h"
+
+#elif defined(IS_ZIG_CC)
+  #define CFLAGS   "cflags_zig.h"
+  #define LDFLAGS  "ldflags_zig.h"
 
 #elif defined(__clang__)
   #define CFLAGS   "cflags_clang.h"

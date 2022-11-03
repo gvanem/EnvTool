@@ -14,7 +14,13 @@
 #error This program is not longer UNICODE compatible. Good riddance Microsoft.
 #endif
 
-#if defined(__INTEL_LLVM_COMPILER)
+#if defined(IS_ZIG_CC)
+  /*
+   * No 'Debug' mode in zig-lang
+   */
+  #define BUILDER  "zig-lang, release"
+
+#elif defined(__INTEL_LLVM_COMPILER)
   #ifdef _DEBUG
     #define BUILDER  "Intel oneAPI DPC++, debug"
   #else
