@@ -106,7 +106,7 @@ extern int is_cygwin_tty (int fd);
 
 /**
  * The app using color.c must set this prior to
- * calling the below C_printf() or `C_puts()` functions.
+ * calling the below `C_printf()` or `C_puts()` functions.
  * For CygWin, if this is 1, it will set `C_use_ansi_colours` too.
  */
 int C_use_colours = 0;
