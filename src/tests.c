@@ -807,6 +807,7 @@ static int test_python_funcs (void)
 {
   const command_line *c;
   char *str = NULL;
+  BOOL  do_import = FALSE;
 
   if (halt_flag)
      return (1);
@@ -822,6 +823,12 @@ static int test_python_funcs (void)
     i = 0;
     for (j = c->argc0; c->argv[j]; i++, j++)
     {
+      /* If 1st arg is not an existing file, assume it's
+       * a "import .." statement. Then run it as such.
+       */
+      if (i == 0 && !FILE_EXISTS(c->argv[j]))
+         do_import = TRUE;
+
       if (i == DIM(py_argv)-1)
       {
         WARN ("Too many Python args. Max: %u.\n", DIM(py_argv)-1);
@@ -830,8 +837,9 @@ static int test_python_funcs (void)
       py_argv [i] = c->argv[j];
     }
 
-    py_argv[0] = _fix_path (py_argv[0], buf);
-    str = py_execfile ((const char**)py_argv, FALSE);
+    if (!do_import)
+       py_argv[0] = _fix_path (py_argv[0], buf);
+    str = py_execfile ((const char**)py_argv, FALSE, do_import);
   }
   else
     py_test();

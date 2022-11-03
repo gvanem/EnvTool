@@ -253,7 +253,7 @@ static BOOL   popen_py_crash = FALSE;
 static int  get_python_version (const char *exe_name);
 static BOOL py_add_module (struct python_info *pi, const struct python_module *m);
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && (__GNUC__ >= 7)
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 #endif
 
@@ -3196,10 +3196,12 @@ static void free_arg_vector (arg_vector *av)
 /**
  * Executes a Python script for a single Python.
  *
- * \param[in] pi       The currently used Python-info variable.
- * \param[in] py_argv  The argument vector for the Python-script to run.
- * \param[in] capture  If `TRUE`, `sys.stdout` in the Python-script is
- *                     captured and stored in the return value `str`.
+ * \param[in] pi        The currently used Python-info variable.
+ * \param[in] py_argv   The argument vector for the Python-script to run.
+ * \param[in] capture   If `TRUE`, `sys.stdout` in the Python-script is
+ *                      captured and stored in the return value `str`.
+ * \param[in] as_import If `TRUE`, excute the program like a
+ *                      `python -c "import ..."` statement would do.
  *
  * \retval If `capture == TRUE`, an allocated string of the Python-script output. <br>
  *         If `capture == FALSE`, this function returns `NULL`.
@@ -3207,9 +3209,9 @@ static void free_arg_vector (arg_vector *av)
  * \note No expansion is done on `py_argv[0]`. The caller should expand it to a
  *       Fuly Qualified Pathname before use. Call `py_argv[0] = _fix_path (py_argv[0], buf)` first.
  */
-static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOOL capture)
+static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOOL capture, BOOL as_import)
 {
-  const char *prog0, *fmt;
+  const char *prog0, *fmt = NULL;
   char       *str, *prog;
   size_t      size;
   arg_vector  av = { 0, NULL, NULL };   /* Fill in to shutup warnings from gcc */
@@ -3235,28 +3237,39 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
     return (NULL);
   }
 
-  if (pi->ver_major >= 3)
+  if (!as_import)
   {
-    make_arg_vector (&av, py_argv, TRUE);
-    (*PySys_SetArgvEx) (av.argc, av.wide, 1);
-    fmt = PY_EXEC3_FMT();
-  }
-  else
-  {
-    make_arg_vector (&av, py_argv, FALSE);
-    (*PySys_SetArgvEx) (av.argc, (wchar_t**)av.ascii, 1);
-    fmt = PY_EXEC2_FMT();
+    if (pi->ver_major >= 3)
+    {
+      make_arg_vector (&av, py_argv, TRUE);
+      (*PySys_SetArgvEx) (av.argc, av.wide, 1);
+      fmt = PY_EXEC3_FMT();
+    }
+    else
+    {
+      make_arg_vector (&av, py_argv, FALSE);
+      (*PySys_SetArgvEx) (av.argc, (wchar_t**)av.ascii, 1);
+      fmt = PY_EXEC2_FMT();
+    }
   }
 
   if (capture)
        prog0 = "";
   else prog0 = "sys.stdout = old_stdout\n";   /* Undo what `setup_stdout_catcher()` did */
 
-  size = strlen(prog0) + strlen(fmt) + 2 * strlen(py_argv[0]);
-  prog = alloca (size + 1);
+  if (as_import)
+  {
+    prog = alloca (1000);
+    snprintf (prog, 1000, "sys.path.append (\"%s\")\n%s%s", current_dir, prog0, py_argv[0]);
+  }
+  else
+  {
+    size = strlen(prog0) + strlen(fmt) + 2 * strlen(py_argv[0]);
+    prog = alloca (size + 1);
 
-  strcpy (prog, prog0);
-  snprintf (prog + strlen(prog0), size, fmt, py_argv[0], py_argv[0]);
+    strcpy (prog, prog0);
+    snprintf (prog + strlen(prog0), size, fmt, py_argv[0], py_argv[0]);
+  }
 
   str = call_python_func (pi, prog, __LINE__);
 
@@ -3287,7 +3300,7 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
  *             called, this string is from all calls merged together.
  *             Caller must call 'FREE(str)' on this value when done with it.
  */
-char *py_execfile (const char **py_argv, BOOL capture)
+char *py_execfile (const char **py_argv, BOOL capture, BOOL as_import)
 {
   struct python_info *pi;
   char  *array [DIM(all_py_programs)+1];
@@ -3301,7 +3314,7 @@ char *py_execfile (const char **py_argv, BOOL capture)
        pi;
        pi = py_select_next(py_which), i++)
   {
-    str = py_exec_internal (pi, py_argv, capture);
+    str = py_exec_internal (pi, py_argv, capture, as_import);
     if (str)
        array [j++] = str;
   }
