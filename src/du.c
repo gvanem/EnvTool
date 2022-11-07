@@ -5,12 +5,36 @@
 #include <process.h>
 #include "envtool.h"
 
+/**
+ * A long path must be passed quoted to the
+ * `dirlist.exe` sub-program.
+ */
+static char *check_long_name (const char *arg)
+{
+  if (strchr(arg, ' '))
+  {
+    char dir [_MAX_PATH];
+
+    snprintf (dir, sizeof(dir), "\"%s\"", arg);
+    return strdup (dir);
+  }
+  return strdup (arg);
+}
+
+static void free_args (char **args)
+{
+  int i;
+  for (i = 0; args[i]; i++)
+     free (args[i]);
+}
+
 int main (int argc, char **argv)
 {
   char  my_dir  [_MAX_PATH] = "?";
   char  dirlist [_MAX_PATH + 100];
   char *end, *args [5];
-  int   i, j;
+  int   i, j, rc;
+  int   debug = (getenv("DU_DEBUG") != NULL);
 
   GetModuleFileName (NULL, my_dir, sizeof(my_dir));
   end = strrchr (my_dir, '\\');
@@ -26,18 +50,21 @@ int main (int argc, char **argv)
 
   memset (&args, '\0', sizeof(args));
   args [0] = "--disk-usage";
-  args [1] = "-r";
 
-  i = 2;
-  for (j = 1; j < argc; i++, j++)
+  i = 1;
+  for (j = 0; j < argc; i++, j++)
   {
     if (i == DIM(args)-1)
     {
       fprintf (stderr, "Too many args. Max: %u.\n", DIM(args)-1);
       break;
     }
-    args[i] = argv[j];
+    args[i] = check_long_name (argv[j]);
+    if (debug)
+       fprintf (stderr, "args[i]: '%s'.\n", args[i]);
   }
-  return _spawnvp (_P_WAIT, dirlist, args);
+  rc = _spawnvp (_P_WAIT, dirlist, (char const *const *) args);
+  free_args (args + 1);
+  return (rc);
 }
 
