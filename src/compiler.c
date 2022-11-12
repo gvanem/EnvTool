@@ -1636,7 +1636,7 @@ static void compiler_add (const compiler_info *cc,
   cc_copy = MALLOC (sizeof(*cc_copy));
   *cc_copy = *cc;
 
-  if (from_cache)
+  if (from_cache && FILE_EXISTS(cc->full_name))
        full_name = cc->full_name;
   else full_name = searchpath (cc_copy->short_name, "PATH");
 
