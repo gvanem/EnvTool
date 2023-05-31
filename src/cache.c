@@ -1066,6 +1066,7 @@ static int cache_test_getf (void)
     char   key_value  [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4];
     char   getf_value [CACHE_MAX_KEY + CACHE_MAX_VALUE];
     char  *buf = getf_value;
+    char  *fmt = strdupa (t->getf_fmt);
     int    len, rc, j;
     size_t left = sizeof(getf_value);
     BOOL   equal = FALSE;
@@ -1081,9 +1082,11 @@ static int cache_test_getf (void)
     getf_value[0] = '\0';
     for (j = 0; j < rc; j++)
     {
-      len = snprintf (buf, left, "%s", args[j]);  // this is wrong
+      fmt[2] = '\0';
+      len = snprintf (buf, left, fmt, args[j]);
       left -= len;
       buf  += len;
+      fmt  += 3;
       if (j < rc - 1)
       {
         *buf++ = ',';
@@ -1092,8 +1095,7 @@ static int cache_test_getf (void)
       }
     }
 
-    if (t->getf_value[0])
-       equal = (strcmp (t->getf_value, getf_value) == 0);
+    equal = (strcmp (t->getf_value, getf_value) == 0);
 
     if (rc == t->rc && equal)
        num_ok++;

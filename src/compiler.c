@@ -854,7 +854,7 @@ static int GCC_LLVM_find_include_path_cb (char *buf, int index)
     else
 #endif
     {
-      char buf2 [_MAX_PATH];
+      static char buf2 [_MAX_PATH];
       const char *q = str_trim (buf);
 
       p = _fix_path (q, buf2);
