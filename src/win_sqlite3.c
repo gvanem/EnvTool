@@ -55,8 +55,8 @@ static const char *exec_stmt[] = {
                   "INSERT OR REPLACE INTO     tbl VALUES (1, 'hello!',         10);",
                   "INSERT OR REPLACE INTO     tbl VALUES (2, 'another string', 20);",
                   "INSERT OR REPLACE INTO     tbl VALUES (3, 'goodbye',        30);",
-                  "SELECT *       FROM tbl WHERE column >= 2;",
-               // "SELECT message FROM tbl WHERE message = 'hello!';"
+                  "SELECT * FROM              tbl WHERE column >= 2;",
+                  "SELECT message FROM tbl WHERE message = 'hello!';"
                 };
 
 static HANDLE dll_hnd = NULL;
@@ -192,9 +192,13 @@ void test_sqlite3 (void)
   {
     flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE /* | SQLITE_OPEN_MEMORY */;
     rc = (*p_sqlite3_open_v2) (db_name, &db, flags, NULL);
+    TRACE (1, "sqlite3_open_v2(): rc: %d\n", rc);
   }
   else
+  {
     rc = (*p_sqlite3_open) (db_name, &db);
+    TRACE (1, "sqlite3_open(): rc: %d\n", rc);
+  }
 
   if (db && p_sqlite3_extended_result_codes)
      (*p_sqlite3_extended_result_codes) (db, 1);

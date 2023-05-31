@@ -900,7 +900,7 @@ int do_tests (void)
 #endif
 
 #if defined(USE_SQLITE3)
-  // test_sqlite3();
+  test_sqlite3();
 #endif
 
   return (0);
