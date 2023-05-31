@@ -40,6 +40,7 @@
 static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff);
 static void  free_contents (DIR2 *dp);
 static void  set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, ScandirCmpFunc *sd_cmp_func);
+static void  print_tree_branch (const char *sz_buf, const char *directory);
 
 static BOOL setdirent2 (struct dirent2 *de, const char *dir, const char *file)
 {
@@ -621,6 +622,7 @@ static UINT64 total_size_compr = 0;
 static BOOL   follow_junctions = TRUE;
 static BOOL   use_scandir = FALSE;
 static BOOL   disk_usage_mode  = FALSE;
+static BOOL   disk_usage_tree  = FALSE;
 static int    disk_usage_print = 'b';
 static char   drive_root [4];
 
@@ -628,15 +630,17 @@ static char   drive_root [4];
 void usage (void)
 {
   if (disk_usage_mode)
-       puts ("Usage: du [-bkmHtu] [dir\\spec*]\n"
-             "        -b:  show bytes count.\n"
+       puts ("Usage: du [-bkmHRtu] [dir\\spec*]\n"
+             "        -b:  show bytes count (default).\n"
              "        -k:  show KiloBytes count.\n"
              "        -m:  show MegaBytes count.\n"
              "        -H:  show sizes in human readable format (e.g. 103 KB, 23 MB).\n"
+             "        -R:  do not be recursive.\n"
              "        -t:  show time of the last modification of any file in the directory (not yet).\n"
+             "        -T:  show directories as a tree (not yet).\n"
              "        -u:  show directories on Unix form.");
 
-  else puts ("Usage: dirlist [-cdourzSs<type>] [dir\\spec*]n"
+  else puts ("Usage: dirlist [-cdourzSs<type>] [dir\\spec*]\n"
              "       -c:      case-sensitive.\n"
              "       -d:      debug-level.\n"
              "       -o:      show file-owner.\n"
@@ -972,7 +976,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
 static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
 {
   struct dirent2 **namelist;
-  char             buf [20];
+  char             sz_buf [20];
   int              i, n;
   UINT64           sum = 0ULL;
   static UINT64    highest_sum = 0ULL;
@@ -981,8 +985,9 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
   n = scandir2 (dir, &namelist, NULL, NULL);
   TRACE (1, "recursion_level: %lu, dir: '%s', n: %d\n",
          (unsigned long)recursion_level, dir, n);
+
   if (n < 0)
-     return (sum);
+     return (0);
 
   for (i = 0; i < n; i++)
   {
@@ -993,7 +998,7 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
     if (is_junction)
        continue;
 
-    if (is_dir)
+    if (is_dir && opts->recursive)
     {
       if (recursion_level > 0 || fnmatch(opts->pattern, basename(de->d_name), FNM_FLAG_PATHNAME) == FNM_MATCH)
       {
@@ -1002,7 +1007,7 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
         recursion_level--;
       }
     }
-    else // if (recursion_level > 0)
+    else
     {
       sum += de->d_fsize;
     }
@@ -1017,21 +1022,30 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
   switch (disk_usage_print)
   {
     case 'k':
-          snprintf (buf, sizeof(buf), "%-*llu", width, sum/1024);
+          snprintf (sz_buf, sizeof(sz_buf), "%-*llu", width, sum/1024);
           break;
     case 'm':
-         snprintf (buf, sizeof(buf), "%-*llu", width, sum/1024/1024);
+         snprintf (sz_buf, sizeof(sz_buf), "%-*llu", width, sum/1024/1024);
          break;
     case 'H':
-         snprintf (buf, sizeof(buf), "%-8s", get_file_size_str(sum));
+         snprintf (sz_buf, sizeof(sz_buf), "%-8s", get_file_size_str(sum));
          break;
     default:
-         snprintf (buf, sizeof(buf), "%-*llu", width, sum);
+         snprintf (sz_buf, sizeof(sz_buf), "%-*llu", width, sum);
          break;
   }
 
   C_setraw (1);
-  C_printf ("%s %s\n", buf, opts->unixy_paths ? make_unixy_path(dir) : dir);
+
+
+  if (disk_usage_tree)
+       print_tree_branch (sz_buf, opts->unixy_paths ? make_unixy_path(dir) : dir);
+
+  else if (!opts->recursive)
+       C_printf ("Total for '%s': %s\n", dir, str_ltrim(sz_buf));
+
+  else C_printf ("%s %s\n", sz_buf, opts->unixy_paths ? make_unixy_path(dir) : dir);
+
   C_setraw (0);
 
   while (n--)
@@ -1041,6 +1055,18 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
   }
   FREE (namelist);
   return (sum);
+}
+
+static void print_tree_branch (const char *sz_buf, const char *directory)
+{
+  BOOL at_top = (recursion_level == 0);
+
+  C_printf ("%s, l:%2lu ", sz_buf, recursion_level);
+
+  if (at_top)
+     C_printf ("%s\n", directory);
+  else
+     C_printf ("|__ %s\n", directory);
 }
 
 static enum od2x_sorting get_sorting (const char *s_type)
@@ -1094,6 +1120,9 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
        case 'r':
             opts->recursive = 1;
             break;
+       case 'R':
+            opts->recursive = 0;
+            break;
        case 'S':
             use_scandir = TRUE;
             break;
@@ -1102,6 +1131,9 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
             break;
        case 'o':
             opt.show_owner++;
+            break;
+       case 'T':
+            disk_usage_tree = TRUE;
             break;
        case 'z':
             opt.show_size++;
@@ -1134,13 +1166,13 @@ int MS_CDECL main (int argc, char **argv)
   if (argc >= 2 && !strcmp(argv[0], "--disk-usage"))  /* called from 'du.exe' */
   {
     disk_usage_mode = TRUE;
-    opts.recursive  = 1;
+    opts.recursive  = 1;  /* option '-R' reverts this */
     argc--;
     argv++;
-    do_getopt (argc, argv, "ubmkHth?", &opts);
+    do_getopt (argc, argv, "ubdmkHRtTh?", &opts);
   }
   else
-    do_getopt (argc, argv, "cdjurs:Sozh?", &opts);
+    do_getopt (argc, argv, "cdjors:Suzh?", &opts);
 
   if (!argv[optind])
   {

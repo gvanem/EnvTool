@@ -20,9 +20,21 @@ enum od2x_sorting {
      OD2X_SORT_REVERSE = 0x800
    };
 
+enum od2x_attribs {
+     OD2X_ATTR_READONLY,
+     OD2X_ATTR_HIDDEN,
+     OD2X_ATTR_SYSTEM,
+     OD2X_ATTR_OFFLINE,
+     OD2X_ATTR_TEMPORARY,
+     OD2X_ATTR_ENCRYPTED,
+     OD2X_ATTR_COMPRESSED,
+     OD2X_ATTR_REVERSE = 0x800   /* Reverse the meaning of >=1 of the above */
+   };
+
 struct od2x_options {
        const char       *pattern;
        enum od2x_sorting sort;
+       enum od2x_attribs attribs;  /* todo */
        int               recursive;
        int               unixy_paths;
      };
