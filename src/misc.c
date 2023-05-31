@@ -765,7 +765,6 @@ char *evry_raw_query (void)
   return (opt.file_spec);
 }
 
-
 #if (_WIN32_WINNT >= 0x0500)
 /**
  * `LookupAccountSid()` often returns `ERROR_NONE_MAPPED` for SIDs like: <br>
@@ -777,8 +776,8 @@ char *evry_raw_query (void)
 static const char *sid_owner_cache (PSID sid)
 {
   static BOOL done = FALSE;
-  static char sid_buf1[200] = { '\0' };
-  static char sid_buf2[200] = { '\0' };
+  static char sid_buf1 [200] = { '\0' };
+  static char sid_buf2 [200] = { '\0' };
 
   if (!done)
   {
@@ -796,7 +795,7 @@ static const char *sid_owner_cache (PSID sid)
     }
   }
   done = TRUE;
-  if (EqualSid(sid,sid_buf1) && sid_buf2[0])
+  if (EqualSid(sid, sid_buf1) && sid_buf2[0])
      return (sid_buf2);
   return (NULL);
 }

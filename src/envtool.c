@@ -627,7 +627,7 @@ smartlist_t *dir_array_head (void)
  * Since this function could be called with a `dir` from `expand_env_var()`,
  * we check here if it returned with no `%`.
  */
-static struct directory_array *dir_array_add_or_insert (const char *dir, BOOL is_cwd, BOOL  insert_at0)
+static struct directory_array *dir_array_add_or_insert (const char *dir, BOOL is_cwd, BOOL insert_at0)
 {
   struct directory_array *d = CALLOC (1, sizeof(*d));
   struct stat st;
@@ -3064,7 +3064,11 @@ static void init_all (const char *argv0)
   crtdbug_init();
 
   tzset();
-  setlocale (LC_ALL, "");
+
+  /* https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setlocale-wsetlocale?view=msvc-170#utf-8-support
+   */
+  setlocale (LC_ALL, ".UTF8");
+
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu   = C_conemu_detected();
   opt.under_winterm  = C_winterm_detected();

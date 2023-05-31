@@ -11,7 +11,7 @@
 #define GITHUB_STR    "https://github.com/gvanem/EnvTool"
 
 #if defined(_UNICODE) || defined(UNICODE)
-#error This program is not longer UNICODE compatible. Good riddance Microsoft.
+#error "This program is not longer UNICODE compatible. Good riddance Microsoft."
 #endif
 
 #if defined(IS_ZIG_CC)

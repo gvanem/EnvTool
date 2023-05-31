@@ -104,7 +104,6 @@ exit /b 1
 ::
 :create_auth_files
   @call :green_msg Creating '%APPDATA%/.netrc'.
-
   echo #                                                                     > .netrc
   echo # This .netrc file was generated from "appveyor-script.bat".         >> .netrc
   echo #                                                                    >> .netrc
