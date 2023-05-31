@@ -3451,8 +3451,15 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
       len = t[i+1].end - t[i+1].start + 1;
       len = min (len, sizeof(node->package));
       if (!node->package[0])
-          _strlcpy (node->package, str, len);
-      TRACE (1, "package:     '%s'\n", node->package);
+         _strlcpy (node->package, str, len);
+      TRACE (1, "package:      '%s'\n", node->package);
+      i += t[i+1].size + 1;
+    }
+    else if (JSON_str_eq(&t[i], buf, "port-version"))
+    {
+      str = buf + t[i+1].start;
+      len = t[i+1].end - t[i+1].start;
+      TRACE (1, "port-version: '%.*s' ignored\n", (int)len, str);
       i += t[i+1].size + 1;
     }
     else if (JSON_str_eq(&t[i], buf, "version") ||
@@ -3465,7 +3472,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
       len = min (len, sizeof(node->version));
       _strlcpy (node->version, str, len);
       str_replace2 ('~', "~~", node->version, sizeof(node->version));
-      TRACE (1, "version:     '%s'\n", node->version);
+      TRACE (1, "version:      '%s'\n", node->version);
       i += t[i+1].size + 1;
     }
     else if (JSON_str_eq(&t[i], buf, "description"))
@@ -3480,7 +3487,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
       len = min (len, sizeof(node->homepage));
       _strlcpy (node->homepage, str, len);
       str_replace2 ('~', "~~", node->homepage, sizeof(node->homepage));
-      TRACE (1, "homepage:    '%s'\n", node->homepage);
+      TRACE (1, "homepage:     '%s'\n", node->homepage);
       i += t[i+1].size + 1;
     }
     else if (JSON_str_eq(&t[i], buf, "supports"))
@@ -3492,7 +3499,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
       str = buf + t[i+1].start;
       len = t[i+1].end - t[i+1].start;     /* Do not add +1 since the value is quoted */
 
-      TRACE (1, "supports:    '%.*s'\n", (int)len, str);
+      TRACE (1, "supports:     '%.*s'\n", (int)len, str);
       str_copy = str_ndup (str, len);
       json_make_supports (node, str_copy, 0, TRUE);
       FREE (str_copy);
@@ -3511,7 +3518,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
         int k;
 
         C_putc ('\n');
-        TRACE (1, "test_string: '%s'\n", test_string[j]);
+        TRACE (1, "test_string:  '%s'\n", test_string[j]);
         json_make_supports (node, test_string[j], 0, TRUE);
 
         for (k = 0; node->platforms[k] != VCPKG_plat_ALL; k++)
@@ -3535,7 +3542,8 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
     {
       str = buf + t[i].start;
       len = t[i].end - t[i].start;
-      TRACE (2, "Unhandled key/value (type %s, size: %u): '%.*s'\n", JSON_typestr(t[i].type), t[i].size, (int)len, str);
+      TRACE (2, "Unhandled key/value (type %s, size: %u): '%.*s'\n",
+             JSON_typestr(t[i].type), t[i].size, (int)len, str);
       i += t[i+1].size + 1;
       if (i < 0)
          TRACE (3, "Negative i: %d!!\n", i);
