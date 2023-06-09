@@ -1046,6 +1046,18 @@ extern char *fnmatch_res  (int rc);
                               }                                         \
                             } while (0)
 
+/*
+ * As above, but must be used with a local 'ignore' variable:
+ */
+#define WARN2(...)          do {                                        \
+                              if (!ignore && !opt.quiet) {              \
+                                 C_puts ("~5");                         \
+                                 C_printf (__VA_ARGS__);                \
+                                 C_puts ("~0");                         \
+                                 C_flush();                             \
+                              }                                         \
+                            } while (0)
+
 #define FATAL(...)          do {                                        \
                               CRTDBG_CHECK_OFF();                       \
                               fflush (stdout);                          \

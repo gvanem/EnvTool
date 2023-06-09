@@ -1517,7 +1517,7 @@ static BOOL dir_is_empty (const char *dir)
 {
   HANDLE          handle;
   WIN32_FIND_DATA ff_data;
-  char            path  [_MAX_PATH];
+  char            path [_MAX_PATH];
   int             num_entries = 0;
 
   snprintf (path, sizeof(path), "%s\\*", dir);
@@ -1570,7 +1570,8 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   char            fqfn  [_MAX_PATH];  /* Fully qualified file-name */
   char            _path [_MAX_PATH];  /* Copy of 'path' */
   int             found = 0;
-  char           *end;
+  int             ignore = 0;
+  char            *end;
 
   /* We need to set these only once; `opt.file_spec` is constant throughout the program.
    */
@@ -1582,12 +1583,15 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   if (end > _path && IS_SLASH(end[-1]))
      end[-1] = '\0';
 
+  if (!stricmp(prefix, "PATH"))
+     ignore = cfg_ignore_lookup("[Path]", _path);
+
   if (num_dup > 0)
   {
 #if 0     /* \todo */
-    WARN ("%s: directory \"%s\" is duplicated at position %d. Skipping.\n", prefix, _path, dup_pos);
+     WARN2 ("%s: directory \"%s\" is duplicated at position %d. Skipping.\n", prefix, _path, dup_pos);
 #else
-    WARN ("%s: directory \"%s\" is duplicated. Skipping.\n", prefix, _path);
+     WARN2 ("%s: directory \"%s\" is duplicated. Skipping.\n", prefix, _path);
 #endif
     return (0);
   }
@@ -1600,12 +1604,12 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
 
   if (!exist)
   {
-    WARN ("%s: directory \"%s\" doesn't exist.\n", prefix, _path);
+    WARN2 ("%s: directory \"%s\" doesn't exist.\n", prefix, _path);
     return (0);
   }
 
   if (!is_dir)
-     WARN ("%s: directory \"%s\" isn't a directory.\n", prefix, _path);
+     WARN2 ("%s: directory \"%s\" isn't a directory.\n", prefix, _path);
 
   if (!opt.file_spec)
   {
@@ -1614,7 +1618,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   }
 
   if (check_empty && is_dir && dir_is_empty(_path))
-     WARN ("%s: directory \"%s\" is empty.\n", prefix, _path);
+     WARN2 ("%s: directory \"%s\" is empty.\n", prefix, _path);
 
   if (!fspec)
      fspec = (opt.use_regex ? "*" : fix_filespec(&subdir));
@@ -1635,8 +1639,9 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     char  *end_pos;
     int    match, len;
     BOOL   is_junction;
-    BOOL   ignore = ((file[0] == '.' && file[1] == '\0') ||                   /* current dir entry */
-                     (file[0] == '.' && file[1] == '.' && file[2] == '\0'));  /* parent dir entry */
+
+    ignore = ((file[0] == '.' && file[1] == '\0') ||                   /* current dir entry */
+              (file[0] == '.' && file[1] == '.' && file[2] == '\0'));  /* parent dir entry */
 
     TRACE (1, "ff_data.cFileName \"%s\", ff_data.dwFileAttributes: 0x%08lX, ignore: %d.\n",
             ff_data.cFileName, ff_data.dwFileAttributes, ignore);
@@ -3252,6 +3257,16 @@ static BOOL envtool_cfg_handler (const char *section, const char *key, const cha
 }
 
 /**
+ * The config-file handler for key/value pairs in the "[PATH]" section.
+ */
+static BOOL path_cfg_handler (const char *section, const char *key, const char *value)
+{
+  if (!stricmp(key, "ignore"))
+     return cfg_ignore_handler (section, key, value);
+  return (FALSE);
+}
+
+/**
  * The config-file handler for key/value pairs in the "[Everything]" section.
  */
 static BOOL evry_cfg_handler (const char *section, const char *key, const char *value)
@@ -3309,6 +3324,7 @@ int MS_CDECL main (int argc, const char **argv)
                            "",               envtool_cfg_handler,
                            "[Compiler]",     compiler_cfg_handler,
                            "[Registry]",     cfg_ignore_handler,
+                           "[Path]",         path_cfg_handler,
                            "[Python]",       py_cfg_handler,
                            "[PE-resources]", cfg_ignore_handler,
                            "[EveryThing]",   evry_cfg_handler,

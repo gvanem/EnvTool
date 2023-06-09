@@ -19,11 +19,12 @@
 static const struct search_list sections[] = {
                               { 0, "[Compiler]" },
                               { 1, "[Registry]" },
-                              { 2, "[Python]" },
-                              { 3, "[PE-resources]" },
-                              { 4, "[EveryThing]" },
-                              { 5, "[Login]" },  /* Only used in auth.c */
-                              { 6, "[Shadow]" }  /* Use in 'envtool ---check -v' */
+                              { 2, "[Path]" },
+                              { 3, "[Python]" },
+                              { 4, "[PE-resources]" },
+                              { 5, "[EveryThing]" },
+                              { 6, "[Login]" },  /* Only used in auth.c */
+                              { 7, "[Shadow]" }  /* Use in 'envtool ---check -v' */
                             };
 
 /**\struct ignore_node

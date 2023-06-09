@@ -1037,7 +1037,6 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
 
   C_setraw (1);
 
-
   if (disk_usage_tree)
        print_tree_branch (sz_buf, opts->unixy_paths ? make_unixy_path(dir) : dir);
 
