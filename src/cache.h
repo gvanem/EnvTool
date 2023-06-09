@@ -13,6 +13,12 @@ typedef enum CacheSections {
              SECTION_FIRST = 0,   /* Do not use this */
              SECTION_CMAKE,
              SECTION_COMPILER,
+
+             /**
+              * For `CLASSPATH`, `PATH, `INCLUDE`, `MANPATH`,
+              * `LIB`, `PERLLIBDIR`, `PKG_CONFIG_PATH` and
+              * `PYTHONPATH` environment variables.
+              */
              SECTION_ENV_DIR,
              SECTION_LUA,
              SECTION_PKGCONFIG,
