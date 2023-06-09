@@ -18,7 +18,7 @@
  * \def FGETS_BUF_LEN     Length of the `fgets()` buffer
  * \def SSCANF_BUF_LEN    Length of the `sscanf()` buffer
  */
-#define CFG_MAX_SECTIONS  10
+#define CFG_MAX_SECTIONS  12
 #define CFG_SECTION_LEN   40
 #define CFG_KEYWORD_LEN   40
 #define CFG_VALUE_LEN    512

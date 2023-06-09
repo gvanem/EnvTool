@@ -23,8 +23,9 @@ static const struct search_list sections[] = {
                               { 3, "[Python]" },
                               { 4, "[PE-resources]" },
                               { 5, "[EveryThing]" },
-                              { 6, "[Login]" },  /* Only used in auth.c */
-                              { 7, "[Shadow]" }  /* Use in 'envtool ---check -v' */
+                              { 6, "[LUA]" },     /* Only used in lua.c */
+                              { 7, "[Login]" },   /* Only used in auth.c */
+                              { 8, "[Shadow]" }   /* Use in 'envtool ---check -v' */
                             };
 
 /**\struct ignore_node
