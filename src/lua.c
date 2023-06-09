@@ -106,7 +106,6 @@ static void lua_append_dir (const struct directory_array *dir, BOOL for_LUA_CPAT
   DWORD      attr;
   char      *p;
   int        i, add_it, max;
-  int        ignore = 0;
 
   memset (&lua, '\0', sizeof(lua));
   _strlcpy (lua.path, dir->dir, sizeof(lua.path));
@@ -266,7 +265,7 @@ void lua_exit (void)
  */
 void lua_check_env (const char *env, int *num, char *status, size_t status_sz)
 {
-  int  i, max, found, errors, save;
+  int  i, max, errors, save;
   BOOL check_CPATH = TRUE;
 
   ASSERT (!strcmp(env, "LUA_PATH") || !strcmp(env, "LUA_CPATH"));
