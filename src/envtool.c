@@ -911,6 +911,7 @@ static void check_component (const char *env_name, char *tok, int is_cwd)
  * environment variable does NOT starts with `"."` or `".\"`.
  *
  * Convert CygWin style paths to Windows paths: <br>
+ * <tt>".:"</tt>             -> <tt>".;"</tt>.
  * <tt>"/cygdrive/x/.."</tt> -> <tt>"x:/.."</tt>.
  */
 smartlist_t *split_env_var (const char *env_name, const char *value)
@@ -929,7 +930,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   val = STRDUP (value);  /* Freed before we return */
   dir_array_free();
 
-  if (str_equal_n(val, "/cygdrive/", 10))
+  if (str_equal_n(val, ".:", 2) || str_equal_n(val, "/cygdrive/", 10))
   {
     const char *p = strchr (val, ';');
 
@@ -1001,7 +1002,8 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
       static char buf [_MAX_PATH];  /* static since it could be used after we return */
 
       snprintf (buf, sizeof(buf), "%c:/%s", tok[10], tok+12);
-      TRACE (1, "CygPath conv: '%s' -> '%s'\n", tok, buf);
+      slashify2 (buf, buf, DIR_SEP);
+      TRACE (1, "%s ->\n                 %s\n", tok, buf);
       tok = buf;
     }
 #endif
@@ -1589,9 +1591,9 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
   if (num_dup > 0)
   {
 #if 0     /* \todo */
-     WARN2 ("%s: directory \"%s\" is duplicated at position %d. Skipping.\n", prefix, _path, dup_pos);
+    WARN2 ("%s: directory \"%s\" is duplicated at position %d. Skipping.\n", prefix, _path, dup_pos);
 #else
-     WARN2 ("%s: directory \"%s\" is duplicated. Skipping.\n", prefix, _path);
+    WARN2 ("%s: directory \"%s\" is duplicated. Skipping.\n", prefix, _path);
 #endif
     return (0);
   }
@@ -3241,11 +3243,6 @@ static BOOL envtool_cfg_handler (const char *section, const char *key, const cha
     TRACE (2, "%s: Calling 'cfg_grep_handler (\"%s\", \"%s\")'.\n", section, key+5, value);
     return cfg_grep_handler (key+5, value);
   }
-  if (!strnicmp(key, "lua.", 4))
-  {
-    TRACE (2, "%s: Calling 'lua_cfg_handler (\"%s\", \"%s\")'.\n", section, key+4, value);
-    return lua_cfg_handler (key+4, value);
-  }
 #ifdef NOT_YET
   if (!strnicmp(key, "colour.", 6))
   {
@@ -3329,6 +3326,7 @@ int MS_CDECL main (int argc, const char **argv)
                            "[PE-resources]", cfg_ignore_handler,
                            "[EveryThing]",   evry_cfg_handler,
                            "[Login]",        auth_envtool_handler,
+                           "[Lua]",          lua_cfg_handler,
                            "[Shadow]",       shadow_ignore_handler,
                            NULL);
 
@@ -3573,6 +3571,8 @@ static struct dirent2 *copy_de (const struct dirent2 *de)
  * Traverse a `dir` and look for files matching file-spec.
  *
  * \return A smartlist of `struct dirent2*` entries.
+ *
+ * \note Does not work recursively.
  *
  * \todo Use `scandir2()` instead. This can match a more advanced `file_spec`
  *       that `fnmatch()` supports. Like `*.[ch]`.
@@ -3859,7 +3859,7 @@ _WUNUSED_FUNC_POP()
 static void check_env_val (const char *env, const char *file_spec, int *num, char *status, size_t status_sz)
 {
   smartlist_t *list = NULL;
-  int          i, errors, max = 0;
+  int          i, errors, ignored = 0, max = 0;
   char        *value;
   const struct directory_array *arr;
 
@@ -3895,6 +3895,9 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
     if (str_equal_n("/cygdrive/", arr->dir, 10))
          _strlcpy (fbuf, arr->dir, sizeof(fbuf));
     else slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
+
+    if (!stricmp("PATH", env))
+       ignored = cfg_ignore_lookup("[Path]", fbuf);
 
     if (start > arr->dir)
     {
@@ -3933,6 +3936,13 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
      _strlcpy (status, "~5Does not exists~0", status_sz);
   else if (!status[0])
     _strlcpy (status, "~2OK~0", status_sz);
+
+  if (ignored)
+  {
+    status    += strlen (status);
+    status_sz -= strlen (status);
+    _strlcpy (status, " (ignored)", status_sz);
+  }
 
   FREE (value);
 
@@ -4238,6 +4248,8 @@ static struct environ_fspec envs[] = {
             { NULL,      "MANPATH"            },
             { NULL,      "PKG_CONFIG_PATH"    },
             { "*.py?",   "PYTHONPATH"         },
+            { "*.lua",   "LUA_PATH"           },
+            { "*.dll",   "LUA_CPATH"          },
             { "*.cmake", "CMAKE_MODULE_PATH"  },
             { "*.pm",    "PERLLIBDIR"         },
             { NULL,      "CLASSPATH"          },  /* No support for these. But do it anyway. */
@@ -4252,7 +4264,7 @@ static int do_check (void)
   char *sys_env_path = NULL;
   char *sys_env_inc  = NULL;
   char *sys_env_lib  = NULL;
-  char  status [100+_MAX_PATH];
+  char  status [200+_MAX_PATH];
   int   i, save, num;
   int   index = 0;
 
@@ -4271,7 +4283,10 @@ static int do_check (void)
     if (opt.verbose)
        C_putc ('\n');
 
-    check_env_val (env, spec, &num, status, sizeof(status));
+    if (!stricmp("LUA_PATH", env) || !stricmp("LUA_CPATH", env))
+         lua_check_env (env, &num, status, sizeof(status));
+    else check_env_val (env, spec, &num, status, sizeof(status));
+
     C_printf ("%2d~0 elements, %s\n", num, status);
     if (opt.verbose)
        C_putc ('\n');
