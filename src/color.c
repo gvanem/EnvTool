@@ -214,12 +214,15 @@ int C_winterm_detected (void)
  * Return TRUE if *Virtual Terminal Processing* is enabled.
  * Needs Windows-10 v1909 or later.
  *
- * \param[in] cmd_only If 1, the return value need that 'cmd.exe' is in `%COMPSPEC%`.
+ * \param[in] cmd_only If 1, the return value need that 'cmd.exe',
+ * `tcc.exe` or `tcmd.exe` is in `%COMPSPEC%`.
  */
 int C_VT_detected (int cmd_only)
 {
   char  *env;
-  int    is_cmd = 0;
+  int    is_cmd  = 0;
+  int    is_tcc  = 0;
+  int    is_tcmd = 0;
   DWORD  value = 0;
   DWORD  mode = 0;
   HANDLE hnd = INVALID_HANDLE_VALUE;
@@ -232,8 +235,11 @@ int C_VT_detected (int cmd_only)
   if (env)
   {
     env = strrchr (env, '\\');
-    is_cmd = (env && stricmp(env, "\\cmd.exe") == 0);
-    if (cmd_only && !is_cmd)
+    is_cmd  = (env && stricmp(env, "\\cmd.exe") == 0);
+    is_tcc  = (env && stricmp(env, "\\tcc.exe") == 0);
+    is_tcmd = (env && stricmp(env, "\\tcmd.exe") == 0);
+
+    if (cmd_only && !is_cmd && !is_tcc && !is_tcmd)
        value = 0;
   }
 
