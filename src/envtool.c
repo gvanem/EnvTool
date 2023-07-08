@@ -362,6 +362,19 @@ static BOOL asan_enabled (void)
 }
 
 /**
+ * Returns TRUE if program was compiled with
+ * "Undefined Behaviour Sanitizer" support.
+ */
+static BOOL ubsan_enabled (void)
+{
+#ifdef USE_UBSAN
+  return (TRUE);
+#else
+  return (FALSE);
+#endif
+}
+
+/**
  * Handler for `envtool -V..`:
  * + Show some basic version information:    option `-V`.
  * + Show more detailed version information: option `-VV`.
@@ -369,13 +382,14 @@ static BOOL asan_enabled (void)
 static int show_version (void)
 {
   HWND wnd;
-  BOOL wow64 = is_wow64_active();
 
   C_printf ("%s.\n"
-            "  Version ~3%s ~1(%s, %s%s%s)~0 by %s.\n"
+            "  Version ~3%s ~1(%s, %s%s%s%s)~0 by %s.\n"
             "  Hosted at: ~6%s~0\n",
             who_am_I, VER_STRING, compiler_version(), WIN_VERSTR,
-            wow64 ? ", ~1WOW64" : "", asan_enabled() ? ", ASAN" : "",
+            is_wow64_active() ? ", ~1WOW64" : "",
+            asan_enabled()    ? ", ASAN" : "",
+            ubsan_enabled()   ? ", UBSAN" : "",
             AUTHOR_STR, GITHUB_STR);
 
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
@@ -3897,7 +3911,7 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
     else slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
 
     if (!stricmp("PATH", env))
-       ignored = cfg_ignore_lookup("[Path]", fbuf);
+       ignored = cfg_ignore_lookup("[Path]", arr->dir);
 
     if (start > arr->dir)
     {
@@ -3997,7 +4011,7 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
           get_reparse_point (arr->dir, link, sizeof(link)))
       {
         C_puts ("\n      -> ");
-        print_raw (_fix_drive(link), "~4", NULL);
+        print_raw (slashify2(link, link, opt.show_unix_paths ? '/' : '\\'), "~4", NULL);
       }
       C_puts ("~0\n");
     }
@@ -4029,7 +4043,7 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
   else if (errors == 0)
      C_puts ("~2OK~0, ");
 
-  C_printf ("~6%2d~0 elements\n", max);
+  C_printf ("~6%2d~0 elements\n\n", max);
   dir_array_free();
 }
 
@@ -4078,11 +4092,10 @@ static void check_app_paths (HKEY key)
         fname = opt.show_unix_paths ? slashify (fname,'/') : fname;
         print_raw (fname, NULL, NULL);
       }
-
       C_puts ("~0\n");
     }
 
-    if (!is_directory(fbuf) && !cfg_ignore_lookup("[Registry]",fbuf))
+    if (!is_directory(fbuf) && !cfg_ignore_lookup("[Registry]", fbuf))
     {
       C_printf ("%*c~5Missing dir~0: ~3%s\"~0\n", indent, ' ', fbuf);
       errors++;
@@ -4103,9 +4116,9 @@ static void check_app_paths (HKEY key)
   if (max == 0)
      C_puts ("~5Does not exists~0,");  /* Impossible */
   else if (errors == 0)
-     C_puts ("~2OK~0,             ");
+     C_puts ("~2OK~0, ");
   else
-     C_puts ("~5Error~0,          ");
+     C_puts ("~5Error~0, ");
 
   C_printf ("~6%2d~0 elements\n", max);
   reg_array_free();
@@ -4130,29 +4143,34 @@ static void print_env_val (const char *val, size_t indent)
 /**
  * Compare an environment value from SYSTEM and USER.
  * Ignore differences in case and trailing slashes ('\\' or '/') or ';'.
+ * Also ignore difference in values like:
+ *   \li `0` vs `false` or
+ *   \li `1` vs `true`.
  *
  * \todo if an env-var looks like 1 or more directories and one of it's values
  *       is a junction, check it's target before comparing each directory.
  */
 static void compare_user_sys_env (const char *env_var, const char *sys_value, int indent1)
 {
-  const char *end;
+  const char *sys_end;
   const char *user_value = getenv (env_var);
   char       *sys_val = getenv_expand_sys (sys_value);
-  size_t      len, indent2;
+  int         i;
+  BOOL        equal = FALSE;
+  size_t      sys_len, indent2;
 
   if (sys_val)
      sys_value = sys_val;
 
-  len = strlen (sys_value);
-  end = sys_value + len - 1;
-  if (IS_SLASH(*end))
+  sys_len = strlen (sys_value);
+  sys_end = sys_value + sys_len - 1;
+  if (IS_SLASH(*sys_end))
   {
-    len--;
-    end--;
+    sys_len--;
+    sys_end--;
   }
-  if (*end == ';')
-     len--;
+  if (*sys_end == ';')
+     sys_len--;
 
 #if 0
   if (sys_value && user_value && strchr(sys_value, ';') && strchr(user_value, ';'))
@@ -4161,6 +4179,19 @@ static void compare_user_sys_env (const char *env_var, const char *sys_value, in
     sys_env  = split_env_var (sys_value);
   }
 #endif
+
+  if (sys_value && user_value)
+  {
+    const char *equals[] = { "false", "0", "true", "1" };
+
+    for (i = 0; i < DIM(equals) && !equal; i++)
+    {
+      if (!stricmp(sys_value, equals[i]) || !stricmp(user_value, equals[i]))
+         equal = TRUE;
+    }
+    if (!equal)
+       equal = (strnicmp(user_value, sys_value, sys_len) == 0);
+  }
 
   C_printf ("  ~3%-*s~0", indent1, env_var);
   indent2 = indent1 + sizeof("SYSTEM = ") + 2;
@@ -4171,7 +4202,7 @@ static void compare_user_sys_env (const char *env_var, const char *sys_value, in
     print_env_val (sys_value, indent2);
     C_printf ("  %*s~2USER   = <None>~0\n", indent1, "");
   }
-  else if (strnicmp(user_value, sys_value, len))
+  else if (!equal)
   {
     C_printf ("Mismatch:\n  %*s~6SYSTEM = ", indent1, "");
     print_env_val (sys_value, indent2);
@@ -4187,43 +4218,43 @@ static void compare_user_sys_env (const char *env_var, const char *sys_value, in
 }
 
 /**
- * Compare all environment values for SYSTEM and check if there is a difference
- * in the corresponding USER variable.
+ * Compare all environment values for SYSTEM and check if there
+ * is a difference in the corresponding USER variable.
  */
 static void do_check_user_sys_env (void)
 {
-  smartlist_t *list;
+  smartlist_t *sys_list;
   int          i, max;
   size_t       len, longest_env = 0;
-  char        *env, *val;
+  char        *sys_env, *sys_val;
 
   C_puts ("\nComparing ~6SYSTEM~0 and ~2USER~0 environments:\n");
 
-  if (!getenv_system(&list))
+  if (!getenv_system(&sys_list))
   {
     C_printf ("CreateEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
     return;
   }
 
   TRACE (1, "C_screen_width(): %d\n", (int)C_screen_width());
-  max = smartlist_len (list);
+  max = smartlist_len (sys_list);
   for (i = 0; i < max; i++)
   {
-    env = smartlist_get (list, i);
-    val = strchr (env, '=');
-    *val++ = '\0';
-    len = strlen (env);
+    sys_env = smartlist_get (sys_list, i);
+    sys_val = strchr (sys_env, '=');
+    *sys_val++ = '\0';
+    len = strlen (sys_env);
     if (len > longest_env)
        longest_env = len;
   }
 
   for (i = 0; i < max; i++)
   {
-    env = smartlist_get (list, i);
-    val = strchr (env, '\0') + 1;
-    compare_user_sys_env (env, val, (int)(2 + longest_env));
+    sys_env = smartlist_get (sys_list, i);
+    sys_val = strchr (sys_env, '\0') + 1;
+    compare_user_sys_env (sys_env, sys_val, (int)(2 + longest_env));
   }
-  smartlist_free_all (list);
+  smartlist_free_all (sys_list);
 }
 
 /**
@@ -4252,7 +4283,7 @@ static struct environ_fspec envs[] = {
             { "*.dll",   "LUA_CPATH"          },
             { "*.cmake", "CMAKE_MODULE_PATH"  },
             { "*.pm",    "PERLLIBDIR"         },
-            { NULL,      "CLASSPATH"          },  /* No support for these. But do it anyway. */
+            { NULL,      "CLASSPATH"          },  /* No support for these. But do it anyway */
             { "*.go",    "GOPATH"             },
             { NULL,      "FOO"                }   /* Check that non-existing env-vars are also checked */
           };
@@ -4260,13 +4291,13 @@ static struct environ_fspec envs[] = {
 static int do_check (void)
 {
   struct ver_info cmake_ver;
-  char *cmake_exe;
-  char *sys_env_path = NULL;
-  char *sys_env_inc  = NULL;
-  char *sys_env_lib  = NULL;
-  char  status [200+_MAX_PATH];
-  int   i, save, num;
-  int   index = 0;
+  char  *cmake_exe;
+  char  *sys_env_path = NULL;
+  char  *sys_env_inc  = NULL;
+  char  *sys_env_lib  = NULL;
+  char   status [200+_MAX_PATH];
+  int    i, save, num;
+  int    index = 0;
 
   /* Do not implicitly add current directory in these searches.
    */
@@ -4304,12 +4335,16 @@ static int do_check (void)
   {
     FREE (cmake_exe);
     C_printf ("Checking ~3HKEY_CURRENT_USER\\%s~0 keys:\n", KITWARE_REG_NAME);
-    cmake_get_info_registry (NULL, &index, HKEY_CURRENT_USER);
-    C_putc ('\n');
+    num = cmake_get_info_registry (NULL, &index, HKEY_CURRENT_USER);
+    if (num == 0)
+         C_printf ("      ~5Does not exists~0\n\n");
+    else C_printf ("      ~2OK~0, %d elements\n\n", num);
 
     C_printf ("Checking ~3HKEY_LOCAL_MACHINE\\%s~0 keys:\n", KITWARE_REG_NAME);
-    cmake_get_info_registry (NULL, &index, HKEY_LOCAL_MACHINE);
-    C_putc ('\n');
+    num = cmake_get_info_registry (NULL, &index, HKEY_LOCAL_MACHINE);
+    if (num == 0)
+         C_printf ("         ~5Does not exists~0\n\n");
+    else C_printf ("         ~2OK~0, %d elements\n\n", num);
   }
 
   opt.no_cwd = save;

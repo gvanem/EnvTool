@@ -78,12 +78,12 @@ int cmake_get_info_registry (smartlist_t *sl, int *index, HKEY top_key)
 
   for (num = 0; rc == ERROR_SUCCESS; num++)
   {
-    char  package_key [512];
-    char  package [100];
-    char *uuid = "?";
-    char *path = "?";
-    BOOL  exist;
-    DWORD size = sizeof(package);
+    char   package_key [512];
+    char   package [100];
+    char  *uuid = "?";
+    char  *path = "?";
+    BOOL   exist;
+    DWORD  size = sizeof(package);
     struct stat st;
 
     rc = RegEnumKeyEx (key, num, package, &size, NULL, NULL, NULL, NULL);
@@ -100,7 +100,11 @@ int cmake_get_info_registry (smartlist_t *sl, int *index, HKEY top_key)
     if (sl && exist)
        smartlist_add_strdup (sl, path);
     if (opt.do_check)
+    {
+      if (opt.show_unix_paths)
+         slashify2 (path, path, '/');
        C_printf ("   [%2d]: ~6%-15s~0 -> ~6%s%s~0\n", num, package, path, exist ? "": " ~5(Missing)");
+    }
 
     FREE (uuid);
     FREE (path);

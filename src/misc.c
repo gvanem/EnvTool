@@ -198,7 +198,8 @@ typedef BOOL (WINAPI *func_IsWow64Process) (HANDLE proc, BOOL *wow64);
  */
 typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_name);
 
-/** \typedef func_ExpandEnvironmentStringsForUserA
+/**
+ * \typedef func_ExpandEnvironmentStringsForUserA
  *
  * Since these functions are not available on Win-XP, dynamically load "userenv.dll"
  * and get the function-pointer to `ExpandEnvironmentStringsForUserA()`.
@@ -206,7 +207,8 @@ typedef BOOL (WINAPI *func_NeedCurrentDirectoryForExePathA) (const char *exe_nam
  * \note The MSDN documentation for `ExpandEnvironmentStringsForUser`()` is
  *       wrong. The return-value is *not* a `BOOL`, but it returns the length
  *       of the expanded buffer (similar to `ExpandEnvironmentStrings()`).
- *       \see https://msdn.microsoft.com/en-us/library/windows/desktop/bb762275(v=vs.85).aspx
+ *  \see https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-expandenvironmentstringsa
+ *  \see https://learn.microsoft.com/en-gb/windows/win32/api/userenv/nf-userenv-expandenvironmentstringsforusera
  */
 typedef DWORD (WINAPI *func_ExpandEnvironmentStringsForUserA) (
                        HANDLE      token,
@@ -1572,6 +1574,25 @@ char *str_plural (DWORD val, const char *singular, const char *plural)
  if (val == 0 || val > 1)
     return (char*) plural;
   return (char*) singular;
+}
+
+/**
+ * Checks a file-name for illegal characters.
+ *
+ * \ref https://learn.microsoft.com/en-gb/windows/win32/fileio/naming-a-file
+ */
+BOOL legal_file_name (const char *fname)
+{
+  const char *p;
+
+  for (p = fname; *p; p++)
+  {
+    if (*p >= 1 && *p <= 31)
+       return (FALSE);
+    if (strchr ("|<>\"?*", *p))
+       return (FALSE);
+  }
+  return (TRUE);
 }
 
 /**
@@ -4502,7 +4523,7 @@ char *getenv_expand_sys (const char *variable)
          TRACE (1, "ExpandEnvironmentStringsForUser() failed: %s.\n",
                 win_strerror(GetLastError()));
     else rc = STRDUP (buf);
-    TRACE (3, "variable: '%s', expanded: '%s'\n", variable, rc);
+    TRACE (3, "size: %lu, variable: '%s', expanded: '%s'\n", size, variable, rc);
   }
   return (rc);
 }

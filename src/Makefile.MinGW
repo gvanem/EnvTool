@@ -3,7 +3,7 @@
 #
 FORTIFY_SOURCE ?= 0
 USE_DEBUG      ?= 0
-USE_64BIT      ?= 0
+USE_64BIT      ?= 1
 
 CC     = gcc
 CFLAGS = -Wall                        \
