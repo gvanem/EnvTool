@@ -1093,7 +1093,7 @@ static BOOL WINAPI halt (DWORD event)
      return (FALSE);
 
   C_puts ("~0\n");
-  FATAL ("Got ^C.\n");
+  FAST_EXIT();
   return (TRUE);
 }
 

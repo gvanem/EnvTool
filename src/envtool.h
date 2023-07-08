@@ -66,7 +66,7 @@
 
 #if !defined(RC_INVOKED)  /* rest of file */
 
-#if (defined(__MINGW32__) || defined(__CYGWIN__)) && defined(_FORTIFY_SOURCE)
+#if (defined(__MINGW32__) || defined(__CYGWIN__)) && defined(_FORTIFY_SOURCE) && (_FORTIFY_SOURCE >= 1)
   /*
    * Enable GNU LibSSP; "Stack Smashing Protector".
    *   Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
@@ -593,7 +593,8 @@ int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1
 
 /*
  * According to:
- *  http://msdn.microsoft.com/en-us/library/windows/desktop/ms683188(v=vs.85).aspx
+ *  https://devblogs.microsoft.com/oldnewthing/20100203-00/?p=15083
+ *  https://learn.microsoft.com/en-gb/windows/win32/api/processenv/nf-processenv-getenvironmentvariablea
  */
 #define MAX_ENV_VAR  32767
 
@@ -683,6 +684,7 @@ extern BOOL   is_directory          (const char *file);
 extern int    safe_stat             (const char *file, struct stat *st, DWORD *win_err);
 extern int    safe_stat_sys         (const char *file, struct stat *st, DWORD *win_err);
 extern UINT   count_digit           (UINT64 n);
+extern BOOL   legal_file_name       (const char *fname);
 
 extern char       *make_cyg_path (const char *path, char *result);
 extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);
@@ -1064,6 +1066,16 @@ extern char *fnmatch_res  (int rc);
                               fprintf (stderr, "\nFatal: %s(%u): ",     \
                                        __FILE(), __LINE__);             \
                               fprintf (stderr, ##__VA_ARGS__);          \
+                              opt.fatal_flag = 1;                       \
+                              if (IsDebuggerPresent())                  \
+                                   abort();                             \
+                              else ExitProcess (GetCurrentProcessId()); \
+                            } while (0)
+
+
+#define FAST_EXIT()         do {                                        \
+                              CRTDBG_CHECK_OFF();                       \
+                              fflush (stdout);                          \
                               opt.fatal_flag = 1;                       \
                               if (IsDebuggerPresent())                  \
                                    abort();                             \
