@@ -1132,7 +1132,14 @@ static char *fcheck_open_mem (struct python_module *m, const char *file, size_t 
 
     snprintf (fqfn, sizeof(fqfn), "%s%c%s", pkg_dir, DIR_SEP, file);
     FREE (pkg_dir);
-    file = fqfn;
+
+    /* Hack to avoid this stupid 'gcc 12+ warning':
+     *   envtool_py.c:1142:13: warning: dangling pointer 'file' to 'fqfn' may be used [-Wdangling-pointer=]
+     *    1142 |      return fopen_mem (file, f_size);
+     *         |             ^~~~~~~~~~~~~~~~~~~~~~~~
+     *
+     */
+    file = strdupa (fqfn);
   }
   else
     file = m->dist_info;
