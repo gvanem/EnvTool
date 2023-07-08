@@ -304,7 +304,9 @@ void lua_check_env (const char *env, int *num, char *status, size_t status_sz)
     if (dir->is_CPATH != check_CPATH)
        continue;
 
-    if (!dir->exist)
+    /* No Lua files (?.lua/?.dll) in current directory is normal.
+     */
+    if (!dir->exist && stricmp(fbuf, current_dir))
     {
       snprintf (status, status_sz, "~5Missing dir~0: ~3\"%s\"~0", fbuf);
       errors++;
