@@ -33,7 +33,7 @@ BEGIN
       VALUE "OriginalFilename", "envtool.exe (" BUILDER ", " WIN_VERSTR ")"
       VALUE "ProductName",      "Environment variables and Python 'sys.path[]' search tool."
       VALUE "ProductVersion",   VER_STRING "\0"
-      VALUE "LegalCopyright",   "This is a freeware program by " AUTHOR_STR ", 2012-2022."
+      VALUE "LegalCopyright",   "A freeware program by " AUTHOR_STR ", 2012-2023."
     END
   END
 
