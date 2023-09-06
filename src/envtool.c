@@ -564,12 +564,14 @@ static int show_help (void)
           "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
           "      should be specified in your ~6%APPDATA%/.netrc~0 or ~6%APPDATA%/.authinfo~0 files or\n"
           "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
+          "      ~0Soundex~0 matches requires ver. 1.5.0.1340a or later.\n"
           "\n"
           "      To perform raw searches, append a modifier like:\n"
-          "        envtool ~6--evry~0 -s ~3* \"size:>2gb\"~0                 - find all >2GByte files on all drives.\n"
+          "        envtool ~6--evry~0 -s ~3* \"size:>2GB\"~0                   - find all >2GByte files on all drives.\n"
           "        envtool ~6--evry~0 ~3*.exe~0 rc:today                     - find all ~3*.exe~0 files changed today.\n"
           "        envtool ~6--evry~0 ~3*.mp3~0 title:Hello                  - find all ~3*.mp3~0 files with a title starting with Hello.\n"
           "        envtool ~6--evry~0 ~3f*~0 empty:                          - find all empty directories matching ~3f*~0.\n"
+          "        envtool ~6--evry~0 ~3*.cpp~0 soundex:deamon               - find all *.cpp files that ~3Soundex~0 matches ~3deamon~0, ~3daemon~0 or even ~3domain~0.\n"
           "        envtool ~6--evry~0 ~3Makefile.am~0 content:pod2man        - find all ~3Makefile.am~0 containing ~3pod2man~0.\n"
           "        envtool ~6--evry~0 ~3M*.mp3~0 artist:Madonna \"year:<2002\" - find all Madonna ~3M*.mp3~0 titles issued prior to 2002.\n"
           "\n"
@@ -2247,7 +2249,7 @@ static int do_check_evry (void)
     else
       ignore = cfg_ignore_lookup ("[EveryThing]", file);
 
-    TRACE (1, "cfg_ignore_lookup(\"[EveryThing]\", \"%s\") -> %d\n", file, ignore);
+    TRACE (2, "cfg_ignore_lookup(\"[EveryThing]\", \"%s\") -> %d\n", file, ignore);
 
     if (ignore)
     {

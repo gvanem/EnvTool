@@ -2306,8 +2306,10 @@ void set_error_mode (int restore)
 /**
  * Get a cached `cluster_size` for `disk`. (`A:` - `Z:`).
  * Only works on local disks; I.e. `disk-type == DRIVE_FIXED`.
+ *
  * \retval TRUE  on success.
  * \retval FALSE if disk out of range or if `GetDiskFreeSpace()` fails.
+ * \ref https://www.foldersizes.com/wordpress/index.php/2020/07/actual-vs-allocated-disk-space.htm
  */
 BOOL get_disk_cluster_size (int disk, DWORD *size)
 {
@@ -2352,11 +2354,12 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
   }
 
   TRACE (1, "GetDiskFreeSpace (\"%s\"): sect_per_cluster: %lu, bytes_per_sector: %lu, total_clusters: %lu, error: %s\n",
-         root, (unsigned long)sect_per_cluster, (unsigned long)bytes_per_sector, (unsigned long)total_clusters,
-         err);
+         root, (unsigned long)sect_per_cluster, (unsigned long)bytes_per_sector, (unsigned long)total_clusters, err);
+
+  TRACE (1, "%c: (local: %d) -> cluster_size: %lu\n", disk, is_local_disk[i], cluster_size[i]);
 
   if (rc && size)
-    *size = cluster_size[i];
+     *size = cluster_size[i];
   return (rc);
 }
 
