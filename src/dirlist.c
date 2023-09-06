@@ -621,16 +621,23 @@ static UINT64 total_size_alloc = 0;
 static UINT64 total_size_compr = 0;
 static BOOL   follow_junctions = TRUE;
 static BOOL   use_scandir = FALSE;
-static BOOL   disk_usage_mode  = FALSE;
-static BOOL   disk_usage_tree  = FALSE;
-static int    disk_usage_print = 'b';
 static char   drive_root [4];
 
+/* Globals for 'do_disk_usage()':
+ */
+static BOOL   disk_usage_mode  = FALSE;
+static BOOL   disk_usage_time  = FALSE;
+static BOOL   disk_usage_tree  = FALSE;
+static BOOL   disk_usage_alloc = FALSE;
+static int    disk_usage_print = 'b';
+static UINT64 disk_usage_sum_raw   = 0ULL;
+static UINT64 disk_usage_sum_alloc = 0ULL;
 
 void usage (void)
 {
   if (disk_usage_mode)
-       puts ("Usage: du [-bkmHRtu] [dir\\spec*]\n"
+       puts ("Usage: du [-abkmHRtu] [dir\\spec*]\n"
+             "        -a:  show disk allocated size.\n"
              "        -b:  show bytes count (default).\n"
              "        -k:  show KiloBytes count.\n"
              "        -m:  show MegaBytes count.\n"
@@ -978,8 +985,8 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
   struct dirent2 **namelist;
   char             sz_buf [20];
   int              i, n;
-  UINT64           sum = 0ULL;
-  static UINT64    highest_sum = 0ULL;
+  UINT64           sum_raw   = 0ULL;
+  UINT64           sum_alloc = 0ULL;
   static int       width = 8;
 
   n = scandir2 (dir, &namelist, NULL, NULL);
@@ -992,8 +999,9 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
   for (i = 0; i < n; i++)
   {
     const struct dirent2 *de = namelist[i];
-    int   is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-    int   is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+    int    is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+    int    is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+    UINT64 this_sum;
 
     if (is_junction)
        continue;
@@ -1003,35 +1011,72 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
       if (recursion_level > 0 || fnmatch(opts->pattern, basename(de->d_name), FNM_FLAG_PATHNAME) == FNM_MATCH)
       {
         recursion_level++;
-        sum += do_disk_usage (de->d_name, opts);
+
+        this_sum = do_disk_usage (de->d_name, opts);
+        sum_raw   += this_sum;
+        sum_alloc += this_sum;
         recursion_level--;
       }
     }
     else
     {
-      sum += de->d_fsize;
+      sum_raw   += de->d_fsize;
+      sum_alloc += get_file_alloc_size (de->d_name, de->d_fsize);
     }
   }
 
-  if (sum > highest_sum)
-     highest_sum = sum;
+  if (sum_raw > disk_usage_sum_raw)
+     disk_usage_sum_raw = sum_raw;
 
-  if ((double)highest_sum > 1E8)
-     width = count_digit (highest_sum);
+  if (sum_alloc > disk_usage_sum_alloc)
+     disk_usage_sum_alloc = sum_alloc;
+
+  /*
+   * Comparing the TCC shell's '%@filesize[]' function (from JPsoft.com)
+   * with 'du.exe' in CWD == '<ROOT>\envtool\src'.
+   * First 'sum_raw':
+   *   echo %@filesize[/s ..\*,b]       -> 268384551
+   *   du -b ..                         -> 268384551
+   *
+   * Then for 'sum_alloc' and option 'a' in TCC:
+   *   echo %@filesize[/s ..\*,b,a]     -> 280395776
+   *   du -ba ..                        -> 280395776
+   *
+   * The same on a networked disk:
+   *   echo %@filesize[/s w:\gv\*,b]    -> 3875421944
+   *   du -b w:\gv                      -> 3875421944
+   *
+   *   echo %@filesize[/s w:\gv\*,b,a]  -> 3951603712
+   *   du -ba w:\gv                     -> 3951603712
+   */
+
+  if ((double)disk_usage_sum_raw > 1E8)
+  {
+    ASSERT (disk_usage_sum_alloc >= disk_usage_sum_raw);
+    width = count_digit (disk_usage_alloc ? disk_usage_sum_alloc : disk_usage_sum_raw);
+  }
+
+  if (disk_usage_alloc && sum_alloc > sum_raw)
+  {
+    double disk_slack = 100.0 * (double) (sum_alloc - sum_raw) / (double)sum_alloc;
+
+    TRACE (1, "disk_slack: %.2lf%%.\n", disk_slack);
+    sum_raw = sum_alloc;
+  }
 
   switch (disk_usage_print)
   {
     case 'k':
-          snprintf (sz_buf, sizeof(sz_buf), "%-*llu", width, sum/1024);
+          snprintf (sz_buf, sizeof(sz_buf), "%-*llu", width, sum_raw/1024);
           break;
     case 'm':
-         snprintf (sz_buf, sizeof(sz_buf), "%-*llu", width, sum/1024/1024);
+         snprintf (sz_buf, sizeof(sz_buf), "%-*llu", width, sum_raw/1024/1024);
          break;
     case 'H':
-         snprintf (sz_buf, sizeof(sz_buf), "%-8s", get_file_size_str(sum));
+         snprintf (sz_buf, sizeof(sz_buf), "%-8s", get_file_size_str(sum_raw));
          break;
     default:
-         snprintf (sz_buf, sizeof(sz_buf), "%-*llu", width, sum);
+         snprintf (sz_buf, sizeof(sz_buf), "%-*llu", width, sum_raw);
          break;
   }
 
@@ -1053,7 +1098,7 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
     FREE (namelist[n]);
   }
   FREE (namelist);
-  return (sum);
+  return (sum_raw);
 }
 
 static void print_tree_branch (const char *sz_buf, const char *directory)
@@ -1104,6 +1149,9 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
   while ((ch = getopt(argc, argv, options)) != EOF)
      switch (ch)
      {
+       case 'a':
+            disk_usage_alloc = TRUE;
+            break;
        case 'c':
             opts->sort |= OD2X_SORT_EXACT;
             break;
@@ -1130,6 +1178,9 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
             break;
        case 'o':
             opt.show_owner++;
+            break;
+       case 't':
+            disk_usage_time = TRUE; /* not yet */
             break;
        case 'T':
             disk_usage_tree = TRUE;
@@ -1168,7 +1219,7 @@ int MS_CDECL main (int argc, char **argv)
     opts.recursive  = 1;  /* option '-R' reverts this */
     argc--;
     argv++;
-    do_getopt (argc, argv, "ubdmkHRtTh?", &opts);
+    do_getopt (argc, argv, "aubdmkHRtTh?", &opts);
   }
   else
     do_getopt (argc, argv, "cdjors:Suzh?", &opts);
@@ -1204,6 +1255,14 @@ int MS_CDECL main (int argc, char **argv)
   if (disk_usage_mode)
   {
     do_disk_usage (dir_buf, &opts);
+
+    if (disk_usage_alloc)
+    {
+      double total_slack = (double)disk_usage_sum_alloc - (double)disk_usage_sum_raw;
+
+      total_slack /= (double)disk_usage_sum_alloc;
+      printf ("total disk_slack: %.2lf%%.\n", 100.0 * total_slack);
+    }
     crtdbug_exit();
   }
   else
