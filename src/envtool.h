@@ -902,6 +902,7 @@ extern const char *os_release_id (void);
 extern const char *os_update_build_rev (void);
 extern const char *os_current_build (void);
 extern const char *os_full_version (void);
+extern const char *os_KUSER_SHARED_DATA (void);
 extern time_t      os_last_install_date (void);
 extern time_t      os_first_install_date (void);
 
