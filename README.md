@@ -234,8 +234,8 @@ should be used instead.
 
 ---
 
-C-source included in `./src`. `Makefile.Windows` is for MSVC, clang-cl, Intel-ICX and Zig.
-Enjoy!
+C-source included in `./src`. `Makefile.Windows` (GNU-make required) is for MSVC, clang-cl, Intel-ICX and Zig.
+`Makefile.VC` is for MSVC only. Enjoy!
 
 `#include <std_disclaimer.h>`:<br>
    *"I do not accept responsibility for any effects, adverse or otherwise,
