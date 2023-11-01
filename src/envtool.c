@@ -422,6 +422,7 @@ static int show_version (void)
   if (opt.do_version >= 2)
   {
     const char *OS_name = os_name();
+    const char *clang = compiler_clang_version();
 
     if (!strncmp(OS_name, "Win-10", 6))
     {
@@ -438,6 +439,8 @@ static int show_version (void)
 
     C_printf ("  User-name:  \"%s\", %slogged in as Admin.\n", get_user_name(), is_user_admin() ? "" : "not ");
     C_printf ("  ConEmu:     %sdetected.\n", opt.under_conemu ? "" : "not ");
+    if (clang)
+       C_printf ("  clang-ver:  %s.\n", clang);
     C_puts   ("  CPU-Info:   ");
     print_core_temp_info();
 

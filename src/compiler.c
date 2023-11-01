@@ -89,6 +89,7 @@ static void   compiler_add_clang (void);
 static void   compiler_add_intel (void);
 static void   compiler_add_borland (void);
 static void   compiler_add_watcom (void);
+static void   compiler_add_custom (const char *compiler_full_name);
 static int    dir_array_make_unique (const char *where, const char *compiler_full_name);
 
 static int    GCC_print_compiler_info (const compiler_info *cc, BOOL print_lib_path);
@@ -244,6 +245,11 @@ BOOL compiler_cfg_handler (const char *section, const char *key, const char *val
 {
   if (!stricmp(key, "ignore"))
      return cfg_ignore_handler (section, key, value);
+  if (!stricmp(key, "add"))
+  {
+    compiler_add_custom (value);
+    return (TRUE);
+  }
   return (FALSE);
 }
 
@@ -698,6 +704,16 @@ static void compiler_add_watcom (void)
     cc.short_name = (char*) wcc[i];
     compiler_add (&cc, "WATCOM", "LIB", FALSE);
   }
+}
+
+/**
+ * \todo
+ * Handle "add = <*gcc.exe>" for another custom (microcontroller) compiler.
+ * And add to the `all_cc` smartlist.
+ */
+static void compiler_add_custom (const char *compiler_full_name)
+{
+  (void) compiler_full_name;
 }
 
 /**
@@ -1878,12 +1894,28 @@ static const char *gcc_version (void)
 #endif
 
 /**
+ * 'clang-cl', 'icx' and 'zig' should have `__clang_version__` as a built-in.
+ * E.g. zig has:
+ * ```
+ *  __clang_version__ = "17.0.3 (https://github.com/ziglang/zig-bootstrap a97ca22b417b799e29f87d1b054d65bbff8a264e)"
+ * ```
+ */
+const char *compiler_clang_version (void)
+{
+#if defined(__clang_version__)
+  return (__clang_version__);
+#else
+  return (NULL);
+#endif
+}
+
+/**
  * Work-buffer for `compiler_version()`.
  */
 static char cc_info_buf [100];
 
 /*
- * Since 'icx' also defines '__clang__', put this #if-test here.
+ * Since 'icx' + 'zig' also defines '__clang__', put this #if-test here.
  */
 #if defined(__INTEL_LLVM_COMPILER)
   const char *compiler_version (void)

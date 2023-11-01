@@ -41,6 +41,7 @@ BOOL compiler_cfg_handler (const char *section, const char *key, const char *val
  * program was built with.
  */
 const char *compiler_version (void);
+const char *compiler_clang_version (void);
 void        compiler_print_build_cflags (void);
 void        compiler_print_build_ldflags (void);
 
