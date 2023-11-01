@@ -3,7 +3,7 @@
 :: AppVeyor .bat-file to run "build" or "test".
 ::
 :: Note: the 'appveyor-script.bat test' step is also used in the
-::       "Github Workflow" to test the MinGW build.
+::       "Github Workflow" to test the "GNU-make" build.
 ::
 :: Do not confuse 'appveyor.yml' by the 'cd' below.
 ::
@@ -16,7 +16,6 @@ setlocal
 :: Otherwise when running on AppVeyor:
 ::   Since only Python2.7 is in AppVeyor's PATH by default, add this
 ::   Python 3.4 (x86) to the PATH.
-::   And add the path to AppVeyor's dual-mode MinGW.
 ::
 if "%APPVEYOR_BUILD_FOLDER%" == "" set APPVEYOR_BUILD_FOLDER=%~dp0
 set PATH=%PATH%;c:\Python34;c:\msys64\MinGW64\bin

@@ -1,7 +1,7 @@
 # EnvTool v1.4:
 
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/gvanem/envtool?branch=master&svg=true&pendingText=MSVC%20build%20-%20Pending&passingText=MSVC%20build%20-%20OK)](https://ci.appveyor.com/project/gvanem/envtool)
-[![MinGW Build](https://github.com/gvanem/EnvTool/actions/workflows/gnu-make.yml/badge.svg)](https://github.com/gvanem/EnvTool/actions/workflows/gnu-make.yml)
+[![GNU-make Build](https://github.com/gvanem/EnvTool/actions/workflows/gnu-make.yml/badge.svg)](https://github.com/gvanem/EnvTool/actions/workflows/gnu-make.yml)
 
 A tool to search along various environment variables for files (or a wildcard). The following modes
 handles these environment variables:
@@ -234,7 +234,7 @@ should be used instead.
 
 ---
 
-C-source included in `./src`. Makefiles for MinGW, Cygwin, clang-cl and MSVC.
+C-source included in `./src`. `Makefile.Windows` is for MSVC, clang-cl, Intel-ICX and Zig.
 Enjoy!
 
 `#include <std_disclaimer.h>`:<br>

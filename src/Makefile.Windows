@@ -1,0 +1,1202 @@
+#
+# GNU Makefile for Envtool (MinGW + MSVC + Clang-CL + Intel, 32 and 64-bit).
+#
+# By <gvanem@yahoo.no> 2016 - 2022.
+#
+DATE = $(shell date +%d-%B-%Y)
+
+THIS_FILE = Makefile.Windows
+
+#
+# Build a debuggable version; '-MDd' or '-MTd'
+#
+USE_CRT_DEBUG ?= 0
+
+#
+# Use a static CRT for MSVC/clang-cl/icx.
+# Use libgcc statically for MinGW.
+#
+USE_CRT_STATIC ?= 1
+
+#
+# Use Stack Smashing Protection (MinGW / Cygwin only).
+#
+USE_SSP ?= 0
+
+#
+# Use 'win_sqlite3.c' for caching.
+#
+USE_SQLITE3 ?= 1
+
+#
+# Use wsock_trace library (MSVC/clang-cl/icx only).
+#
+USE_WSOCK_TRACE ?= 0
+
+#
+# Use a colourful fancier bar in 'spinner_handler()'.
+#
+USE_FANCY_BAR ?= 0
+
+#
+# Use 'Address Sanitizer':
+#
+USE_ASAN ?= 0
+
+#
+# Use "Undefined Behavior Sanitizer (UBSan)"?
+# For 'clang-cl' or 'gcc' only.
+#
+USE_UBSAN ?= 0
+
+#
+# Use '-Wall' with 'clang-cl', 'zig' or 'icx'.
+#
+USE_Wall ?= 1
+
+#
+# Use '-MP' with cl.
+#
+USE_MP_COMPILE ?= 1
+
+#
+# Visual Leak Detector:
+#   https://kinddragon.github.io/vld/
+#   https://github.com/KindDragon/vld/
+#
+# For MSVC, clang-cl only.
+#
+USE_VLD  ?= 0
+VLD_ROOT ?= f:/MinGW32/src/misc/VisualLeakDetector/src
+
+#
+# For preprocessing .c-files.
+#
+USE_ASTYLE ?= 1
+
+#
+# Warn on undefined variables.
+#
+MAKEFLAGS += --warn-undefined-variables
+
+#
+# Used in 'C_preprocess' and 'CPP_preprocess'
+#
+PYTHON ?= py -3
+
+ifeq ($(CC),icx)
+  #
+  # Force using 'x64' since that's the only Intel compiler I have
+  #
+  CPU = x64
+  LINK = xilink.exe
+ #LINK = link.exe
+
+else
+  LINK = link.exe
+endif
+
+ifeq ($(CPU),x64)
+  BITS = 64
+else ifeq ($(CPU),x86)
+  BITS = 32
+else
+  $(error CPU must be 'x86' or 'x64')
+endif
+
+#
+# E.g. 'set CLANG_32=c:\ProgramFiles\LLVM-15-32bit'
+#      'set CLANG_64=c:\ProgramFiles\LLVM-15-64bit'
+#
+# Thus for 'CPU=x86', '$(CLANG_CL)' -> 'c:/ProgramFiles/LLVM-15-32bit/bin/clang-cl.exe'
+#
+CLANG_ROOT = $(realpath $(CLANG_$(BITS)))
+CLANG_CL   = $(CLANG_ROOT)/bin/clang-cl.exe
+
+#
+# Root for 'icx'.
+#
+ONEAPI_ROOT := $(realpath $(ONEAPI_ROOT))
+
+#
+# Remove any '%CL%' or MinGW '%C_INCLUDE_PATH' in environment.
+#
+export CL=
+export C_INCLUDE_PATH=
+
+#
+# Change paths to suite your setup:
+#
+MINGW_ROOT  = $(realpath $(MINGW32))
+VC_ROOT     = $(realpath $(VCToolkitInstallDir))
+VCVARS_VER ?=
+
+#
+# 'zig' does not have this
+#
+ifeq ($(CC),zigXX)
+  $(warning 'zip' does not support 'USE_SQLITE=1'. Disabling.)
+  USE_SQLITE3 := 0
+endif
+
+ifeq ($(CC)_$(USE_ASAN),gcc_1)
+  $(warning 'gcc' does not support 'USE_ASAN=1'. Disabling.)
+  USE_ASAN := 0
+endif
+
+ifeq ($(USE_UBSAN),1)
+  ifeq ($(CC),gcc)
+    $(warning 'gcc' does not support 'USE_UBSAN=1'. Disabling.)
+    USE_UBSAN := 0
+
+  else ifeq ($(CC),cl)
+    $(warning 'cl' does not support 'USE_UBSAN=1'. Disabling.)
+    USE_UBSAN := 0
+  endif
+endif
+
+#
+# Locations based on '$(CPU)':
+# The first '$(LINK)' found on PATH is assumed to work for both 'x86' and 'x64'.
+#
+ifeq ($(VCVARS_VER),)
+  #
+  # If 'VCVARS_VER' is not defined, assume Visual-Studio 2017 (or later):
+  # The first '$(LINK)' found on PATH is assumed to work for both 'x86' and 'x64'.
+  #
+  CL_CC   = $(VC_ROOT)/bin/HostX86/$(CPU)/cl.exe
+  CRT_DIR = $(VC_ROOT)/lib/$(CPU)
+
+else
+  #
+  # For an old Visual-Studio with version '$(VCVARS_VER)'.
+  # Assumes that '$(VCToolkitInstallDir)' is set correctly for this:
+  #
+  CRT_DIR = $(VC_ROOT)/lib
+  CL_CC   = $(VC_ROOT)/bin/cl.exe
+endif
+
+#
+# Where to copy 'envtool.exe' to.
+#
+ifeq ($(CC),gcc)
+  INSTALL_BIN = $(MINGW_ROOT)/bin
+else
+  INSTALL_BIN = $(realpath $(VSINSTALLDIR))/bin
+endif
+
+define Usage
+
+  Usage: "make -f $(THIS_FILE) <CPU=x86|x64> CC=[gcc | cl | clang-cl | icx | zig] [all | clean | realclean | depend | install | docs]"
+  Specify CC=gcc      - use MinGW
+  Specify CC=cl       - use MSVC
+  Specify CC=clang-cl - use clang-cl
+  Specify CC=icx      - use Intel DPC++ compiler (x64 only)
+  Specify CC=zig      - use 'zig cc'
+endef
+
+#
+# GNU-make macros.
+#
+# The following codes used in macro 'colour_msg' assumes you have
+# MSys/Cygwin's echo with colour support.
+#
+BRIGHT_GREEN = \e[1;32m
+BRIGHT_WHITE = \e[1;37m
+
+colour_msg = @echo -e '$(1)\e[0m'
+green_msg  = $(call colour_msg,$(BRIGHT_GREEN)$(strip $(1)))
+
+c_to_obj = $(addprefix $(OBJ_DIR)/$(strip $(2)), \
+             $(notdir $(1:.c=.$(O))))
+
+default: all
+
+#
+# Some checks for required tools
+#
+path_find  = $(word 1, $(wildcard $(addsuffix /$(1),$(subst ;, ,$(subst \,/,$(PATH))))))
+file_exist = $(wildcard $(1))
+
+ifeq ($(call file_exist,$(CL_CC)),)
+  define check_cl
+    $(error "$(CL_CC)" not found. Edit $(THIS_FILE) manually)
+  endef
+else
+  define check_cl
+    $(info Assuming $(CL_CC) is okay.)
+  endef
+endif
+
+ifeq ($(call file_exist,$(CLANG_CL)),)
+  define check_clang
+    $(error "$(CLANG_CL)" not found. Edit $(THIS_FILE) manually.)
+  endef
+else
+  define check_clang
+    $(info Assuming $(CLANG_CL) is okay.)
+  endef
+endif
+
+ifeq ($(call path_find,icx.exe),)
+  define check_icx
+    $(error "icx.exe" not found on PATH. Edit $(THIS_FILE) manually.)
+  endef
+else
+  define check_icx
+    $(info icx found as $(call path_find,icx.exe))
+  endef
+endif
+
+ifeq ($(call path_find,zig.*),)
+  define check_zig
+    $(error "zig" not found on PATH. Edit $(THIS_FILE) manually.)
+  endef
+else
+  define check_zig
+    $(info zig found as $(call path_find,zig.*))
+  endef
+endif
+
+ifeq ($(call path_find,$(LINK)),)
+  define check_xilink
+    $(error "$(LINK)" not found on PATH. Edit $(THIS_FILE) manually.)
+  endef
+else
+  define check_xilink
+    $(info $(LINK) found as $(call path_find,$(LINK)))
+  endef
+endif
+
+ifneq ($(CC),cl)
+  ifneq ($(CC),clang-cl)
+    define check_vld
+      $(error 'USE_VLD=1' requires 'cl' or 'clang-cl')
+    endef
+  endif
+else
+  define check_vld
+    $(info 'USE_VLD=1' enabled)
+  endef
+endif
+
+#
+# Test for 'USE_SSP=1|2' wsith 'gcc'.
+#
+ifneq ($(USE_SSP),0)
+  ifneq ($(USE_CRT_DEBUG),1)
+    define check_ssp
+      $(error 'USE_SSP=1|2' needs 'USE_CRT_DEBUG=1')
+    endef
+  else
+    define check_ssp
+      $(info 'USE_SSP=$(USE_SSP)' enabled)
+    endef
+  endif
+endif
+
+
+ifeq ($(CC),gcc)
+  #
+  # CFLAGS, LDFLAGS and RCFLAGS for MinGW:
+  #
+  CFLAGS  = -m$(BITS) -Wall -DSTRSAFE_NO_DEPRECATE=1 -DMINGW_HAS_SECURE_API=1 -D__GETOPT_H__
+  LDFLAGS = -m$(BITS) -Wl,--print-map
+  RCFLAGS = -O COFF -D__MINGW32__ -DBITNESS=$(BITS)
+
+  ifeq ($(BITS),32)
+    RCFLAGS += --target=pe-i386
+  else
+    RCFLAGS += --target=pe-x86-64
+  endif
+
+  ifeq ($(USE_CRT_DEBUG),1)
+    CFLAGS  += -ggdb -O0
+    RCFLAGS += -DDEBUG
+  else
+    CFLAGS  += -O3 -fomit-frame-pointer \
+               -Wno-strict-aliasing
+    LDFLAGS += -s
+  endif
+
+  ifeq ($(USE_CRT_STATIC),1)
+    CFLAGS += -static-libgcc
+  endif
+
+  CFLAGS += -Wno-format          \
+            -Wno-unused-function \
+            -Wno-unused-variable \
+            -Wno-unused-but-set-variable
+
+else ifeq ($(CC),zig)
+  #
+  # CFLAGS, LDFLAGS and RCFLAGS for 'zig cc':
+  #
+  CFLAGS  = -DIS_ZIG_CC
+  LDFLAGS =
+  RCFLAGS = -nologo -DIS_ZIG_CC -DBITNESS=$(BITS) -DWIN$(BITS)
+else
+  #
+  # CFLAGS, LDFLAGS and RCFLAGS for MSVC + clang-cl + icx:
+  #
+  CFLAGS  = -nologo -Oy- -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE
+  LDFLAGS = -nologo -subsystem:console -incremental:no -machine:$(CPU) -debug -nodefaultlib:uuid.lib
+  RCFLAGS = -nologo -DBITNESS=$(BITS) -DWIN$(BITS)
+
+  ifeq ($(CC),icx)
+    #
+    # Intel's 'icx' likes to pull in a lot of crap
+    # via '#pragma comment(lib:..)'
+    #
+    LDFLAGS += -nodefaultlib:svml_dispmt.lib \
+               -nodefaultlib:libdecimal.lib  \
+               -nodefaultlib:libirc.lib
+  endif
+
+  ifeq ($(USE_VLD),1)
+    CFLAGS += -Zi
+  else
+    #
+    # This causes a much faster compile and link using MSVC-2019.
+    # But breaks VLD.
+    #
+    CFLAGS += -Z7 -Oi
+  endif
+
+  ifeq ($(CC),clang-cl)
+    RCFLAGS += -D__clang__
+  else ifeq ($(CC),icx)
+    RCFLAGS += -D__INTEL_LLVM_COMPILER
+  else
+    RCFLAGS += -D_MSC_VER
+  endif
+
+  #
+  # The path for the CRT library (msvcrt.lib):
+  #
+  LDFLAGS += -libpath:$(CRT_DIR)
+
+  #
+  # 'WindowsKits' root is in $(WindowsSdkDir) and
+  # 'WindowsKits' version is in $(WindowsSdkVer).
+  #
+  # Hence the User-Mode libraries for 'x86' are in:
+  #   $(WindowsSdkDir)/Lib/$(WindowsSdkVer)/um/x86/
+  #
+  LDFLAGS += -libpath:$(realpath $(WindowsSdkDir))/Lib/$(WindowsSdkVer)/um/$(CPU)
+
+  #
+  # Ditto mess for the Universal CRT libraries: for 'x86' the UCRT libs are in:
+  #   $(WindowsSdkDir)/Lib/$(WindowsSdkVer)/ucrt/x86/
+  #
+  LDFLAGS += -libpath:$(realpath $(WindowsSdkDir))/Lib/$(WindowsSdkVer)/ucrt/$(CPU)
+
+  ifeq ($(USE_CRT_DEBUG),1)
+    CFLAGS  += -Ob0 -Od -GS -Gs -RTCs -RTCu # -RTCc
+    RCFLAGS += -DDEBUG
+    D = d
+  else
+    CFLAGS += -Ot -GS-
+    D =
+  endif
+
+  ifeq ($(USE_CRT_STATIC),1)
+    CFLAGS += -MT$(D)
+  else
+    CFLAGS += -MD$(D)
+  endif
+
+  ifeq ($(CC),cl)
+    CFLAGS += -wd4127 -wd4201 -wd4702
+  endif
+
+  ifeq ($(CC)-$(BITS),cl-64)
+    CFLAGS += -wd4244 #  -wd4267 -wd4311
+  endif
+endif   # ifeq ($(CC),gcc)
+
+ifeq ($(CC),cl)
+  O         = obj
+  CFLAGS   += -W4
+  LDFLAGS  += -map -verbose
+  OBJ_DIR   = MSVC_obj
+  CHECKS    = $(call check_cl)
+  GENERATED = cflags_MSVC.h ldflags_MSVC.h
+
+else ifeq ($(CC),clang-cl)
+  O         = obj
+  CFLAGS  += -ferror-limit=5 -fms-compatibility -m$(BITS)
+  LDFLAGS += -map -verbose
+  OBJ_DIR   = CLANG_obj
+  CHECKS    = $(call check_clang)
+  GENERATED = cflags_clang.h ldflags_clang.h
+
+else ifeq ($(CC),icx)
+  O         = obj
+  LDFLAGS += -map -verbose
+  OBJ_DIR   = ICX_obj
+  CHECKS    = $(call check_icx) $(call check_xilink)
+  GENERATED = cflags_icx.h ldflags_icx.h
+
+else ifeq ($(CC),zig)
+  O         = obj
+  LDFLAGS +=
+  OBJ_DIR   = zig_obj
+  CHECKS    = $(call check_zig)
+  GENERATED = cflags_zig.h ldflags_zig.h
+
+else ifeq ($(CC),gcc)
+  #
+  # This could be Cygwin or MinGW
+  #
+  O         = o
+  OBJ_DIR   = gcc_obj
+  GENERATED = cflags_MinGW.h ldflags_MinGW.h
+  CFLAGS   += -D_FORTIFY_SOURCE=$(USE_SSP) -fstack-protector-all # -Wstack-protector
+  CHECKS    = $(call check_ssp)
+
+else
+  $(error $(Usage))
+endif
+
+ifeq ($(USE_VLD),1)
+  CHECKS += check_vld
+endif
+
+CFLAGS += -DWIN32_WINNT=0xA000       \
+          -DNTDDI_VERSION=0x0A000000 \
+          -D_WIN32_IE=0x800          \
+          -DWIN32_LEAN_AND_MEAN      \
+          -DEVERYTHINGUSERAPI=
+
+ifeq ($(CC),gcc)
+  EX_LIBS      =
+  ADVAPI32_LIB = -ladvapi32
+  CRYPT32_LIB  = -lcrypt32
+  IMAGEHLP_LIB = -limagehlp
+  MPR_LIB      = -lmpr
+  OLE32_LIB    = -lole32
+  OLEAUT32_LIB = -loleaut32
+  SHELL32_LIB  = # not needed. It's a default lib for MinGW / Cygwin
+  SHLWAPI_LIB  = -lshlwapi
+  VERSION_LIB  = -lversion
+  WINTRUST_LIB = -lwintrust
+  WS2_32_LIB   = -lws2_32
+
+  ifneq ($(USE_SSP),0)
+    #
+    # Use the static 'libssp.a'
+    #
+    LDFLAGS += -Wl,-static
+    EX_LIBS += -lssp
+  endif
+else
+  EX_LIBS      = user32.lib
+  ADVAPI32_LIB = advapi32.lib
+  CRYPT32_LIB  = crypt32.lib
+  IMAGEHLP_LIB = imagehlp.lib
+  MPR_LIB      = mpr.lib
+  OLE32_LIB    = ole32.lib
+  OLEAUT32_LIB = oleaut32.lib
+  SHELL32_LIB  = shell32.lib
+  SHLWAPI_LIB  = shlwapi.lib
+  VERSION_LIB  = version.lib
+  WINTRUST_LIB = wintrust.lib
+
+  ifeq ($(USE_WSOCK_TRACE),1)
+    WS2_32_LIB = wsock_trace-$(CPU).lib
+  else
+    WS2_32_LIB = ws2_32.lib
+  endif
+endif
+
+ifeq ($(CC),zig)
+  CFLAGS += -DEVERYTHINGAPI=
+else
+  CFLAGS += -DEVERYTHINGAPI=__cdecl
+endif
+
+ifeq ($(USE_CRT_DEBUG),0)
+  #
+  # Disables all 'assert()' macros.
+  #
+  # CFLAGS += -DNDEBUG
+endif
+
+ifeq ($(USE_VLD),1)
+  CFLAGS  += -DUSE_VLD -DVLD_FORCE_ENABLE -I$(VLD_ROOT)/include -I$(VLD_ROOT)/src
+  EX_LIBS += $(VLD_ROOT)/vld-$(CPU).lib
+endif
+
+ifeq ($(USE_FANCY_BAR),1)
+  CFLAGS += -DUSE_FANCY_BAR
+endif
+
+#
+# USE_ASAN = 1 -> Enable "AddressSanitizer".
+#
+# Could be used with 'USE_UBSAN = 1' too. See 'USE_UBSAN' section below.
+#
+# c:\> set ASAN_OPTIONS=debug=1:check_initialization_order=1:windows_hook_rtl_allocators=1:print_stats=1:windows_hook_legacy_allocators=1:color=always:halt_on_error=0
+#
+# This works best:
+#   c:\> set ASAN_OPTIONS=print_stats=1:windows_hook_legacy_allocators=1:color=always:halt_on_error=0
+#
+# Refs:
+#   https://docs.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-160
+#   https://github.com/google/sanitizers/wiki/AddressSanitizer
+#   https://github.com/google/sanitizers/wiki/AddressSanitizerFlags
+#
+# ASAN build settings:
+#
+ifeq ($(USE_ASAN),1)
+  RCFLAGS += -DUSE_ASAN
+  CFLAGS  += -DUSE_ASAN
+
+  #
+  # Disable optimization for 'cl' and 'USE_ASAN=1'.
+  #
+  ifeq ($(CC),cl)
+    CFLAGS += -fsanitize=address -Od
+
+    #
+    # The default for 'x86 / Release' is 'clang_rt.asan_dynamic_runtime_thunk-i386.lib'
+    # (and clang_rt.asan_dbg_dynamic_runtime_thunk-i386.lib for 'x86 / Debug')
+    #
+    LDFLAGS += -inferasanlibs
+
+  else ifeq ($(CC),clang-cl)
+    CFLAGS += -fsanitize=address         \
+              -fsanitize-recover=address \
+              -Od
+
+    LDFLAGS += -inferasanlibs
+
+  else ifeq ($(CC),icx)
+    CFLAGS += -fsanitize=address \
+              -fsanitize-recover=address
+
+  else ifeq ($(CC),gcc)
+    CFLAGS += -fsanitize=address \
+              -fsanitize=null
+  endif
+endif
+
+#
+# UBSAN build settings:
+#
+ifeq ($(USE_UBSAN),1)
+  RCFLAGS += -DUSE_UBSAN
+  CFLAGS  += -DUSE_UBSAN -fsanitize=undefined
+
+  ifeq ($(CC),clang-cl)
+    $(info Detected '$(CLANG_ROOT)' for 'USE_ASAN=$(USE_ASAN)' and 'USE_UBSAN=$(USE_UBSAN)'.)
+
+    #
+    # The default for 'x86 / Release' is 'clang_rt.asan_dynamic_runtime_thunk-i386.lib'
+    # (and clang_rt.asan_dbg_dynamic_runtime_thunk-i386.lib for 'x86 / Debug')
+    #
+    # Let the linker select the ASAN libraries.
+    #
+    LDFLAGS += -inferasanlibs \
+               -libpath:$(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows
+  endif
+endif
+
+ifeq ($(CC),icx)
+  ifneq ($(USE_ASAN)$(USE_UBSAN),00)
+    LDFLAGS += -inferasanlibs \
+               -libpath:$(ONEAPI_ROOT)/compiler/latest/windows/lib/clang/$(CLANG_MAJOR_VER)/lib/windows
+  endif
+endif
+
+#
+# Using '-Wall' with 'clang-cl' generates all kinds of strange warnings.
+# Turn many of them off.
+#
+ifeq ($(USE_Wall),1)
+  ifeq ($(CC),clang-cl)
+    CFLAGS += -Wall                                  \
+              -Wno-varargs                           \
+              -Wno-language-extension-token          \
+              -Wno-reserved-id-macro                 \
+              -Wno-format-non-iso                    \
+              -Wno-format-nonliteral                 \
+              -Wno-format-security                   \
+              -Wno-format-pedantic                   \
+              -Wno-switch-enum                       \
+              -Wno-sign-conversion                   \
+              -Wno-sign-compare                      \
+              -Wno-cast-align                        \
+              -Wno-cast-qual                         \
+              -Wno-comma                             \
+              -Wno-invalid-utf8                      \
+              -Wno-assign-enum                       \
+              -Wno-unused-function                   \
+              -Wno-unused-macros                     \
+              -Wno-unused-parameter                  \
+              -Wno-unused-variable                   \
+              -Wno-unused-but-set-variable           \
+              -Wno-reserved-identifier               \
+              -Wno-strict-prototypes                 \
+              -Wno-missing-prototypes                \
+              -Wno-missing-noreturn                  \
+              -Wno-missing-field-initializers        \
+              -Wno-nonportable-system-include-path   \
+              -Wno-microsoft-enum-forward-reference  \
+              -Wno-gnu-zero-variadic-macro-arguments \
+              -Wno-documentation-unknown-command     \
+              -Wno-cast-function-type-strict         \
+              -Wno-cast-function-type                \
+              -Wno-unsafe-buffer-usage
+
+    ifeq ($(BITS),64)
+      CFLAGS += -Wno-int-to-pointer-cast      \
+                -Wno-int-to-void-pointer-cast \
+                -Wno-void-pointer-to-int-cast \
+                -Wno-shorten-64-to-32
+    endif
+
+  else ifeq ($(CC),icx)
+    CFLAGS += -Wall                \
+              -Wno-varargs         \
+              -Wno-unused-variable \
+              -Wno-format-security
+
+  else ifeq ($(CC),zig)
+    CFLAGS += -Wall                \
+              -Wno-format-security \
+              -Wno-varargs         \
+              -Wno-unused-function \
+              -Wno-unused-variable \
+              -Wno-unused-but-set-variable
+  endif
+endif
+
+ENVTOOL_SRC = auth.c           \
+              envtool.c        \
+              envtool_py.c     \
+              cache.c          \
+              cfg_file.c       \
+              cmake.c          \
+              color.c          \
+              compiler.c       \
+              description.c    \
+              dirlist.c        \
+              Everything.c     \
+              Everything_ETP.c \
+              find_vstudio.c   \
+              getopt_long.c    \
+              get_file_assoc.c \
+              ignore.c         \
+              json.c           \
+              pkg-config.c     \
+              lua.c            \
+              misc.c           \
+              regex.c          \
+              report.c         \
+              searchpath.c     \
+              show_ver.c       \
+              smartlist.c      \
+              sort.c           \
+              tests.c          \
+              vcpkg.c          \
+              win_trust.c      \
+              win_ver.c
+
+ifeq ($(USE_SQLITE3),1)
+  ENVTOOL_SRC += win_sqlite3.c
+  CFLAGS      += -DUSE_SQLITE3 -DHAVE_WINSQLITE3_H
+
+  ifeq ($(CC),gcc)
+    CFLAGS += -I$(realpath $(WindowsSdkDir))/Include/$(WindowsSdkVer)/um/winsqlite \
+              -Wno-unknown-pragmas
+
+  else ifeq ($(CC),zig)
+    CFLAGS += -I$(realpath $(WindowsSdkDir))/Include/$(WindowsSdkVer)/um/winsqlite
+  endif
+endif
+
+DESCRIPTION_SRC    = description.c dirlist.c color.c misc.c searchpath.c smartlist.c
+DIRLIST_SRC        = dirlist.c color.c getopt_long.c misc.c searchpath.c smartlist.c get_file_assoc.c
+GET_FILE_ASSOC_SRC = get_file_assoc.c color.c dirlist.c misc.c smartlist.c
+WIN_GLOB_SRC       = win_glob.c color.c dirlist.c getopt_long.c misc.c searchpath.c smartlist.c
+WIN_TRUST_SRC      = win_trust.c dirlist.c color.c getopt_long.c misc.c searchpath.c smartlist.c
+WIN_VER_SRC        = win_ver.c  dirlist.c color.c misc.c searchpath.c smartlist.c
+
+ENVTOOL_OBJ        = $(call c_to_obj, $(ENVTOOL_SRC),)
+DESCRIPTION_OBJ    = $(call c_to_obj, $(DESCRIPTION_SRC), descr_)
+DIRLIST_OBJ        = $(call c_to_obj, $(DIRLIST_SRC), dl_)
+GET_FILE_ASSOC_OBJ = $(call c_to_obj, $(GET_FILE_ASSOC_SRC), gfa_)
+WIN_GLOB_OBJ       = $(call c_to_obj, $(WIN_GLOB_SRC), wg_)
+WIN_TRUST_OBJ      = $(call c_to_obj, $(WIN_TRUST_SRC), wt_)
+WIN_VER_OBJ        = $(call c_to_obj, $(WIN_VER_SRC), wv_)
+
+FIND_REMOTE_DRIVE_LETTERS_SRC = find_remote_drive_letters.c color.c dirlist.c misc.c smartlist.c
+FIND_REMOTE_DRIVE_LETTERS_OBJ = $(call c_to_obj, $(FIND_REMOTE_DRIVE_LETTERS_SRC),)
+
+PROGRAMS = envtool.exe        \
+           description.exe    \
+           dirlist.exe        \
+           du.exe             \
+           es_cli.exe         \
+           win_glob.exe       \
+           win_trust.exe      \
+           win_ver.exe        \
+           get_file_assoc.exe \
+           simple-calc.exe    \
+           find_remote_drive_letters.exe
+
+all: $(CHECKS) $(OBJ_DIR) $(GENERATED) $(PROGRAMS) epilogue
+
+epilogue:
+	$(call green_msg, Welcome to envtool $(BRIGHT_WHITE)(CC=$(CC), $(BITS)-bits).)
+	$(call green_msg, Do a $(BRIGHT_WHITE)make CC=$(CC) -f $(THIS_FILE) install $(BRIGHT_GREEN)at own risk.)
+
+$(OBJ_DIR):
+	- mkdir $@
+
+install: all
+	cp --update envtool.{exe,pdb} $(INSTALL_BIN)
+	cp --update du.{exe,pdb}      $(INSTALL_BIN)
+	cp --update dirlist.{exe,pdb} $(INSTALL_BIN)
+
+docs:
+	$(MAKE) -C ../doc all
+
+docs_clean:
+	$(MAKE) -C ../doc clean
+
+#
+# Link rules. Use only the absolutely needed external libraries.
+#
+envtool.exe: EX_LIBS += $(ADVAPI32_LIB) \
+                        $(CRYPT32_LIB)  \
+                        $(IMAGEHLP_LIB) \
+                        $(OLE32_LIB)    \
+                        $(OLEAUT32_LIB) \
+                        $(SHELL32_LIB)  \
+                        $(SHLWAPI_LIB)  \
+                        $(VERSION_LIB)  \
+                        $(WINTRUST_LIB) \
+                        $(WS2_32_LIB)
+
+description.exe:               EX_LIBS += $(ADVAPI32_LIB) $(IMAGEHLP_LIB)
+dirlist.exe:                   EX_LIBS += $(ADVAPI32_LIB) $(IMAGEHLP_LIB) $(SHLWAPI_LIB)
+find_remote_drive_letters.exe: EX_LIBS += $(ADVAPI32_LIB) $(IMAGEHLP_LIB) $(MPR_LIB)
+get_file_assoc.exe:            EX_LIBS += $(ADVAPI32_LIB) $(IMAGEHLP_LIB) $(SHLWAPI_LIB)
+win_glob.exe:                  EX_LIBS += $(ADVAPI32_LIB) $(IMAGEHLP_LIB)
+win_trust.exe:                 EX_LIBS += $(ADVAPI32_LIB) $(CRYPT32_LIB) $(IMAGEHLP_LIB) $(WINTRUST_LIB)
+win_ver.exe:                   EX_LIBS += $(ADVAPI32_LIB) $(IMAGEHLP_LIB)
+es_cli.exe:                    EX_LIBS += $(SHELL32_LIB)
+
+envtool.exe: $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res | check-for-unused-libs.py
+	$(call link_EXE, $@, $^ $(EX_LIBS))
+
+description.exe: $(DESCRIPTION_OBJ) | check-for-unused-libs.py
+	$(call link_EXE, $@, $^ $(EX_LIBS))
+
+dirlist.exe: $(DIRLIST_OBJ) | check-for-unused-libs.py
+	$(call link_EXE, $@, $^ $(EX_LIBS))
+
+du.exe: $(OBJ_DIR)/du.$(O) | check-for-unused-libs.py
+	$(call link_EXE, $@, $<)
+
+win_glob.exe: $(WIN_GLOB_OBJ) | check-for-unused-libs.py
+	$(call link_EXE, $@, $^ $(EX_LIBS))
+
+win_trust.exe: $(WIN_TRUST_OBJ) | check-for-unused-libs.py
+	$(call link_EXE, $@, $^ $(EX_LIBS))
+
+win_ver.exe: $(WIN_VER_OBJ) | check-for-unused-libs.py
+	$(call link_EXE, $@, $^ $(EX_LIBS))
+
+get_file_assoc.exe: $(GET_FILE_ASSOC_OBJ) | check-for-unused-libs.py
+	$(call link_EXE, $@, $^ $(EX_LIBS))
+
+find_remote_drive_letters.exe: $(FIND_REMOTE_DRIVE_LETTERS_OBJ) | check-for-unused-libs.py
+	$(call link_EXE, $@, $^ $(EX_LIBS))
+
+simple-calc.exe: $(OBJ_DIR)/simple-calc.$(O) | check-for-unused-libs.py
+	$(call link_EXE, $@, $<)
+
+es_cli.exe: $(OBJ_DIR)/es_cli.$(O) | check-for-unused-libs.py
+	$(call link_EXE, $@, $< $(EX_LIBS))
+
+$(CC).args: $(THIS_FILE)
+	$(call green_msg, All common CFLAGS are in $@.)
+	$(call create_resp_file, $@, -c $(call filter_D_args_first, $(CFLAGS)))
+
+$(OBJ_DIR)/dl_%.$(O): %.c | $(CC).args
+	$(call Compile, -DDIRLIST_TEST $<, $@)
+
+$(OBJ_DIR)/gfa_%.$(O): %.c | $(CC).args
+	$(call Compile, -DGET_FILE_ASSOC_TEST $<, $@)
+
+$(OBJ_DIR)/descr_%.$(O): %.c | $(CC).args
+	$(call Compile, -DDESCRIPTION_TEST $<, $@)
+
+$(OBJ_DIR)/wg_%.$(O): %.c | $(CC).args
+	$(call Compile, -DWIN_GLOB_TEST $<, $@)
+
+$(OBJ_DIR)/wt_%.$(O): %.c | $(CC).args
+	$(call Compile, -DWIN_TRUST_TEST $<, $@)
+
+$(OBJ_DIR)/wv_%.$(O): %.c | $(CC).args
+	$(call Compile, -DWIN_VER_TEST $<, $@)
+
+$(OBJ_DIR)/%.$(O): %.c | $(CC).args
+	$(call Compile, $<, $@)
+
+$(OBJ_DIR)/%.res: %.rc
+	$(call create_res_file, $<, $@)
+
+%.i: %.c FORCE | cpp-filter.py $(CC).args
+	$(call C_preprocess, $@, $<)
+
+cpp-filter.py: $(THIS_FILE)
+	$(call generate, $@, #)
+	$(file >> $@,if 1:)
+	$(file >> $@,$(CPP_FILTER_PY))
+
+check-for-unused-libs.py: $(THIS_FILE)
+	$(call generate, $@, #)
+	$(file >> $@,if 1:)
+	$(file >> $@,$(CHECK_FOR_UNUSED_LIBS_PY))
+
+ifeq ($(CC)-$(USE_MP_COMPILE),cl-1)
+  $(ENVTOOL_OBJ): $(ENVTOOL_SRC) | $(CC).args
+	$(call Compile, -MP $(ENVTOOL_SRC), $(OBJ_DIR)\\)
+endif
+
+FORCE:
+
+analyze: analyze_$(CC)
+
+analyze_clang-cl:
+	$(call green_msg, Analyzing 'ENVTOOL_SRC' ...)
+	clang --analyze $(CFLAGS) $(ENVTOOL_SRC)
+
+ANALYZE_CFLAGS = $(CFLAGS) -D_DEBUG -MP        \
+                 -analyze:only -analyze:quiet- \
+                 -analyze:stacksize 100000     \
+                 -wd6308 -wd6255 -wd6340       \
+                 -wd6326 -wd28199 -wd28159     \
+                 -Fo./$(OBJ_DIR)\\
+
+analyze_cl:
+	$(call green_msg, Analyzing 'ENVTOOL_SRC' ...)
+	$(CL_CC) $(ANALYZE_CFLAGS) $(ENVTOOL_SRC) > analyze-output.txt
+	@echo
+
+clean: clean_$(CC)
+	rm -fr $(OBJ_DIR)
+	rm -f $(GENERATED) gcc.args cl.args clang-cl.args icx.args zig.args link.args \
+	      cpp-filter.py check-for-unused-libs.py
+
+clean_gcc clean_zig: ;
+
+clean_cl clean_clang-cl clean_icx:
+	rm -f vc1*.pdb $(PROGRAMS:.exe=.pdb)
+
+vstudio_clean: clean
+	rm -fr Debug Release .vs
+
+realclean vclean: clean
+	rm -f $(PROGRAMS) $(PROGRAMS:.exe=.map) .depend.Windows
+	rm -f envtool.res envtool.iobj envtool.ipdb envtool.VC.db
+
+cflags_MSVC.h: $(THIS_FILE)
+	$(call generate_cflags_h, $@, $(CL_CC) $(CFLAGS))
+
+cflags_clang.h: $(THIS_FILE)
+	$(call generate_cflags_h, $@, $(CLANG_CL) $(CFLAGS))
+
+ldflags_MSVC.h: $(THIS_FILE)
+	$(call generate_ldflags_h, $@, $(LINK) $(LDFLAGS) -out:envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(EX_LIBS) $(WS2_32_LIB))
+
+ldflags_clang.h: $(THIS_FILE)
+	$(call generate_ldflags_h, $@, $(LINK) $(LDFLAGS) -out:envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(EX_LIBS) $(WS2_32_LIB))
+
+cflags_icx.h: $(THIS_FILE)
+	$(call generate_cflags_h, $@, icx.exe $(CFLAGS))
+
+cflags_zig.h:: $(THIS_FILE)
+	$(call generate_cflags_h, $@, zig cc $(CFLAGS))
+
+ldflags_icx.h: $(THIS_FILE)
+	$(call generate_ldflags_h, $@, $(LINK) $(LDFLAGS) -out:envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(EX_LIBS) $(WS2_32_LIB) $(OLE32_LIB) $(OLEAUT32_LIB) $(SHLWAPI_LIB))
+
+ldflags_zig.h: $(THIS_FILE)
+	$(call generate_ldflags_h, $@, zig cc $(LDFLAGS) -o envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(EX_LIBS) $(WS2_32_LIB) $(OLE32_LIB) $(OLEAUT32_LIB) $(SHLWAPI_LIB))
+
+cflags_MinGW.h: $(THIS_FILE)
+	$(call generate_cflags_h, $@, $(CC) $(CFLAGS))
+
+ldflags_MinGW.h: $(THIS_FILE)
+	$(call generate_ldflags_h, $@, $(CC) $(LDFLAGS) -o envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(EX_LIBS) $(WS2_32_LIB))
+
+cflags_Cygwin.h: $(THIS_FILE)
+	$(call generate_cflags_h, $@, $(CC) $(CFLAGS))
+
+ldflags_Cygwin.h: $(THIS_FILE)
+	$(call generate_ldflags_h, $@, $(CC) $(LDFLAGS) -o envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(EX_LIBS) $(WS2_32_LIB))
+
+$(OBJ_DIR)/compiler.$(O): $(GENERATED)
+
+DEP_CFLAGS  = -MM $(filter -D% -I%, $(CFLAGS)) -DDOING_MAKE_DEPEND
+DEP_REPLACE = -e 's@\(.*\)\.o: @\n$$(OBJ_DIR)\/\1.$$(O): @' \
+              -e 's@$(VLD_ROOT)@$$(VLD_ROOT)@'              \
+              -e 's@$(OBJ_DIR)@$$(OBJ_DIR)@'
+
+depend: $(OBJ_DIR) $(GENERATED)
+	$(call green_msg, Generating dependencies. Please wait...)
+	$(file > .depend.Windows, #)
+	$(file >>.depend.Windows, # This file is generated at $(DATE) from)
+	$(file >>.depend.Windows, # $(realpath $(THIS_FILE)).)
+	$(file >>.depend.Windows, # DO NOT EDIT!.)
+	$(file >>.depend.Windows, #)
+	gcc $(DEP_CFLAGS) $(ENVTOOL_SRC) | sed $(DEP_REPLACE) >> .depend.Windows
+
+#
+# GNU-make macros.
+#
+ifeq ($(CC),gcc)
+  define Compile
+    $(CC) @$(CC).args -o $(strip $(2) $(1))
+    @echo
+  endef
+
+  define link_EXE
+    $(call green_msg, Linking $(1).)
+    $(call create_resp_file, link.args, $(LDFLAGS) $(2))
+    $(CC) -o $(1) @link.args > $(1:.exe=.map)
+    @echo
+  endef
+
+else ifeq ($(CC),cl)
+  define Compile
+    $(CL_CC) @$(CC).args -Fo./$(strip $(2) $(1))
+    @echo
+  endef
+
+  define link_EXE
+    $(call green_msg, Linking $(1).)
+    $(call create_resp_file, link.args, $(LDFLAGS) $(2))
+    $(LINK) -out:$(strip $(1)) @link.args > link.tmp
+    @cat link.tmp >> $(1:.exe=.map)
+    @rm -f $(1:.exe=.lib) $(1:.exe=.exp)
+    @$(PYTHON) check-for-unused-libs.py link.tmp
+  endef
+
+else ifeq ($(CC),clang-cl)
+  define Compile
+    $(CLANG_CL) @$(CC).args -Fo./$(strip $(2) $(1))
+    @echo
+  endef
+
+  define link_EXE
+    $(call green_msg, Linking $(1).)
+    $(call create_resp_file, link.args, $(LDFLAGS) $(2))
+    $(LINK) -out:$(strip $(1)) @link.args > link.tmp
+    @cat link.tmp >> $(1:.exe=.map)
+    @rm -f $(1:.exe=.lib) $(1:.exe=.exp)
+    @$(PYTHON) check-for-unused-libs.py link.tmp
+  endef
+
+else ifeq ($(CC),icx)
+  define Compile
+    $(CC) @$(CC).args -Fo./$(strip $(2) $(1))
+    @echo
+  endef
+
+  define link_EXE
+    $(call green_msg, Linking $(1).)
+    $(call create_resp_file, link.args, $(LDFLAGS) $(2))
+    $(LINK) -out:$(strip $(1)) @link.args > link.tmp
+    @cat link.tmp >> $(1:.exe=.map)
+    @rm -f $(1:.exe=.lib) $(1:.exe=.exp)
+    @$(PYTHON) check-for-unused-libs.py link.tmp
+  endef
+
+else ifeq ($(CC),zig)
+  define Compile
+    zig cc @$(CC).args -o $(strip $(2) $(1))
+    @echo
+  endef
+
+  define link_EXE
+    $(call green_msg, Linking $(1).)
+    zig cc -o $(1) $(LDFLAGS) $(2)
+    @echo
+  endef
+endif
+
+ifeq ($(CC),gcc)
+  define create_res_file
+    windres $(RCFLAGS) -fo $(strip $(2) $(1))
+    @echo
+  endef
+else
+  define create_res_file
+    rc $(RCFLAGS) -fo $(strip $(2) $(1))
+    @echo
+  endef
+endif
+
+define create_resp_file
+  $(file > $(1))
+  $(foreach f, $(2), $(file >> $(1),$(strip $(f))) )
+endef
+
+define generate
+  $(call green_msg, Generating $(1))
+  $(file  > $(1),$(2))
+  $(file >> $(1),$(2) This file is generated at $(DATE) from)
+  $(file >> $(1),$(2) $(realpath $(THIS_FILE)).)
+  $(file >> $(1),$(2) DO NOT EDIT!.)
+  $(file >> $(1),$(2))
+endef
+
+define generate_cflags_h
+  $(call generate, $(1),//)
+  $(file >> $(1),const char *cflags = "$(strip $(2))";)
+endef
+
+define generate_ldflags_h
+  $(call generate, $(1),//)
+  $(file >> $(1),const char *ldflags = "$(strip $(2))";)
+endef
+
+#
+# Filter out the '-Dxx' arguments from the CFLAGS and sort them.
+# Same for '-Ixx' arguments but do not sort them.
+#
+filter_D_args_first = $(sort $(filter -D%, $(1))) $(filter-out -D%, $(1))
+
+define preprocess_common
+  $(file  > $(1),/* The $(strip $(4)) output of '$(filter %.c, $(2))':)
+  $(file >> $(1), * $(CC) -E)
+  @$(foreach f, $(call filter_D_args_first, $(CFLAGS)), $(file >> $(1), * $(f)))
+  $(file >> $(1), *------------------------------------------------------------)
+  $(file >> $(1), */)
+  $(CC) -E @$(CC).args $(2) | $(PYTHON) cpp-filter.py $(3) >> $(1)
+  @echo
+endef
+
+#
+# .c preprocess macros:
+#  arg1, $(1): The .c-file to preprocess.
+#  arg2, $(2): The .i-file generated.
+#
+ifeq ($(USE_ASTYLE),1)
+  C_preprocess   = $(call preprocess_common, $(1), $(2), | astyle, preprocessed and AStyled)
+  CPP_preprocess = $(call preprocess_common, $(1), $(2), | astyle, preprocessed and AStyled)
+else
+  C_preprocess   = $(call preprocess_common, $(1), $(2),, raw preprocessed)
+  CPP_preprocess = $(call preprocess_common, $(1), $(2),, raw preprocessed)
+endif
+
+#
+# A Python "C-preprocess filter".
+#
+# Sometimes it's nice to study the preprocessed output to see exectly what
+# the C-compiler is given.
+#
+# Used like "make -f Makefile.Windows CC=cl check.i".
+# Ref: the '%.i: %.c' rule above.
+#
+define CPP_FILTER_PY
+  import sys, os
+
+  empty_lines = 0
+  while True:
+    line = sys.stdin.readline()
+    if not line:
+       break
+    line = line.rstrip()
+    if line == "":
+       empty_lines += 1
+       continue
+
+    #
+    # MSVC or clang-cl 'line' directive
+    #
+    if line.startswith("#line") or line.startswith("# "):
+       line = line.replace (r"\\", "/")
+
+    print (line)
+
+    #
+    # Print a newline after a functions or structs
+    #
+    if line == "}" or line == "};":
+       print ("")
+
+  print ("Removed %d empty lines." % empty_lines, file=sys.stderr)
+endef
+
+define CHECK_FOR_UNUSED_LIBS_PY
+  import os, sys
+
+  map_file = sys.argv[1]
+  ignore_libs = [ "oldnames.lib" ]
+
+  class State():
+    IDLE   = 0
+    UNUSED = 1
+
+  class Colour():
+    RED = WHITE = RESET = ""
+
+  try:
+    import colorama
+    colorama.init()
+    Colour.RED   = colorama.Fore.RED   + colorama.Style.BRIGHT
+    Colour.WHITE = colorama.Fore.WHITE + colorama.Style.BRIGHT
+    Colour.RESET = colorama.Style.RESET_ALL
+  except:
+    pass
+
+  def cprint (colour, s):
+    print ("%s%s%s" % (colour, s, Colour.RESET))
+
+  extra_ignore = os.getenv ("IGNORE_LIBS")
+  if extra_ignore:
+     cprint (Colour.WHITE, "IGNORE_LIBS: %s" % extra_ignore)
+     ignore_libs.append (extra_ignore)
+
+  def report (unused):
+    num = len(unused)
+    if num > 0:
+       cprint (Colour.RED, "%d unused %s in %s:" % (num, ["library", "libraries"][num > 1], map_file))
+       for u in unused:
+           print ("  " + u)
+    cprint (Colour.WHITE, "Done.\n")
+
+  def process_map (state):
+    unused_libs = []
+    f = open (map_file, "rt")
+    lines = f.readlines()
+    f.close()
+
+    for l in lines:
+        l = l.strip()
+        if l == "Unused libraries:":
+           state = State.UNUSED
+           continue
+        if state == State.UNUSED:
+           if l == "":
+              break
+           if os.path.basename (l).lower() not in ignore_libs:
+              unused_libs.append (l)
+    return unused_libs
+
+  report (process_map (State.IDLE))
+endef
+
+#
+# The dependency section:
+#
+-include .depend.Windows
+
