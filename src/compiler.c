@@ -1950,12 +1950,12 @@ static char cc_info_buf [100];
   #define LDFLAGS  "ldflags_zig.h"
 
 #elif defined(__clang__)
-  #define CFLAGS   "cflags_clang.h"
-  #define LDFLAGS  "ldflags_clang.h"
+  #define CFLAGS   "cflags_clang-cl.h"
+  #define LDFLAGS  "ldflags_clang-cl.h"
 
 #elif defined(_MSC_VER)
-  #define CFLAGS   "cflags_MSVC.h"
-  #define LDFLAGS  "ldflags_MSVC.h"
+  #define CFLAGS   "cflags_cl.h"
+  #define LDFLAGS  "ldflags_cl.h"
 #endif
 #endif  /* !__DOXYGEN__ */
 

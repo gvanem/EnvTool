@@ -1,7 +1,7 @@
 #
-# GNU Makefile for Envtool (MinGW + MSVC + Clang-CL + Intel, 32 and 64-bit).
+# GNU Makefile for Envtool (MSVC + Clang-CL + zig + Intel, 32 and 64-bit).
 #
-# By <gvanem@yahoo.no> 2016 - 2023.
+# By <gvanem@yahoo.no>.
 #
 DATE = $(shell date +%d-%B-%Y)
 
@@ -74,6 +74,8 @@ ifeq ($(CC),icx)
   #
   CPU  = x64
   LINK = xilink.exe
+else
+  LINK = link.exe
 endif
 
 ifeq ($(CPU),x64)
@@ -104,7 +106,7 @@ ONEAPI_ROOT := $(realpath $(ONEAPI_ROOT))
 WK_ROOT := $(realpath $(WindowsSdkDir))
 
 #
-# Remove any '%CL%' or MinGW '%C_INCLUDE_PATH' in environment.
+# Remove any '%CL%' or '%C_INCLUDE_PATH' in environment.
 #
 export CL=
 export C_INCLUDE_PATH=
@@ -126,7 +128,6 @@ endif
 #
 CL_CC   = $(VC_ROOT)/bin/HostX86/$(CPU)/cl.exe
 CRT_DIR = $(VC_ROOT)/lib/$(CPU)
-
 
 #
 # Where to copy 'envtool.exe' to.
@@ -704,7 +705,12 @@ realclean vclean: clean
 
 #---'cflags_*.h': ----------------------
 
-cflags_MSVC.h: $(THIS_FILE)
+.PHONY: cflags ldflags
+cflags:  cflags_cl.h  cflags_clang-cl.h  cflags_icx.h  cflags_zig.h  FORCE
+ldflags: ldflags_cl.h ldflags_clang-cl.h ldflags_icx.h ldflags_zig.h FORCE
+
+
+cflags_cl.h: $(THIS_FILE)
 	$(call generate_cflags_h, $@, $(CL_CC) $(CFLAGS))
 
 cflags_clang-cl.h: $(THIS_FILE)
@@ -718,18 +724,18 @@ cflags_zig.h:: $(THIS_FILE)
 
 #--- 'ldflags_*.h': ----------------------
 
-.PHONY: ldflags
-ldflags: ldflags_cl.h ldflags_clang-cl.h ldflags_icx.h ldflags_zig.h FORCE
-
 ldflags_COMMON = $(LDFLAGS) -out:envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res \
 	         advapi32.lib crypt32.lib imagehlp.lib ole32.lib oleaut32.lib shell32.lib \
 	         shlwapi.lib user32.lib version.lib wintrust.lib $(WS2_32_LIB)
 
+ldflags_cl.h: $(THIS_FILE)
+	$(call generate_ldflags_h, $@, link.exe $(ldflags_COMMON))
+
+ldflags_clang-cl.h: $(THIS_FILE)
+	$(call generate_ldflags_h, $@, link.exe $(ldflags_COMMON))
+
 ldflags_icx.h: $(THIS_FILE)
 	$(call generate_ldflags_h, $@, $(LINK) $(ldflags_COMMON))
-
-ldflags_cl.h ldflags_clang-cl.h: $(THIS_FILE)
-	$(call generate_ldflags_h, $@, link.exe $(ldflags_COMMON))
 
 ldflags_zig.h: $(THIS_FILE)
 	$(call generate_ldflags_h, $@, zig cc $(LDFLAGS) -o envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(OS_LIBS) ole32.lib oleaut32.lib shlwapi.lib $(WS2_32_LIB))
