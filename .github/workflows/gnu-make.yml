@@ -13,7 +13,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: GNU-make
-      run: make -f Makefile.Windows CC=cl CPU=x64 USE_CRT_DEBUG=0 -C ./src
+      run: make -f Makefile.Windows CC=clang-cl CPU=x64 USE_CRT_DEBUG=0 -C ./src
 
     - name: Run tests
       run: set INCLUDE=%INCLUDE%;c:\hostedtoolcache\windows\Python\3.9.10\include & set COLUMNS=120 & .\appveyor-script.bat test
