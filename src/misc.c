@@ -3239,7 +3239,7 @@ void mem_report (void)
 #endif
 }
 
-#if defined(_MSC_VER) && defined(_DEBUG) && !defined(USE_VLD)
+#if defined(_MSC_VER) && defined(_DEBUG)
 /**
  * Only one global mem-state.
  */
@@ -3302,20 +3302,6 @@ void crtdbug_exit (void)
   else _CrtMemDumpAllObjectsSince (&last_state);
 #endif
   _CrtDumpMemoryLeaks();
-}
-
-#elif defined(USE_VLD)
-void crtdbug_init (void)
-{
-  VLD_UINT opts;
-
-  VLDSetReportOptions (VLD_OPT_REPORT_TO_STDOUT, NULL); /* Force all reports to "stdout" in "ASCII" */
-
-  opts = VLDGetOptions();
-  VLDSetOptions (opts, 100, 4);   /* Dump max 100 bytes data. And walk max 4 stack frames */
-}
-void crtdbug_exit (void)
-{
 }
 
 #else

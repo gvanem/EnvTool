@@ -95,16 +95,6 @@
   #define CRTDBG_CHECK_OFF()  ((void)0)
 #endif
 
-/* Using "Visual Leak Detector" in _RELEASE mode is possible via the
- * '-DVLD_FORCE_ENABLE' flag. But not advisable according to:
- * https://github.com/KindDragon/vld/wiki
- *
- * VLD is useful for '_MSC_VER' only.
- */
-#if defined(USE_VLD)
-#include <vld.h>
-#endif
-
 #if defined(__DOXYGEN__)
   #undef  _CRTDBG_MAP_ALLOC
   #define _POSIX_PATH_MAX  256
