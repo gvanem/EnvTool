@@ -100,31 +100,19 @@
  *
  * This file is part of envtool.
  *
- * By Gisle Vanem <gvanem@yahoo.no> August 2017.
+ * By Gisle Vanem <gvanem@yahoo.no>
  */
 #include <stdio.h>
 #include <stdlib.h>
 
-#if defined(__CYGWIN__) && !defined(__USE_W32_SOCKETS)
-  #include <sys/select.h>
-  #include <sys/socket.h>
-  #include <sys/ioctl.h>
-  #include <arpa/inet.h>
-  #include <netdb.h>
-  #include <errno.h>
-
-  #define CYGWIN_POSIX
-#else
-
-  /**
-   * Suppress warning for `inet_addr()` and `gethostbyname()`
-   */
-  #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
-  #define _WINSOCK_DEPRECATED_NO_WARNINGS
-  #endif
-  #include <winsock2.h>
-  #include <windows.h>
+/**
+ * Suppress warning for `inet_addr()` and `gethostbyname()`
+ */
+#ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif
+#include <winsock2.h>
+#include <windows.h>
 
 #include "color.h"
 #include "envtool.h"
@@ -154,16 +142,6 @@
  */
 #ifndef MAX_RECV_BUF
 #define MAX_RECV_BUF (16*1024)
-#endif
-
-#if defined(CYGWIN_POSIX)
-  #define SOCKET             int
-  #define INVALID_SOCKET     -1
-  #undef  WSAETIMEDOUT
-  #define WSAETIMEDOUT       ETIMEDOUT
-  #define WSAGetLastError()  errno
-  #define WSASetLastError(e) errno = e
-  #define closesocket(s)     close(s)
 #endif
 
 DWORD ETP_total_rcv;
@@ -1099,8 +1077,7 @@ static BOOL state_parse_url (struct state_CTX *ctx)
 /**
  * The first state-machine function we enter.
  *
- * If `CYGWIN_POSIX` is defined, simply create the TCP socket. <br>
- * Otherwise initialise Winsock and then create the TCP socket.
+ * Initialise Winsock and then create the TCP socket.
  *
  * Enter `state_parse_url()` state.
  *
@@ -1108,7 +1085,6 @@ static BOOL state_parse_url (struct state_CTX *ctx)
  */
 static BOOL state_init (struct state_CTX *ctx)
 {
-#if !defined(CYGWIN_POSIX)
   WSADATA wsadata;
 
   ETP_tracef (ctx, "WSAStartup().\n");
@@ -1120,7 +1096,6 @@ static BOOL state_init (struct state_CTX *ctx)
     ctx->state = state_exit;
     return (TRUE);
   }
-#endif
 
   ctx->sock = socket (AF_INET, SOCK_STREAM, 0);
   if (ctx->sock == INVALID_SOCKET)
@@ -1135,10 +1110,6 @@ static BOOL state_init (struct state_CTX *ctx)
     return (TRUE);
   }
 
-#if defined(CYGWIN_POSIX)
-  ETP_tracef (ctx, "state_init() okay.\n");
-#endif
-
   ctx->state = state_parse_url;
   return (TRUE);
 }
@@ -1149,15 +1120,12 @@ static BOOL state_init (struct state_CTX *ctx)
  * \param[in] ctx   the context we work with.
  * \retval    FALSE forces run_state_machine() to quit it's loop
  *
- * Calls `WSACleanup()` if `CYGWIN_POSIX` is not defined.
+ * Calls `WSACleanup()`.
  */
 static BOOL state_exit (struct state_CTX *ctx)
 {
-#if !defined(CYGWIN_POSIX)
   ETP_tracef (ctx, "WSACleanup()");
   WSACleanup();
-#endif
-
   return (FALSE);
 }
 
@@ -1258,17 +1226,10 @@ static void connect_common_final (struct state_CTX *ctx, int err)
 
 /**
  * Set socket blocking state.
- * \li If `CYGWIN_POSIX` is defined, call `ioctl()`.
- * \li If `CYGWIN_POSIX` is not defined, call `ioctlsocket()`.
  */
 static void set_nonblock (SOCKET sock, DWORD non_block)
 {
-#ifdef CYGWIN_POSIX
-  int flag = non_block ? 1 : 0;
-  ioctl (sock, FIONBIO, &flag);
-#else
   ioctlsocket (sock, FIONBIO, &non_block);
-#endif
 }
 
 /**
@@ -1394,7 +1355,6 @@ static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...)
  *
  * \note Winsock ignores the first argument in `select()`.
  *       All needed information is really in the `fd_set`s. <br>
- *       But we use it for Cygwin (which tries hard to be POSIX compatible).
  */
 static int rbuf_read_sock (struct state_CTX *ctx)
 {

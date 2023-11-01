@@ -75,61 +75,6 @@ static int cmake_version_cb (char *buf, int index)
   return (0);
 }
 
-#if defined(__CYGWIN__)
-/**
- * Test the POSIX to Windows Path functions.
- */
-void test_posix_to_win_cygwin (void)
-{
-  int i, raw, rc;
-  static const char *cyg_paths[] = {
-                    "/usr/bin",
-                    "/usr/lib",
-                    "/etc/profile.d",
-                    "~/",
-                    "/cygdrive/c"
-                  };
-
-  C_printf ("~3%s():~0\n", __FUNCTION__);
-
-  for (i = 0; i < DIM(cyg_paths); i++)
-  {
-    const char *file, *dir = cyg_paths[i];
-    char  result [_MAX_PATH];
-
-    rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, dir, result, sizeof(result));
-    TRACE (2, "cygwin_conv_path(CCP_POSIX_TO_WIN_A): rc: %d, '%s'\n", rc, result);
-
-    file = slashify2 (result, result, opt.show_unix_paths ? '/' : '\\');
-    raw = C_setraw (1);
-    C_printf ("    %-20s -> %s\n", cyg_paths[i], file);
-    C_setraw (raw);
-  }
-  C_putc ('\n');
-}
-
-/**
- * Test the command-line for `popen()`.
- *
- * It's a major hazzle to get the quotes correct for `/bin/sh` when passing
- * in a program with spaces. This `cmake.exe` exists here. Change to suite.
- * The below should call:
- *   popen ("'/cygdrive/c/Program Files (x86)/PC Connectivity Solution/bin/cmake.exe' -version", "r");
- *
- * in misc.c. And `popen_run()` should hopefully return 0 (success).
- */
-void test_popen_cygwin (void)
-{
-  int         rc, save = opt.debug;
-  const char *cmake = "c:\\Program Files (x86)\\PC Connectivity Solution\\bin\\cmake.exe";
-
-  opt.debug = 2;
-  rc = popen_run (cmake_version_cb, cmake, "-version");
-  C_printf ("popen_run() reported %d: %s\n", rc, cmake);
-  opt.debug = save;
-}
-#endif  /* __CYGWIN__ */
-
 /**
  * \struct test_table1
  * The structure used in `test_searchpath()`.
@@ -152,7 +97,7 @@ static const struct test_table1 tab1[] = {
 
                   { "./envtool.c",        "FOO-BAR" },       /* CWD should always be at pos 0 regardless of env-var. */
                   { "msvcrt.lib",         "LIB" },
-                  { "libgcc.a",           "LIBRARY_PATH" },  /* MinGW-w64 doesn't seem to have libgcc.a */
+                  { "libgcc.a",           "LIBRARY_PATH" },
                   { "libgmon.a",          "LIBRARY_PATH" },
                   { "stdio.h",            "INCLUDE" },
                   { "../../../Lib/os.py", "PYTHONPATH" },
@@ -387,22 +332,6 @@ static void test_fix_path (void)
     if (opt.show_unix_paths)
        rc1 = slashify2 (buf, buf, '/');
 
-#if defined(__CYGWIN__)
-    {
-      extern char *canonicalize_file_name (const char *);
-      char *realname = canonicalize_file_name (f);
-
-      if (realname)
-      {
-        cyg_result = ", ~2cyg-exists: 1";
-        rc1 = _strlcpy (buf, realname, sizeof(buf));
-        free (realname);
-      }
-      else
-        cyg_result = ", ~5cyg-exists: 0";
-    }
-#endif
-
     C_printf ("  _fix_path (\"%s\")\n", f);
 
     if (!rc2)
@@ -564,15 +493,6 @@ static void test_ReparsePoints (void)
     char  st_result [100] = "";
     BOOL  rc = get_reparse_point (p, result, sizeof(result));
 
-#if defined(__CYGWIN__)
-    {
-      struct stat st;
-
-      if (lstat(p, &st) == 0)
-         sprintf (st_result, ", link: %s.", S_ISLNK(st.st_mode) ? "Yes" : "No");
-    }
-#endif
-
     C_printf ("  %d: \"%s\" %*s->", i, p, (int)(26-strlen(p)), "");
 
     if (!rc)
@@ -708,50 +628,6 @@ static void test_disk_ready (void)
   C_putc ('\n');
 }
 
-/*
- * Code for MinGW/Cygwin only:
- *
- * When run as:
- *   gdb --args envtool.exe -t
- *
- * the output is something like:
- *
- * test_libssp():
- * 15:    0000: 48 65 6C 6C 6F 20 77 6F-72 6C 64 2E 0A 0A 00    Hello world....
- * 13:    0000: 48 65 6C 6C 6F 20 77 6F-72 6C 64 2E 0A          Hello world..
- *
- * *** stack smashing detected ***:  terminated
- *
- * Program received signal SIGILL, Illegal instruction.
- * 0x00007ff6e9d77aa0 in fail.constprop.0.cold ()
- * (gdb) bt
- * #0  0x00007ff79b547a90 in fail.constprop.0.cold ()
- * #1  0x00007ff79b52fa55 in __stack_chk_fail ()
- * #2  0x00007ff79b521762 in test_libssp () at tests.c:752
- * #3  0x00007ff79b521b2f in do_tests () at tests.c:868
- * #4  0x00007ff79b4e784b in main (argc=2, argv=0x23ec0628f30) at envtool.c:4885
- */
-static void test_libssp (void)
-{
-#if defined(_FORTIFY_SOURCE) && (_FORTIFY_SOURCE > 0)
-  static const char buf1[] = "Hello world.\n\n";
-  char buf2 [sizeof(buf1)-2] = { 0 };
-
-  C_printf ("~3%s():~0\n", __FUNCTION__);
-
-  hex_dump (&buf1, sizeof(buf1));
-  memcpy (buf2, buf1, sizeof(buf1));  /* write beyond buf2[] */
-
-#if 0
-  C_printf (buf2);   /* vulnerable data */
-  C_flush();
-#endif
-
-  hex_dump (&buf2, sizeof(buf2));
-  C_putc ('\n');
-#endif /* (_FORTIFY_SOURCE > 0) */
-}
-
 /**
  * This should run when user-name is:
  *  + `APPVYR-WIN\appveyor` on AppVeyor. Or something like:
@@ -873,11 +749,6 @@ int do_tests (void)
   test_split_env ("PATH");
   test_split_env ("MANPATH");
 
-#ifdef __CYGWIN__
-  test_posix_to_win_cygwin();
-  test_popen_cygwin();
-#endif
-
   test_searchpath();
   test_fnmatch();
   test_misc();
@@ -892,7 +763,6 @@ int do_tests (void)
      test_AppVeyor_GitHub();
 
   test_auth();
-  test_libssp();
 
 #if defined(_MSC_VER) && !defined(_DEBUG)
   C_putc ('\n');

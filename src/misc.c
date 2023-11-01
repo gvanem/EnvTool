@@ -28,14 +28,6 @@
 
 #include <imagehlp.h>
 
-#if defined(__CYGWIN__)
-  #include <cygwin/version.h>
-  #include <pwd.h>
-
-#elif defined(__MINGW32__)
-  #include <sec_api/string_s.h>
-#endif
-
 #include "color.h"
 #include "envtool.h"
 #include "dirlist.h"
@@ -50,15 +42,6 @@
 
 #ifndef KEY_WOW64_64KEY
 #define KEY_WOW64_64KEY          0x0100
-#endif
-
-#if (defined(__MINGW32__) && defined(MINGW_HAS_SECURE_API)) || defined(_MSC_VER)
-  #define HAVE_STRCAT_S
-  #define HAVE_TMPNAM_S
-#endif
-
-#if defined(__CYGWIN__)
-  #define HAVE_STRLCAT
 #endif
 
 /** From Windows-Kit's <ctype.h> comment:
@@ -461,15 +444,6 @@ const char *get_gzip_link (const char *file)
 
   gzip_link_name[0] = '\0';
 
-#if defined(__CYGWIN__)
-  {
-    char cyg_name [_MAX_PATH];
-
-    if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, f, cyg_name, sizeof(cyg_name)) == 0)
-       f = cyg_name;
-  }
-#endif
-
   if (popen_run(gzip_cb, gzip_exe, "-cd %s 2> %s", f, DEV_NULL) > 0)
   {
     TRACE (2, "gzip_link_name: \"%s\".\n", gzip_link_name);
@@ -849,23 +823,6 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
   *domain_name_p  = NULL;
   *account_name_p = NULL;
   *sid_p          = NULL;
-
-#if defined(__CYGWIN__)
-  {
-    struct stat    st;
-    struct passwd *pw;
-
-    if (stat(file, &st) == 0 && _S_ISDIR(st.st_mode) && st.st_uid != -1)
-    {
-      pw = getpwuid (st.st_uid);
-      if (pw)
-      {
-        *account_name_p = STRDUP (pw->pw_name);
-        return (TRUE);
-      }
-    }
- }
-#endif
 
   attr = GetFileAttributes (file);
   is_dir = (attr != INVALID_FILE_ATTRIBUTES) && (attr & FILE_ATTRIBUTE_DIRECTORY);
@@ -1854,11 +1811,6 @@ char *dirname (const char *fname)
   return (dirpart);
 }
 
-#if defined(__GNUC__) && (__GNUC__ >= 7)
-  _PRAGMA (GCC diagnostic pop)
-#endif
-
-#if !defined(__CYGWIN__)
 /**
  * Create a CygWin compatible path name from a Windows path.
  * ASCII-version.
@@ -1890,40 +1842,6 @@ wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
   FREE (p);
   return (result);
 }
-
-#else
-char *make_cyg_path (const char *path, char *result)
-{
-  char cyg_name [_MAX_PATH];
-
-  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, path, cyg_name, sizeof(cyg_name)) == 0)
-     return _strlcpy (result, cyg_name, _MAX_PATH);
-  return _strlcpy (result, path, _MAX_PATH);  /* return unchanged */
-}
-
-wchar_t *make_cyg_pathw (const wchar_t *path, wchar_t *result)
-{
-  wchar_t cyg_name [_MAX_PATH];
-
-  if (cygwin_conv_path(CCP_WIN_W_TO_POSIX, path, cyg_name, DIM(cyg_name)) == 0)
-     return wcsncpy (result, cyg_name, _MAX_PATH);
-  return wcsncpy (result, path, _MAX_PATH);   /* return unchanged */
-}
-
-static int _getdrive (void)
-{
-  char  buf [_MAX_PATH];
-  int   drive;
-  DWORD len = GetCurrentDirectory (sizeof(buf), buf);
-
-  if (len == 0 || len >= sizeof(buf))
-     return (3);   /* Assume C: */
-
-  drive = TOLOWER (buf[0]) - 'a' + 1;
-  ASSERT (drive >= 1 && drive <= 26);
-  return (drive);
-}
-#endif
 
 /**
  * Canonicalize file and paths names. E.g. convert this:
@@ -2027,31 +1945,13 @@ const char *get_file_ext (const char *file)
 
 /**
  * Returns TRUE if `file` is a directory.
- * CygWin MUST have a trailing `/` for directories.
  */
 BOOL is_directory (const char *path)
 {
   struct stat st;
 
-#if defined(__CYGWIN__)
-  char *end, buf [_MAX_PATH];
-
-  _strlcpy (buf, path, sizeof(buf));
-  end = strchr (buf, '\0');
-  if (!IS_SLASH(end[-1]))
-  {
-    *end++ = '/';
-    *end = '\0';
-  }
-  if (safe_stat(buf, &st, NULL) == 0)
-     return (_S_ISDIR(st.st_mode));
-
-  TRACE (2, "safe_stat (\"%s\"/) fail, errno: %d\n", path, errno);
-#else
   if (safe_stat(path, &st, NULL) == 0)
      return (_S_ISDIR(st.st_mode));
-#endif
-
   return (FALSE);
 }
 
@@ -2126,17 +2026,6 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
        attr = GetFileAttributesW (w_file);
   }
 
-#if defined(__CYGWIN__)
-  /**
-   * Cannot use `GetFileAttributes()` in case `file` is on Posix form.
-   * E.g. `"/cygdrive/c/foo"`.
-   */
-  if (!strncmp(file, "/cygdrive/", 10) || !strncmp(file, "/usr", 4) ||
-      !strncmp(file, "/etc", 4) || !strncmp(file, "~/", 2))
-     attr = 0;   /* Pass on to Cygwin's stat() */
-  else
-#endif
-
   if (attr == 0)
      attr = GetFileAttributes (file);
 
@@ -2202,7 +2091,6 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
  * Create a `%TEMP%-file`.
  * \return An allocated string of the file-name.
  *         Caller must call `FREE()` on it after use.
- *         For Cygwin, the returned file-name is on Windows form.
  */
 char *create_temp_file (void)
 {
@@ -2638,13 +2526,8 @@ int _file_exists (const char *file)
   if (GetFileAttributes(file) != INVALID_FILE_ATTRIBUTES)
      return (1);
 
-#if defined(__CYGWIN__)  /* In case file is on Posix form. E.g. `/cygdrive/c/foo` */
-  struct stat st;
-  return (safe_stat(file, &st, NULL) == 0 && st.st_mtime);
-#else
   TRACE (2, "File '%s' does not exist.\n", file);
   return (0);
-#endif
 }
 
 /**
@@ -2966,36 +2849,7 @@ char *str_nstr (const char *haystack, const char *needle, size_t haystack_len)
  */
 int str_cat (char *dst, size_t dst_size, const char *src)
 {
-#if defined(HAVE_STRCAT_S)
   return strcat_s (dst, dst_size, src);
-#elif defined(HAVE_STRLCAT)
-  return strlcat (dst, src, dst_size);
-#else
-  char       *d = dst;
-  const char *s = src;
-  size_t      n = dst_size, dlen;
-
-  /* Find the end of dst and adjust bytes left but don't go past end
-   */
-  while (*d != '\0' && n-- != 0)
-        d++;
-  dlen = d - dst;
-  n = dst_size - dlen;
-
-  if (n == 0)
-     return (dlen + strlen(s));
-  while (*s)
-  {
-    if (n != 1)
-    {
-      *d++ = *s;
-      n--;
-    }
-    s++;
-  }
-  *d = '\0';
-  return (dlen + (s - src));      /* count does not include NUL */
-#endif
 }
 
 /**
@@ -3177,20 +3031,6 @@ char *win_strerror (unsigned long err)
   return (buf);
 }
 
-#if defined(__CYGWIN__) && !defined(__USE_W32_SOCKETS)
-/**
- * Returns a string for a network related error-code.
- * \param[in] err  the error-code.
- *
- * If we use POSIX sockets in Cygwin, the `err` is really `errno`.
- * And the error-string for `err` is simply from `strerror()`.
- */
-char *ws2_strerror (int err)
-{
-  return strerror (err);
-}
-#else
-
 /**
  * Returns a string for Winsock error-code.
  * \param[in] err  the error-code.
@@ -3221,7 +3061,6 @@ char *ws2_strerror (int err)
   snprintf (buf, sizeof(buf), "%d?", err);
   return (buf);
 }
-#endif
 
 #if !defined(_CRTDBG_MAP_ALLOC)
 /**
@@ -4048,15 +3887,6 @@ char *popen_last_line (void)
  */
 static char *popen_setup (const char *cmd)
 {
-#if defined(__CYGWIN__)
-  if (!system(NULL))
-  {
-    WARN ("/bin/sh not found.\n");
-    return (NULL);
-  }
-  return STRDUP (cmd);
-
-#else
   char       *cmd2;
   char       *env = getenv ("COMSPEC");
   const char *comspec = "";
@@ -4089,7 +3919,6 @@ static char *popen_setup (const char *cmd)
     strcat (cmd2, cmd);
   }
   return (cmd2);
-#endif
 }
 
 /**
@@ -4098,37 +3927,24 @@ static char *popen_setup (const char *cmd)
  * \eg. `popen_run (callback, "some program.exe", "--help")`
  *      gets converted to `_popen ("\"some program.exe\" --help", "r")`.
  *
- * For Cygwin, the `cmd` gets converted to a `/cygdrive/x/path/program` as needed.
- *
  * \param[in] callback  Optional function to call for each line from `popen()`.
  *                      This function should return number of matches.
  *                      The `callback` is allowed to modify the `buf` given to it.
  * \param[in] cmd       The mandatory program to run.
  * \param[in] arg       Optional argument(s) for the program.
  *
- * \retval -1   if `"/bin/sh"` is not found for Cygwin. <br>
- *              if `cmd` was not found or `_popen()` fails for some reason. `errno` should be set.
+ * \retval -1   if `cmd` was not found or `_popen()` fails for some reason. `errno` should be set.
  * \retval >=0  total number of matches from `callback`.
  */
 int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
 {
-#if defined(__CYGWIN__)
-  char   cmd_copy [1000];
-  char   quote = '\'';
-#else
   char   quote = '"';
-#endif
   char   line_buf [5000];
   char   cmd_buf [1000], *p;
   size_t left;
   int    line, i, rc;
   FILE  *f;
   char  *cmd2;
-
-#if defined(__CYGWIN__)
-  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, cmd, cmd_copy, sizeof(cmd_copy)) == 0)
-     cmd = cmd_copy;
-#endif
 
   TRACE (2, "cmd: '%s'.\n", cmd);
 
@@ -4151,9 +3967,7 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
   }
   *p = '\0';
 
-#if !defined(__CYGWIN__)
   slashify2 (cmd_buf, cmd_buf, '\\');
-#endif
 
   if (arg)
   {
@@ -4789,99 +4603,6 @@ char *str_reverse (char *str)
   return (str);
 }
 
-#if defined(__CYGWIN__)
-/*
- * Taken from:
- *   https://stackoverflow.com/questions/190229/where-is-the-itoa-function-in-linux
- */
-char *_itoa (int value, char *buf, int radix)
-{
-  int sign, i = 0;
-
-  ASSERT (radix == 10);
-  sign = value;
-
-  if (sign < 0)      /* record sign */
-     value = -value; /* make 'value' positive */
-
-  do                 /* generate digits in reverse order */
-  {
-    buf[i++] = (value % 10) + '0';
-  }
-  while ((value /= 10) > 0);
-
-  if (sign < 0)
-     buf [i++] = '-';
-  buf [i] = '\0';
-  return str_reverse (buf);
-}
-
-/**
- * `filelength()` is not POSIX, so CygWin doesn't have it. Sigh! <br>
- * Simply use core Windows for this.
- */
-UINT64 filelength (int fd)
-{
-  long  h = _get_osfhandle (fd);
-  LARGE_INTEGER size;
-  UINT64        rc;
-
-  if (h != -1 && GetFileSizeEx((HANDLE)h, &size))
-  {
-    rc = ((UINT64)size.HighPart << 32);
-    rc += size.LowPart;
-    return (rc);
-  }
-  return (0ULL);
-}
-
-/**
- * Return TRUE is key-press is a "normal" key-press.
- * Not a `Shift-`, `Ctrl-` or an `Alt-` combination.
- */
-static BOOL is_real_key (const INPUT_RECORD *k)
-{
-  if (k->EventType != KEY_EVENT || !k->Event.KeyEvent.bKeyDown)
-     return (FALSE);
-
-  if (k->Event.KeyEvent.wVirtualKeyCode == VK_SHIFT   ||
-      k->Event.KeyEvent.wVirtualKeyCode == VK_CONTROL ||
-      k->Event.KeyEvent.wVirtualKeyCode == VK_MENU)   /* Alt */
-     return (FALSE);
-  return (TRUE);
-}
-
-/**
- * CygWin doesn't even have <conio.h>. Let alone a simple kbhit().
- */
-int kbhit (void)
-{
-  INPUT_RECORD r;
-  DWORD  num;
-  static HANDLE stdin_hnd = NULL;
-
-  if (stdin_hnd == NULL)
-     stdin_hnd = GetStdHandle (STD_INPUT_HANDLE);
-
-  if (stdin_hnd == INVALID_HANDLE_VALUE)
-     return (0);
-
-  while (1)
-  {
-    PeekConsoleInput (stdin_hnd, &r, 1, &num);
-    if (num == 0)
-       break;
-    if (is_real_key(&r))
-       break;
-
-    /* flush out mouse, window, and key up events
-     */
-    ReadConsoleInput (stdin_hnd, &r, 1, &num);
-  }
-  return (num);
-}
-#endif  /* __CYGWIN__ */
-
 /**
  * Functions for getting at Reparse Points (Junctions and Symlinks).
  * \see
@@ -4970,17 +4691,16 @@ BOOL wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
    */
   size_needed = WideCharToMultiByte (cp, 0, w_buf, (int)result_size, NULL, 0, def_char, NULL);
   if (size_needed == 0)
-     return WIDECHAR_ERR (1, "WideCharToMultiByte(): %s\n",
+     return WIDECHAR_ERR (1, "WideCharToMultiByte(): %s",
                           win_strerror(GetLastError()));
 
   if (size_needed > (int)result_size)
-     return WIDECHAR_ERR (1, "result_size too small (%u). Need %d for WideCharToMultiByte().\n",
+     return WIDECHAR_ERR (1, "result_size too small (%u). Need %d bytes for WideCharToMultiByte().",
                           result_size, size_needed);
 
   rc = WideCharToMultiByte (cp, 0, w_buf, (int)result_size, result, (int)result_size, def_char, NULL);
   if (rc <= 0)
-     return WIDECHAR_ERR (1, "WideCharToMultiByte(): %s\n",
-                          win_strerror(GetLastError()));
+     return WIDECHAR_ERR (1, "WideCharToMultiByte(): %s", win_strerror(GetLastError()));
 
   WIDECHAR_ERR (0, NULL); /* clear any previous error */
 

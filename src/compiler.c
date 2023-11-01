@@ -18,10 +18,6 @@
 #include "cfg_file.h"
 #include "compiler.h"
 
-#if defined(__CYGWIN__)
-#include <cygwin/version.h>
-#endif
-
 /**
  * \typedef inc_setup_func
  * The function to the setup function for searching include files.
@@ -843,6 +839,9 @@ static int GCC_LLVM_find_include_path_cb (char *buf, int index)
 
   if (found_search_line)
   {
+    static char buf2 [_MAX_PATH];
+    const char *q;
+
     p = str_ltrim (buf);
     check_if_cygwin (p);
 
@@ -854,43 +853,22 @@ static int GCC_LLVM_find_include_path_cb (char *buf, int index)
       return (-1);
     }
 
-#if defined(__CYGWIN__)
-    if (looks_like_cygwin)
+    q = str_trim (buf);
+    p = _fix_path (q, buf2);
+
+    if (looks_like_cygwin && cygwin_root)
     {
-      char result [_MAX_PATH];
-      int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, p, result, sizeof(result));
-
-      if (rc == 0)
-      {
-        TRACE (2, "CygWin path detected. Converting '%s' -> '%s'\n", p, result);
-        p = _fix_drive (result);
-      }
-      /* otherwise add 'p' as-is */
-    }
-    else
-#endif
-    {
-      static char buf2 [_MAX_PATH];
-      const char *q = str_trim (buf);
-
-      p = _fix_path (q, buf2);
-
-#if !defined(__CYGWIN__)
-      if (looks_like_cygwin && cygwin_root)
-      {
-        /**
-         *\todo
-         * This part should convert any Posix paths to Windows paths.
-         * Like what the 'cygpath' program does:
-         *   f:\Cygwin64\cygpath -w /cygdrive/f/CygWin64/bin/../lib/gcc/x86_64-pc-cygwin/11/include
-         *   -> f:\CygWin64\lib\gcc\x86_64-pc-cygwin\11\include
-         *
-         * Hence add a 'cygwin_conv_path()' function for non-Cygwin targets.
-         */
-        snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, q);
-        p = buf2;
-      }
-#endif
+      /**
+       *\todo
+       * This part should convert any Posix paths to Windows paths.
+       * Like what the 'cygpath' program does:
+       *   f:\Cygwin64\cygpath -w /cygdrive/f/CygWin64/bin/../lib/gcc/x86_64-pc-cygwin/11/include
+       *   -> f:\CygWin64\lib\gcc\x86_64-pc-cygwin\11\include
+       *
+       * Hence add a 'cygwin_conv_path()' function for non-Cygwin targets.
+       */
+      snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, q);
+      p = buf2;
     }
 
     dir_array_add (p, !stricmp(current_dir, p));
@@ -927,34 +905,16 @@ static int GCC_LLVM_find_library_path_cb (char *buf, int index)
 
   for (i = 0, tok = strtok(p, sep); tok; tok = strtok(NULL, sep), i++)
   {
-#if defined(__CYGWIN__)
-    if (looks_like_cygwin)
+    if (looks_like_cygwin && cygwin_root)
     {
-      char result [_MAX_PATH];
-      int  rc1 = cygwin_conv_path (CCP_POSIX_TO_WIN_A, tok, result, sizeof(result));
-
-      if (rc1 == 0)
-           rc = _fix_drive (result);
-      else rc = tok;  /* otherwise add 'tok' as-is */
+      snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, tok);
+      rc = _fix_path (buf2, buf2);
+      end = rc ? strrchr (rc, '\\') : NULL;
+      if (end)
+         *end = '\0';
     }
     else
-#endif
-    {
-#if !defined(__CYGWIN__)
-      if (looks_like_cygwin && cygwin_root)
-      {
-        snprintf (buf2, sizeof(buf2), "%s%s", cygwin_root, tok);
-        rc = _fix_path (buf2, buf2);
-        end = rc ? strrchr (rc, '\\') : NULL;
-        if (end)
-           *end = '\0';
-      }
-      else
-#endif
-      {
-        rc = _fix_path (tok, buf2);
-      }
-    }
+      rc = _fix_path (tok, buf2);
 
     TRACE (2, "tok %d: '%s'\n", i, rc);
     if (searching_LLVM_libs)
@@ -1157,22 +1117,6 @@ static int GCC_LLVM_setup_library_path (const compiler_info *cc)
   {
     compiler_popen_warn (cc, found);
   }
-
-#if defined(__CYGWIN__)
-  /*
-   * The Windows-API lib-dir isn't among the defaults. Just add it
-   * at the end of list anyway. In case it was already reported, we'll
-   * remove it below.
-   */
-  if (is_gcc && looks_like_cygwin)
-  {
-    char result [_MAX_PATH];
-    int  rc = cygwin_conv_path (CCP_POSIX_TO_WIN_A, "/usr/lib/w32api", result, sizeof(result));
-
-    if (rc == 0)
-       dir_array_add (result, FALSE);
-  }
-#endif
 
   dir_array_make_unique (cc->lib_env, cc->full_name);
   return put_lib_dirs_to_cache (cc);
@@ -1784,10 +1728,6 @@ static int dir_array_dump (smartlist_t *dir_array, const char *where, const char
 
     TRACE (2, "  dir_array[%d]: exist:%d, num_dup:%d, %s\n",
             (int)i, dir->exist, dir->num_dup, dir->dir);
-
-#ifdef __CYGWIN__
-    TRACE (2, "%53s%s\n", "", dir->cyg_dir);
-#endif
   }
   return (max);
 }
@@ -1986,40 +1926,6 @@ static char cc_info_buf [100];
     return (cc_info_buf);
   }
 
-#elif defined(__MINGW32__)
-  /*
-   * `__MINGW32__` is defined by BOTH mingw.org and by the MinGW-w64
-   * project [1]. Only the latter defines `__MINGW64_VERSION_MAJOR`
-   * and `__MINGW64__` is defined only when targeting Win64 (`__x86_64__`).
-   *
-   * [1] http://mingw-w64.sourceforge.net/
-   * [2] http://mingw.org   (hi-jacked domain now)
-   */
-  const char *compiler_version (void)
-  {
-  #if defined(__MINGW64_VERSION_MAJOR)
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "gcc %s, MinGW-w64 %d.%d",
-              gcc_version(), __MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR);
-
-  /* mingw.org MinGW. MingW-RT-4+ defines '__MINGW_MAJOR_VERSION'
-   */
-  #elif defined(__MINGW_MAJOR_VERSION)
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "MinGW %d.%d", __MINGW_MAJOR_VERSION, __MINGW_MINOR_VERSION);
-  #else
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "MinGW %d.%d", __MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
-  #endif
-    return (cc_info_buf);
-  }
-
-#elif defined(__CYGWIN__)
-  const char *compiler_version (void)
-  {
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "gcc %s, CygWin %d.%d.%d",
-              gcc_version(), CYGWIN_VERSION_DLL_MAJOR/1000, CYGWIN_VERSION_DLL_MAJOR % 1000,
-              CYGWIN_VERSION_DLL_MINOR);
-    return (cc_info_buf);
-  }
-
 #else
   /*
    * Unsupported compiler; `__WATCOMC__`, `__BORLANDC__`  etc.
@@ -2050,14 +1956,6 @@ static char cc_info_buf [100];
 #elif defined(_MSC_VER)
   #define CFLAGS   "cflags_MSVC.h"
   #define LDFLAGS  "ldflags_MSVC.h"
-
-#elif defined(__MINGW32__)
-  #define CFLAGS   "cflags_MinGW.h"
-  #define LDFLAGS  "ldflags_MinGW.h"
-
-#elif defined(__CYGWIN__)
-  #define CFLAGS   "cflags_CygWin.h"
-  #define LDFLAGS  "ldflags_CygWin.h"
 #endif
 #endif  /* !__DOXYGEN__ */
 

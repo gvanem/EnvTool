@@ -877,10 +877,16 @@ void report_final (int found)
   C_printf ("%s %s", str_dword((DWORD)found), str_plural(found, "match", "matches"));
   C_printf (" found for \"%s\"%s%s.", opt.file_spec, duplicates, ignored);
 
-  if (opt.show_size && total_size > 0)
-     C_printf (" Totalling %s (%s bytes). ",
-               str_trim((char*)get_file_size_str(total_size)),
-               str_qword(total_size));
+  if (opt.show_size)
+  {
+    UINT64 total_subdir_size = opt.dir_mode ? (total_size / 2) : /* since parent dir was counted */
+                                              total_size;
+
+    if (total_subdir_size > 0)
+       C_printf (" Totalling %s (%s bytes). ",
+                 str_trim((char*)get_file_size_str(total_subdir_size)),
+                 str_qword(total_subdir_size));
+  }
 
   if (opt.grep.content && !opt.evry_host)
   {

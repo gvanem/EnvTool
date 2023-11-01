@@ -6,10 +6,7 @@
 
 #include <windows.h>
 #include <sys/types.h>
-
-#if !defined(__CYGWIN__)
 #include <direct.h>
-#endif
 
 enum od2x_sorting {
      OD2X_UNSORTED,

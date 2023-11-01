@@ -22,7 +22,7 @@
  * + 7: dark cyan foreground.
  * + 8: white on bright red background (not yet).
  *
- * by G. Vanem <gvanem@yahoo.no> 2011 - 2022.
+ * by G. Vanem <gvanem@yahoo.no>
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,13 +40,7 @@
  */
 #include "color.h"
 
-#if defined(__CYGWIN__)
-  #include <unistd.h>
-  #define _fileno(f)           fileno (f)
-  #define _write(f, buf, len)  write (f, buf, len)
-  #define stricmp(s1, s2)      strcasecmp (s1, s2)
-
-#elif defined(_MSC_VER) && (_MSC_VER <= 1800)
+#if defined(_MSC_VER) && (_MSC_VER <= 1800)
   #define snprintf  _snprintf
 #endif
 
@@ -107,12 +101,11 @@ extern int is_cygwin_tty (int fd);
 /**
  * The app using color.c must set this prior to
  * calling the below `C_printf()` or `C_puts()` functions.
- * For CygWin, if this is 1, it will set `C_use_ansi_colours` too.
  */
 int C_use_colours = 0;
 
 /**
- * For CygWin or if we detect we're running under `mintty.exe` (or some other program
+ * If we detect we're running under `mintty.exe` (or some other program
  * lacking WinCon support), this variable means we must use ANSI-sequences to set colours.
  *
  * If running under ConEmu (detecting a valid `%ConEmuHWND%` window and `%ConEmuANSI=ON`),
@@ -391,15 +384,6 @@ void C_init (void)
   okay = (console_hnd != INVALID_HANDLE_VALUE &&
           GetConsoleScreenBufferInfo(console_hnd, &console_info) &&
           GetFileType(console_hnd) == FILE_TYPE_CHAR);
-
-#if defined(__CYGWIN__) && 0
-   if (!okay)     /* Use ANSI-colours even if stdout is redirected */
-   {
-     console_info.wAttributes = 0x1F;   /* Bright white on blue background */
-     C_use_colours = 1;
-     c_always_set_bg = TRUE;
-   }
-#endif
 
   if (okay || C_use_ansi_colours)   /* force using ANSI colours */
   {

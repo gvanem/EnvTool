@@ -689,21 +689,6 @@ void globfree (glob_t *_pglob)
 
 #if defined(WIN_GLOB_TEST)
 
-#ifdef __MINGW32__
-  /*
-   * Tell MinGW's CRT to turn off command line globbing by default.
-   */
-  int _CRT_glob = 0;
-
- #ifndef __MINGW64_VERSION_MAJOR
-    /*
-     * MinGW-64's CRT seems to NOT glob the cmd-line by default.
-     * Hence this doesn't change that behaviour.
-     */
-    int _dowildcard = 0;
-  #endif
-#endif
-
 struct prog_options opt;
 char  *program_name = "win_glob";
 

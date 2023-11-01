@@ -99,7 +99,7 @@ typedef struct command_line {
         char  **env_array;   /**< arg-vector of `env_opt` value */
       } command_line;
 
-void getopt_parse (struct command_line *cmd_line, int _argc, const char **_argv);
+void getopt_parse (struct command_line *cmd_line);
 void getopt_free (struct command_line *cmd_line);
 
 #endif  /* !_GETOPT_LONG_H_ */

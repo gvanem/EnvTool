@@ -14,7 +14,7 @@
  *          for consistency (reports missing directories in `%INCLUDE%`) and
  *          prints all the locations of `afxwin.h`.
  *
- * By Gisle Vanem <gvanem@yahoo.no> 2011 - 2022.
+ * By Gisle Vanem <gvanem@yahoo.no> 2011 - 2023.
  *
  * Functions fnmatch() was taken from djgpp and modified:
  *   Copyright (C) 1995 DJ Delorie, see COPYING.DJ for details
@@ -26,10 +26,6 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <locale.h>
-
-#if defined(__MINGW32__) || defined(_CYGWIN__)
-#define INSIDE_ENVTOOL_C  /* Important for MinGW/CygWin with '_FORTIFY_SOURCE' only */
-#endif
 
 #include "getopt_long.h"
 #include "Everything.h"
@@ -61,24 +57,8 @@
  * \image html  envtool-help.png "List of modes" width=10cm
  * \image latex envtool-help.png "List of modes" width=10cm
  */
-
-#ifdef __MINGW32__
-  /**
-   * Tell MinGW's CRT to turn off command line globbing by default.
-   */
-  int _CRT_glob = 0;
-
-#ifndef __MINGW64_VERSION_MAJOR
-  /**
-   * MinGW-64's CRT seems to NOT glob the cmd-line by default.
-   * Hence this doesn't change that behaviour.
-   */
-  int _dowildcard = 0;
-#endif
-#endif
-
 #if defined(__GNUC__) && (__GNUC__ >= 7)
-#pragma GCC diagnostic ignored "-Wformat-truncation"
+//#pragma GCC diagnostic ignored "-Wformat-truncation"
 #endif
 
 char *program_name = NULL;   /**< For getopt_long.c */
@@ -517,7 +497,7 @@ static int show_help (void)
   C_puts ("  ~6[options]~0\n"
           "    ~6--descr~0        show 4NT/TCC file-description.\n"
           "    ~6--grep~0=~3content~0 search found file(s) for ~3content~0 also.\n"
-          "    ~6--no-ansi~0      don't print colours using ANSI sequences (effective for CygWin/ConEmu only).\n"
+          "    ~6--no-ansi~0      don't print colours using ANSI sequences.\n"
           "    ~6--no-app~0       don't scan ~3HKCU\\" REG_APP_PATH "~0 and\n"
           "                              ~3HKLM\\" REG_APP_PATH "~0.\n"
           "    ~6--no-colour~0    don't print using colours.\n"
@@ -676,18 +656,6 @@ static struct directory_array *dir_array_add_or_insert (const char *dir, BOOL is
    */
   d->is_native = (stricmp(dir, sys_native_dir) == 0);
 
-  /* Some issue with MinGW's `stat()` on a sys_native directory.
-   * Even though `GetFileAttributes()` in `safe_stat()` says it's a
-   * directory, `stat()` doesn't report it as such. So just fake it.
-   */
-#if defined(__MINGW32__)
-  if (d->is_native && !d->exist)
-  {
-    d->exist  = TRUE;
-    d->is_dir = TRUE;
-  }
-#endif
-
 #if (IS_WIN64)
   if (d->is_native && !d->exist)  /* No access to this directory from WIN64; ignore */
   {
@@ -705,17 +673,6 @@ static struct directory_array *dir_array_add_or_insert (const char *dir, BOOL is
     if (d->is_native && have_sys_native_dir)
          d->exist = d->is_dir = TRUE;
     else TRACE (2, "'%s' doesn't exist.\n", dir);
-  }
-#endif
-
-#if defined(__CYGWIN__)
-  {
-    char cyg_dir [_MAX_PATH];
-    int  rc = cygwin_conv_path (CCP_WIN_A_TO_POSIX, d->dir, cyg_dir, sizeof(cyg_dir));
-
-    if (rc == 0)
-       d->cyg_dir = STRDUP (cyg_dir);
-    TRACE (2, "cygwin_conv_path(): rc: %d, '%s'\n", rc, cyg_dir);
   }
 #endif
 
@@ -898,15 +855,10 @@ static void check_component (const char *env_name, char *tok, int is_cwd)
     if (opt.quotes_warn && p && (*tok != '"' || end[-1] != '"'))
        WARN ("%s: \"%s\" needs to be enclosed in quotes.\n", env_name, tok);
 
-#if !defined(__CYGWIN__)
-    /*
-     * Check for missing drive-letter (`x:`) in component.
+    /* Check for missing drive-letter (`x:`) in component.
      */
     if (!is_cwd && IS_SLASH(tok[0]) && !str_equal_n(tok, "/cygdrive/", 10))
        WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
-#else
-    ARGSUSED (is_cwd);
-#endif
 
     /* Warn on `x:` (a missing trailing slash)
      */
@@ -1015,7 +967,6 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
          WARN ("Having \"%s\" not first in \"%s\" is asking for trouble.\n", tok, env_name);
       tok = current_dir;
     }
-#if !defined(__CYGWIN__)
     else if (strlen(tok) >= 12 && str_equal_n(tok, "/cygdrive/", 10))
     {
       static char buf [_MAX_PATH];  /* static since it could be used after we return */
@@ -1025,7 +976,6 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
       TRACE (1, "%s ->\n                 %s\n", tok, buf);
       tok = buf;
     }
-#endif
 
     if (str_equal(tok, current_dir))
     {
@@ -2896,7 +2846,7 @@ static void set_long_option (int o, const char *arg)
  * if there are several non-options, an `--evry` search must have `opt.evry_raw == TRUE` to
  * pass the remaining cmd-line unchanged to `Everything_SetSearchA()`.
  */
-static void parse_cmdline (int _argc, const char **_argv)
+static void parse_cmdline (void)
 {
   struct command_line *c = &opt.cmd_line;
 
@@ -2905,7 +2855,7 @@ static void parse_cmdline (int _argc, const char **_argv)
   c->long_opt      = long_options;
   c->set_short_opt = set_short_option;
   c->set_long_opt  = set_long_option;
-  getopt_parse (c, _argc, _argv);
+  getopt_parse (c);
 
   if (c->argc0 > 0 && c->argc - c->argc0 >= 1)
      opt.file_spec = STRDUP (c->argv[c->argc0]);
@@ -3101,10 +3051,6 @@ static void init_all (const char *argv0)
   opt.under_appveyor = (stricmp(user, "APPVYR-WIN\\appveyor") == 0);
   opt.under_github   = str_endswith (user, "\\runneradmin");
   opt.evry_busy_wait = 2;
-
-#ifdef __CYGWIN__
-  opt.under_cygwin = 1;
-#endif
 
   if (GetModuleFileName(NULL, buf, sizeof(buf)))
        who_am_I = STRDUP (buf);
@@ -3316,14 +3262,14 @@ int MS_CDECL main (int argc, const char **argv)
 
   init_all (argv[0]);
 
-  parse_cmdline (argc, argv);
+  parse_cmdline();
 
   C_no_ansi = opt.no_ansi;
 
   /* Use ANSI-sequences under ConEmu, 'AppVeyor', 'Github Actions' or if "%COLOUR_TRACE >= 2" (for testing).
    * Nullifies the "--no-ansi" option.
    */
-  if (opt.under_conemu || opt.under_appveyor || opt.under_github || opt.under_cygwin || C_trace_level() >= 2)
+  if (opt.under_conemu || opt.under_appveyor || opt.under_github || C_trace_level() >= 2)
      C_use_ansi_colours = 1;
 
   if (opt.no_ansi)

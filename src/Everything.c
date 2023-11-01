@@ -57,11 +57,6 @@
 #include "Everything.h"
 #include "Everything_IPC.h"
 
-#ifdef __CYGWIN__
-#define stricmp(s1, s2)  strcasecmp (s1, s2)
-#define wcsicmp(s1, s2)  lstrcmpW (s1, s2)
-#endif
-
 /*
  * All MS compilers insists that 'main()', signal-handlers, 'atexit()' functions and
  * var-arg functions must be defined as cdecl. This is only an issue if a program

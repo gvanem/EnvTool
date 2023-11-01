@@ -1380,14 +1380,6 @@ static char *popen_run_py (const struct python_info *pi, const char *prog)
 
   /** \todo: need to check 'pi->is_cygwin' first
    */
-#ifdef __CYGWIN__
-  char exe_name [_MAX_PATH];
-
-  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, py_exe, exe_name, sizeof(exe_name)) != 0)
-     return (NULL);
-  py_exe = exe_name;
-#endif
-
   rc = popen_run (popen_append_out, py_exe, "%s 2>&1", popen_tmp);
   if (rc < 0)
   {

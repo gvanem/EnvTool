@@ -41,22 +41,13 @@
     #define BUILDER  "Visual-C, release"
   #endif
 
-#elif defined(__CYGWIN__)
-  #define BUILDER  "CygWin"
-
-#elif defined(__MINGW64_VERSION_MAJOR)
-  #define BUILDER  "MinGW64/TDM-gcc"
-
-#elif defined(__MINGW32__)
-  #define BUILDER  "MinGW"
-
 #else
   #define BUILDER  "??"
 #endif
 
 /* 64-bit Windows targets
  */
-#if defined(WIN64) || defined(_WIN64) || defined(_M_X64) || defined(_M_IA64) || defined(_M_AMD64) || defined(__MINGW64__)
+#if defined(WIN64) || defined(_WIN64) || defined(_M_X64) || defined(_M_IA64) || defined(_M_AMD64)
   #define WIN_VERSTR  "Win64"
   #define IS_WIN64    1
 #else
@@ -65,21 +56,6 @@
 #endif
 
 #if !defined(RC_INVOKED)  /* rest of file */
-
-#if (defined(__MINGW32__) || defined(__CYGWIN__)) && defined(_FORTIFY_SOURCE) && (_FORTIFY_SOURCE >= 1)
-  /*
-   * Enable GNU LibSSP; "Stack Smashing Protector".
-   *   Ref: http://aconole.brad-x.com/papers/exploits/ssp/intro
-   */
-  #if (_FORTIFY_SOURCE == 1) && defined(INSIDE_ENVTOOL_C)
-    #pragma message ("Using _FORTIFY_SOURCE=1")
-  #elif (_FORTIFY_SOURCE == 2) && defined(INSIDE_ENVTOOL_C)
-    #pragma message ("Using _FORTIFY_SOURCE=2")
-  #endif
-
-  #include <ssp/stdio.h>
-  #include <ssp/string.h>
-#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,52 +70,16 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <windows.h>
+#include <conio.h>
+#include <direct.h>
+#define  stat     _stati64
+#define  DEV_NULL "NUL"
 
-#if defined(__CYGWIN__)
- /*
-  * <limits.h> defines PATH_MAX to 4096. That seems excessive for our use.
-  * Note that 'long' on CygWin64 is 8 bytes. Hence the cast using '(u_long)'
-  * in many places where 'printf ("%lu", dword_value)' is used. A 'DWORD'
-  * on CygWin64 is still 32-bit.
-  */
-  #include <unistd.h>
-  #include <alloca.h>
-  #include <wchar.h>
-  #include <sys/types.h>
-  #include <sys/cygwin.h>
+#undef  _MAX_PATH
+#define _MAX_PATH 512
 
-  #define _MAX_PATH               _POSIX_PATH_MAX   /* 256 */
-  #define _S_ISDIR(mode)          S_ISDIR (mode)
-  #define _S_ISREG(mode)          S_ISREG (mode)
-  #define _popen(cmd, mode)       popen (cmd, mode)
-  #define _pclose(fil)            pclose (fil)
-  #define _fileno(f)              fileno (f)
-  #define _isatty(fd)             isatty (fd)
-  #define _tempnam(dir, prefix)   tempnam (dir, prefix)
-  #define _wcsdup(s)              wcsdup (s)
-
-  #define stricmp(s1, s2)         strcasecmp (s1, s2)
-  #define strnicmp(s1, s2, len)   strncasecmp (s1, s2, len)
-  #define _strtoi64(v, end, base) (ULONGLONG) strtoll (v, end, base)
-  #define DEV_NULL                "/dev/null"
-
-  extern char  *_itoa (int value, char *buf, int radix);
-  extern UINT64 filelength (int fd);
-  extern int    kbhit (void);
-
-#else
-  #include <conio.h>
-  #include <direct.h>
-  #define  stat     _stati64
-  #define  DEV_NULL "NUL"
-
-  #undef  _MAX_PATH
-  #define _MAX_PATH 512
-
-  #if !defined(_WINSOCK2API_) && !defined(_WINSOCK2_H) && !defined(_BSDTYPES_DEFINED)
-    #define u_long unsigned long
-    #define _BSDTYPES_DEFINED
-  #endif
+#if !defined(_WINSOCK2API_) && !defined(_WINSOCK2_H)
+  #define u_long unsigned long
 #endif
 
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -267,11 +207,7 @@
   #define __FILE()           __FILE__
 #endif
 
-#if defined(__CYGWIN__)
-  #define DIR_SEP            '/'
-#else
-  #define DIR_SEP            '\\'
-#endif
+#define DIR_SEP            '\\'
 
 #ifndef _S_ISDIR
   #define _S_ISDIR(mode)     (((mode) & _S_IFMT) == _S_IFDIR)
@@ -298,13 +234,8 @@
   #define WIDESTR_FMT      "ws"
 #endif
 
-#ifdef __CYGWIN__
-  #define S64_FMT "lld"
-  #define U64_FMT "llu"
-#else
-  #define S64_FMT "I64d"
-  #define U64_FMT "I64u"
-#endif
+#define S64_FMT "I64d"
+#define U64_FMT "I64u"
 
 #ifndef _I64_MIN
 #define _I64_MIN  -9223372036854775806LL
@@ -318,11 +249,11 @@
  * Format for printing an hex linear address.
  * E.g. printf (buf, "0x%"ADDR_FMT, ADDR_CAST(ptr));
  */
-#if defined(__x86_64__) || defined(_M_X64)   /* 64-bit targets */
-  #if defined(_MSC_VER) || defined(__MINGW32__)
+#if defined(__x86_64__) || defined(_M_X64)     /* 64-bit targets */
+  #if defined(__clang__) || defined(__GNUC__)  /* clang or zig */
+    #define ADDR_FMT      "016llX"
+  #elif defined(_MSC_VER)
     #define ADDR_FMT      "016I64X"
-  #elif defined(__CYGWIN__)                  /* CygWin64 */
-    #define ADDR_FMT     "016llX"
   #else
     #error "Unsupported compiler"
   #endif
@@ -480,7 +411,6 @@ struct prog_options {
        int             under_winterm;      /**< TRUE if running under WindowsTerminal */
        int             under_appveyor;     /**< TRUE if running under AppVeyor */
        int             under_github;       /**< TRUE if running under Github Actions */
-       int             under_cygwin;       /**< TRUE if Cygwin compiled */
        enum SortMethod sort_methods [10];  /**< the specified sort methods */
        BOOL            evry_raw;           /**< use raw non-regex searches */
        UINT            evry_busy_wait;     /**< max number of seconds to wait for a busy EveryThing */
@@ -598,19 +528,15 @@ int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1
  */
 #define MAX_ENV_VAR  32767
 
-/* CygWin have the 'strdupa()' macro in it's <string.h>
- */
-#if !defined(strdupa)
-  #if defined(__GNUC__) || defined(__clang__)
-    #define strdupa(s)  (__extension__ ({ \
-                         const char *s_in = (s);                \
-                         size_t      s_len = strlen (s_in) + 1; \
-                         char       *s_out = alloca (s_len);    \
-                         (char*) memcpy (s_out, s_in, s_len);   \
-                        }))
-  #else
-    #define strdupa(s)  strcpy (alloca(strlen(s) + 1), s)
-  #endif
+#if defined(__GNUC__) || defined(__clang__)
+  #define strdupa(s)  (__extension__ ({ \
+                       const char *s_in = (s);                \
+                       size_t      s_len = strlen (s_in) + 1; \
+                       char       *s_out = alloca (s_len);    \
+                       (char*) memcpy (s_out, s_in, s_len);   \
+                      }))
+#else
+  #define strdupa(s)  strcpy (alloca(strlen(s) + 1), s)
 #endif
 
 extern void   init_misc     (void);

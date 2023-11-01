@@ -593,21 +593,6 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
 
 #if defined(DIRLIST_TEST)
 
-#if defined(__MINGW32__)
-  /*
-   * Tell MinGW's CRT to turn off command line globbing by default.
-   */
-  int _CRT_glob = 0;
-
-  #if !defined(__MINGW64_VERSION_MAJOR)
-    /*
-     * MinGW-64's CRT seems to NOT glob the cmd-line by default.
-     * Hence this doesn't change that behaviour.
-     */
-    int _dowildcard = 0;
-  #endif
-#endif
-
 struct prog_options opt;
 char  *program_name = "dirlist";
 
@@ -660,19 +645,11 @@ void usage (void)
 }
 
 /**
- * Cygwin:    Convert `path` from Windows to Posix form.
- * Otherwise: Replace all `\\` with a `/`.
+ * Replace all `\\` with a `/`.
  */
 static const char *make_unixy_path (const char *path)
 {
   static char name [_MAX_PATH];
-
-#if defined(__CYGWIN__)
-  if (cygwin_conv_path(CCP_WIN_A_TO_POSIX, path, name, sizeof(name)) == 0)
-     return (name);
-  return (path);
-
-#else
   char *p, *end;
 
   _strlcpy (name, path, sizeof(name));
@@ -684,7 +661,6 @@ static const char *make_unixy_path (const char *path)
   }
   *p = '\0';
   return (name);
-#endif
 }
 
 static int print_it (const char  *file,
