@@ -31,10 +31,11 @@ MIN_VER = 5.01
 !endif
 
 LDFLAGS = $(LDFLAGS) -subsystem:console,$(MIN_VER)
+CFLAGS  = $(CFLAGS) -wd4244 -wd4267 -wd4477
 
 RCFLAGS = -nologo -D_MSC_VER -r
 MSBUILD = msbuild -nologo -p:Platform="Win32"
-EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib psapi.lib version.lib shell32.lib ws2_32.lib user32.lib
+OS_LIBS = advapi32.lib crypt32.lib imagehlp.lib psapi.lib shell32.lib shlwapi.lib user32.lib version.lib wintrust.lib ws2_32.lib
 
 #
 # A silly hack for builing an AppVeyor; fails to find 'stdbool.h'!
@@ -62,12 +63,10 @@ CFLAGS = -MD$(D) $(CFLAGS)
 !endif
 
 !if "$(PLATFORM)" == "x64"
-CFLAGS  = $(CFLAGS) -wd4244 -wd4267 -wd4477
 RCFLAGS = $(RCFLAGS) -DWIN64
 !message "Building for x64"
 
 !else if "$(CPU)" == "X64"
-CFLAGS  = $(CFLAGS) -wd4244 -wd4267 -wd4477
 RCFLAGS = $(RCFLAGS) -DWIN64
 !message "Building for x64"
 
@@ -117,7 +116,7 @@ $(OBJ_DIR):
 	mkdir objects\MSVC 2> NUL
 
 envtool.exe: $(OBJECTS) $(OBJ_DIR)\envtool.res
-	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) shlwapi.lib ole32.lib oleaut32.lib > link.tmp
+	link $(LDFLAGS) -verbose -out:$@ $** $(OS_LIBS) ole32.lib oleaut32.lib > link.tmp
 	type link.tmp >> envtool.map
 	-del /q link.tmp
 
@@ -134,7 +133,7 @@ description.exe: description.c dirlist.c misc.c color.c searchpath.c smartlist.c
 	  $(OBJ_DIR)\color.obj
 	  $(OBJ_DIR)\searchpath.obj
 	  $(OBJ_DIR)\smartlist.obj
-	  $(EX_LIBS)
+	  $(OS_LIBS)
 <<
 	del /q $(OBJ_DIR)\description.obj
 	@echo
@@ -148,7 +147,7 @@ dirlist.exe: dirlist.c misc.c color.c getopt_long.c searchpath.c smartlist.c
 	 $(OBJ_DIR)\getopt_long.obj
 	 $(OBJ_DIR)\searchpath.obj
 	 $(OBJ_DIR)\smartlist.obj
-	 $(EX_LIBS)
+	 $(OS_LIBS)
 <<
 	del /q $(OBJ_DIR)\dirlist.obj
 	@echo
@@ -165,7 +164,7 @@ get_file_assoc.exe: get_file_assoc.c color.c dirlist.c misc.c smartlist.c
 	 $(OBJ_DIR)\dirlist.obj
 	 $(OBJ_DIR)\misc.obj
 	 $(OBJ_DIR)\smartlist.obj
-	 $(EX_LIBS)
+	 $(OS_LIBS)
 <<
 	del /q $(OBJ_DIR)\get_file_assoc.obj
 	@echo
@@ -180,7 +179,7 @@ win_glob.exe: win_glob.c dirlist.c misc.c color.c getopt_long.c searchpath.c sma
 	 $(OBJ_DIR)\getopt_long.obj
 	 $(OBJ_DIR)\searchpath.obj
 	 $(OBJ_DIR)\smartlist.obj
-	 $(EX_LIBS)
+	 $(OS_LIBS)
 <<
 	del /q $(OBJ_DIR)\win_glob.obj
 	@echo
@@ -194,7 +193,7 @@ win_ver.exe: win_ver.c dirlist.c misc.c color.c searchpath.c smartlist.c
 	  $(OBJ_DIR)\color.obj
 	  $(OBJ_DIR)\searchpath.obj
 	  $(OBJ_DIR)\smartlist.obj
-	  $(EX_LIBS)
+	  $(OS_LIBS)
 <<
 	del /q $(OBJ_DIR)\win_ver.obj
 	@echo
@@ -209,7 +208,7 @@ win_trust.exe: win_trust.c dirlist.c getopt_long.c misc.c color.c searchpath.c s
 	  $(OBJ_DIR)\color.obj
 	  $(OBJ_DIR)\searchpath.obj
 	  $(OBJ_DIR)\smartlist.obj
-	  $(EX_LIBS)
+	  $(OS_LIBS)
 <<
 	del /q $(OBJ_DIR)\win_trust.obj
 	@echo
@@ -222,7 +221,7 @@ $(OBJ_DIR)\cflags_cl.h: Makefile.VC
 	@echo const char *cflags = "$(CC) $(CFLAGS)"; > $@
 
 $(OBJ_DIR)\ldflags_cl.h: Makefile.VC
-	@echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe $(OBJECTS:\=/) $(OBJ_DIR)/envtool.res $(EX_LIBS) shlwapi.lib ole32.lib oleaut32.lib"; > $@
+	@echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe $(OBJECTS:\=/) $(OBJ_DIR)/envtool.res $(OS_LIBS) ole32.lib oleaut32.lib"; > $@
 
 clean vclean:
 	-rd /Q /S objects

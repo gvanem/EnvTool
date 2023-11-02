@@ -392,7 +392,7 @@ int scandir2 (const char       *dirname,
   struct dirent2 **namelist;
   DIR2  *dirptr = NULL;
   int    tdirsize = sizeof(struct dirent2) + _MAX_PATH;
-  int    num = 0;
+  size_t num = 0;
   size_t max_cnt  = 100;
   size_t max_size = max_cnt * sizeof(struct dirent2);
 

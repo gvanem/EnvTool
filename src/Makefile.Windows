@@ -273,11 +273,7 @@ else
   endif
 
   ifeq ($(CC),cl)
-    CFLAGS += -wd4127 -wd4201 -wd4702
-  endif
-
-  ifeq ($(CC)-$(BITS),cl-64)
-    CFLAGS += -wd4244 #  -wd4267 -wd4311
+    CFLAGS += -diagnostics:caret -wd4127 -wd4201 -wd4244 -wd4702
   endif
 
   #
@@ -677,7 +673,7 @@ analyze_clang-cl:
 ANALYZE_CFLAGS = $(CFLAGS) -D_DEBUG -MP        \
                  -analyze:only -analyze:quiet- \
                  -analyze:stacksize 100000     \
-                 -wd6308 -wd6255 -wd6340       \
+                 -wd6308 -wd6255  -wd6340      \
                  -wd6326 -wd28199 -wd28159     \
                  -Fo./$(OBJ_DIR)\\
 
