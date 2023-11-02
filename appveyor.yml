@@ -1,4 +1,6 @@
 environment:
+  global:
+    CPU: x86
   matrix:
     - REL_DBG: Release
     - REL_DBG: Debug
@@ -7,7 +9,7 @@ install:
   #
   # Set compiler environment for MSVC first.
   #
-  - cmd: call "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
+  - cmd: call "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %CPU%
 
 build_script:
     - cmd: appveyor-script.bat build
