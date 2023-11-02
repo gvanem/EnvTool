@@ -14,9 +14,24 @@ CFLAGS  = -nologo -W3 -Zi -Zo -Gy -Gs -DWIN32 \
 LDFLAGS = -nologo -incremental:no -debug -map
 
 #
-# Enable the .EXEs to run on Win-XP SP3 (5.1)
+# Enable a x86 .EXEs to run on Win-XP SP3 (5.1) or
+#        a x64 .EXEs to run on Win-200 SP1 (5.2)
 #
-LDFLAGS = $(LDFLAGS) -subsystem:console,5.01
+# Ref: https://learn.microsoft.com/en-us/cpp/build/reference/subsystem-specify-subsystem?view=msvc-160#remarks
+#
+MIN_VER = 5.02
+
+!if "$(PLATFORM)" == "x86"
+MIN_VER = 5.01
+!endif
+
+!if "$(CPU)" == "x86"
+MIN_VER = 5.01
+!endif
+
+LDFLAGS = $(LDFLAGS) -subsystem:console,$(MIN_VER)
+
+
 RCFLAGS = -nologo -D_MSC_VER -r
 MSBUILD = msbuild -nologo -p:Platform="Win32"
 EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib psapi.lib version.lib shell32.lib ws2_32.lib user32.lib
