@@ -15,7 +15,7 @@ set APPVEYOR_BUILD=0
 ::   Since only Python2.7 is in AppVeyor's PATH by default, add this
 ::   Python 3.4 (x86) to the PATH.
 ::
-if "%APPVEYOR_BUILD_FOLDER%" != "" set APPVEYOR_BUILD=1
+if not "%APPVEYOR_BUILD_FOLDER%" == "" set APPVEYOR_BUILD=1
 if "%APPVEYOR_BUILD_FOLDER%" == "" set APPVEYOR_BUILD_FOLDER=%~dp0
 set PATH=%PATH%;c:\Python34;c:\msys64\MinGW64\bin
 set PROMPT=$P$G
