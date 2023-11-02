@@ -31,10 +31,16 @@ MIN_VER = 5.01
 
 LDFLAGS = $(LDFLAGS) -subsystem:console,$(MIN_VER)
 
-
 RCFLAGS = -nologo -D_MSC_VER -r
 MSBUILD = msbuild -nologo -p:Platform="Win32"
 EX_LIBS = advapi32.lib imagehlp.lib wintrust.lib crypt32.lib psapi.lib version.lib shell32.lib ws2_32.lib user32.lib
+
+#
+# A silly hack for builing an AppVeyor; fails to find 'stdbool.h'!
+#
+!if "$(APPVEYOR_BUILD)" == "1"
+CFLAGS = $(CFLAGS) -I../CI
+!endif
 
 !if "$(DEBUG)" == "1"
 D       = d
