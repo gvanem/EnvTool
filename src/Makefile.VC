@@ -1,15 +1,16 @@
 #
 # EnvTool MSVC Nmake makefile.
 #
-DEBUG  = 0
-STATIC = 0
+DEBUG   = 0
+STATIC  = 0
+OBJ_DIR = objects\MSVC
 
 CC      = cl
-CFLAGS  = -nologo -W3 -Zi -Zo -Gy -Gs -DWIN32 \
+CFLAGS  = -nologo -W3 -Zi -Zo -Gy -Gs \
           -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE \
           -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -D_WIN32_IE=0x500 \
           -DEVERYTHINGAPI=__cdecl -D_WIN32_WINNT=0x0602 -DUSE_SQLITE3 \
-          -DHAVE_WINSQLITE3_H
+          -DHAVE_WINSQLITE3_H -I./objects/MSVC
 
 LDFLAGS = -nologo -incremental:no -debug -map
 
@@ -74,64 +75,161 @@ RCFLAGS = $(RCFLAGS) -DWIN64
 !message "Building for x86"
 !endif
 
-OBJECTS = auth.obj envtool.obj envtool_py.obj cache.obj cfg_file.obj cmake.obj compiler.obj \
-          color.obj description.obj dirlist.obj Everything.obj Everything_ETP.obj find_vstudio.obj \
-          get_file_assoc.obj getopt_long.obj ignore.obj json.obj lua.obj misc.obj pkg-config.obj \
-          report.obj searchpath.obj show_ver.obj smartlist.obj sort.obj regex.obj tests.obj \
-          vcpkg.obj win_trust.obj win_sqlite3.obj win_ver.obj
+OBJECTS = $(OBJ_DIR)\auth.obj           \
+          $(OBJ_DIR)\envtool.obj        \
+          $(OBJ_DIR)\envtool_py.obj     \
+          $(OBJ_DIR)\cache.obj          \
+          $(OBJ_DIR)\cfg_file.obj       \
+          $(OBJ_DIR)\cmake.obj          \
+          $(OBJ_DIR)\compiler.obj       \
+          $(OBJ_DIR)\color.obj          \
+          $(OBJ_DIR)\description.obj    \
+          $(OBJ_DIR)\dirlist.obj        \
+          $(OBJ_DIR)\Everything.obj     \
+          $(OBJ_DIR)\Everything_ETP.obj \
+          $(OBJ_DIR)\find_vstudio.obj   \
+          $(OBJ_DIR)\get_file_assoc.obj \
+          $(OBJ_DIR)\getopt_long.obj    \
+          $(OBJ_DIR)\ignore.obj         \
+          $(OBJ_DIR)\json.obj           \
+          $(OBJ_DIR)\lua.obj            \
+          $(OBJ_DIR)\misc.obj           \
+          $(OBJ_DIR)\pkg-config.obj     \
+          $(OBJ_DIR)\report.obj         \
+          $(OBJ_DIR)\searchpath.obj     \
+          $(OBJ_DIR)\show_ver.obj       \
+          $(OBJ_DIR)\smartlist.obj      \
+          $(OBJ_DIR)\sort.obj           \
+          $(OBJ_DIR)\regex.obj          \
+          $(OBJ_DIR)\tests.obj          \
+          $(OBJ_DIR)\vcpkg.obj          \
+          $(OBJ_DIR)\win_trust.obj      \
+          $(OBJ_DIR)\win_sqlite3.obj    \
+          $(OBJ_DIR)\win_ver.obj
 
-all: cflags_cl.h ldflags_cl.h envtool.exe win_glob.exe win_ver.exe dirlist.exe
-	@echo '"envtool.exe win_glob.exe win_ver.exe dirlist.exe" successfully built.'
+PROGRAMS = envtool.exe description.exe dirlist.exe du.exe get_file_assoc.exe win_glob.exe win_trust.exe win_ver.exe
 
-envtool.exe: $(OBJECTS) envtool.res
+all: $(OBJ_DIR) $(OBJ_DIR)\cflags_cl.h $(OBJ_DIR)\ldflags_cl.h $(PROGRAMS)
+	@echo '"$(PROGRAMS)" successfully built.'
+
+$(OBJ_DIR):
+	mkdir objects      2> NUL
+	mkdir objects\MSVC 2> NUL
+
+envtool.exe: $(OBJECTS) $(OBJ_DIR)\envtool.res
 	link $(LDFLAGS) -verbose -out:$@ $** $(EX_LIBS) shlwapi.lib ole32.lib oleaut32.lib > link.tmp
 	type link.tmp >> envtool.map
 	-del /q link.tmp
 
-envtool.res: envtool.rc
+$(OBJ_DIR)\envtool.res: envtool.rc
 	rc $(RCFLAGS) -fo $@ envtool.rc
+	@echo
 
-description.exe: description.c misc.c color.c searchpath.c smartlist.c
-	$(CC) $(CFLAGS) -DDESCRIPTION_TEST -c $**
-	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
-	del /q description.obj
+description.exe: description.c dirlist.c misc.c color.c searchpath.c smartlist.c
+	$(CC) -c $(CFLAGS) -DDESCRIPTION_TEST -Fo./$(OBJ_DIR)\\ $**
+	link $(LDFLAGS) -out:$@ @<<
+	  $(OBJ_DIR)\description.obj
+	  $(OBJ_DIR)\dirlist.obj
+	  $(OBJ_DIR)\misc.obj
+	  $(OBJ_DIR)\color.obj
+	  $(OBJ_DIR)\searchpath.obj
+	  $(OBJ_DIR)\smartlist.obj
+	  $(EX_LIBS)
+<<
+	del /q $(OBJ_DIR)\description.obj
+	@echo
 
 dirlist.exe: dirlist.c misc.c color.c getopt_long.c searchpath.c smartlist.c
-	$(CC) $(CFLAGS) -DDIRLIST_TEST -c $**
-	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
-	del /q dirlist.obj searchpath.obj
+	$(CC) -c $(CFLAGS) -DDIRLIST_TEST -Fo./$(OBJ_DIR)\\ $**
+	link $(LDFLAGS) -out:$@ @<<
+	 $(OBJ_DIR)\dirlist.obj
+	 $(OBJ_DIR)\misc.obj
+	 $(OBJ_DIR)\color.obj
+	 $(OBJ_DIR)\getopt_long.obj
+	 $(OBJ_DIR)\searchpath.obj
+	 $(OBJ_DIR)\smartlist.obj
+	 $(EX_LIBS)
+<<
+	del /q $(OBJ_DIR)\dirlist.obj
+	@echo
+
+du.exe: $(OBJ_DIR)\du.obj
+	link $(LDFLAGS) -out:$@ $**
+	@echo
+
+get_file_assoc.exe: get_file_assoc.c color.c dirlist.c misc.c smartlist.c
+	$(CC) -c $(CFLAGS) -DGET_FILE_ASSOC_TEST -Fo./$(OBJ_DIR)\\ $**
+	link $(LDFLAGS) -out:$@ @<<
+	 $(OBJ_DIR)\get_file_assoc.obj
+	 $(OBJ_DIR)\color.obj
+	 $(OBJ_DIR)\dirlist.obj
+	 $(OBJ_DIR)\misc.obj
+	 $(OBJ_DIR)\smartlist.obj
+	 $(EX_LIBS)
+<<
+	del /q $(OBJ_DIR)\get_file_assoc.obj
+	@echo
 
 win_glob.exe: win_glob.c dirlist.c misc.c color.c getopt_long.c searchpath.c smartlist.c
-	$(CC) $(CFLAGS) -DWIN_GLOB_TEST -c $**
-	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
-	del /q win_glob.obj
+	$(CC) -c $(CFLAGS) -DWIN_GLOB_TEST -Fo./$(OBJ_DIR)\\ $**
+	link $(LDFLAGS) -out:$@ @<<
+	 $(OBJ_DIR)\win_glob.obj
+	 $(OBJ_DIR)\dirlist.obj
+	 $(OBJ_DIR)\misc.obj
+	 $(OBJ_DIR)\color.obj
+	 $(OBJ_DIR)\getopt_long.obj
+	 $(OBJ_DIR)\searchpath.obj
+	 $(OBJ_DIR)\smartlist.obj
+	 $(EX_LIBS)
+<<
+	del /q $(OBJ_DIR)\win_glob.obj
+	@echo
 
 win_ver.exe: win_ver.c dirlist.c misc.c color.c searchpath.c smartlist.c
-	$(CC) $(CFLAGS) -DWIN_VER_TEST -c $**
-	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
-	del /q win_ver.obj
+	$(CC) -c $(CFLAGS) -DWIN_VER_TEST -Fo./$(OBJ_DIR)\\ $**
+	link $(LDFLAGS) -out:$@ @<<
+	  $(OBJ_DIR)\win_ver.obj
+	  $(OBJ_DIR)\dirlist.obj
+	  $(OBJ_DIR)\misc.obj
+	  $(OBJ_DIR)\color.obj
+	  $(OBJ_DIR)\searchpath.obj
+	  $(OBJ_DIR)\smartlist.obj
+	  $(EX_LIBS)
+<<
+	del /q $(OBJ_DIR)\win_ver.obj
+	@echo
 
 win_trust.exe: win_trust.c dirlist.c getopt_long.c misc.c color.c searchpath.c smartlist.c
-	$(CC) $(CFLAGS) -DWIN_TRUST_TEST -c $**
-	link $(LDFLAGS) -out:$@ $(**:.c=.obj) $(EX_LIBS)
-	del /q win_trust.obj
+	$(CC) -c $(CFLAGS) -DWIN_TRUST_TEST -Fo./$(OBJ_DIR)\\ $**
+	link $(LDFLAGS) -out:$@ @<<
+	  $(OBJ_DIR)\win_trust.obj
+	  $(OBJ_DIR)\dirlist.obj
+	  $(OBJ_DIR)\getopt_long.obj
+	  $(OBJ_DIR)\misc.obj
+	  $(OBJ_DIR)\color.obj
+	  $(OBJ_DIR)\searchpath.obj
+	  $(OBJ_DIR)\smartlist.obj
+	  $(EX_LIBS)
+<<
+	del /q $(OBJ_DIR)\win_trust.obj
+	@echo
 
-.c.obj:
-	$(CC) $(CFLAGS) -c $*.c
+.c{$(OBJ_DIR)}.obj:
+	$(CC) -c $(CFLAGS) -Fo.\$*.obj $<
+	@echo
 
-cflags_cl.h: Makefile.VC
-	echo const char *cflags = "$(CC) $(CFLAGS)"; > $@
+$(OBJ_DIR)\cflags_cl.h: Makefile.VC
+	@echo const char *cflags = "$(CC) $(CFLAGS)"; > $@
 
-ldflags_cl.h: Makefile.VC
-	echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe $(OBJECTS) envtool.res $(EX_LIBS) shlwapi.lib ole32.lib oleaut32.lib"; > $@
+$(OBJ_DIR)\ldflags_cl.h: Makefile.VC
+	@echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe $(OBJECTS:\=/) $(OBJ_DIR)/envtool.res $(EX_LIBS) shlwapi.lib ole32.lib oleaut32.lib"; > $@
 
 clean vclean:
-	del /q $(OBJECTS) envtool.map envtool.exe envtool.pdb envtool.res \
-	       description.exe description.map description.pdb \
-	       dirlist.exe dirlist.map dirlist.pdb \
-	       win_glob.obj win_glob.exe win_glob.map win_glob.pdb \
-	       win_ver.exe win_ver.map win_ver.pdb \
-	        *.sbr vc1*.idb vc*.pdb cflags_cl.h ldflags_cl.h
+	-rd /Q /S objects
+	-del /q *.sbr vc1*.idb vc*.pdb \
+	        envtool.map description.exe dirlist.exe du.exe win_glob.exe win_trust.exe win_ver.exe \
+	        envtool.exe description.map dirlist.map du.map win_glob.map win_trust.map win_ver.map \
+	        envtool.pdb description.pdb dirlist.pdb du.pdb win_glob.pdb win_trust.pdb win_ver.pdb
 
 msbuild:
 	$(MSBUILD) envtool.sln
@@ -142,30 +240,30 @@ msclean: clean
 	-del /q envtool.sdf
 	-rd /q Debug Release
 
-auth.obj:           auth.c color.h envtool.h getopt_long.h sort.h smartlist.h auth.h
-cache.obj:          cache.c envtool.h getopt_long.h sort.h smartlist.h color.h cache.h
-cfg_file.obj:       cfg_file.c color.h cfg_file.h envtool.h getopt_long.h sort.h smartlist.h
-envtool.res:        envtool.h
-envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h Everything_ETP.h \
-                    envtool.h envtool_py.h dirlist.h auth.h color.h smartlist.h \
-                    sort.h cflags_cl.h ldflags_cl.h lua.h
-envtool_py.obj:     envtool_py.c envtool.h envtool_py.h color.h dirlist.h smartlist.h
-Everything.obj:     Everything.c Everything.h Everything_IPC.h
-Everything_ETP.obj: Everything_ETP.c color.h envtool.h auth.h Everything_ETP.h
-getopt_long.obj:    getopt_long.c getopt_long.h
-color.obj:          color.c color.h
-dirlist.obj:        dirlist.c envtool.h color.h dirlist.h getopt_long.h
-json.obj:           json.c envtool.h getopt_long.h sort.h smartlist.h report.h color.h json.h
-lua.obj:            lua.c envtool.h getopt_long.h sort.h smartlist.h report.h color.h lua.h
-misc.obj:           misc.c envtool.h color.h
-pkg-config.obj:     pkg-config.c envtool.h getopt_long.h sort.h smartlist.h color.h report.h cache.h pkg-config.h
-regex.obj:          regex.c regex.h envtool.h
-report.obj:         report.c envtool.h getopt_long.h sort.h smartlist.h color.h pkg-config.h Everything_ETP.h ignore.h description.h report.h
-searchpath.obj:     searchpath.c envtool.h
-show_ver.obj:       show_ver.c envtool.h
-smartlist.obj:      smartlist.c smartlist.h envtool.h
-vcpkg.obj:          vcpkg.c envtool.h smartlist.h color.h dirlist.h vcpkg.h
-win_glob.obj:       win_glob.c envtool.h win_glob.h
-win_trust.obj:      win_trust.c getopt_long.h envtool.h
-win_ver.obj:        win_ver.c envtool.h
+$(OBJ_DIR)\auth.obj:           auth.c color.h envtool.h getopt_long.h sort.h smartlist.h auth.h
+$(OBJ_DIR)\cache.obj:          cache.c envtool.h getopt_long.h sort.h smartlist.h color.h cache.h
+$(OBJ_DIR)\cfg_file.obj:       cfg_file.c color.h cfg_file.h envtool.h getopt_long.h sort.h smartlist.h
+$(OBJ_DIR)\envtool.res:        envtool.h
+$(OBJ_DIR)\envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h Everything_ETP.h \
+                               envtool.h envtool_py.h dirlist.h auth.h color.h smartlist.h \
+                               sort.h $(OBJ_DIR)\cflags_cl.h $(OBJ_DIR)\ldflags_cl.h lua.h
+$(OBJ_DIR)\envtool_py.obj:     envtool_py.c envtool.h envtool_py.h color.h dirlist.h smartlist.h
+$(OBJ_DIR)\Everything.obj:     Everything.c Everything.h Everything_IPC.h
+$(OBJ_DIR)\Everything_ETP.obj: Everything_ETP.c color.h envtool.h auth.h Everything_ETP.h
+$(OBJ_DIR)\getopt_long.obj:    getopt_long.c getopt_long.h
+$(OBJ_DIR)\color.obj:          color.c color.h
+$(OBJ_DIR)\dirlist.obj:        dirlist.c envtool.h color.h dirlist.h getopt_long.h
+$(OBJ_DIR)\json.obj:           json.c envtool.h getopt_long.h sort.h smartlist.h report.h color.h json.h
+$(OBJ_DIR)\lua.obj:            lua.c envtool.h getopt_long.h sort.h smartlist.h report.h color.h lua.h
+$(OBJ_DIR)\misc.obj:           misc.c envtool.h color.h
+$(OBJ_DIR)\pkg-config.obj:     pkg-config.c envtool.h getopt_long.h sort.h smartlist.h color.h report.h cache.h pkg-config.h
+$(OBJ_DIR)\regex.obj:          regex.c regex.h envtool.h
+$(OBJ_DIR)\report.obj:         report.c envtool.h getopt_long.h sort.h smartlist.h color.h pkg-config.h Everything_ETP.h ignore.h description.h report.h
+$(OBJ_DIR)\searchpath.obj:     searchpath.c envtool.h
+$(OBJ_DIR)\show_ver.obj:       show_ver.c envtool.h
+$(OBJ_DIR)\smartlist.obj:      smartlist.c smartlist.h envtool.h
+$(OBJ_DIR)\vcpkg.obj:          vcpkg.c envtool.h smartlist.h color.h dirlist.h vcpkg.h
+$(OBJ_DIR)\win_glob.obj:       win_glob.c envtool.h win_glob.h
+$(OBJ_DIR)\win_trust.obj:      win_trust.c getopt_long.h envtool.h
+$(OBJ_DIR)\win_ver.obj:        win_ver.c envtool.h
 

@@ -291,36 +291,37 @@ endif   # ifeq ($(CC),zig)
 ifeq ($(CC),cl)
   CFLAGS   += -W4
   LDFLAGS  += -map -verbose
-  OBJ_DIR   = MSVC_obj
+  OBJ_DIR   = objects/MSVC
   CHECKS    = $(call check_cl)
 
 else ifeq ($(CC),clang-cl)
   CFLAGS  += -ferror-limit=5 -fms-compatibility -m$(BITS)
   LDFLAGS += -map -verbose
-  OBJ_DIR   = CLANG_obj
+  OBJ_DIR   = objects/clang
   CHECKS    = $(call check_clang)
 
 else ifeq ($(CC),icx)
   LDFLAGS += -map -verbose
-  OBJ_DIR   = ICX_obj
+  OBJ_DIR   = objects/icx
   CHECKS    = $(call check_icx) $(call check_xilink)
 
 else ifeq ($(CC),zig)
-  LDFLAGS +=
-  OBJ_DIR   = zig_obj
-  CHECKS    = $(call check_zig)
+  OBJ_DIR = objects/zig
+  CHECKS  = $(call check_zig)
 
 else
   $(error $(Usage))
 endif
 
-GENERATED = cflags_$(CC).h ldflags_$(CC).h
+GENERATED = $(OBJ_DIR)/cflags_$(CC).h \
+            $(OBJ_DIR)/ldflags_$(CC).h
 
 CFLAGS += -DWIN32_WINNT=0xA000       \
           -DNTDDI_VERSION=0x0A000000 \
           -D_WIN32_IE=0x800          \
           -DWIN32_LEAN_AND_MEAN      \
-          -DEVERYTHINGUSERAPI=
+          -DEVERYTHINGUSERAPI=       \
+          -I./$(OBJ_DIR)
 
 ifeq ($(USE_WSOCK_TRACE),1)
   WS2_32_LIB = wsock_trace-$(CPU).lib
@@ -562,7 +563,7 @@ epilogue:
 	$(call green_msg, Do a $(BRIGHT_WHITE)make CC=$(CC) -f $(THIS_FILE) install $(BRIGHT_GREEN)at own risk.)
 
 $(OBJ_DIR):
-	- mkdir $@
+	- mkdir --parents $@
 
 install: all
 	cp --update envtool.{exe,pdb} $(INSTALL_BIN)
@@ -655,14 +656,10 @@ $(OBJ_DIR)/%.res: %.rc
 	$(call C_preprocess, $@, $<)
 
 cpp-filter.py: $(THIS_FILE)
-	$(call generate, $@, #)
-	$(file >> $@,if 1:)
-	$(file >> $@,$(CPP_FILTER_PY))
+	$(call generate_py,$@,$(CPP_FILTER_PY))
 
 check-for-unused-libs.py: $(THIS_FILE)
-	$(call generate, $@, #)
-	$(file >> $@,if 1:)
-	$(file >> $@,$(CHECK_FOR_UNUSED_LIBS_PY))
+	$(call generate_py,$@,$(CHECK_FOR_UNUSED_LIBS_PY))
 
 ifeq ($(CC)-$(USE_MP_COMPILE),cl-1)
   $(ENVTOOL_OBJ): $(ENVTOOL_SRC) | $(CC).args
@@ -706,41 +703,41 @@ realclean vclean: clean
 	rm -f $(PROGRAMS) $(PROGRAMS:.exe=.map) .depend.Windows
 	rm -f envtool.res envtool.iobj envtool.ipdb envtool.VC.db
 
-#---'cflags_*.h': ----------------------
+#---'$(OBJ_DIR)/cflags_*.h': ----------------------
 
 .PHONY: cflags ldflags
-cflags:  cflags_cl.h  cflags_clang-cl.h  cflags_icx.h  cflags_zig.h  FORCE
-ldflags: ldflags_cl.h ldflags_clang-cl.h ldflags_icx.h ldflags_zig.h FORCE
+cflags:  $(OBJ_DIR)/cflags_cl.h  $(OBJ_DIR)/cflags_clang-cl.h  $(OBJ_DIR)/cflags_icx.h  $(OBJ_DIR)/cflags_zig.h  FORCE
+ldflags: $(OBJ_DIR)/ldflags_cl.h $(OBJ_DIR)/ldflags_clang-cl.h $(OBJ_DIR)/ldflags_icx.h $(OBJ_DIR)/ldflags_zig.h FORCE
 
 
-cflags_cl.h: $(THIS_FILE)
+$(OBJ_DIR)/cflags_cl.h: $(THIS_FILE)
 	$(call generate_cflags_h, $@, $(CL_CC) $(CFLAGS))
 
-cflags_clang-cl.h: $(THIS_FILE)
+$(OBJ_DIR)/cflags_clang-cl.h: $(THIS_FILE)
 	$(call generate_cflags_h, $@, $(CLANG_CL) $(CFLAGS))
 
-cflags_icx.h: $(THIS_FILE)
+$(OBJ_DIR)/cflags_icx.h: $(THIS_FILE)
 	$(call generate_cflags_h, $@, icx.exe $(CFLAGS))
 
-cflags_zig.h:: $(THIS_FILE)
+$(OBJ_DIR)/cflags_zig.h:: $(THIS_FILE)
 	$(call generate_cflags_h, $@, zig cc $(CFLAGS))
 
-#--- 'ldflags_*.h': ----------------------
+#--- '$(OBJ_DIR)/ldflags_*.h': ----------------------
 
 ldflags_COMMON = $(LDFLAGS) -out:envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res \
 	         advapi32.lib crypt32.lib imagehlp.lib ole32.lib oleaut32.lib shell32.lib \
 	         shlwapi.lib user32.lib version.lib wintrust.lib $(WS2_32_LIB)
 
-ldflags_cl.h: $(THIS_FILE)
+$(OBJ_DIR)/ldflags_cl.h: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_ldflags_h, $@, link.exe $(ldflags_COMMON))
 
-ldflags_clang-cl.h: $(THIS_FILE)
+$(OBJ_DIR)/ldflags_clang-cl.h: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_ldflags_h, $@, link.exe $(ldflags_COMMON))
 
-ldflags_icx.h: $(THIS_FILE)
+$(OBJ_DIR)/ldflags_icx.h: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_ldflags_h, $@, $(LINK) $(ldflags_COMMON))
 
-ldflags_zig.h: $(THIS_FILE)
+$(OBJ_DIR)/ldflags_zig.h: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_ldflags_h, $@, zig cc $(LDFLAGS) -o envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(OS_LIBS) ole32.lib oleaut32.lib shlwapi.lib $(WS2_32_LIB))
 
 $(OBJ_DIR)/compiler.obj: $(GENERATED)
@@ -854,6 +851,12 @@ endef
 define generate_ldflags_h
   $(call generate, $(1),//)
   $(file >> $(1),const char *ldflags = "$(strip $(2))";)
+endef
+
+define generate_py
+  $(call generate, $(1),#)
+  $(file >> $(1),if 1:)
+  $(file >> $(1),$(2))
 endef
 
 #
