@@ -707,25 +707,16 @@ static char **build_array (char *buf, const char *delim, int *len)
  */
 static int get_file_array (struct command_line *c, const char *file)
 {
-  int   i = 0;
-  long  flen;
-  FILE *f = fopen (file, "rb");
+  int    i = 0;
+  size_t fsize;
 
-  if (!f)
+  c->file_buf = fopen_mem (file, &fsize);
+  if (!c->file_buf)
   {
     fprintf (stderr, "Failed to open response file '%s'.\n", file);
     exit (1);
   }
-
-  flen = filelength (fileno(f));
-  c->file_buf = MALLOC (flen+1);
-  c->file_buf[flen] = '\0';
-
-  if (fread(c->file_buf, 1, flen, f) == flen)
-     c->file_array = build_array (c->file_buf, "\" \t\r\n", &i);
-
-  fclose (f);
-  TRACE (2, "file: %s, filelength: %lu -> %d\n", file, flen, i);
+  c->file_array = build_array (c->file_buf, "\" \t\r\n", &i);
   return (i);
 }
 
