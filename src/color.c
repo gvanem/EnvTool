@@ -130,8 +130,8 @@ static char   c_buf [C_BUF_SIZE];
 static char  *c_head = NULL, *c_tail = NULL;
 static int    c_raw = 0;
 static int    c_binmode = 0;
-static BOOL   c_always_set_bg = FALSE;
-static BOOL   c_exited = FALSE;
+static bool   c_always_set_bg = false;
+static bool   c_exited = false;
 
 /** The `FILE` to print to. This is set to `stdout` in C_init().
  */
@@ -175,42 +175,42 @@ static char colour_map_ansi [DIM(colour_map)] [20];
 static const char *wincon_to_ansi (WORD col);
 
 /**
- * Returns 1 if running under the ConEmu program.
+ * Returns true if running under the ConEmu program.
  */
-int C_conemu_detected (void)
+bool C_conemu_detected (void)
 {
   const char *conemu_hwnd = getenv ("ConEmuHWND");
   const char *conemu_ansi = getenv ("ConEmuANSI");
 
   if (!conemu_hwnd || !conemu_ansi)
-     return (FALSE);
+     return (false);
   if (!stricmp(conemu_ansi, "ON"))
-     return (TRUE);
-  return (FALSE);
+     return (true);
+  return (false);
 }
 
 /**
- * Returns 1 if running under the WindowsTerminal AppX program.
+ * Returns true if running under the WindowsTerminal AppX program.
  *
  * But using ANSI sequences with this should check for `C_VT_detected(0)` first.
  */
-int C_winterm_detected (void)
+bool C_winterm_detected (void)
 {
   HANDLE hnd = GetConsoleWindow();
 
   if (hnd && SendMessage (hnd, WM_GETICON, 0, 0) == 0)
-     return (TRUE);
-  return (FALSE);
+     return (true);
+  return (false);
 }
 
 /**
- * Return TRUE if *Virtual Terminal Processing* is enabled.
+ * Return true if *Virtual Terminal Processing* is enabled.
  * Needs Windows-10 v1909 or later.
  *
  * \param[in] cmd_only If 1, the return value need that 'cmd.exe',
  * `tcc.exe` or `tcmd.exe` is in `%COMPSPEC%`.
  */
-int C_VT_detected (int cmd_only)
+bool C_VT_detected (int cmd_only)
 {
   char  *env;
   int    is_cmd  = 0;
@@ -347,7 +347,7 @@ void C_exit (void)
      C_flush();
   c_head = c_tail = NULL;
   c_out = NULL;
-  c_exited = TRUE;
+  c_exited = true;
   if (c_trace >= 0)  /* C_init() was called */
      DeleteCriticalSection (&crit);
 }
@@ -367,12 +367,12 @@ void C_exit (void)
 void C_init (void)
 {
   const char *env;
-  BOOL        okay;
+  bool        okay;
 
   if (c_exited)
   {
     fputs ("C_init() called after C_exit()!?\n", stderr);
-    c_exited = FALSE;
+    c_exited = false;
   }
 
   if (c_head && c_out)  /* already done this */
@@ -508,7 +508,7 @@ static const char *wincon_to_ansi (WORD col)
   static BYTE wincon_to_SGR [8] = { 0, 4, 2, 6, 1, 5, 3, 7 };
   BYTE   fg, bg, SGR;
   size_t left = sizeof(ret);
-  BOOL   bold;
+  bool   bold;
   char  *p = ret;
 
   if (col == 0)
@@ -651,7 +651,7 @@ int C_vprintf (const char *fmt, va_list args)
  */
 int C_putc (int ch)
 {
-  static BOOL get_color = FALSE;
+  static bool get_color = false;
   int    i, rc = 0;
 
   assert (c_head);
@@ -665,7 +665,7 @@ int C_putc (int ch)
     {
       WORD color;
 
-      get_color = FALSE;
+      get_color = false;
       if (ch == '~')
          goto put_it;
 
@@ -683,7 +683,7 @@ int C_putc (int ch)
 
     if (ch == '~')
     {
-      get_color = TRUE;   /* change state; get colour index in next char */
+      get_color = true;   /* change state; get colour index in next char */
       return (0);
     }
   }

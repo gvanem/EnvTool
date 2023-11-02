@@ -80,7 +80,7 @@ void wintrust_cleanup (void)
  *                           check the whole chain of "Certificate Authorities"
  *                           for a revoke status.
  */
-DWORD wintrust_check (const char *pe_file, BOOL check_details, BOOL revoke_check)
+DWORD wintrust_check (const char *pe_file, bool check_details, bool revoke_check)
 {
   void              *p;
   DWORD              rc;
@@ -168,11 +168,11 @@ const char *wintrust_check_result (DWORD rc)
   }
 }
 
-static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context, char **subject, char **issuer)
+static bool PrintCertificateInfo (const CERT_CONTEXT *cert_context, char **subject, char **issuer)
 {
   char  *name = NULL;
   DWORD  data, n;
-  BOOL   res = FALSE;
+  bool   res = false;
 
   PRINTF0 ("Serial Number: ");
   data = cert_context->pCertInfo->SerialNumber.cbData;
@@ -194,7 +194,7 @@ static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context, char **subje
   if (!data)
   {
     ERROR ("CertGetNameString");
-    QUIT (FALSE);
+    QUIT (false);
   }
 
   name = alloca (data);
@@ -205,7 +205,7 @@ static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context, char **subje
                          CERT_NAME_ISSUER_FLAG, NULL, name, data))
   {
     ERROR ("CertGetNameString");
-    QUIT (FALSE);
+    QUIT (false);
   }
 
   *issuer = STRDUP (name);
@@ -218,7 +218,7 @@ static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context, char **subje
   if (!data)
   {
     ERROR ("CertGetNameString");
-    QUIT (FALSE);
+    QUIT (false);
   }
 
   name = alloca (data);
@@ -226,24 +226,24 @@ static BOOL PrintCertificateInfo (const CERT_CONTEXT *cert_context, char **subje
                          NULL, name, data))
   {
     ERROR ("CertGetNameString");
-    QUIT (FALSE);
+    QUIT (false);
   }
 
   PRINTF ("Subject Name:  %s\n", name);
 
   *subject = STRDUP (name);
-  res = TRUE;
+  res = true;
 
 quit:
   return (res);
 }
 
-static BOOL GetProgAndPublisherInfo (__IN  const CMSG_SIGNER_INFO     *signer_info,
+static bool GetProgAndPublisherInfo (__IN  const CMSG_SIGNER_INFO     *signer_info,
                                      __OUT struct SPROG_PUBLISHERINFO *info)
 {
   SPC_SP_OPUS_INFO *opus_info;
   DWORD             info_size, n;
-  BOOL              res = FALSE;
+  bool              res = false;
 
   /* Loop through authenticated attributes and find SPC_SP_OPUS_INFO_OBJID OID.
    */
@@ -263,7 +263,7 @@ static BOOL GetProgAndPublisherInfo (__IN  const CMSG_SIGNER_INFO     *signer_in
     if (!res)
     {
       ERROR ("CryptDecodeObject");
-      QUIT (FALSE);
+      QUIT (false);
     }
 
     opus_info = alloca (info_size);
@@ -279,7 +279,7 @@ static BOOL GetProgAndPublisherInfo (__IN  const CMSG_SIGNER_INFO     *signer_in
     if (!res)
     {
       ERROR ("CryptDecodeObject");
-      QUIT (FALSE);
+      QUIT (false);
     }
 
     /* Fill in Program Name if present
@@ -320,19 +320,19 @@ static BOOL GetProgAndPublisherInfo (__IN  const CMSG_SIGNER_INFO     *signer_in
              break;
       }
     }
-    QUIT (TRUE);
+    QUIT (true);
   }
 
 quit:
   return (res);
 }
 
-BOOL GetDateOfTimeStamp (__IN const CMSG_SIGNER_INFO *signer_info,
+bool GetDateOfTimeStamp (__IN const CMSG_SIGNER_INFO *signer_info,
                          __OUT      SYSTEMTIME       *st)
 {
   FILETIME lft, ft;
   DWORD    data, n;
-  BOOL     res = FALSE;
+  bool     res = false;
 
   /* Loop through authenticated attributes and find szOID_RSA_signingTime OID.
    */
@@ -364,10 +364,10 @@ BOOL GetDateOfTimeStamp (__IN const CMSG_SIGNER_INFO *signer_info,
   return (res);
 }
 
-BOOL GetTimeStampSignerInfo (__IN  const CMSG_SIGNER_INFO  *signer_info,
+bool GetTimeStampSignerInfo (__IN  const CMSG_SIGNER_INFO  *signer_info,
                              __OUT       CMSG_SIGNER_INFO **counter_signer_info)
 {
-  BOOL   res = FALSE;
+  bool   res = false;
   DWORD  size, n;
   void  *data;
 
@@ -390,14 +390,14 @@ BOOL GetTimeStampSignerInfo (__IN  const CMSG_SIGNER_INFO  *signer_info,
     if (!res)
     {
       ERROR ("CryptDecodeObject");
-      QUIT (FALSE);
+      QUIT (false);
     }
 
     *counter_signer_info = CALLOC (size,1);
     if (*counter_signer_info == NULL)
     {
       PRINTF0 ("Unable to allocate memory for timestamp info.\n");
-      QUIT (FALSE);
+      QUIT (false);
     }
 
     /* Decode and get CMSG_SIGNER_INFO structure for timestamp certificate.
@@ -411,9 +411,9 @@ BOOL GetTimeStampSignerInfo (__IN  const CMSG_SIGNER_INFO  *signer_info,
     if (!res)
     {
       ERROR ("CryptDecodeObject");
-      QUIT (FALSE);
+      QUIT (false);
     }
-    res = TRUE;
+    res = true;
     break;
   }
 
@@ -1186,7 +1186,7 @@ static void exit_dump_pkcs7_cert (void)
 /**
  * Called from `test_PE_wintrust()`
  */
-BOOL wintrust_dump_pkcs7_cert (void)
+bool wintrust_dump_pkcs7_cert (void)
 {
   const char *result = "~5Unknown";
 
@@ -1212,7 +1212,7 @@ BOOL wintrust_dump_pkcs7_cert (void)
 
   C_printf ("  wintrust_dump_pkcs7_cert (\"_ctypes.pyd\")              -> %s~0\n", result);
   exit_dump_pkcs7_cert();
-  return (TRUE);
+  return (true);
 }
 
 #if defined(WIN_TRUST_TEST)
@@ -1240,18 +1240,18 @@ int MS_CDECL main (int argc, char **argv)
 {
   const char *pe_file;
   DWORD       err;
-  BOOL        check_details = FALSE;
-  BOOL        revoke_check = FALSE;
+  bool        check_details = false;
+  bool        revoke_check = false;
   int         ch;
 
   while ((ch = getopt(argc, argv, "cdh?r")) != EOF)
         switch (ch)
         {
-          case 'c': check_details = TRUE;
+          case 'c': check_details = true;
                     break;
           case 'd': opt.debug++;
                     break;
-          case 'r': revoke_check = TRUE;
+          case 'r': revoke_check = true;
                     break;
           case '?':
           case 'h': usage (usage_fmt, argv[0]);

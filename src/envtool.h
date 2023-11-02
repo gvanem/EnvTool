@@ -61,6 +61,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <time.h>
 #include <malloc.h>
@@ -323,7 +324,7 @@ typedef enum SignStatus {
 #include "report.h"
 
 typedef struct beep_info {
-        BOOL      enable;
+        bool      enable;
         unsigned  limit;
         unsigned  freq;
         unsigned  msec;
@@ -397,12 +398,12 @@ struct prog_options {
        int             do_help;
        int             case_sensitive;
        int             keep_temp;          /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
-       int             under_conemu;       /**< TRUE if running under ConEmu console-emulator */
-       int             under_winterm;      /**< TRUE if running under WindowsTerminal */
-       int             under_appveyor;     /**< TRUE if running under AppVeyor */
-       int             under_github;       /**< TRUE if running under Github Actions */
+       bool            under_conemu;       /**< true if running under ConEmu console-emulator */
+       bool            under_winterm;      /**< true if running under WindowsTerminal */
+       bool            under_appveyor;     /**< true if running under AppVeyor */
+       bool            under_github;       /**< true if running under Github Actions */
        enum SortMethod sort_methods [10];  /**< the specified sort methods */
-       BOOL            evry_raw;           /**< use raw non-regex searches */
+       bool            evry_raw;           /**< use raw non-regex searches */
        UINT            evry_busy_wait;     /**< max number of seconds to wait for a busy EveryThing */
        smartlist_t    *evry_host;
        char           *file_spec;
@@ -416,7 +417,7 @@ struct prog_options {
 extern struct prog_options opt;
 extern char  *program_name;       /* used by getopt_long.c */
 
-extern BOOL have_sys_native_dir, have_sys_wow64_dir;
+extern bool have_sys_native_dir, have_sys_wow64_dir;
 
 extern volatile int halt_flag;
 
@@ -430,8 +431,8 @@ extern void incr_total_size (UINT64 size);
 
 extern int report_file (struct report *r);
 
-extern int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
-                        BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key);
+extern int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
+                        bool is_dir, bool exp_ok, const char *prefix, HKEY key);
 
 extern void         print_raw (const char *file, const char *before, const char *after);
 extern smartlist_t *split_env_var (const char *env_name, const char *value);
@@ -448,8 +449,8 @@ struct directory_array {
        int          is_cwd;      /**< and is it equal to `current_dir[]` */
        int          exp_ok;      /**< `expand_env_var()` returned with no `%`? */
        int          num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
-       BOOL         check_empty; /**< check if it contains at least 1 file? */
-       BOOL         done;        /**< alreay processed */
+       bool         check_empty; /**< check if it contains at least 1 file? */
+       bool         done;        /**< alreay processed */
     // char        *env_var;     /**< the env-var these directories came from (or NULL) */
        smartlist_t *dirent2;     /**< List of `struct dirent2` for this directory; used in `check_shadow_files()` only */
      };
@@ -470,7 +471,7 @@ struct registry_array {
 /**
  * Interface functions for the `dir_array` and `reg_array` smartlists in envtool.c.
  */
-extern struct directory_array *dir_array_add (const char *dir, BOOL is_cwd);
+extern struct directory_array *dir_array_add (const char *dir, bool is_cwd);
 extern struct registry_array  *reg_array_add (HKEY key, const char *fname, const char *fqfn);
 
 extern smartlist_t *dir_array_head (void);
@@ -546,9 +547,9 @@ extern char *str_strip_nl   (char *s);
 extern char *str_ltrim      (char *s);
 extern char *str_rtrim      (char *s);
 extern char *str_trim       (char *s);
-extern BOOL  str_startswith (const char *s, const char *with);
-extern BOOL  str_endswith   (const char *s, const char *with);
-extern BOOL  str_match      (const char *s, const char *what, char **next);
+extern bool  str_startswith (const char *s, const char *with);
+extern bool  str_endswith   (const char *s, const char *with);
+extern bool  str_match      (const char *s, const char *what, char **next);
 extern char *str_repeat     (int ch, size_t num);
 extern char *str_replace    (int ch1, int ch2, char *str);
 extern char *str_replace2   (int ch, const char *s, char *str, size_t max_size);
@@ -574,8 +575,8 @@ extern char *slashify       (const char *path, char use);
 extern char *slashify2      (char *buf, const char *path, char use);
 extern char *win_strerror   (unsigned long err);
 extern char *ws2_strerror   (int err);
-extern BOOL  mbchar_to_wchar(wchar_t *result, size_t result_size, const char    *a_buf);
-extern BOOL  wchar_to_mbchar(char    *result, size_t result_size, const wchar_t *w_buf);
+extern bool  mbchar_to_wchar(wchar_t *result, size_t result_size, const char    *a_buf);
+extern bool  wchar_to_mbchar(char    *result, size_t result_size, const wchar_t *w_buf);
 extern char *fopen_mem      (const char *file, size_t *_f_size);
 
 extern void  set_error_mode (int on_off);
@@ -585,34 +586,34 @@ extern char *evry_raw_query    (void);
 extern char *getenv_expand     (const char *variable);
 extern char *getenv_expand2    (const char *variable);
 extern char *getenv_expand_sys (const char *variable);
-extern BOOL  getenv_system     (smartlist_t **sl);
+extern bool  getenv_system     (smartlist_t **sl);
 
 extern UINT   get_disk_type         (int disk);
-extern BOOL   get_disk_cluster_size (int disk, DWORD *size);
+extern bool   get_disk_cluster_size (int disk, DWORD *size);
 extern UINT64 get_directory_size    (const char *dir);
 extern UINT64 get_file_alloc_size   (const char *file, UINT64 size);
-extern BOOL   get_file_compr_size   (const char *file, UINT64 *fsize);
+extern bool   get_file_compr_size   (const char *file, UINT64 *fsize);
 extern int    disk_ready            (int disk);
-extern BOOL   chk_disk_ready        (int disk);
-extern BOOL  _has_drive             (const char *path);
-extern BOOL  _has_drive2            (const char *path);
-extern BOOL   is_directory          (const char *file);
+extern bool   chk_disk_ready        (int disk);
+extern bool  _has_drive             (const char *path);
+extern bool  _has_drive2            (const char *path);
+extern bool   is_directory          (const char *file);
 extern int    safe_stat             (const char *file, struct stat *st, DWORD *win_err);
 extern int    safe_stat_sys         (const char *file, struct stat *st, DWORD *win_err);
 extern UINT   count_digit           (UINT64 n);
-extern BOOL   legal_file_name       (const char *fname);
+extern bool   legal_file_name       (const char *fname);
 
 extern char       *make_cyg_path (const char *path, char *result);
 extern wchar_t    *make_cyg_pathw (const wchar_t *path, wchar_t *result);
 
 extern const char *get_user_name (void);
-extern BOOL        is_user_admin (void);
-extern BOOL        is_user_admin2 (void);
+extern bool        is_user_admin (void);
+extern bool        is_user_admin2 (void);
 extern int         is_cygwin_tty (int fd);
-extern BOOL        print_core_temp_info (void);
+extern bool        print_core_temp_info (void);
 extern void        spinner_start (void);
 extern void        spinner_stop (void);
-extern void        spinner_pause (BOOL on_off);
+extern void        spinner_pause (bool on_off);
 
 extern void        format_and_print_line (const char *line, int indent);
 extern void        print_long_line (const char *line, size_t indent);
@@ -621,7 +622,7 @@ extern char       *translate_shell_pattern (const char *pattern);
 extern void        test_shell_pattern (void);
 extern void        hex_dump (const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
-extern BOOL        get_module_filename_ex (HANDLE proc, char *filename);
+extern bool        get_module_filename_ex (HANDLE proc, char *filename);
 extern time_t      FILETIME_to_time_t (const FILETIME *ft);
 
 /* Fix for `_MSC_VER <= 1800` (Visual Studio 2012 or older) which is lacking `vsscanf()`.
@@ -633,17 +634,17 @@ extern time_t      FILETIME_to_time_t (const FILETIME *ft);
 
 /* Windows security related functions for files/directories:
  */
-extern BOOL get_file_owner (const char *file, char **domain_name, char **account_name);
-extern BOOL is_directory_accessible (const char *path, DWORD access);
-extern BOOL is_directory_readable (const char *path);
-extern BOOL is_directory_writable (const char *path);
+extern bool get_file_owner (const char *file, char **domain_name, char **account_name);
+extern bool is_directory_accessible (const char *path, DWORD access);
+extern bool is_directory_readable (const char *path);
+extern bool is_directory_writable (const char *path);
 
 
 /** Functions for handling Reparse Points:
  *  (Junctions and Symlinks).
  */
 extern const char *last_reparse_err;
-extern BOOL        get_reparse_point (const char *dir, char *result,
+extern bool        get_reparse_point (const char *dir, char *result,
                                       size_t result_size);
 
 /** \typedef struct ver_info
@@ -693,7 +694,7 @@ typedef struct ver_data {
         char        found [100];
         int         len;
         ver_info    version;
-        int       (*get_info) (char **exe, struct ver_info *ver);
+        bool      (*get_info) (char **exe, struct ver_info *ver);
         void      (*extras) (const struct ver_data *v, int pad_len);
       } ver_data;
 
@@ -724,15 +725,15 @@ extern const char *get_time_str_FILETIME (const FILETIME *ft);
 extern const char *get_file_ext (const char *file);
 extern char       *create_temp_file (void);
 extern const char *check_if_shebang (const char *fname);
-extern int         check_if_zip (const char *fname);
-extern int         check_if_gzip (const char *fname);
-extern BOOL        check_if_cwd_in_search_path (const char *program);
+extern bool        check_if_zip (const char *fname);
+extern bool        check_if_gzip (const char *fname);
+extern bool        check_if_cwd_in_search_path (const char *program);
 extern const char *get_gzip_link (const char *file);
 extern const char *get_man_link (const char *file);
 extern const char *get_sym_link (const char *file);
-extern int         check_if_PE (const char *fname, enum Bitness *bits);
-extern int         verify_PE_checksum (const char *fname);
-extern BOOL        is_wow64_active (void);
+extern bool        check_if_PE (const char *fname, enum Bitness *bits);
+extern bool        verify_PE_checksum (const char *fname);
+extern bool        is_wow64_active (void);
 
 extern REGSAM      reg_read_access (void);
 extern const char *reg_type_name (DWORD type);
@@ -759,7 +760,7 @@ typedef struct FMT_buf {
         char   *buffer_pos;    /**< current position in the buffer */
         size_t  buffer_size;   /**< number of bytes allocated in the buffer */
         size_t  buffer_left;   /**< number of bytes left in the buffer */
-        int     on_heap;       /**< `buffer` is on the heap (not the stack) */
+        bool    on_heap;       /**< `buffer` is on the heap (not the stack) */
       } FMT_buf;
 
 /** \def FMT_BUF_MARKER
@@ -772,7 +773,7 @@ typedef struct FMT_buf {
  *   \param fmt_buf   The buffer-structure to initialise.
  *   \param size      The size to allocate for the maximum string.
  *                    4 bytes are added to this to fit the magic markers.
- *   \param use_heap  If TRUE, allocate using `MALLOC()`. Otherwise use `alloca()`.
+ *   \param use_heap  If true, allocate using `MALLOC()`. Otherwise use `alloca()`.
  */
 #define BUF_INIT(fmt_buf, size, use_heap) do {                    \
         DWORD   *_marker;                                         \
@@ -844,10 +845,10 @@ extern time_t      os_first_install_date (void);
 
 extern char       *wintrust_signer_subject,    *wintrust_signer_issuer;
 extern char       *wintrust_timestamp_subject, *wintrust_timestamp_issuer;
-extern DWORD       wintrust_check (const char *pe_file, BOOL details, BOOL revoke_check);
+extern DWORD       wintrust_check (const char *pe_file, bool details, bool revoke_check);
 extern const char *wintrust_check_result (DWORD rc);
 extern void        wintrust_cleanup (void);
-extern BOOL        wintrust_dump_pkcs7_cert (void);
+extern bool        wintrust_dump_pkcs7_cert (void);
 
 /* Simple debug-malloc functions:
  */

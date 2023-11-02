@@ -3,7 +3,6 @@
  *
  * \brief Print the reported file or directory.
  */
-
 #include "envtool.h"
 #include "color.h"
 #include "pkg-config.h"
@@ -34,7 +33,7 @@ DWORD num_evry_dups = 0;
 DWORD num_evry_ignored = 0;
 
 static const char *mmap_max;
-static BOOL        first_match = FALSE;
+static bool        first_match = false;
 
 /**
  * Print a chunk of a match-line. Replace a `<TAB>` with 2 spaces.
@@ -80,7 +79,7 @@ static void save_match (FMT_buf *fmt, DWORD line_num, const char *line, const ch
 
   if (first_match)
      BUF_PUTC (fmt, '\n');
-  first_match = FALSE;
+  first_match = false;
 
   len = BUF_PRINTF (fmt, "%s~2%lu:~0 ", indent, line_num);
   len += save_chunk (fmt, line, match - line);
@@ -98,7 +97,7 @@ static void save_match (FMT_buf *fmt, DWORD line_num, const char *line, const ch
 
 /**
  * Open a `file` in memory-mapped mode and search for `content`.
- * The search is case-sensitive if `opt.case_sensitive == TRUE`.
+ * The search is case-sensitive if `opt.case_sensitive == true`.
  *
  * \param[in,out] fmt      the format structure to use.
  * \param[in]     file     the file to search.
@@ -174,7 +173,7 @@ static int report_grep_file (FMT_buf *fmt, const char *file, const char *content
   }
 
   match = line_end = NULL;
-  first_match = TRUE;
+  first_match = true;
 
   for (p = line_start = mmap_buf; p < mmap_max; p++)
   {
@@ -233,9 +232,9 @@ static int found_access_denied = 0;
 /**
  * Local functions.
  */
-static BOOL get_wintrust_info (const char *file, char *dest, size_t dest_size);
+static bool get_wintrust_info (const char *file, char *dest, size_t dest_size);
 static int  get_trailing_indent (const char *file);
-static BOOL get_PE_file_brief (const struct report *r, char *dest, size_t dest_size);
+static bool get_PE_file_brief (const struct report *r, char *dest, size_t dest_size);
 static void print_PE_file_details (const char *filler);
 
 /**
@@ -266,11 +265,11 @@ int report_file (struct report *r)
   char        size [40] = "?";
   int         len;
   UINT64      fsize;
-  BOOL        have_it = TRUE;
-  BOOL        show_dir_size = TRUE;
-  BOOL        show_pc_files_only = FALSE;
-  BOOL        show_this_file = TRUE;
-  BOOL        possible_PE_file = TRUE;
+  bool        have_it = true;
+  bool        show_dir_size = true;
+  bool        show_pc_files_only = false;
+  bool        show_this_file = true;
+  bool        possible_PE_file = true;
 
   FMT_buf     fmt_buf_time_size;
   FMT_buf     fmt_buf_file_info;
@@ -320,17 +319,17 @@ int report_file (struct report *r)
   }
   else if (r->key == HKEY_PYTHON_PATH)
   {
-    possible_PE_file = FALSE;
+    possible_PE_file = false;
   }
   else if (r->key == HKEY_PYTHON_EGG)
   {
     found_in_python_egg++;
-    possible_PE_file = FALSE;
+    possible_PE_file = false;
     note = " (5)  ";
   }
   else if (r->key == HKEY_MAN_FILE || r->key == HKEY_LUA_FILE)
   {
-    possible_PE_file = FALSE;
+    possible_PE_file = false;
   }
   else if (r->key == HKEY_EVERYTHING)
   {
@@ -341,7 +340,7 @@ int report_file (struct report *r)
      */
     if (r->mtime == 0 &&
         (!have_sys_native_dir || !strnicmp(r->file, sys_native_dir, strlen(sys_native_dir))))
-       have_it = FALSE;
+       have_it = false;
 #endif
 
     if (r->mtime == 0 && have_it && !(r->is_dir ^ opt.dir_mode))
@@ -361,13 +360,13 @@ int report_file (struct report *r)
   }
   else if (r->key == HKEY_EVERYTHING_ETP)
   {
-    show_dir_size = FALSE;
-    possible_PE_file = FALSE;
+    show_dir_size = false;
+    possible_PE_file = false;
   }
   else if (r->key == HKEY_PKG_CONFIG_FILE)
   {
-    show_pc_files_only = TRUE;
-    possible_PE_file = FALSE;
+    show_pc_files_only = true;
+    possible_PE_file = false;
   }
   else
   {
@@ -443,7 +442,7 @@ int report_file (struct report *r)
   {
     char       *account_name = NULL;
     const char *found_owner = NULL;
-    BOOL        inverse = FALSE;
+    bool        inverse = false;
 
     if (get_file_owner(r->file, NULL, &account_name))
     {
@@ -462,7 +461,7 @@ int report_file (struct report *r)
        *   show only Man-pages matching "pkcs7*" and owners not matching "Admin*":
        */
       if (max > 0)
-         show_this_file = FALSE; /* Assume no, if there are >= 1 owner-patterns to check for */
+         show_this_file = false; /* Assume no, if there are >= 1 owner-patterns to check for */
 
       for (i = 0; i < max; i++)
       {
@@ -470,15 +469,15 @@ int report_file (struct report *r)
 
         if (owner[0] == '!' && fnmatch(owner+1, account_name, fnmatch_case(0)) == FNM_NOMATCH)
         {
-          inverse = TRUE;
+          inverse = true;
           found_owner = owner + 1;
-          show_this_file = TRUE;
+          show_this_file = true;
           break;
         }
         else if (fnmatch(owner, account_name, fnmatch_case(0)) == FNM_MATCH)
         {
           found_owner = owner;
-          show_this_file = TRUE;
+          show_this_file = true;
           break;
         }
       }
@@ -530,7 +529,7 @@ int report_file (struct report *r)
     int matches = report_grep_file (&fmt_buf_grep_info, link ? link : r->file, r->content);
 
     if (opt.grep.only && matches == 0)
-       show_this_file = FALSE;
+       show_this_file = false;
   }
 
   if (!show_this_file)
@@ -699,28 +698,28 @@ static void print_PE_file_details (const char *filler)
  * If so, save the checksum, version-info, signing-status for later when
  * `report_file()` is ready to print this info.
  */
-static BOOL get_PE_file_brief (const struct report *r, char *dest, size_t dest_size)
+static bool get_PE_file_brief (const struct report *r, char *dest, size_t dest_size)
 {
   struct ver_info ver;
   enum Bitness    bits;
   const char     *bitness;
-  BOOL            chksum_ok  = FALSE;
-  BOOL            version_ok = FALSE;
+  bool            chksum_ok  = false;
+  bool            version_ok = false;
 
   *dest = '\0';
 
   if (r->key == HKEY_INC_LIB_FILE || r->key == HKEY_MAN_FILE ||
       r->key == HKEY_EVERYTHING_ETP || r->key == HKEY_PKG_CONFIG_FILE)
-     return (FALSE);
+     return (false);
 
   if (!check_if_PE(r->file, &bits))
-     return (FALSE);
+     return (false);
 
   if (opt.only_32bit && bits != bit_32)
-     return (FALSE);
+     return (false);
 
   if (opt.only_64bit && bits != bit_64)
-     return (FALSE);
+     return (false);
 
   memset (&ver, 0, sizeof(ver));
   chksum_ok  = verify_PE_checksum (r->file);
@@ -736,7 +735,7 @@ static BOOL get_PE_file_brief (const struct report *r, char *dest, size_t dest_s
   snprintf (dest, dest_size, "\n%sver ~6%u.%u.%u.%u~0, %s~0-bit, Chksum %s~0",
             r->filler, ver.val_1, ver.val_2, ver.val_3, ver.val_4,
             bitness, chksum_ok ? "~2OK" : "~5fail");
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -756,11 +755,11 @@ static BOOL get_PE_file_brief (const struct report *r, char *dest, size_t dest_s
  *      https://github.com/zed-0xff/pedump/blob/master/lib/pedump/security.rb
  *      http://pedump.me/1d82d1e52ca97759a6f90438e59e7dc7/#signature
  */
-static BOOL get_wintrust_info (const char *file, char *dest, size_t dest_size)
+static bool get_wintrust_info (const char *file, char *dest, size_t dest_size)
 {
   char  *p = dest;
   size_t left = dest_size;
-  DWORD  rc = wintrust_check (file, TRUE, FALSE);
+  DWORD  rc = wintrust_check (file, true, false);
 
   *p = '\0';
 
@@ -792,19 +791,19 @@ static BOOL get_wintrust_info (const char *file, char *dest, size_t dest_size)
   switch (opt.signed_status)
   {
     case SIGN_CHECK_NONE:
-         return (FALSE);
+         return (false);
     case SIGN_CHECK_ALL:
-         return (TRUE);
+         return (true);
     case SIGN_CHECK_SIGNED:
          if (rc == ERROR_SUCCESS)
-            return (TRUE);
-         return (FALSE);
+            return (true);
+         return (false);
     case SIGN_CHECK_UNSIGNED:
          if (rc != ERROR_SUCCESS)
-            return (TRUE);
-         return (FALSE);
+            return (true);
+         return (false);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -812,7 +811,7 @@ static BOOL get_wintrust_info (const char *file, char *dest, size_t dest_size)
  */
 void report_final (int found)
 {
-  BOOL do_warn = FALSE;
+  bool do_warn = false;
   char duplicates [50] = "";
   char ignored [50] = "";
 
@@ -822,14 +821,14 @@ void report_final (int found)
   {
     /* We should only warn if a match finds file(s) from different sources.
      */
-    do_warn = opt.quiet ? FALSE : TRUE;
+    do_warn = opt.quiet ? false : true;
 
     /* No need to warn if the total HKEY counts <= found_in_default_env.
      * Since it would probably mean the file(s) were found in the same location.
      */
     if ((found_in_hkey_current_user + found_in_hkey_current_user_env +
          found_in_hkey_local_machine + found_in_hkey_local_machine_sess_man) <= found_in_default_env)
-      do_warn = FALSE;
+      do_warn = false;
   }
 
   if (do_warn || found_in_python_egg)

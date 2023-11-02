@@ -98,7 +98,7 @@ typedef struct CACHE {
         DWORD        inserted;               /**< Number of calls to `cache_insert()`. */
         DWORD        deleted;                /**< Number of calls to `cache_del()`. */
         DWORD        changed;                /**< Number of calls to `cache_putf()` with another value. */
-        BOOL         testing;                /**< For testing with `-DUSE_ASAN`. Do not write `cache.filename` at exit. */
+        bool         testing;                /**< For testing with `-DUSE_ASAN`. Do not write `cache.filename` at exit. */
         vgetf_state  state [CACHE_STATES];   /**< State values for `cache_vgetf()`. */
       } CACHE;
 
@@ -107,7 +107,7 @@ static CACHE cache;
 static void cache_sort (void);
 static void cache_free_node (void *_c);
 static void cache_append (CacheSections section, const char *key, const char *value);
-static BOOL cache_parse (FILE *f);
+static bool cache_parse (FILE *f);
 static void cache_write (void);
 static void cache_report (int num);
 
@@ -180,24 +180,24 @@ void cache_exit (void)
 /**
  * The `envtool.cfg` handler called from `envtool_cfg_handler()` in envtool.c.
  */
-BOOL cache_config (const char *key, const char *value)
+bool cache_config (const char *key, const char *value)
 {
   if (!stricmp(key, "filename"))
   {
     cache.filename = getenv_expand2 (value);
-    return (TRUE);
+    return (true);
   }
   if (!stricmp(key, "filename_prev"))
   {
     cache.filename_prev = getenv_expand2 (value);
-    return (TRUE);
+    return (true);
   }
   if (!stricmp(key, "enable"))
   {
     opt.use_cache = atoi (value);
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -205,12 +205,12 @@ BOOL cache_config (const char *key, const char *value)
  * Assume the entries are already sorted on `section` and `key`
  * (since that was done in `cache_write()` on last `cache_exit()`.)
  */
-static BOOL cache_parse (FILE *f)
+static bool cache_parse (FILE *f)
 {
   UINT curr_section = UINT_MAX;
   UINT cache_ver = 0;
-  BOOL found_hdr = FALSE;
-  BOOL found_ver = FALSE;
+  bool found_hdr = false;
+  bool found_ver = false;
 
   while (1)
   {
@@ -220,11 +220,11 @@ static BOOL cache_parse (FILE *f)
        break;
 
     if (!found_hdr && !strnicmp(buf, CACHE_HEADER, sizeof(CACHE_HEADER)-1))
-       found_hdr = TRUE;
+       found_hdr = true;
 
     if (found_hdr && !found_ver && !strnicmp(buf, CACHE_HEADER_VER, sizeof(CACHE_HEADER_VER)-1))
     {
-      found_ver = TRUE;
+      found_ver = true;
       p = buf + sizeof(CACHE_HEADER_VER) - 1;
       cache_ver = atoi (p);
       TRACE (1, "Current cache version: %u, got version: %u.\n", CACHE_VERSION_NUM, cache_ver);
@@ -356,7 +356,7 @@ static void cache_write (void)
   /* Make a backup of current cache.filename.
    */
   if (cache.filename_prev && FILE_EXISTS(cache.filename))
-     CopyFile (cache.filename, cache.filename_prev, FALSE);
+     CopyFile (cache.filename, cache.filename_prev, false);
 
   f = fopen (cache.filename, "w+t");
   if (!f)
@@ -415,7 +415,8 @@ static cache_node *cache_bsearch (CacheSections section, const char *_key, int *
 {
   cache_node c, *ret;
   char *key = strdupa (_key);
-  int   found, idx = 0;
+  int   idx = 0;
+  bool  found;
 
   if (idx_p)
      *idx_p = idx;
@@ -1028,7 +1029,7 @@ static void cache_test_init (void)
   struct test_table *t;
   int                i;
 
-  cache.testing = TRUE;
+  cache.testing = true;
 
   t = tests + 0;
   for (i = 0; i < DIM(tests); i++, t++)
@@ -1069,7 +1070,7 @@ static int cache_test_getf (void)
     char  *fmt = strdupa (t->getf_fmt);
     int    len, rc, j;
     size_t left = sizeof(getf_value);
-    BOOL   equal = FALSE;
+    bool   equal = false;
 
     snprintf (key_value, sizeof(key_value), "%s = %s", t->key, t->getf_fmt);
 

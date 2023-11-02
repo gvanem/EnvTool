@@ -29,19 +29,19 @@
 static char serv_pack[20] = { '\0' };
 static char build_str[20] = { '\0' };
 
-static BOOL is_server_os (const OSVERSIONINFOEXW *os)
+static bool is_server_os (const OSVERSIONINFOEXW *os)
 {
   return (os->wProductType == VER_NT_SERVER ||
           os->wProductType == VER_NT_DOMAIN_CONTROLLER);
 }
 
-static BOOL is_home_os (const OSVERSIONINFOEXW *os)
+static bool is_home_os (const OSVERSIONINFOEXW *os)
 {
   return ( (os->wProductType == VER_NT_WORKSTATION) ||
            (os->wSuiteMask & VER_SUITE_PERSONAL) );
 }
 
-BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level)
+bool get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level)
 {
   typedef NET_API_STATUS (WINAPI *func_NetWkstaGetInfo) (
                           IN  LPWSTR  servername,
@@ -55,7 +55,7 @@ BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level
   func_NetWkstaGetInfo  p_NetWkstaGetInfo;
   func_NetApiBufferFree p_NetApiBufferFree;
   BYTE                 *data;
-  BOOL                  rc = FALSE;
+  bool                  rc = false;
 
   if (!hnd)
      return (rc);
@@ -98,7 +98,7 @@ BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level
       FATAL ("level must be 100 or 102.\n");
 
     (*p_NetApiBufferFree) (data);
-    rc = TRUE;
+    rc = true;
   }
 
   if (hnd)
@@ -106,13 +106,13 @@ BOOL get_wksta_version (DWORD *major, DWORD *minor, DWORD *platform, DWORD level
   return (rc);
 }
 
-BOOL get_rtdll_version (OSVERSIONINFOEXW *os)
+bool get_rtdll_version (OSVERSIONINFOEXW *os)
 {
   typedef LONG (WINAPI *func_RtlGetVersion) (OSVERSIONINFOW *ver_info);
 
   HINSTANCE          hnd = LoadLibraryA ("ntdll.dll");
   func_RtlGetVersion p_RtlGetVersion;
-  BOOL               rc = FALSE;
+  bool               rc = false;
 
   if (!hnd)
      return (rc);
@@ -134,7 +134,7 @@ static const char *get_os_version (void)
 {
   OSVERSIONINFOEXW os, osw, *p_os;
   DWORD            os_ver;
-  BOOL             rc, equal;
+  bool             rc, equal;
   int              ofs = 0;
 
   serv_pack[0] = '\0';
@@ -190,7 +190,7 @@ static const char *get_os_version (void)
 
 #else
   p_os = &os;
-  equal = TRUE;
+  equal = true;
 #endif
 
   os_ver = (p_os->dwMajorVersion << 16) + p_os->dwMinorVersion;
@@ -613,7 +613,7 @@ struct prog_options opt;
 int MS_CDECL main (int argc, char **argv)
 {
   DWORD       major, minor, platform;
-  BOOL        rc;
+  bool        rc;
   time_t      date;
   const char *ver, *release, *build, *full;
 

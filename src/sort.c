@@ -104,12 +104,12 @@ const char *get_sort_methods (void)
  *
  * \param[in,out] err_opt  a char-pointer which can be set to the illegal sort method.
  *
- * \retval TRUE if a matching method(s) was found.
+ * \retval true if a matching method(s) was found.
  */
-BOOL set_sort_method (const char *opts, char **err_opt)
+bool set_sort_method (const char *opts, char **err_opt)
 {
   static char err_buf[20];
-  BOOL        rc;
+  bool        rc;
   char       *opts2, *end, *tok;
   int         i, num = 0;
 
@@ -121,7 +121,7 @@ BOOL set_sort_method (const char *opts, char **err_opt)
   opts2 = alloca (strlen(opts)+1);
   strcpy (opts2, opts);
 
-  rc = TRUE;    /* Assume 'opts2' is okay */
+  rc = true;    /* Assume 'opts2' is okay */
   tok = _strtok_r (opts2, ", ", &end);
   while (tok && num < DIM(opt.sort_methods)-1)
   {
@@ -135,7 +135,7 @@ BOOL set_sort_method (const char *opts, char **err_opt)
     else
     {
       *err_opt = _strlcpy (err_buf, tok, sizeof(err_buf));
-      rc = FALSE;
+      rc = false;
       break;
     }
     tok = _strtok_r (NULL, ", ", &end);

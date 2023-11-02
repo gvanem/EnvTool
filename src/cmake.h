@@ -1,8 +1,7 @@
 /** \file cmake.h
  *  \ingroup Misc
  */
-#ifndef _CMAKE_H
-#define _CMAKE_H
+#pragma once
 
 /**
  * \def KITWARE_REG_NAME
@@ -10,9 +9,7 @@
  */
 #define KITWARE_REG_NAME "Software\\Kitware\\CMake\\Packages"
 
-BOOL cmake_get_info (char **exe, struct ver_info *ver);
+bool cmake_get_info (char **exe, struct ver_info *ver);
 int  cmake_get_info_registry (smartlist_t *sl, int *index, HKEY top_key);
 int  cmake_search (void);
-
-#endif
 

@@ -102,7 +102,7 @@ struct VarFileInfo {
 #define S_VS_FF_SPECIALBUILD      "VS_FF_SPECIALBUILD"
 
 static DWORD last_err = 0;
-static BOOL  print_it = FALSE;
+static bool  print_it = false;
 
 static char *trace_buf  = NULL;
 static char *trace_head = NULL;

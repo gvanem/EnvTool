@@ -1,7 +1,8 @@
 /** \file sort.h
  */
-#ifndef _SORT_H
-#define _SORT_H
+#pragma once
+
+#include <stdbool.h>
 
 /** \enum SortMethod
  *
@@ -42,8 +43,6 @@ typedef enum SortMethod {
         SORT_PE_VERSION      = 0x20
       } SortMethod;
 
-extern BOOL        set_sort_method (const char *opt, char **err_opt);
+extern bool        set_sort_method (const char *opt, char **err_opt);
 extern const char *get_sort_methods (void);
-
-#endif
 

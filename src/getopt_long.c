@@ -637,10 +637,10 @@ static char **build_array (char *buf, const char *delim, int *len)
   int    i = 0;
   int    i_min = 5;
   char **array = CALLOC (sizeof(char**), i_min);
-  BOOL   check_quotes = FALSE;
+  bool   check_quotes = false;
 
   if (*delim == '\"')
-     check_quotes = TRUE;
+     check_quotes = true;
 
   do
   {

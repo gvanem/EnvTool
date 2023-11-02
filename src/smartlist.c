@@ -576,7 +576,7 @@ void smartlist_sort (smartlist_t *sl, smartlist_sort_func compare)
  *
  * If no member matches, return the index of the first member greater than `key`,
  * or `smartlist_len(sl)` if no member is greater than `key`. <br>
- * Set `found_out` to `TRUE` on a match, to `FALSE` otherwise.
+ * Set `found_out` to `true` on a match, to `false` otherwise.
  *
  * Ordering and matching are defined by a `compare` function that:
  *  \li - returns 0 on a match.
@@ -584,7 +584,7 @@ void smartlist_sort (smartlist_t *sl, smartlist_sort_func compare)
  *  \li - and greater than 0 if `key` is greater than the member.
  */
 int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
-                           smartlist_compare_func compare, int *found_out)
+                           smartlist_compare_func compare, bool *found_out)
 {
   int hi, lo, cmp, mid, len, diff;
 
@@ -598,7 +598,7 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
    */
   if (len == 0)
   {
-    *found_out = 0;
+    *found_out = false;
     return (0);
   }
 
@@ -627,7 +627,7 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
     {
       /* sl[mid] == key; we found it
        */
-      *found_out = 1;
+      *found_out = true;
       return (mid);
     }
     if (cmp > 0)
@@ -677,7 +677,7 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
         /* We were at the beginning of the list and concluded that every
          * element e compares e > key.
          */
-        *found_out = 0;
+        *found_out = false;
         return (0);
       }
     }
@@ -703,7 +703,7 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
     ASSERT (cmp > 0);
   }
 
-  *found_out = 0;
+  *found_out = false;
   return (lo);
 }
 
@@ -719,8 +719,8 @@ int smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
 void *smartlist_bsearch (const smartlist_t *sl, const void *key,
                          smartlist_compare_func compare)
 {
-  int found;
-  int idx = smartlist_bsearch_idx (sl, key, compare, &found);
+  bool found;
+  int  idx = smartlist_bsearch_idx (sl, key, compare, &found);
 
   if (!found)
      return (NULL);

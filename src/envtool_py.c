@@ -63,8 +63,8 @@ typedef struct python_module {
         char *installer;               /**< the installer used for this package (pip, conda) */
         char *requires;                /**< the package this module depends on. Currently only handles one */
         char *requires_py;             /**< the required Python versions. */
-        BOOL  is_zip;                  /**< is it installed as a .egg/.whl? */
-        BOOL  is_actual;               /**< Already called `get_actual_filename (&m->location)` */
+        bool  is_zip;                  /**< is it installed as a .egg/.whl? */
+        bool  is_actual;               /**< Already called `get_actual_filename (&m->location)` */
 
        /**
         * \todo
@@ -106,7 +106,7 @@ typedef struct python_info {
 
   /** Only a CPython program can be embeddable from a C-program.
    */
-  BOOL is_embeddable;
+  bool is_embeddable;
 
   /** The list of expected .DLLs for this specific Python.
    *  Tested for existance in either `%SystemDir%` and/or directory
@@ -144,7 +144,7 @@ typedef struct python_info {
 
   /** Warn once if the above is not set.
    */
-  BOOL do_warn_user_site;
+  bool do_warn_user_site;
 
   /** The Python version information.
    */
@@ -157,15 +157,15 @@ typedef struct python_info {
 
   /** Embedding requires that the bitness of this CPython is the same as this calling program.
    */
-  BOOL bitness_ok;
+  bool bitness_ok;
 
   /** This is the only default; i.e. the first Python `program` on `%PATH`.
    */
-  BOOL is_default;
+  bool is_default;
 
   /** Is this a CygWin Python?
    */
-  BOOL is_cygwin;
+  bool is_cygwin;
 
   /** The `sys.prefix` used in `(*Py_SetPythonHome)()`.
    */
@@ -179,15 +179,15 @@ typedef struct python_info {
 
   /** Warn once if `home_a` is not set.
    */
-  BOOL     do_warn_home;
+  bool     do_warn_home;
 
   /** Holds a reference to the `sys.stdout` catcher object.
-   *  Only set if `is_embeddable == TRUE`:
+   *  Only set if `is_embeddable == true`:
    */
   PyObject *catcher;
 
   /** Holds the handle from `LoadLibrary()`.
-   *  Only set if `is_embeddable == TRUE`:
+   *  Only set if `is_embeddable == true`:
    */
   HANDLE dll_hnd;
 
@@ -204,11 +204,11 @@ typedef struct python_info {
 static struct python_info all_py_programs[] = {
 
     /* PyPy */
-    { "pypy.exe",   PYPY_PYTHON, FALSE, { "%s\\libpypy-c.dll", NULL }, },
+    { "pypy.exe",   PYPY_PYTHON, false, { "%s\\libpypy-c.dll", NULL }, },
 
     /* CPython */
-    { "python.exe", PY3_PYTHON,  TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
-    { "python.exe", PY2_PYTHON,  TRUE,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
+    { "python.exe", PY3_PYTHON,  true,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
+    { "python.exe", PY2_PYTHON,  true,  { "~\\libpython%d.%d.dll", "%s\\python%d%d.dll", NULL }, },
   };
 
 /**
@@ -248,10 +248,10 @@ static int warn_on_py_fail = 1;
 static char  *popen_tmp = NULL;
 static char  *popen_out = NULL;
 static size_t popen_out_sz = 0;
-static BOOL   popen_py_crash = FALSE;
+static bool   popen_py_crash = false;
 
 static int  get_python_version (const char *exe_name);
-static BOOL py_add_module (struct python_info *pi, const struct python_module *m);
+static bool py_add_module (struct python_info *pi, const struct python_module *m);
 
 #if defined(__GNUC__) && (__GNUC__ >= 7)
 #pragma GCC diagnostic ignored "-Wformat-truncation"
@@ -500,7 +500,7 @@ static struct python_info *py_select (enum python_variants which)
  * \retval 0  On some error; none of the in-params gets filled.
  *         1  If all went okay.
  */
-int py_get_info (char **exe, struct ver_info *ver)
+bool py_get_info (char **exe, struct ver_info *ver)
 {
   const struct python_info *pi;
 
@@ -551,7 +551,7 @@ static void fix_python_variant (struct python_info *pi, enum python_variants v)
  * Add a trailing slash (`\\` or c `/`) for true directories only.<br>
  * Not for ZIP/EGGs in `sys.path[]`.
  */
-static const char *dir_name (const char *dir, BOOL is_dir)
+static const char *dir_name (const char *dir, bool is_dir)
 {
   static char ret [_MAX_PATH];
   char  *end;
@@ -594,7 +594,7 @@ static void print_home_path (const struct python_info *pi, int indent)
 {
   C_printf ("%*s", indent+global_indent, "~7Home-path:~0");
   if (pi->home_a)
-     C_printf (" %s\n", dir_name(pi->home_a, TRUE));
+     C_printf (" %s\n", dir_name(pi->home_a, true));
   else if (pi->home_w)
      C_printf (" %" WIDESTR_FMT "\n", pi->home_w);
   else
@@ -605,7 +605,7 @@ static void print_user_site_path (const struct python_info *pi, int indent)
 {
   C_printf ("%*s", indent+global_indent, "~7User-site:~0");
   if (pi->user_site_path)
-       C_printf (" %s %s~0\n", dir_name(pi->user_site_path, TRUE),
+       C_printf (" %s %s~0\n", dir_name(pi->user_site_path, true),
                  is_directory(pi->user_site_path) ? "~2OK" : "~5Does not exist");
   else C_puts (" ~5<none>~0\n");
 }
@@ -866,9 +866,9 @@ static PyObject *setup_stdout_catcher (void)
 }
 
 /**
- * Do NOT call this unless `py->is_embeddable == TRUE`.
+ * Do NOT call this unless `py->is_embeddable == true`.
  */
-static BOOL py_init_embedding (struct python_info *pi)
+static bool py_init_embedding (struct python_info *pi)
 {
   char *exe = pi->exe_name;
   char *dll = pi->dll_name;
@@ -876,15 +876,15 @@ static BOOL py_init_embedding (struct python_info *pi)
   if (!dll)
   {
     WARN ("Failed to find Python DLL for %s.\n", exe);
-    return (FALSE);
+    return (false);
   }
 
   pi->dll_hnd = LoadLibrary (dll);
   if (!pi->dll_hnd)
   {
     WARN ("Failed to load %s; %s\n", dll, win_strerror(GetLastError()));
-    pi->is_embeddable = FALSE;  /* Do not do this again */
-    return (FALSE);
+    pi->is_embeddable = false;  /* Do not do this again */
+    return (false);
   }
 
   TRACE (2, "Full DLL name: \"%s\". Handle: 0x%p\n", pi->dll_name, pi->dll_hnd);
@@ -918,7 +918,7 @@ static BOOL py_init_embedding (struct python_info *pi)
   LOAD_INT_PTR (pi, Py_InspectFlag);
 
   if (initposix || PyInit_posix)
-     pi->is_cygwin = TRUE;
+     pi->is_cygwin = true;
 
   if (pi->ver_major >= 3)
   {
@@ -946,13 +946,13 @@ static BOOL py_init_embedding (struct python_info *pi)
 
   pi->catcher = setup_stdout_catcher();
   if (pi->catcher)
-     return (TRUE);   /* Success! */
+     return (true);   /* Success! */
 
   /* Fail, fall through */
 
 failed:
   py_exit_embedding (pi);
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -1086,7 +1086,7 @@ static const char *py_filename (const char *file)
   static char buf [_MAX_PATH];
   char *p = _strlcpy (buf, file, sizeof(buf));
 
-  if (get_actual_filename(&p, FALSE))
+  if (get_actual_filename(&p, false))
   {
     _strlcpy (buf, p, sizeof(buf));
     FREE (p);
@@ -1246,7 +1246,7 @@ static void py_get_meta_details (struct python_module *m)
  * A simple embedded test; capture the output from Python's
  * `print()` function.
  */
-static BOOL test_python_funcs (struct python_info *pi, BOOL reinit)
+static bool test_python_funcs (struct python_info *pi, bool reinit)
 {
   static char prog[] = "import sys\n"
                        "print (sys.version_info)\n"
@@ -1256,7 +1256,7 @@ static BOOL test_python_funcs (struct python_info *pi, BOOL reinit)
   char *str;
 
   if (reinit && (!pi->bitness_ok || !py_init_embedding(pi)))
-     return (FALSE);
+     return (false);
 
   /* The `str` should now contain the Python output of above `prog`.
    */
@@ -1273,7 +1273,7 @@ static BOOL test_python_funcs (struct python_info *pi, BOOL reinit)
   str = call_python_func (pi, prog, __LINE__);
   C_printf ("~3Captured output of %s now:~0\n** %s **\n", name, str);
   FREE (str);
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -1327,7 +1327,7 @@ static int popen_append_out (char *str, int index)
    * This also needs `stderr` to be redirected into `stdout`.
    */
   if (!strncmp(str, "Traceback (", 11) || !strncmp(str, "ImportError:", 13))
-     popen_py_crash = TRUE;
+     popen_py_crash = true;
 
   if (!popen_out || popen_out_sz - strlen(popen_out) < 4*strlen(str))
   {
@@ -1355,7 +1355,7 @@ static void popen_append_clear (void)
      unlink (popen_tmp);
 
   popen_out_sz = 0;
-  popen_py_crash = FALSE;
+  popen_py_crash = false;
   FREE (popen_out);
   FREE (popen_tmp);
 }
@@ -1435,9 +1435,9 @@ const char *get_date_str (const struct python_module *m)
  *
  * \retval The number of modules printed.
  */
-static int py_print_modinfo (const char *spec, BOOL get_details)
+static int py_print_modinfo (const char *spec, bool get_details)
 {
-  BOOL match_all = !strcmp (spec, "*");
+  bool match_all = !strcmp (spec, "*");
   int  found = 0, zips_found = 0;
   int  i, max = smartlist_len (g_pi->modules);
 
@@ -1470,7 +1470,7 @@ static int py_print_modinfo (const char *spec, BOOL get_details)
       const char *loc = py_filename (m->location);
 
       _strlcpy (m->location, loc, sizeof(m->location));
-      m->is_actual = TRUE;
+      m->is_actual = true;
 
       C_printf (" name:      %s\n", m->name);
       C_printf ("      version:   %s\n", m->version);
@@ -1700,7 +1700,7 @@ static void py_get_module_info (struct python_info *pi)
         if (str_endswith(fname, " (ZIP)"))
         {
           m.location [strlen(m.location) - sizeof(" (ZIP)") + 1] = '\0';
-          m.is_zip = TRUE;
+          m.is_zip = true;
         }
         if (meta[0] != '-')
            _strlcpy (m.dist_info, meta, sizeof(m.dist_info));
@@ -1719,7 +1719,7 @@ static void py_get_module_info (struct python_info *pi)
 /**
  * Check if a Python .DLL has the correct bitness for `LoadLibrary()`.
  */
-static BOOL check_bitness (struct python_info *pi, char **needed_bits)
+static bool check_bitness (struct python_info *pi, char **needed_bits)
 {
   our_bitness = (sizeof(void*) == 4) ? bit_32 : bit_64;
 
@@ -1727,7 +1727,7 @@ static BOOL check_bitness (struct python_info *pi, char **needed_bits)
      pi->bitness_ok = (pi->dll_name && check_if_PE(pi->dll_name, &pi->bitness));
 
   if (pi->bitness_ok && pi->bitness != our_bitness)
-     pi->bitness_ok = FALSE;
+     pi->bitness_ok = false;
 
   if (needed_bits)
      *needed_bits = (our_bitness == bit_32 ? "32" : "64");
@@ -1809,9 +1809,9 @@ static int report_zip_file (const char *zip_file, char *output)
   r.content     = opt.grep.content;
   r.mtime       = mtime;
   r.fsize       = fsize;
-  r.is_dir      = FALSE;
-  r.is_junction = FALSE;
-  r.is_cwd      = FALSE;
+  r.is_dir      = false;
+  r.is_junction = false;
+  r.is_cwd      = false;
   r.key         = HKEY_PYTHON_EGG;
   report_file (&r);
   return (1);
@@ -1923,7 +1923,7 @@ static int process_zip (struct python_info *pi, const char *zip_file)
 /**
  * Check if the `module` is already in the `pi->modules` smartlist.
  */
-static BOOL py_module_found (const struct python_info *pi, const char *module)
+static bool py_module_found (const struct python_info *pi, const char *module)
 {
   int i, max = smartlist_len (pi->modules);
 
@@ -1932,15 +1932,15 @@ static BOOL py_module_found (const struct python_info *pi, const char *module)
     const struct python_module *m = smartlist_get (pi->modules, i);
 
     if (!stricmp(m->name, module))
-       return (TRUE);
+       return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
  * If `m->name` is not already in the `pi->modules` smartlist, allocate and copy it.
  */
-static BOOL py_add_module (struct python_info *pi, const struct python_module *m)
+static bool py_add_module (struct python_info *pi, const struct python_module *m)
 {
   if (!py_module_found(pi, m->name))
   {
@@ -1948,10 +1948,10 @@ static BOOL py_add_module (struct python_info *pi, const struct python_module *m
 
     memcpy (m2, m, sizeof(*m2));
     smartlist_add (pi->modules, m2);
-    return (TRUE);
+    return (true);
   }
   TRACE (1, "module '%s' for '%s' already added!\n", m->name, pi->program);
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -1964,7 +1964,7 @@ static BOOL py_add_module (struct python_info *pi, const struct python_module *m
  *   f:\programfiler\Python36\lib\site-packages
  * \endcode
  */
-static BOOL py_path_found (const struct python_info *pi, const char *dir)
+static bool py_path_found (const struct python_info *pi, const char *dir)
 {
   int i, max = smartlist_len (pi->sys_path);
 
@@ -1973,14 +1973,14 @@ static BOOL py_path_found (const struct python_info *pi, const char *dir)
     const struct python_path *pp = smartlist_get (pi->sys_path, i);
 
     if (!stricmp(pp->dir, dir))
-       return (TRUE);
+       return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
  * Allocate a `python_path` node and add it to `pi->sys_path[]` smartlist.
- * Not called if `opt.use_cache == TRUE` and something found in file-cache.
+ * Not called if `opt.use_cache == true` and something found in file-cache.
  */
 static void add_sys_path (const char *dir)
 {
@@ -2062,7 +2062,7 @@ static int build_sys_path (char *str, int index)
 
 /**
  * \def PY_PRINT_SYS_PATH_DIRECT
- *   The code which is used if `py->is_embeddable == TRUE`.
+ *   The code which is used if `py->is_embeddable == true`.
  *   Used in the parameter to `call_python_func()`.
  */
 #define PY_PRINT_SYS_PATH_DIRECT()  "import sys\n" \
@@ -2071,14 +2071,14 @@ static int build_sys_path (char *str, int index)
 
 /**
  * \def PY_PRINT_SYS_PATH2_CMD
- *   Used in Python2 when `py->is_embeddable == FALSE`.
+ *   Used in Python2 when `py->is_embeddable == false`.
  */
 #define PY_PRINT_SYS_PATH2_CMD()  "import os, sys; " \
                                   "[os.write(1,'%s\\n' % p) for (i,p) in enumerate(sys.path)]"
 
 /**
  * \def PY_PRINT_SYS_PATH3_CMD
- *   Used in Python3 when `py->is_embeddable == FALSE`.
+ *   Used in Python3 when `py->is_embeddable == false`.
  */
 #define PY_PRINT_SYS_PATH3_CMD()  "import sys; " \
                                   "[print(p) for (i,p) in enumerate(sys.path)]"
@@ -2114,10 +2114,10 @@ static int get_dll_name (struct python_info *pi, const char **libs)
   const char *use_this = NULL;
   const char *newest   = NULL;
   struct stat st1,  st2, *use_st = NULL;
-  BOOL       _st1, _st2, equal;
+  bool       _st1, _st2, equal;
   size_t      i, len, num = DIM (pi->libraries);
 
-  _st1 = _st2 = FALSE;
+  _st1 = _st2 = false;
 
   memset (&st1, '\0', sizeof(st1));
   memset (&st2, '\0', sizeof(st2));
@@ -2196,13 +2196,13 @@ static int get_dll_name (struct python_info *pi, const char **libs)
  *
  * If at least one is found, these sub-directories shall be ignored.
  */
-static BOOL check_if_dist_info_dirs (const struct python_path *pp)
+static bool check_if_dist_info_dirs (const struct python_path *pp)
 {
   char dist_info_spec [_MAX_PATH];
   char egg_info_spec  [_MAX_PATH];
   WIN32_FIND_DATA ff;
   HANDLE          hnd;
-  BOOL            is_dist_info, is_egg_info;
+  bool            is_dist_info, is_egg_info;
 
   snprintf (dist_info_spec, sizeof(dist_info_spec), "%s%c%s*.dist-info", pp->dir, DIR_SEP, opt.file_spec);
   snprintf (egg_info_spec, sizeof(dist_info_spec), "%s%c%s*.egg-info", pp->dir, DIR_SEP, opt.file_spec);
@@ -2228,11 +2228,11 @@ static BOOL check_if_dist_info_dirs (const struct python_path *pp)
  * \note not all .EGG-files are ZIP-files. `check_if_zip()` is used to test
  *       that and set `pp->is_zip` accordingly.
  */
-static int py_search_internal (struct python_info *pi, BOOL reinit)
+static int py_search_internal (struct python_info *pi, bool reinit)
 {
   char *str = NULL;
   int   i, max, found, found_zip;
-  BOOL  use_cache = (opt.use_cache && smartlist_len(pi->modules) > 0);
+  bool  use_cache = (opt.use_cache && smartlist_len(pi->modules) > 0);
 
   ASSERT (pi == g_pi);
 
@@ -2271,7 +2271,7 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
     /* Don't warn on missing .zip files in `sys.path[]` (unless in debug-mode)
      */
     if (opt.debug == 0 && !pp->exist && !stricmp(get_file_ext(pp->dir), "zip"))
-       pp->exist = pp->is_dir = TRUE;
+       pp->exist = pp->is_dir = true;
 
     if (check_if_dist_info_dirs(pp))
        continue;
@@ -2283,8 +2283,8 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
     }
     else
     {
-      rc = process_dir (pp->dir, 0, pp->exist, FALSE, pp->is_dir,
-                        TRUE, "sys.path[]", HKEY_PYTHON_PATH);
+      rc = process_dir (pp->dir, 0, pp->exist, false, pp->is_dir,
+                        true, "sys.path[]", HKEY_PYTHON_PATH);
       found += rc;
     }
   }
@@ -2295,7 +2295,7 @@ static int py_search_internal (struct python_info *pi, BOOL reinit)
      * this could also be a hit for a matching module.
      */
     report_header_set ("Matches in \"%s\" modules:\n", pi->exe_name);
-    py_print_modinfo (opt.file_spec, TRUE);
+    py_print_modinfo (opt.file_spec, true);
   }
 
   return (found + found_zip);
@@ -2308,7 +2308,7 @@ static struct python_info *py_select_next (enum python_variants which)
 {
   struct python_info *pi = NULL;
   int    i, max;
-  BOOL   okay = FALSE;
+  bool   okay = false;
 
   if (py_index == -1)
   {
@@ -2368,7 +2368,7 @@ int py_search (void)
        pi;
        pi = py_select_next(py_which), i++)
   {
-    BOOL reinit = (g_pi == pi) ? FALSE : TRUE; /* Need to call py_init_embedding() again? */
+    bool reinit = (g_pi == pi) ? false : true; /* Need to call py_init_embedding() again? */
 
     report_header_set ("Matches in \"%s\" sys.path[]:\n", pi->exe_name);
     g_pi = pi;
@@ -2397,8 +2397,8 @@ static struct python_info *add_python (const struct python_info *pi, const char 
   _strlcpy (pi2->exe_dir, exe, base - exe);
   _strlcpy (pi2->program, pi->program, sizeof(pi2->program));
   pi2->exe_name = _fix_path (exe, NULL);
-  pi2->do_warn_home      = TRUE;
-  pi2->do_warn_user_site = TRUE;
+  pi2->do_warn_home      = true;
+  pi2->do_warn_user_site = true;
   pi2->sys_path = smartlist_new();
 
   if (get_python_version(exe) >= 1)
@@ -2486,7 +2486,7 @@ static int match_python_exe (const char *dir)
       /* First Python found is default.
        */
       if (found == 1)
-         pi->is_default = TRUE;
+         pi->is_default = true;
 
       smartlist_add (py_programs, pi);
 
@@ -2512,11 +2512,11 @@ static int match_python_exe (const char *dir)
  * The config-file handler for the `[Python]` section.
  * Currently only handles `"ignore = xx"` pairs.
  */
-BOOL py_cfg_handler (const char *section, const char *key, const char *value)
+bool py_cfg_handler (const char *section, const char *key, const char *value)
 {
   if (!stricmp(key, "ignore"))
       return cfg_ignore_handler (section, key, value);
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -2546,7 +2546,7 @@ static int get_modules_from_cache (struct python_info *pi)
 
     memset (&m, '\0', sizeof(m));
     m.is_zip    = is_zip;
-    m.is_actual = TRUE;
+    m.is_actual = true;
     _strlcpy (m.name, mod_name, sizeof(m.name));
     _strlcpy (m.version, mod_version, sizeof(m.version));
     _strlcpy (m.location, location, sizeof(m.location));
@@ -2561,13 +2561,13 @@ static int get_modules_from_cache (struct python_info *pi)
 /**
  * Try to get all Python information from the cache.
  */
-static BOOL get_pythons_from_cache (void)
+static bool get_pythons_from_cache (void)
 {
   struct python_info *pi;
   int    i, j, found;
 
   if (!opt.use_cache)
-     return (FALSE);
+     return (false);
 
   i = found = 0;
 
@@ -2615,7 +2615,7 @@ static BOOL get_pythons_from_cache (void)
 
     if (pi->is_embeddable)
     {
-      pi->bitness_ok = TRUE;  /* assume yes */
+      pi->bitness_ok = true;  /* assume yes */
       check_bitness (pi, NULL);
     }
 
@@ -2737,7 +2737,7 @@ static void enum_pythons_on_path (void)
  */
 static void py_test_internal (struct python_info *pi)
 {
-  BOOL reinit = (g_pi == pi);   /* Need to call py_init_embedding() again? */
+  bool reinit = (g_pi == pi);   /* Need to call py_init_embedding() again? */
 
   g_pi = pi;
   get_sys_path (pi);
@@ -2750,7 +2750,7 @@ static void py_test_internal (struct python_info *pi)
      C_printf ("\nAnacondaGetVersion(): \"%s\"\n\n", (*Anaconda_GetVersion)());
 
   C_printf ("~6List of modules for %s:~0\n", py_filename(pi->exe_name));
-  py_print_modinfo ("*", opt.verbose ? TRUE : FALSE);
+  py_print_modinfo ("*", opt.verbose ? true : false);
   C_putc ('\n');
 }
 
@@ -3026,7 +3026,7 @@ void enum_python_in_registry (const char *key_name)
 
 /**
  * Main initialiser function for this module:
- *  \li If `opt.use_cache == TRUE` get previous information from file-cache.
+ *  \li If `opt.use_cache == true` get previous information from file-cache.
  *  \li If nothing found from cache:
  *    \li Find the details of all supported Pythons in `all_py_programs`.
  *    \li Walk the `%PATH` (and Registry; not yet) to find this information.
@@ -3119,10 +3119,10 @@ void py_init (void)
  *
  * \param[in] av   the `arg_vector` to initialise.
  * \param[in] argv the C-arguments to fill into `av`.
- * \param[in] wide TRUE if the `av->wide[]` array should be created.
- *                 FALSE if the `av->ascii[]` array should be created.
+ * \param[in] wide true if the `av->wide[]` array should be created.
+ *                 false if the `av->ascii[]` array should be created.
  */
-static int make_arg_vector (arg_vector *av, const char **argv, BOOL wide)
+static int make_arg_vector (arg_vector *av, const char **argv, bool wide)
 {
   int i, num;
 
@@ -3197,18 +3197,18 @@ static void free_arg_vector (arg_vector *av)
  *
  * \param[in] pi        The currently used Python-info variable.
  * \param[in] py_argv   The argument vector for the Python-script to run.
- * \param[in] capture   If `TRUE`, `sys.stdout` in the Python-script is
+ * \param[in] capture   If `true`, `sys.stdout` in the Python-script is
  *                      captured and stored in the return value `str`.
- * \param[in] as_import If `TRUE`, excute the program like a
+ * \param[in] as_import If `true`, excute the program like a
  *                      `python -c "import ..."` statement would do.
  *
- * \retval If `capture == TRUE`, an allocated string of the Python-script output. <br>
- *         If `capture == FALSE`, this function returns `NULL`.
+ * \retval If `capture == true`, an allocated string of the Python-script output. <br>
+ *         If `capture == false`, this function returns `NULL`.
  *
  * \note No expansion is done on `py_argv[0]`. The caller should expand it to a
  *       Fuly Qualified Pathname before use. Call `py_argv[0] = _fix_path (py_argv[0], buf)` first.
  */
-static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOOL capture, BOOL as_import)
+static char *py_exec_internal (struct python_info *pi, const char **py_argv, bool capture, bool as_import)
 {
   const char *prog0, *fmt = NULL;
   char       *str, *prog;
@@ -3240,13 +3240,13 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
   {
     if (pi->ver_major >= 3)
     {
-      make_arg_vector (&av, py_argv, TRUE);
+      make_arg_vector (&av, py_argv, true);
       (*PySys_SetArgvEx) (av.argc, av.wide, 1);
       fmt = PY_EXEC3_FMT();
     }
     else
     {
-      make_arg_vector (&av, py_argv, FALSE);
+      make_arg_vector (&av, py_argv, false);
       (*PySys_SetArgvEx) (av.argc, (wchar_t**)av.ascii, 1);
       fmt = PY_EXEC2_FMT();
     }
@@ -3272,11 +3272,11 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
 
   str = call_python_func (pi, prog, __LINE__);
 
-  /* If `capture == TRUE`, the 'str' should now contain the Python output of one of the above
+  /* If `capture == true`, the 'str' should now contain the Python output of one of the above
    * 'exec()' or 'execfile()' calls.
    * Caller must call 'FREE(str)' on this value when done.
    *
-   * Otherwise, if `capture == FALSE`, the `str` should now be NULL.
+   * Otherwise, if `capture == false`, the `str` should now be NULL.
    */
   TRACE (2, "capture: %d, str:\n'%s'\n", capture, str ? str : "<none>");
 
@@ -3292,14 +3292,14 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, BOO
  * \param[in] py_argv  The Python-script to run must be in `py_argv[0]`.<br>
  *                     The remaining command-line is in `py_argv[1..]`.
  *
- * \param[in] capture  If `TRUE`, `sys.stdout` in the Python-script is
+ * \param[in] capture  If `true`, `sys.stdout` in the Python-script is
  *                     captured and stored in the return value `str`.
  *
  * \retval str The captured string or `NULL`. If several `py_exec_internal()` are
  *             called, this string is from all calls merged together.
  *             Caller must call 'FREE(str)' on this value when done with it.
  */
-char *py_execfile (const char **py_argv, BOOL capture, BOOL as_import)
+char *py_execfile (const char **py_argv, bool capture, bool as_import)
 {
   struct python_info *pi;
   char  *array [DIM(all_py_programs)+1];

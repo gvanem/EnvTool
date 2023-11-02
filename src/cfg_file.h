@@ -4,6 +4,7 @@
 #ifndef _CFG_FILE_H
 #define _CFG_FILE_H
 
+#include <stdbool.h>
 #include <windows.h>
 
 /**
@@ -16,7 +17,7 @@ typedef struct CFG_FILE CFG_FILE;
  * \typedef cfg_handler
  * A config-file handler should match this prototype.
  */
-typedef BOOL (*cfg_handler) (const char *section,
+typedef bool (*cfg_handler) (const char *section,
                              const char *key,
                              const char *value);
 

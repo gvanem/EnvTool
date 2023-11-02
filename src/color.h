@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,9 +70,9 @@ extern void   C_puts_long_line  (const char *start, size_t indent);
 extern int    C_init_colour_map (unsigned short col1, ...);
 extern size_t C_screen_width    (void);
 extern int    C_trace_level     (void);
-extern int    C_conemu_detected (void);
-extern int    C_winterm_detected(void);
-extern int    C_VT_detected     (int cmd_only);
+extern bool   C_conemu_detected (void);
+extern bool   C_winterm_detected(void);
+extern bool   C_VT_detected     (int cmd_only);
 
 #ifdef __cplusplus
 }

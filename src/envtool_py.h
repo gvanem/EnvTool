@@ -1,8 +1,7 @@
 /** \file envtool_py.h
  *  \ingroup Envtool_PY
  */
-#ifndef _ENVTOOL_PY_H
-#define _ENVTOOL_PY_H
+#pragma once
 
 /**
  * \typedef enum python_variants
@@ -26,12 +25,10 @@ extern void         py_exit          (void);
 extern int          py_search        (void);
 extern void         py_searchpaths   (void);
 extern int          py_test          (void);
-extern int          py_get_info      (char **exe, struct ver_info *ver);
+extern bool         py_get_info      (char **exe, struct ver_info *ver);
 extern const char **py_get_variants  (void);
 extern const char  *py_variant_name  (enum python_variants v);
 extern int          py_variant_value (const char *short_name, const char *full_name);
-extern char        *py_execfile      (const char **py_argv, BOOL capture, BOOL as_import);
-extern BOOL         py_cfg_handler   (const char *section, const char *key, const char *value);
-
-#endif  /* _ENVTOOL_PY_H */
+extern char        *py_execfile      (const char **py_argv, bool capture, bool as_import);
+extern bool         py_cfg_handler   (const char *section, const char *key, const char *value);
 

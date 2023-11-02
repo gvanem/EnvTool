@@ -19,9 +19,9 @@
 typedef struct lua_dir {
         char   path [_MAX_PATH];  /**< The `LUA_PATH` or `LUA_CPATH` path-element */
         char   pattern [20];      /**< The pattern for this path; `"?.lua"` or `"?.dll"` */
-        BOOL   is_cwd;            /**< This directory == current_dir */
-        BOOL   is_CPATH;          /**< This directory is from `LUA_CPATH` */
-        BOOL   exist;             /**< Does it exist? */
+        bool   is_cwd;            /**< This directory == current_dir */
+        bool   is_CPATH;          /**< This directory is from `LUA_CPATH` */
+        bool   exist;             /**< Does it exist? */
       } lua_dir;
 
 /**
@@ -97,7 +97,7 @@ static unsigned lua_count_files (const char *path, const char *lua_spec)
  * Parse one component from either `LUA_PATH` or `LUA_CPATH` and append
  * to `lua_dirs`.
  */
-static void lua_append_dir (const struct directory_array *dir, BOOL for_LUA_CPATH)
+static void lua_append_dir (const struct directory_array *dir, bool for_LUA_CPATH)
 {
   const char *env_var     = for_LUA_CPATH ? "LUA_CPATH" : "LUA_PATH";
   const char *lua_pattern = for_LUA_CPATH ? "?.dll"     : "?.lua";
@@ -160,7 +160,7 @@ static void lua_append_dir (const struct directory_array *dir, BOOL for_LUA_CPAT
 
   if (!lua.is_cwd && lua_count_files(lua.path, lua_spec) == 0)
   {
-    lua.exist = FALSE;
+    lua.exist = false;
     if (!check_mode)
     {
       WARN ("Directory '%s' has no '%s' files for '%s'\n", lua.path, lua_spec, env_var);
@@ -180,7 +180,7 @@ static void lua_append_dir (const struct directory_array *dir, BOOL for_LUA_CPAT
 /**
  * Handle one Lua env-var and append it's components to `lua_dirs`.
  */
-static void lua_handle_var (const char *env_var, BOOL for_LUA_CPATH)
+static void lua_handle_var (const char *env_var, bool for_LUA_CPATH)
 {
   const char  *value = getenv (env_var);
   smartlist_t *dirs;
@@ -192,7 +192,7 @@ static void lua_handle_var (const char *env_var, BOOL for_LUA_CPATH)
     return;
   }
 
-  opt.lua_mode = TRUE;
+  opt.lua_mode = true;
   dirs = split_env_var (env_var, value);
   max  = dirs ? smartlist_len (dirs) : 0;
   for (i = 0; i < max; i++)
@@ -204,7 +204,7 @@ static void lua_handle_var (const char *env_var, BOOL for_LUA_CPATH)
        lua_append_dir (d, for_LUA_CPATH);
   }
   dir_array_free();
-  opt.lua_mode = FALSE;
+  opt.lua_mode = false;
 }
 
 /**
@@ -243,8 +243,8 @@ void lua_init (void)
 
   lua_dirs = smartlist_new();
 
-  lua_handle_var ("LUA_PATH", FALSE);
-  lua_handle_var ("LUA_CPATH", TRUE);
+  lua_handle_var ("LUA_PATH", false);
+  lua_handle_var ("LUA_CPATH", true);
 
   if (opt.debug >= 1)
      lua_dump_dirs();
@@ -266,12 +266,12 @@ void lua_exit (void)
 void lua_check_env (const char *env, int *num, char *status, size_t status_sz)
 {
   int  i, max, errors, save;
-  BOOL check_CPATH = TRUE;
+  bool check_CPATH = true;
 
   ASSERT (!strcmp(env, "LUA_PATH") || !strcmp(env, "LUA_CPATH"));
 
   if (!strcmp(env, "LUA_PATH"))
-     check_CPATH = FALSE;
+     check_CPATH = false;
 
   if (!lua_dirs)
      lua_dirs = smartlist_new();
@@ -390,7 +390,7 @@ static void lua_print_exports (const char *dll_file, const char *filler)
  * Search and check along `lua_dirs` for a match to `<filespec>`.
  * For each directory, match a `?.lua` or `?.dll` against the `<filespec>`.
  */
-static int lua_search_internal (const char *search_spec, BOOL is_CPATH)
+static int lua_search_internal (const char *search_spec, bool is_CPATH)
 {
   char env_name [30];
   int  i, i_max, found = 0;
@@ -446,23 +446,23 @@ static int lua_search_internal (const char *search_spec, BOOL is_CPATH)
 
 int lua_search (const char *search_spec)
 {
-  return lua_search_internal (search_spec, FALSE) +
-         lua_search_internal (search_spec, TRUE);
+  return lua_search_internal (search_spec, false) +
+         lua_search_internal (search_spec, true);
 }
 
 /**
  * Config-file handler for kewords in the `[Lua]` section
  */
-BOOL lua_cfg_handler (const char *section, const char *key, const char *value)
+bool lua_cfg_handler (const char *section, const char *key, const char *value)
 {
   if (!stricmp(key, "luajit.enable"))
   {
     prefer_luajit = atoi (value);
-    return (TRUE);
+    return (true);
   }
   if (!stricmp(key, "ignore"))
      return cfg_ignore_handler (section, key, value);
-  return (FALSE);
+  return (false);
 }
 
 const char *lua_get_exe (void)
@@ -488,7 +488,7 @@ static int lua_version_cb (char *buf, int index)
 /**
  * Find the location and version for `lua.exe` (or `luajit.exe`) on `PATH`.
  */
-BOOL lua_get_info (char **exe, struct ver_info *ver)
+bool lua_get_info (char **exe, struct ver_info *ver)
 {
   static char exe_copy [_MAX_PATH];
   int    rc, _prefer_luajit = 0;
@@ -501,7 +501,7 @@ BOOL lua_get_info (char **exe, struct ver_info *ver)
   if (lua_exe && (lua_ver.val_1 + lua_ver.val_2) > 0)
   {
     *exe = STRDUP (lua_exe);
-    return (TRUE);
+    return (true);
   }
 
   if (cache_getf(SECTION_LUA, "luajit.enable = %d", &_prefer_luajit) == 0 ||
@@ -532,7 +532,7 @@ BOOL lua_get_info (char **exe, struct ver_info *ver)
      lua_exe = searchpath (lua_get_exe(), "PATH");
 
   if (!lua_exe)
-     return (FALSE);
+     return (false);
 
   lua_exe = slashify2 (exe_copy, lua_exe, '\\');
   *exe = STRDUP (lua_exe);

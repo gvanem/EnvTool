@@ -26,7 +26,7 @@
 struct descr_node {
        char file_dir [_MAX_PATH];    /**< the file or directory name */
        char file_descr [MAX_DESCR];  /**< the description of the above `file_name` (a file or a directory) */
-       BOOL is_dir;                  /**< TRUE if `file_dir` is a directory */
+       bool is_dir;                  /**< true if `file_dir` is a directory */
      };
 
 /**
@@ -279,12 +279,12 @@ static const char *all_descr_new (const char *dir, const char *file_dir)
  * \retval !NULL The file/dir description was found.
  * \retval NULL  The file/dir have no description.
  */
-static const char *all_descr_lookup (const char *dir, const char *file_dir, BOOL *empty)
+static const char *all_descr_lookup (const char *dir, const char *file_dir, bool *empty)
 {
   const struct descr_dir *dd;
   int   i, max = smartlist_len (all_descr);
 
-  *empty = FALSE;
+  *empty = false;
   TRACE (2, "all_descr_lookup(): max: %d, looking for dir: '%s'\n", max, dir);
 
   for (i = 0; i < max; i++)
@@ -296,7 +296,7 @@ static const char *all_descr_lookup (const char *dir, const char *file_dir, BOOL
     {
       if (dd->descr)
          return lookup_file_descr (dd->descr, file_dir);
-      *empty = TRUE;
+      *empty = true;
     }
   }
   return (NULL);
@@ -321,7 +321,7 @@ const char *file_descr_get (const char *file_dir)
 {
   const char *descr;
   char       *fname, *dir, _file[_MAX_PATH];
-  BOOL        empty;
+  bool        empty;
 
   /* `file_descr_init()` was not called.
    * Or this function was called after `file_descr_exit()`

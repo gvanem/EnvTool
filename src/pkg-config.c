@@ -19,9 +19,9 @@ static char           *pkgconfig_exe = NULL;
 struct pkgconfig_dir {
        char  path [_MAX_PATH];
        HKEY  top_key;
-       BOOL  exist;
-       BOOL  is_dir;
-       BOOL  exp_ok;
+       bool  exist;
+       bool  is_dir;
+       bool  exp_ok;
        int   num_dup;
      };
 
@@ -172,7 +172,7 @@ unsigned pkg_config_list_installed (void)
  * In case Cygwin is installed and a `<CYGWIN_ROOT>/bin/pkg-config` is on PATH, check
  * if it's symlinked to a `<CYGWIN_ROOT>/bin/pkgconf.exe` program.
  */
-static BOOL pkg_config_get_info_internal (void)
+static bool pkg_config_get_info_internal (void)
 {
   static char exe_copy [_MAX_PATH];
 
@@ -200,7 +200,7 @@ static BOOL pkg_config_get_info_internal (void)
   }
 
   if (!pkgconfig_exe)
-     return (FALSE);
+     return (false);
 
   pkgconfig_exe = slashify2 (exe_copy, pkgconfig_exe, '\\');
   cache_putf (SECTION_PKGCONFIG, "pkgconfig_exe = %s", pkgconfig_exe);
@@ -218,7 +218,7 @@ static BOOL pkg_config_get_info_internal (void)
 /**
  * Return pkg-config information to caller.
  */
-BOOL pkg_config_get_info (char **exe, struct ver_info *ver)
+bool pkg_config_get_info (char **exe, struct ver_info *ver)
 {
   pkg_config_init();
 
@@ -226,9 +226,9 @@ BOOL pkg_config_get_info (char **exe, struct ver_info *ver)
   {
     *exe = STRDUP (pkgconfig_exe);
     *ver = pkgconfig_ver;
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -334,14 +334,14 @@ static void merge_directories (smartlist_t *dir, smartlist_t *reg)
   {
     const struct registry_array *arr1 = smartlist_get (reg, i);
     const struct pkgconfig_dir  *arr2;
-    BOOL  add_it = TRUE;
+    bool  add_it = true;
 
     for (j = 0; j < dir_max; j++)
     {
       arr2 = smartlist_get (pkgconfig_dirs, j);
       if (!stricmp(arr1->fname, arr2->path))
       {
-        add_it = FALSE;
+        add_it = false;
         break;
       }
     }
@@ -353,7 +353,7 @@ static void merge_directories (smartlist_t *dir, smartlist_t *reg)
     pkdir->top_key = arr1->key;
     pkdir->exist   = arr1->exist;
     pkdir->is_dir  = arr1->exist;
-    pkdir->exp_ok  = TRUE;
+    pkdir->exp_ok  = true;
     smartlist_add (pkgconfig_dirs, pkdir);
   }
 }
@@ -405,7 +405,7 @@ void pkg_config_exit (void)
 int pkg_config_search (const char *search_spec)
 {
   int  i, max, num, prev_num = 0, found = 0;
-  BOOL do_warn = FALSE;
+  bool do_warn = false;
 
   pkg_config_init();
 
@@ -434,10 +434,10 @@ int pkg_config_search (const char *search_spec)
     else
        _strlcpy (prefix, "PkgConfig?", sizeof(prefix));
 
-    num = process_dir (dir->path, 0, dir->exist, TRUE, dir->is_dir, dir->exp_ok,
+    num = process_dir (dir->path, 0, dir->exist, true, dir->is_dir, dir->exp_ok,
                        prefix, HKEY_PKG_CONFIG_FILE);
     if (dir->num_dup == 0 && prev_num > 0 && num > 0)
-       do_warn = TRUE;
+       do_warn = true;
     found += num;
   }
 

@@ -32,6 +32,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
 #include <malloc.h>
@@ -50,8 +51,8 @@
   #pragma clang diagnostic ignored "-Wcovered-switch-default"
 
 #elif defined(_MSC_VER)
-
-  /* And these:
+  /*
+   * And these:
    *   warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data
    */
   #pragma warning (disable:4267)
@@ -728,8 +729,8 @@ static void store_op1 (re_opcode_t op, unsigned char *loc, int arg);
 static void store_op2 (re_opcode_t op, unsigned char *loc, int arg1, int arg2);
 static void insert_op1 (re_opcode_t op, unsigned char *loc, int arg, unsigned char *end);
 static void insert_op2 (re_opcode_t op, unsigned char *loc, int arg1, int arg2, unsigned char *end);
-static BOOL at_begline_loc_p (const char *pattern, const char *p, reg_syntax_t syntax);
-static BOOL at_endline_loc_p (const char *p, const char *pend, reg_syntax_t syntax);
+static bool at_begline_loc_p (const char *pattern, const char *p, reg_syntax_t syntax);
+static bool at_endline_loc_p (const char *p, const char *pend, reg_syntax_t syntax);
 static reg_errcode_t compile_range (const char **p_ptr, const char *pend,
                                     char *translate, reg_syntax_t syntax, unsigned char *b);
 
@@ -986,7 +987,7 @@ typedef struct {
   }
 #endif     /* not MATCH_MAY_ALLOCATE */
 
-static BOOL group_in_compile_stack (compile_stack_type compile_stack, regnum_t regnum);
+static bool group_in_compile_stack (compile_stack_type compile_stack, regnum_t regnum);
 
 /*
  * `regex_compile' compiles PATTERN (of length SIZE) according to SYNTAX.
@@ -1168,7 +1169,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
 
            {
              /* Are we optimizing this jump? */
-             BOOL keep_string_p = FALSE;
+             bool keep_string_p = false;
 
              /* 1 means zero (many) matches is allowed. */
              char zero_times_ok = 0, many_times_ok = 0;
@@ -1255,7 +1256,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
                {
                  /* We have .*\n. */
                  STORE_JUMP (jump, b, laststart);
-                 keep_string_p = TRUE;
+                 keep_string_p = true;
                }
                else
                {
@@ -1299,7 +1300,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
 
       case '[':
            {
-             BOOL had_char_class = FALSE;
+             bool had_char_class = false;
 
              if (p == pend)
                 FREE_STACK_RETURN (REG_EBRACK);
@@ -1429,18 +1430,18 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
                  if (c == ':' && *p == ']')
                  {
                    int  ch;
-                   BOOL is_alnum = STREQ (str, "alnum");
-                   BOOL is_alpha = STREQ (str, "alpha");
-                   BOOL is_blank = STREQ (str, "blank");
-                   BOOL is_cntrl = STREQ (str, "cntrl");
-                   BOOL is_digit = STREQ (str, "digit");
-                   BOOL is_graph = STREQ (str, "graph");
-                   BOOL is_lower = STREQ (str, "lower");
-                   BOOL is_print = STREQ (str, "print");
-                   BOOL is_punct = STREQ (str, "punct");
-                   BOOL is_space = STREQ (str, "space");
-                   BOOL is_upper = STREQ (str, "upper");
-                   BOOL is_xdigit = STREQ (str, "xdigit");
+                   bool is_alnum = STREQ (str, "alnum");
+                   bool is_alpha = STREQ (str, "alpha");
+                   bool is_blank = STREQ (str, "blank");
+                   bool is_cntrl = STREQ (str, "cntrl");
+                   bool is_digit = STREQ (str, "digit");
+                   bool is_graph = STREQ (str, "graph");
+                   bool is_lower = STREQ (str, "lower");
+                   bool is_print = STREQ (str, "print");
+                   bool is_punct = STREQ (str, "punct");
+                   bool is_space = STREQ (str, "space");
+                   bool is_upper = STREQ (str, "upper");
+                   bool is_xdigit = STREQ (str, "xdigit");
 
                    if (!IS_CHAR_CLASS (str))
                       FREE_STACK_RETURN (REG_ECTYPE);
@@ -1478,7 +1479,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
                      if (translate && (is_upper || is_lower) && (ISUPPER(ch) || ISLOWER(ch)))
                         SET_LIST_BIT (ch);
                    }
-                   had_char_class = TRUE;
+                   had_char_class = true;
                  }
                  else
                  {
@@ -1487,12 +1488,12 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
                      PATUNFETCH();
                    SET_LIST_BIT ('[');
                    SET_LIST_BIT (':');
-                   had_char_class = FALSE;
+                   had_char_class = false;
                  }
                }
                else
                {
-                 had_char_class = FALSE;
+                 had_char_class = false;
                  SET_LIST_BIT (c);
                }
              }
@@ -2097,14 +2098,14 @@ static void insert_op2 (re_opcode_t op, unsigned char *loc, int arg1, int arg2, 
   store_op2 (op, loc, arg1, arg2);
 }
 
-/* P points to just after a ^ in PATTERN.  Return TRUE if that ^ comes
+/* P points to just after a ^ in PATTERN.  Return true if that ^ comes
  * after an alternative or a begin-subexpression.  We assume there is at
  * least one character before the ^.
  */
-static BOOL at_begline_loc_p (const char *pattern, const char *p, reg_syntax_t syntax)
+static bool at_begline_loc_p (const char *pattern, const char *p, reg_syntax_t syntax)
 {
   const char *prev = p - 2;
-  BOOL  prev_prev_backslash = prev > pattern && prev[-1] == '\\';
+  bool  prev_prev_backslash = prev > pattern && prev[-1] == '\\';
 
   return /* After a subexpression? */
          (*prev == '(' && (syntax & RE_NO_BK_PARENS || prev_prev_backslash)) ||
@@ -2115,10 +2116,10 @@ static BOOL at_begline_loc_p (const char *pattern, const char *p, reg_syntax_t s
 /* The dual of at_begline_loc_p.  This one is for $.  We assume there is
  * at least one character after the $, i.e., `P < PEND'.
  */
-static BOOL at_endline_loc_p (const char *p, const char *pend, reg_syntax_t syntax)
+static bool at_endline_loc_p (const char *p, const char *pend, reg_syntax_t syntax)
 {
   const char *next = p;
-  BOOL  next_backslash = *next == '\\';
+  bool  next_backslash = *next == '\\';
   const char *next_next = p + 1 < pend ? p + 1 : 0;
 
   return /* Before a subexpression? */
@@ -2127,17 +2128,17 @@ static BOOL at_endline_loc_p (const char *p, const char *pend, reg_syntax_t synt
          (syntax & RE_NO_BK_VBAR ? *next == '|' : next_backslash && next_next && *next_next == '|');
 }
 
-/* Returns TRUE if REGNUM is in one of COMPILE_STACK's elements and
- * FALSE if it's not.
+/* Returns true if REGNUM is in one of COMPILE_STACK's elements and
+ * false if it's not.
  */
-static BOOL group_in_compile_stack (compile_stack_type compile_stack, regnum_t regnum)
+static bool group_in_compile_stack (compile_stack_type compile_stack, regnum_t regnum)
 {
   int this_element;
 
   for (this_element = compile_stack.avail-1; this_element >= 0; this_element--)
       if (compile_stack.stack[this_element].regnum == regnum)
-         return (TRUE);
-  return (FALSE);
+         return (true);
+  return (false);
 }
 
 /* Read the ending character of a range (in a bracket expression) from the
@@ -2230,11 +2231,11 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
    * statement, to which we get only if a particular path doesn't
    * match the empty string.
    */
-  BOOL path_can_be_null = TRUE;
+  bool path_can_be_null = true;
 
   /* We aren't doing a `succeed_n' to begin with.
    */
-  BOOL succeed_n_p = FALSE;
+  bool succeed_n_p = false;
 
   assert (fastmap != NULL && p != NULL);
 
@@ -2254,7 +2255,7 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
         bufp->can_be_null |= path_can_be_null;
 
         /* Reset for next path. */
-        path_can_be_null = TRUE;
+        path_can_be_null = true;
         p = fail_stack.stack[--fail_stack.avail].pointer;
         continue;
       }
@@ -2403,7 +2404,7 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
            if (succeed_n_p)
            {
              EXTRACT_NUMBER_AND_INCR (k, p); /* Skip the n. */
-             succeed_n_p = FALSE;
+             succeed_n_p = false;
            }
            continue;
 
@@ -2416,7 +2417,7 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
            if (k == 0)
            {
              p -= 4;
-             succeed_n_p = TRUE; /* Spaghetti code alert. */
+             succeed_n_p = true; /* Spaghetti code alert. */
              goto handle_on_failure_jump;
            }
            continue;
@@ -2442,7 +2443,7 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
      * stack), or quit if no more.  The test at the top of the loop
      * does these things.
      */
-    path_can_be_null = FALSE;
+    path_can_be_null = false;
     p = pend;
   }                             /* while p */
 
@@ -2719,9 +2720,9 @@ int re_match (struct re_pattern_buffer *bufp, const char *string,
                               pos, regs, size);
 }
 
-static BOOL group_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info);
-static BOOL alt_match_null_string_p (unsigned char *p, unsigned char *end, register_info_type *reg_info);
-static BOOL common_op_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info);
+static bool group_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info);
+static bool alt_match_null_string_p (unsigned char *p, unsigned char *end, register_info_type *reg_info);
+static bool common_op_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info);
 static int  bcmp_translate (const char *s1, const char *s2, int len, char *translate);
 
 /* re_match_2 matches the compiled pattern in BUFP against the
@@ -2846,7 +2847,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
    * This happens as we backtrack through the failure points, which in
    * turn happens only if we have not yet matched the entire string.
    */
-  unsigned best_regs_set = FALSE;
+  unsigned best_regs_set = false;
 
 #ifdef MATCH_MAY_ALLOCATE       /* otherwise, these are global. */
   const char **best_regstart, **best_regend;
@@ -2992,10 +2993,10 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
         /* 1 if this match ends in the same string (string1 or string2)
          * as the best previous match.
          */
-        BOOL same_str_p = (FIRST_STRING_P(match_end) == MATCHING_IN_FIRST_STRING);
+        bool same_str_p = (FIRST_STRING_P(match_end) == MATCHING_IN_FIRST_STRING);
 
         /* 1 if this match is the best seen so far. */
-        BOOL best_match_p;
+        bool best_match_p;
 
         /* AIX compiler got confused when this was combined
          * with the previous declaration.
@@ -3012,7 +3013,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
            */
           if (!best_regs_set || best_match_p)
           {
-            best_regs_set = TRUE;
+            best_regs_set = true;
             match_end = d;
 
             for (mcnt = 1; (unsigned)mcnt < num_regs; mcnt++)
@@ -3195,7 +3196,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
       case charset_not:
            {
              unsigned char c;
-             BOOL not = (re_opcode_t)*(p-1) == charset_not;
+             bool not = (re_opcode_t)*(p-1) == charset_not;
 
              PREFETCH()
              c = TRANSLATE (*d); /* The character to match. */
@@ -3328,14 +3329,14 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
             */
            if ((!MATCHED_SOMETHING(reg_info[*p]) || just_past_start_mem == p - 1) && (p + 2) < pend)
            {
-             BOOL is_a_jump_n = FALSE;
+             bool is_a_jump_n = false;
 
              p1 = p + 2;
              mcnt = 0;
              switch ((re_opcode_t)*p1++)
              {
                case jump_n:
-                    is_a_jump_n = TRUE;
+                    is_a_jump_n = true;
                     FALLTHROUGH()
                case pop_failure_jump:
                case maybe_pop_jump:
@@ -3821,7 +3822,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
 
       case wordbound:
            {
-             BOOL prevchar, thischar;
+             bool prevchar, thischar;
 
              if (AT_STRINGS_BEG(d) || AT_STRINGS_END(d))
                 break;
@@ -3834,7 +3835,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
 
       case notwordbound:
            {
-             BOOL prevchar, thischar;
+             bool prevchar, thischar;
 
              if (AT_STRINGS_BEG(d) || AT_STRINGS_END(d))
                 goto fail;
@@ -3896,7 +3897,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
       assert (p <= pend);
       if (p < pend)
       {
-        BOOL is_a_jump_n = FALSE;
+        bool is_a_jump_n = false;
 
         /* If failed to a backwards jump that's part of a repetition
          * loop, need to pop this failure point and use the next one.
@@ -3904,7 +3905,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
         switch ((re_opcode_t)*p)
         {
           case jump_n:
-               is_a_jump_n = TRUE;
+               is_a_jump_n = true;
                FALLTHROUGH()
           case maybe_pop_jump:
           case pop_failure_jump:
@@ -3940,15 +3941,15 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
  *
  * We are passed P pointing to a register number after a start_memory.
  *
- * Return TRUE if the pattern up to the corresponding stop_memory can
- * match the empty string, and FALSE otherwise.
+ * Return true if the pattern up to the corresponding stop_memory can
+ * match the empty string, and false otherwise.
  *
  * If we find the matching stop_memory, sets P to point to one past its number.
  * Otherwise, sets P to an undefined byte less than or equal to END.
  *
  * We don't handle duplicates properly (yet).
  */
-static BOOL group_match_null_string_p (unsigned char **p, unsigned char *end,
+static bool group_match_null_string_p (unsigned char **p, unsigned char *end,
                                        register_info_type *reg_info)
 {
   int mcnt;
@@ -3959,8 +3960,8 @@ static BOOL group_match_null_string_p (unsigned char **p, unsigned char *end,
 
   while (p1 < end)
   {
-    /* Skip over opcodes that can match nothing, and return TRUE or
-     * FALSE, as appropriate, when we get to one that can't, or to the
+    /* Skip over opcodes that can match nothing, and return true or
+     * false, as appropriate, when we get to one that can't, or to the
      * matching stop_memory.
      */
     switch ((re_opcode_t)*p1)
@@ -4001,7 +4002,7 @@ static BOOL group_match_null_string_p (unsigned char **p, unsigned char *end,
                 * its number.
                 */
                if (!alt_match_null_string_p (p1, p1 + mcnt - 3, reg_info))
-                  return (FALSE);
+                  return (false);
 
                /* Move to right after this alternative, including the
                 * jump_past_alt.
@@ -4034,7 +4035,7 @@ static BOOL group_match_null_string_p (unsigned char **p, unsigned char *end,
              EXTRACT_NUMBER (mcnt, p1 - 2);
 
              if (!alt_match_null_string_p (p1, p1 + mcnt, reg_info))
-                return (FALSE);
+                return (false);
 
              p1 += mcnt;        /* Get past the n-th alternative. */
            }                    /* if mcnt > 0 */
@@ -4043,22 +4044,22 @@ static BOOL group_match_null_string_p (unsigned char **p, unsigned char *end,
       case stop_memory:
            assert (p1[1] == **p);
            *p = p1 + 2;
-           return (TRUE);
+           return (true);
 
       default:
            if (!common_op_match_null_string_p (&p1, end, reg_info))
-              return (FALSE);
+              return (false);
     }
   }                             /* while p1 < end */
 
-  return (FALSE);
+  return (false);
 }
 
 /* Similar to group_match_null_string_p, but doesn't deal with alternatives:
  * It expects P to be the first byte of a single alternative and END one
  * byte past the last. The alternative can contain groups.
  */
-static BOOL alt_match_null_string_p (unsigned char *p, unsigned char *end, register_info_type *reg_info)
+static bool alt_match_null_string_p (unsigned char *p, unsigned char *end, register_info_type *reg_info)
 {
   int            mcnt;
   unsigned char *p1 = p;
@@ -4079,10 +4080,10 @@ static BOOL alt_match_null_string_p (unsigned char *p, unsigned char *end, regis
 
       default:
            if (!common_op_match_null_string_p (&p1, end, reg_info))
-              return (FALSE);
+              return (false);
     }
   }
-  return (TRUE);
+  return (true);
 }
 
 /* Deals with the ops common to group_match_null_string_p and
@@ -4090,9 +4091,9 @@ static BOOL alt_match_null_string_p (unsigned char *p, unsigned char *end, regis
  *
  * Sets P to one after the op and its arguments, if any.
  */
-static BOOL common_op_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info)
+static bool common_op_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info)
 {
-  BOOL     ret;
+  bool     ret;
   int      mcnt, reg_no;
   unsigned char *p1 = *p;
 
@@ -4121,7 +4122,7 @@ static BOOL common_op_match_null_string_p (unsigned char **p, unsigned char *end
             REG_MATCH_NULL_STRING_P (reg_info[reg_no]) = ret;
 
          if (!ret)
-            return (FALSE);
+            return (false);
          break;
 
          /* If this is an optimized succeed_n for zero times, make the jump.
@@ -4131,7 +4132,7 @@ static BOOL common_op_match_null_string_p (unsigned char **p, unsigned char *end
          if (mcnt >= 0)
            p1 += mcnt;
          else
-           return (FALSE);
+           return (false);
          break;
 
     case succeed_n:
@@ -4146,12 +4147,12 @@ static BOOL common_op_match_null_string_p (unsigned char **p, unsigned char *end
            p1 += mcnt;
          }
          else
-           return (FALSE);
+           return (false);
          break;
 
     case duplicate:
          if (!REG_MATCH_NULL_STRING_P (reg_info[*p1]))
-            return (FALSE);
+            return (false);
          break;
 
     case set_number_at:
@@ -4161,10 +4162,10 @@ static BOOL common_op_match_null_string_p (unsigned char **p, unsigned char *end
     default:
          /* All other opcodes mean we cannot match the empty string.
           */
-         return (FALSE);
+         return (false);
   }
   *p = p1;
-  return (TRUE);
+  return (true);
 }
 
 /* Return zero if TRANSLATE[S1] and TRANSLATE[S2] are identical for LEN
@@ -4302,7 +4303,7 @@ int regexec (const regex_t *preg, const char *string, size_t nmatch, regmatch_t 
   regex_t  private_preg;
   int      len = strlen (string);
   int      ret;
-  BOOL     want_reg_info = !preg->no_sub && nmatch > 0;
+  bool     want_reg_info = !preg->no_sub && nmatch > 0;
 
   memset (&regs, '\0', sizeof(regs));
 

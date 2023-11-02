@@ -1,8 +1,7 @@
 /** \file cache.h
  *  \ingroup Misc
  */
-#ifndef _CACHE_H
-#define _CACHE_H
+#pragma once
 
 /**
  * \typedef CacheSections
@@ -31,13 +30,11 @@ typedef enum CacheSections {
 extern void        cache_init   (void);
 extern void        cache_exit   (void);
 extern int         cache_test   (void);
-extern BOOL        cache_config (const char *key, const char *value);
+extern bool        cache_config (const char *key, const char *value);
 extern void        cache_put    (CacheSections section, const char *key, const char *value);
 extern void        cache_putf   (CacheSections section, _Printf_format_string_ const char *fmt, ...) ATTR_PRINTF(2,3);
 extern const char *cache_get    (CacheSections section, const char *key);
 extern int         cache_getf   (CacheSections section, const char *fmt, ...);
 extern void        cache_del    (CacheSections section, const char *key);
 extern void        cache_delf   (CacheSections section, _Printf_format_string_ const char *fmt, ...) ATTR_PRINTF(2,3);
-
-#endif
 

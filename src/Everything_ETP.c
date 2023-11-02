@@ -155,7 +155,7 @@ struct state_CTX;
  * \typedef ETP_state
  * All state-functions must match this function-type.
  */
-typedef BOOL (*ETP_state) (struct state_CTX *ctx);
+typedef bool (*ETP_state) (struct state_CTX *ctx);
 
 /**
  * \struct IO_buf
@@ -185,8 +185,8 @@ struct state_CTX {
        char               hostname [200];   /**< Name of host to connect to */
        char               username [30];    /**< Name of user */
        char               password [30];    /**< And his password (if any) */
-       BOOL               use_netrc;        /**< Use the `%APPDATA%/.netrc` file */
-       BOOL               use_authinfo;     /**< Use the `%APPDATA%/.authinfo` file */
+       bool               use_netrc;        /**< Use the `%APPDATA%/.netrc` file */
+       bool               use_authinfo;     /**< Use the `%APPDATA%/.authinfo` file */
        DWORD              timeout;          /**< The socket timeout (= `RECV_TIMEOUT`) */
        int                retries;          /**< The retry counter; between 0 and `MAX_RETRIES` */
        int                ws_err;           /**< Last `WSAGetError()` */
@@ -214,23 +214,23 @@ static int         rbuf_read_char  (struct state_CTX *ctx, char *store);
 static const char *ETP_tracef      (struct state_CTX *ctx, const char *fmt, ...);
 static const char *ETP_state_name  (ETP_state f);
 
-static BOOL state_init                 (struct state_CTX *ctx);
-static BOOL state_exit                 (struct state_CTX *ctx);
-static BOOL state_parse_url            (struct state_CTX *ctx);
-static BOOL state_netrc_lookup         (struct state_CTX *ctx);
-static BOOL state_authinfo_lookup      (struct state_CTX *ctx);
-static BOOL state_send_login           (struct state_CTX *ctx);
-static BOOL state_send_pass            (struct state_CTX *ctx);
-static BOOL state_await_login          (struct state_CTX *ctx);
-static BOOL state_await_features       (struct state_CTX *ctx);
-static BOOL state_send_query           (struct state_CTX *ctx);
-static BOOL state_200                  (struct state_CTX *ctx);
-static BOOL state_RESULT_COUNT         (struct state_CTX *ctx);
-static BOOL state_PATH                 (struct state_CTX *ctx);
-static BOOL state_closing              (struct state_CTX *ctx);
-static BOOL state_resolve              (struct state_CTX *ctx);
-static BOOL state_blocking_connect     (struct state_CTX *ctx);
-static BOOL state_non_blocking_connect (struct state_CTX *ctx);
+static bool state_init                 (struct state_CTX *ctx);
+static bool state_exit                 (struct state_CTX *ctx);
+static bool state_parse_url            (struct state_CTX *ctx);
+static bool state_netrc_lookup         (struct state_CTX *ctx);
+static bool state_authinfo_lookup      (struct state_CTX *ctx);
+static bool state_send_login           (struct state_CTX *ctx);
+static bool state_send_pass            (struct state_CTX *ctx);
+static bool state_await_login          (struct state_CTX *ctx);
+static bool state_await_features       (struct state_CTX *ctx);
+static bool state_send_query           (struct state_CTX *ctx);
+static bool state_200                  (struct state_CTX *ctx);
+static bool state_RESULT_COUNT         (struct state_CTX *ctx);
+static bool state_PATH                 (struct state_CTX *ctx);
+static bool state_closing              (struct state_CTX *ctx);
+static bool state_resolve              (struct state_CTX *ctx);
+static bool state_blocking_connect     (struct state_CTX *ctx);
+static bool state_non_blocking_connect (struct state_CTX *ctx);
 
 /**
  * Receive a response with timeout.
@@ -330,10 +330,10 @@ static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
  *
  * \param[in] ctx    the context we work with.
  * \param[in] name   Either a file-name or a folder-name within a `ctx->path`
- * \param[in] is_dir If `FALSE`, `name` is treated as a file-name. <br>
- *                   if `TRUE`,  `name` is treated as a folder-name.
+ * \param[in] is_dir If `false`, `name` is treated as a file-name. <br>
+ *                   if `true`,  `name` is treated as a folder-name.
  */
-static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_dir)
+static void report_file_ept (struct state_CTX *ctx, const char *name, bool is_dir)
 {
   if (opt.dir_mode && !is_dir)
      ctx->results_ignore++;
@@ -369,10 +369,10 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, BOOL is_di
  * Optionally print what action it will take next.
  *
  * \param[in] ctx         the context we work with.
- * \param[in] is_authinfo TRUE if the warning applies to reading of
+ * \param[in] is_authinfo true if the warning applies to reading of
  *                        the `~/.authinfo` file.
  */
-static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
+static void login_warning (struct state_CTX *ctx, bool is_authinfo)
 {
   const char *next_action = "\n";
   char       *file;
@@ -409,7 +409,7 @@ static void login_warning (struct state_CTX *ctx, BOOL is_authinfo)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_PATH (struct state_CTX *ctx)
+static bool state_PATH (struct state_CTX *ctx)
 {
   FILETIME ft;
   char     buf [500];
@@ -419,36 +419,36 @@ static BOOL state_PATH (struct state_CTX *ctx)
   {
     _strlcpy (ctx->path, rx+5, sizeof(ctx->path));
     ETP_tracef (ctx, "path: %s", ctx->path);
-    return (TRUE);
+    return (true);
   }
 
   if (sscanf(rx, "SIZE %" U64_FMT, &ctx->fsize) == 1)
   {
     ETP_tracef (ctx, "size: %s", str_trim((char*)get_file_size_str(ctx->fsize)));
-    return (TRUE);
+    return (true);
   }
 
   if (sscanf(rx, "DATE_MODIFIED %" U64_FMT, (UINT64*)&ft) == 1)
   {
     ctx->mtime = FILETIME_to_time_t (&ft);
     ETP_tracef (ctx, "mtime: %.24s", ctime(&ctx->mtime));
-    return (TRUE);
+    return (true);
   }
 
   if (!strncmp(rx, "FILE ", 5))
   {
     ETP_tracef (ctx, "file: %s", rx+5);
-    report_file_ept (ctx, rx + 5, FALSE);
+    report_file_ept (ctx, rx + 5, false);
     ctx->results_got++;
-    return (TRUE);
+    return (true);
   }
 
   if (!strncmp(rx, "FOLDER ", 7))
   {
     ETP_tracef (ctx, "folder: %s", rx+7);
-    report_file_ept (ctx, rx+7, TRUE);
+    report_file_ept (ctx, rx+7, true);
     ctx->results_got++;
-    return (TRUE);
+    return (true);
   }
 
 #if 0
@@ -456,7 +456,7 @@ static BOOL state_PATH (struct state_CTX *ctx)
   {
     WARN ("Truncated Receive buffer.\n");
     ctx->state = state_closing;
-    return (TRUE);
+    return (true);
   }
 #endif
 
@@ -467,7 +467,7 @@ static BOOL state_PATH (struct state_CTX *ctx)
   }
 
   ctx->state = state_closing;
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -478,7 +478,7 @@ static BOOL state_PATH (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_RESULT_COUNT (struct state_CTX *ctx)
+static bool state_RESULT_COUNT (struct state_CTX *ctx)
 {
   char  buf [200];
   char *rx = recv_line (ctx, buf, sizeof(buf));
@@ -486,16 +486,16 @@ static BOOL state_RESULT_COUNT (struct state_CTX *ctx)
   if (sscanf(rx, "RESULT_COUNT %u", &ctx->results_expected) == 1)
   {
     ctx->state = state_PATH;
-    return (TRUE);
+    return (true);
   }
   if (!strncmp(rx, "200 End", 7))  /* Premature "200 End". No results? */
   {
     ctx->state = state_closing;
-    return (TRUE);
+    return (true);
   }
   WARN ("Unexpected response: \"%s\"\n", rx);
   ctx->state = state_closing;
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -506,7 +506,7 @@ static BOOL state_RESULT_COUNT (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_200 (struct state_CTX *ctx)
+static bool state_200 (struct state_CTX *ctx)
 {
   char   buf [200];
   char  *rx = recv_line (ctx, buf, sizeof(buf));
@@ -519,7 +519,7 @@ static BOOL state_200 (struct state_CTX *ctx)
     WARN ("This is not an ETP server; response was: \"%s\"\n", rx);
     ctx->state = state_closing;
   }
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -527,7 +527,7 @@ static BOOL state_200 (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_closing (struct state_CTX *ctx)
+static bool state_closing (struct state_CTX *ctx)
 {
   ETP_tracef (ctx, "closesocket(%d)", ctx->sock);
 
@@ -538,7 +538,7 @@ static BOOL state_closing (struct state_CTX *ctx)
            ctx->results_expected, ctx->results_got, str_dword(ETP_total_rcv));
 
   ctx->state = state_exit;
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -551,7 +551,7 @@ static BOOL state_closing (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_send_query (struct state_CTX *ctx)
+static bool state_send_query (struct state_CTX *ctx)
 {
   const char *sort = NULL;  /* No sorting by default */
 
@@ -608,7 +608,7 @@ static BOOL state_send_query (struct state_CTX *ctx)
   if (send_cmd(ctx, "EVERYTHING QUERY") < 0)
        ctx->state = state_closing;
   else ctx->state = state_200;
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -630,7 +630,7 @@ static BOOL state_send_query (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_send_login (struct state_CTX *ctx)
+static bool state_send_login (struct state_CTX *ctx)
 {
   char buf[200], *rx;
   int  rc;
@@ -658,7 +658,7 @@ static BOOL state_send_login (struct state_CTX *ctx)
     ETP_tracef (ctx, buf);
     ctx->state = state_closing;
   }
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -670,7 +670,7 @@ static BOOL state_send_login (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_await_login (struct state_CTX *ctx)
+static bool state_await_login (struct state_CTX *ctx)
 {
   char  buf [200];
   char *rx = recv_line (ctx, buf, sizeof(buf));
@@ -688,7 +688,7 @@ static BOOL state_await_login (struct state_CTX *ctx)
     }
     else
       ctx->state = state_send_query;
-    return (TRUE);
+    return (true);
   }
 
   /** Any `"5xx"` message or a timeout is fatal here; enter state_closing().
@@ -697,7 +697,7 @@ static BOOL state_await_login (struct state_CTX *ctx)
   WARN (buf);
   ETP_tracef (ctx, buf);
   ctx->state = state_closing;
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -716,7 +716,7 @@ static BOOL state_await_login (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_await_features (struct state_CTX *ctx)
+static bool state_await_features (struct state_CTX *ctx)
 {
   char  buf [200];
   char *rx = recv_line (ctx, buf, sizeof(buf));
@@ -725,7 +725,7 @@ static BOOL state_await_features (struct state_CTX *ctx)
 
   if (!strncmp(rx, "211 End", 7))
      ctx->state = state_send_query;
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -736,7 +736,7 @@ static BOOL state_await_features (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_send_pass (struct state_CTX *ctx)
+static bool state_send_pass (struct state_CTX *ctx)
 {
   char  buf [200];
   char *rx = recv_line (ctx, buf, sizeof(buf));
@@ -754,13 +754,13 @@ static BOOL state_send_pass (struct state_CTX *ctx)
   else if (send_cmd(ctx, "PASS %s", ctx->password) < 0)
        ctx->state = state_closing;      /* Transmit failed; close */
   else ctx->state = state_await_login;  /* "PASS" sent okay, await loging confirmation */
-  return (TRUE);
+  return (true);
 }
 
 /**
  * Check if `ctx->hostname` is simply an IPv4-address.
  *
- * If TRUE, enter `state_blocking_connect()` or `state_non_blocking_connect()`. <br>
+ * If true, enter `state_blocking_connect()` or `state_non_blocking_connect()`. <br>
  * otherwise, call `gethostbyname()` to get the IPv4-address. <br>
  * Then enter `state_blocking_connect()` or `state_non_blocking_connect()`.
  *
@@ -768,7 +768,7 @@ static BOOL state_send_pass (struct state_CTX *ctx)
  *
  * \note Using `gethostbyname()` could block for a long period.
  */
-static BOOL state_resolve (struct state_CTX *ctx)
+static bool state_resolve (struct state_CTX *ctx)
 {
   struct hostent *he;
 
@@ -815,11 +815,11 @@ static BOOL state_resolve (struct state_CTX *ctx)
   }
   else
     ctx->state = state_blocking_connect;
-  return (TRUE);
+  return (true);
 
 fail:
   ctx->state = state_closing;
-  return (TRUE);
+  return (true);
 }
 
 /**\def SELECT_TIME_USEC
@@ -841,7 +841,7 @@ fail:
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_non_blocking_connect (struct state_CTX *ctx)
+static bool state_non_blocking_connect (struct state_CTX *ctx)
 {
   struct timeval tv;
   fd_set wr_fds, ex_fds;
@@ -852,12 +852,12 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx)
   if (ctx->retries++ >= MAX_RETRIES)
   {
     connect_common_final (ctx, WSAETIMEDOUT);
-    return (TRUE);
+    return (true);
   }
   if (halt_flag > 0)  /* SIGINT caught */
   {
     connect_common_final (ctx, WSAECONNREFUSED); /* Any better error-code? */
-    return (TRUE);
+    return (true);
   }
 
   FD_ZERO (&wr_fds);
@@ -889,7 +889,7 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx)
       set_nonblock (ctx->sock, 0);
     }
   }
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -898,14 +898,14 @@ static BOOL state_non_blocking_connect (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_blocking_connect (struct state_CTX *ctx)
+static bool state_blocking_connect (struct state_CTX *ctx)
 {
   int rc;
 
   connect_common_init (ctx, "state_blocking_connect");
   rc = connect (ctx->sock, (const struct sockaddr*)&ctx->sa, sizeof(ctx->sa));
   connect_common_final (ctx, rc < 0 ? WSAGetLastError() : 0);
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -915,14 +915,14 @@ static BOOL state_blocking_connect (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_netrc_lookup (struct state_CTX *ctx)
+static bool state_netrc_lookup (struct state_CTX *ctx)
 {
   const char *user  = NULL;
   const char *passw = NULL;
-  BOOL        okay = netrc_lookup (ctx->hostname, &user, &passw);
+  bool        okay = netrc_lookup (ctx->hostname, &user, &passw);
 
   if (!okay)
-     login_warning (ctx, FALSE);
+     login_warning (ctx, false);
   else
   {
     if (user)
@@ -936,14 +936,14 @@ static BOOL state_netrc_lookup (struct state_CTX *ctx)
 
   /* Do not attempt "~/.netrc" login ever again.
    */
-  ctx->use_netrc = FALSE;
+  ctx->use_netrc = false;
 
   /* If "~/.netrc" login failed, maybe try "~/.authinfo" next?
    */
   if (!okay && ctx->use_authinfo)
        ctx->state = state_authinfo_lookup;
   else ctx->state = state_resolve;
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -953,15 +953,15 @@ static BOOL state_netrc_lookup (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_authinfo_lookup (struct state_CTX *ctx)
+static bool state_authinfo_lookup (struct state_CTX *ctx)
 {
   const char *user  = NULL;
   const char *passw = NULL;
   int         port = 0;
-  BOOL        okay = authinfo_lookup (ctx->hostname, &user, &passw, &port);
+  bool        okay = authinfo_lookup (ctx->hostname, &user, &passw, &port);
 
   if (!okay)
-     login_warning (ctx, TRUE);
+     login_warning (ctx, true);
   else
   {
     if (user)
@@ -977,7 +977,7 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
 
   /* Do not attempt "~/.authinfo" login ever again.
    */
-  ctx->use_authinfo = FALSE;
+  ctx->use_authinfo = false;
 
   /* If "~/.authinfo" lookup failed, maybe try "~/.netrc" next?
    */
@@ -985,7 +985,7 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
        ctx->state = state_netrc_lookup;
   else ctx->state = state_resolve;
 
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -998,10 +998,10 @@ static BOOL state_authinfo_lookup (struct state_CTX *ctx)
  * \note Currently not used. So make it non-static to suppress a warning
  *       from clang-cl and gcc.
  */
-BOOL state_envtool_cfg_lookup (struct state_CTX *ctx)
+bool state_envtool_cfg_lookup (struct state_CTX *ctx)
 {
   ARGSUSED (ctx);
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -1019,7 +1019,7 @@ BOOL state_envtool_cfg_lookup (struct state_CTX *ctx)
  *       Hence we *must* parse both files first before we send any
  *       `USER` or `PASSWORD` commands.
  */
-static BOOL state_parse_url (struct state_CTX *ctx)
+static bool state_parse_url (struct state_CTX *ctx)
 {
   int n;
 
@@ -1027,28 +1027,28 @@ static BOOL state_parse_url (struct state_CTX *ctx)
 
   /** Assume we must use `~/.netrc` or `~/.authifo`.
    */
-  ctx->use_netrc = ctx->use_authinfo = TRUE;
+  ctx->use_netrc = ctx->use_authinfo = true;
 
   /** Check simple case of "host_or_IP-address<:port>" first.
    */
   n = parse_host_spec (ctx, "%200[^:]:%d", ctx->hostname, &ctx->port);
 
   if ((n == 1 || n == 2) && !strchr(ctx->raw_url,'@'))
-     ctx->use_netrc = ctx->use_authinfo = TRUE;
+     ctx->use_netrc = ctx->use_authinfo = true;
   else
   {
     /** Check for "user:passwd@host_or_IP-address<:port>".
      */
     n = parse_host_spec (ctx, "%30[^:@]:%30[^:@]@%200[^:]:%d", ctx->username, ctx->password, ctx->hostname, &ctx->port);
     if (n == 3 || n == 4)
-       ctx->use_netrc = ctx->use_authinfo = FALSE;
+       ctx->use_netrc = ctx->use_authinfo = false;
     else
     {
       /** Check for "user@host_or_IP-address<:port>".
        */
       n = parse_host_spec (ctx, "%30[^:@]@%200[^:@]:%d", ctx->username, ctx->hostname, &ctx->port);
       if (n == 2 || n == 3)
-         ctx->use_netrc = ctx->use_authinfo = FALSE;
+         ctx->use_netrc = ctx->use_authinfo = false;
     }
   }
 
@@ -1071,7 +1071,7 @@ static BOOL state_parse_url (struct state_CTX *ctx)
      */
     ctx->state = state_resolve;
   }
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -1083,7 +1083,7 @@ static BOOL state_parse_url (struct state_CTX *ctx)
  *
  * \param[in] ctx  the context we work with.
  */
-static BOOL state_init (struct state_CTX *ctx)
+static bool state_init (struct state_CTX *ctx)
 {
   WSADATA wsadata;
 
@@ -1094,7 +1094,7 @@ static BOOL state_init (struct state_CTX *ctx)
     ctx->ws_err = WSAGetLastError();
     WARN ("Failed to start Winsock: %s.\n", ws2_strerror(ctx->ws_err));
     ctx->state = state_exit;
-    return (TRUE);
+    return (true);
   }
 
   ctx->sock = socket (AF_INET, SOCK_STREAM, 0);
@@ -1107,30 +1107,30 @@ static BOOL state_init (struct state_CTX *ctx)
     WARN (buf);
     ETP_tracef (ctx, buf);
     ctx->state = state_exit;
-    return (TRUE);
+    return (true);
   }
 
   ctx->state = state_parse_url;
-  return (TRUE);
+  return (true);
 }
 
 /**
  * The last state-machine function we enter.
  *
  * \param[in] ctx   the context we work with.
- * \retval    FALSE forces run_state_machine() to quit it's loop
+ * \retval    false forces run_state_machine() to quit it's loop
  *
  * Calls `WSACleanup()`.
  */
-static BOOL state_exit (struct state_CTX *ctx)
+static bool state_exit (struct state_CTX *ctx)
 {
   ETP_tracef (ctx, "WSACleanup()");
   WSACleanup();
-  return (FALSE);
+  return (false);
 }
 
 /**
- * Run the state-machine until a state-function returns FALSE. <br>
+ * Run the state-machine until a state-function returns false. <br>
  * Or the SIGINT handler detects user pressing `^C` (i.e `halt_flag` becomes non-zero). <br>
  * The state-function is always set to `ctx->state`.
  *
@@ -1141,7 +1141,7 @@ static void run_state_machine (struct state_CTX *ctx)
   while (1)
   {
     ETP_state old_state = ctx->state;
-    BOOL      rc = (*ctx->state) (ctx);
+    bool      rc = (*ctx->state) (ctx);
 
     if (opt.debug >= 2)
     {

@@ -56,7 +56,7 @@ static UINT curr_sec = UINT_MAX;
  * \param[in] key      the key from the file opened in `parse_config_file()`.
  * \param[in] value    the malloced value from the file opened in `parse_config_file()`.
  */
-BOOL cfg_ignore_handler (const char *section, const char *key, const char *value)
+bool cfg_ignore_handler (const char *section, const char *key, const char *value)
 {
   if (section && !stricmp(key, "ignore"))
   {
@@ -70,7 +70,7 @@ BOOL cfg_ignore_handler (const char *section, const char *key, const char *value
     if (idx == UINT_MAX)
     {
       WARN ("Ignoring unknown section: %s.\n", section);
-      return (TRUE);
+      return (true);
     }
 
     node = MALLOC (sizeof(*node));
@@ -78,9 +78,9 @@ BOOL cfg_ignore_handler (const char *section, const char *key, const char *value
     node->value   = value;
     smartlist_add (ignore_list, node);
     TRACE (3, "%s: ignore = '%s'\n", node->section, node->value);
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**

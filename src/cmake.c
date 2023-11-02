@@ -25,7 +25,7 @@ static char           *cmake_exe = NULL;
  *    |__ ret_uuid                                  |___ ret_path
  * ```
  */
-static BOOL cmake_get_value_path (HKEY top_key, const char *key_name, char **ret_uuid, char **ret_path)
+static bool cmake_get_value_path (HKEY top_key, const char *key_name, char **ret_uuid, char **ret_path)
 {
   HKEY   key = NULL;
   DWORD  rc;
@@ -82,7 +82,7 @@ int cmake_get_info_registry (smartlist_t *sl, int *index, HKEY top_key)
     char   package [100];
     char  *uuid = "?";
     char  *path = "?";
-    BOOL   exist;
+    bool   exist;
     DWORD  size = sizeof(package);
     struct stat st;
 
@@ -168,7 +168,7 @@ static int cmake_version_cb (char *buf, int index)
 /**
  * Return the full path and version-information of `cmake.exe`.
  */
-BOOL cmake_get_info (char **exe, struct ver_info *ver)
+bool cmake_get_info (char **exe, struct ver_info *ver)
 {
   *ver = cmake_ver;
   *exe = NULL;
@@ -178,7 +178,7 @@ BOOL cmake_get_info (char **exe, struct ver_info *ver)
   if (cmake_exe && VALID_VER(cmake_ver))
   {
     *exe = STRDUP (cmake_exe);
-    return (TRUE);
+    return (true);
   }
 
   TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
@@ -199,7 +199,7 @@ BOOL cmake_get_info (char **exe, struct ver_info *ver)
      cmake_exe = searchpath ("cmake.exe", "PATH");
 
   if (!cmake_exe)
-     return (FALSE);
+     return (false);
 
   cache_putf (SECTION_CMAKE, "cmake_exe = %s", cmake_exe);
   *exe = STRDUP (cmake_exe);
@@ -253,7 +253,7 @@ int cmake_search (void)
           ver.val_1, ver.val_2, ver.val_3, modules_dir);
 
   report_header_set ("Matches in built-in Cmake modules:\n");
-  found = process_dir (modules_dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_CMAKE_FILE);
+  found = process_dir (modules_dir, 0, true, true, 1, true, env_name, HKEY_CMAKE_FILE);
   FREE (bin);
   FREE (root);
 
@@ -267,7 +267,7 @@ int cmake_search (void)
     if (i == 0)
        report_header_set ("Matches in Cmake Registry directories:\n");
     dir = smartlist_get (sl, i);
-    found += process_dir (dir, 0, TRUE, TRUE, 1, TRUE, NULL, HKEY_CMAKE_FILE);
+    found += process_dir (dir, 0, true, true, 1, true, NULL, HKEY_CMAKE_FILE);
   }
   smartlist_free_all (sl);
   report_header_set (NULL);

@@ -47,8 +47,8 @@ typedef struct compiler_info {
         lib_setup_func setup_library_path; /**< the library-search setup function */
         const char    *setup_library_fmt;  /**< and it's format used by `popen_run()` */
 
-        BOOL           ignore;             /**< shall we ignore it? */
-        BOOL           no_prefix;          /**< shall we check GCC prefixed gcc/g++? */
+        bool           ignore;             /**< shall we ignore it? */
+        bool           no_prefix;          /**< shall we check GCC prefixed gcc/g++? */
       } compiler_info;
 
 /**
@@ -58,16 +58,16 @@ typedef struct compiler_info {
 static smartlist_t *all_cc = NULL;
 
 static size_t longest_cc          = 0;
-static BOOL   ignore_all_gcc      = FALSE;
-static BOOL   ignore_all_gpp      = FALSE;
-static BOOL   ignore_all_clang    = FALSE;
-static BOOL   ignore_all_intel    = FALSE;
-static BOOL   ignore_all_borland  = FALSE;
-static BOOL   ignore_all_msvc     = FALSE;
-static BOOL   ignore_all_watcom   = FALSE;
-static BOOL   looks_like_cygwin   = FALSE;
-static BOOL   found_search_line   = FALSE;
-static BOOL   searching_LLVM_libs = FALSE;
+static bool   ignore_all_gcc      = false;
+static bool   ignore_all_gpp      = false;
+static bool   ignore_all_clang    = false;
+static bool   ignore_all_intel    = false;
+static bool   ignore_all_borland  = false;
+static bool   ignore_all_msvc     = false;
+static bool   ignore_all_watcom   = false;
+static bool   looks_like_cygwin   = false;
+static bool   found_search_line   = false;
+static bool   searching_LLVM_libs = false;
 
 static char   cygwin_fqfn [_MAX_PATH];
 static char  *cygwin_root = NULL;
@@ -78,7 +78,7 @@ static char  *prev_C_INCLUDE_PATH;
 static char  *prev_CPLUS_INCLUDE_PATH;
 static char  *prev_LIBRARY_PATH;
 
-static void   compiler_add (const compiler_info *_cc, const char *inc_env,  const char *lib_env, BOOL from_cache);
+static void   compiler_add (const compiler_info *_cc, const char *inc_env,  const char *lib_env, bool from_cache);
 static void   compiler_add_gcc (void);
 static void   compiler_add_msvc (void);
 static void   compiler_add_clang (void);
@@ -88,7 +88,7 @@ static void   compiler_add_watcom (void);
 static void   compiler_add_custom (const char *compiler_full_name);
 static int    dir_array_make_unique (const char *where, const char *compiler_full_name);
 
-static int    GCC_print_compiler_info (const compiler_info *cc, BOOL print_lib_path);
+static int    GCC_print_compiler_info (const compiler_info *cc, bool print_lib_path);
 static int    GCC_LLVM_setup_include_path (const compiler_info *cc);
 static int    GCC_LLVM_setup_library_path (const compiler_info *cc);
 
@@ -140,8 +140,8 @@ static int pfx_next_idx = -1;
 #define LIB_DUMP_FMT_DPCPP  "%s -clang:print-search-dirs 2>&1"
 #define LIB_DUMP_FMT_ICX    "%s -clang:print-search-dirs 2>&1"
 
-static BOOL push_env (const char *env_name, char **value);
-static BOOL pop_env (const char *env_name, char **value);
+static bool push_env (const char *env_name, char **value);
+static bool pop_env (const char *env_name, char **value);
 
 /**
  * Push and pop environment values:
@@ -181,43 +181,43 @@ void compiler_exit (void)
  */
 static void check_ignore (compiler_info *cc)
 {
-  BOOL ignore = FALSE;
+  bool ignore = false;
 
   /* "envtool --no-prefix .." given and this `cc->short_name` is
    * a prefixed `*-gcc.exe` or `*-g++.exe`. Not used for other `CC_x` types.
    */
   if (cc->no_prefix)
-     ignore = TRUE;
+     ignore = true;
 
   /* "envtool --no-gcc .." given and this `cc->type == CC_GNU_GCC`.
    */
   else if (cc->type == CC_GNU_GCC && opt.no_gcc)
-     ignore = TRUE;
+     ignore = true;
 
   /* "envtool --no-g++ .." given and this `cc->type == CC_GNU_GXX`.
    */
   else if (cc->type == CC_GNU_GXX && opt.no_gpp)
-     ignore = TRUE;
+     ignore = true;
 
   /* "envtool --no-watcom .." given and this `cc->type == CC_WATCOM`.
    */
   else if (cc->type == CC_WATCOM && opt.no_watcom)
-     ignore = TRUE;
+     ignore = true;
 
   /* "envtool --no-borland .." given and this `cc->type == CC_BORLAND`.
    */
   else if (cc->type == CC_BORLAND && opt.no_borland)
-     ignore = TRUE;
+     ignore = true;
 
   /* "envtool --no-clang .." given and this `cc->type == CC_CLANG`.
    */
   else if (cc->type == CC_CLANG && opt.no_clang)
-     ignore = TRUE;
+     ignore = true;
 
   /* "envtool --no-intel .." given and this `cc->type == CC_INTEL`.
    */
   else if (cc->type == CC_INTEL && opt.no_intel)
-     ignore = TRUE;
+     ignore = true;
 
   else if (cc->full_name)
     ignore = cfg_ignore_lookup ("[Compiler]", cc->full_name);
@@ -237,16 +237,16 @@ static void check_ignore (compiler_info *cc)
  * The config-file handler for the `[Compiler]` section.
  * Currently only handles `"ignore = xx"` pairs.
  */
-BOOL compiler_cfg_handler (const char *section, const char *key, const char *value)
+bool compiler_cfg_handler (const char *section, const char *key, const char *value)
 {
   if (!stricmp(key, "ignore"))
      return cfg_ignore_handler (section, key, value);
   if (!stricmp(key, "add"))
   {
     compiler_add_custom (value);
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -268,7 +268,7 @@ static int get_all_exe_from_cache (void)
     if (cache_getf (SECTION_COMPILER, format,
                     &cc.type, &cc.ignore, &cc.no_prefix, &inc_env, &lib_env, &cc.short_name, &cc.full_name) != 7)
        break;
-    compiler_add (&cc, inc_env, lib_env, TRUE);
+    compiler_add (&cc, inc_env, lib_env, true);
     found++;
     i++;
   }
@@ -310,7 +310,7 @@ static int get_inc_dirs_from_cache (const compiler_info *cc)
     if (cache_getf (SECTION_COMPILER, format, &inc_dir) != 1)
        break;
 
-    dir_array_add (inc_dir, FALSE);
+    dir_array_add (inc_dir, false);
     found++;
     i++;
   }
@@ -335,7 +335,7 @@ static int get_lib_dirs_from_cache (const compiler_info *cc)
     snprintf (format, sizeof(format), "compiler_lib_%d_%d = %%s", cc->type, i);
     if (cache_getf (SECTION_COMPILER, format, &lib_dir) != 1)
        break;
-    dir_array_add (lib_dir, FALSE);
+    dir_array_add (lib_dir, false);
     found++;
     i++;
   }
@@ -415,9 +415,9 @@ static size_t get_longest_short_name (void)
 }
 
 /**
- * Return TRUE if we shall ignore all compilers of this type.
+ * Return true if we shall ignore all compilers of this type.
  */
-static BOOL check_ignore_all (compiler_type type)
+static bool check_ignore_all (compiler_type type)
 {
   int i, num = 0;
   int ignore = 0;
@@ -445,10 +445,10 @@ static BOOL check_ignore_all (compiler_type type)
  * \param[in] print_lib_path  If called from `show_version()` and `envtool -VVV` was used,
  *                            print the internal GCC library paths too.
  */
-void compiler_init (BOOL print_info, BOOL print_lib_path)
+void compiler_init (bool print_info, bool print_lib_path)
 {
   struct compiler_info *cc;
-  BOOL   at_least_one_gcc = FALSE;
+  bool   at_least_one_gcc = false;
   int    i, max, ignored, num_gxx;
   int    save;
 
@@ -587,13 +587,13 @@ static void compiler_add_gcc (void)
     cc.no_prefix  = (*pfx && opt.gcc_no_prefixed);
     cc.type       = CC_GNU_GCC;
     cc.short_name = short_name;
-    compiler_add (&cc, "C_INCLUDE_PATH", "LIBRARY_PATH", FALSE);
+    compiler_add (&cc, "C_INCLUDE_PATH", "LIBRARY_PATH", false);
 
     snprintf (short_name, sizeof(short_name), "%sg++.exe", pfx);
     cc.no_prefix  = (*pfx && opt.gcc_no_prefixed);
     cc.type       = CC_GNU_GXX;
     cc.short_name = short_name;
-    compiler_add (&cc, "C_INCLUDE_PATH", "LIBRARY_PATH", FALSE);
+    compiler_add (&cc, "C_INCLUDE_PATH", "LIBRARY_PATH", false);
   }
 }
 
@@ -609,7 +609,7 @@ static void compiler_add_msvc (void)
 
   cc.type       = CC_MSVC;
   cc.short_name = "cl.exe";
-  compiler_add (&cc, "INCLUDE", "LIB", FALSE);
+  compiler_add (&cc, "INCLUDE", "LIB", false);
 }
 
 /**
@@ -621,11 +621,11 @@ static void compiler_add_clang (void)
 
   cc.type       = CC_CLANG;
   cc.short_name = "clang.exe";
-  compiler_add (&cc, "INCLUDE", "LIB", FALSE);
+  compiler_add (&cc, "INCLUDE", "LIB", false);
 
   cc.type       = CC_CLANG;
   cc.short_name = "clang-cl.exe";
-  compiler_add (&cc, "INCLUDE", "LIB", FALSE);
+  compiler_add (&cc, "INCLUDE", "LIB", false);
 }
 
 /**
@@ -637,10 +637,10 @@ static void compiler_add_intel (void)
 
   cc.type       = CC_INTEL;
   cc.short_name = "icx.exe";
-  compiler_add (&cc, "CPATH", "LIB", FALSE);
+  compiler_add (&cc, "CPATH", "LIB", false);
 
   cc.short_name = "dpcpp.exe";
-  compiler_add (&cc, "CPATH", "LIB", FALSE);
+  compiler_add (&cc, "CPATH", "LIB", false);
 }
 
 /**
@@ -661,7 +661,7 @@ static void compiler_add_borland (void)
 
     cc.type       = CC_BORLAND;
     cc.short_name = (char*) bcc[i];
-    compiler_add (&cc, "INCLUDE", "LIB", FALSE);
+    compiler_add (&cc, "INCLUDE", "LIB", false);
   }
 }
 
@@ -698,7 +698,7 @@ static void compiler_add_watcom (void)
 
     cc.type       = CC_WATCOM;
     cc.short_name = (char*) wcc[i];
-    compiler_add (&cc, "WATCOM", "LIB", FALSE);
+    compiler_add (&cc, "WATCOM", "LIB", false);
   }
 }
 
@@ -730,7 +730,7 @@ static void check_if_cygwin (const char *path)
 
   if (!memcmp(path, &cyg_usr, sizeof(cyg_usr)-1) || !memcmp(path, &cyg_drv, sizeof(cyg_drv)-1))
   {
-    looks_like_cygwin = TRUE;
+    looks_like_cygwin = true;
     TRACE (2, "looks_like_cygwin = %d, cygwin_root: '%s'\n", looks_like_cygwin, cygwin_root);
   }
 }
@@ -745,7 +745,7 @@ static void check_if_cygwin (const char *path)
  */
 static void setup_cygwin_root (const compiler_info *cc)
 {
-  looks_like_cygwin = FALSE;
+  looks_like_cygwin = false;
   cygwin_root = NULL;
   cygwin_fqfn[0] = '\0';
 
@@ -770,7 +770,7 @@ static void compiler_popen_warn (const compiler_info *cc, int rc)
 {
   const char *full_name = cc->full_name;
   const char *err       = popen_last_line();
-  BOOL  could_be_cygwin = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GXX);
+  bool  could_be_cygwin = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GXX);
 
   if (*err != '\0')
      err = strstr (err, "error: ");
@@ -813,7 +813,7 @@ static void LLVM_extra_library_paths (const char *base_lib)
     _fix_path (dir, dir);
     is_dir = is_directory (dir);
     if (is_dir)
-       dir_array_add (dir, FALSE);
+       dir_array_add (dir, false);
     TRACE (2, "is_dir: %d, dir: '%s'\n", is_dir, dir);
   }
 }
@@ -833,7 +833,7 @@ static int GCC_LLVM_find_include_path_cb (char *buf, int index)
 
   if (!found_search_line && !memcmp(buf, &start, sizeof(start)-1))
   {
-    found_search_line = TRUE;
+    found_search_line = true;
     return (0);
   }
 
@@ -849,7 +849,7 @@ static int GCC_LLVM_find_include_path_cb (char *buf, int index)
      */
     if (!memcmp(buf, &end, sizeof(end)-1))
     {
-      found_search_line = FALSE;
+      found_search_line = false;
       return (-1);
     }
 
@@ -920,7 +920,7 @@ static int GCC_LLVM_find_library_path_cb (char *buf, int index)
     if (searching_LLVM_libs)
        LLVM_extra_library_paths (rc);
 
-    dir_array_add (rc, FALSE);
+    dir_array_add (rc, false);
   }
   ARGSUSED (end);
   return (i);
@@ -949,7 +949,7 @@ static void GCC_add_gxx_path (void)
     {
       /* This will be added at `dir_array[max+1]`.
        */
-      dir_array_add (fqfn, FALSE);
+      dir_array_add (fqfn, false);
 
 #if 0
       /* Insert the new `c++` directory at the `i`-th element.
@@ -973,7 +973,7 @@ static int GCC_LLVM_setup_include_path (const compiler_info *cc)
   const char *save_temps = "";
   const char *cached = "";
   int   found = 0;
-  BOOL  is_gcc;
+  bool  is_gcc;
 
   is_gcc = (cc->type == CC_GNU_GCC || cc->type == CC_GNU_GXX);
   if (is_gcc)
@@ -993,7 +993,7 @@ static int GCC_LLVM_setup_include_path (const compiler_info *cc)
 
   if (found == 0)
   {
-    found_search_line = FALSE;
+    found_search_line = false;
 
     if (cc->type == CC_INTEL)
     {
@@ -1049,7 +1049,7 @@ static int GCC_LLVM_setup_library_path (const compiler_info *cc)
   const char *m_cpu  = "";
   const char *cached = "";
   int   found;
-  BOOL  is_gcc;
+  bool  is_gcc;
 
   if (!strcmp(cc->short_name, "clang-cl.exe") ||
       !strcmp(cc->short_name, "icx.exe"))
@@ -1076,7 +1076,7 @@ static int GCC_LLVM_setup_library_path (const compiler_info *cc)
 
   if (found == 0)
   {
-    found_search_line   = FALSE;
+    found_search_line   = false;
     searching_LLVM_libs = (cc->type == CC_CLANG || cc->type == CC_INTEL);
 
     if (cc->type == CC_INTEL)
@@ -1106,7 +1106,7 @@ static int GCC_LLVM_setup_library_path (const compiler_info *cc)
     else
       POP_ENV (CPATH);
 
-    searching_LLVM_libs = FALSE;
+    searching_LLVM_libs = false;
   }
 
   if (found > 0)
@@ -1164,7 +1164,7 @@ static void GCC_print_internal_library_dirs (const char *env_name, const char *e
   char                  **copy;
   char                    slash = (opt.show_unix_paths ? '/' : '\\');
   int                     i, j, max;
-  BOOL                    done_remark = FALSE;
+  bool                    done_remark = false;
 
   max = smartlist_len (dir_array);
   if (max == 0)
@@ -1188,7 +1188,7 @@ static void GCC_print_internal_library_dirs (const char *env_name, const char *e
 
   for (i = 0; copy[i]; i++)
   {
-    BOOL  found = FALSE;
+    bool  found = false;
     const char *dir;
 
     for (j = 0; j < max; j++)
@@ -1197,7 +1197,7 @@ static void GCC_print_internal_library_dirs (const char *env_name, const char *e
       dir = slashify2 (arr->dir, arr->dir, slash);
       if (!stricmp(dir, copy[i]))
       {
-        found = TRUE;
+        found = true;
         break;
       }
     }
@@ -1207,7 +1207,7 @@ static void GCC_print_internal_library_dirs (const char *env_name, const char *e
       if (!done_remark)
          C_puts (" ~3(1)~0");
       C_putc ('\n');
-      done_remark = TRUE;
+      done_remark = true;
     }
   }
 
@@ -1224,12 +1224,12 @@ static void GCC_print_internal_library_dirs (const char *env_name, const char *e
  *    ...
  * ```
  *
- * `envtool -VVV (print_lib_path = TRUE)` will print the internal
+ * `envtool -VVV (print_lib_path = true)` will print the internal
  * `*gcc` or `*g++` library paths too.
  */
-static int GCC_print_compiler_info (const compiler_info *cc, BOOL print_lib_path)
+static int GCC_print_compiler_info (const compiler_info *cc, bool print_lib_path)
 {
-  BOOL   is_gcc;
+  bool   is_gcc;
   int    rc = 0;
   size_t len = strlen (cc->short_name);
 
@@ -1337,7 +1337,7 @@ int compiler_check_libraries (compiler_type type)
 static int Watcom_setup_dirs (const compiler_info *_cc, const char *dir0, const char *dir1, const char *dir2)
 {
   int  i, found, ignored, max;
-  BOOL dir2_found;
+  bool dir2_found;
 
   max = smartlist_len (all_cc);
   for (i = found = ignored = 0; i < max; i++)
@@ -1371,7 +1371,7 @@ static int Watcom_setup_dirs (const compiler_info *_cc, const char *dir0, const 
   }
 
   if (!opt.no_cwd)
-     dir_array_add (current_dir, TRUE);
+     dir_array_add (current_dir, true);
 
   watcom_dirs[0] = getenv_expand (dir0);
   watcom_dirs[1] = getenv_expand (dir1);
@@ -1382,10 +1382,10 @@ static int Watcom_setup_dirs (const compiler_info *_cc, const char *dir0, const 
    */
   dir2_found = is_directory (watcom_dirs[2]);
 
-  dir_array_add (watcom_dirs[0], FALSE);
-  dir_array_add (watcom_dirs[1], FALSE);
+  dir_array_add (watcom_dirs[0], false);
+  dir_array_add (watcom_dirs[1], false);
   if (dir2_found)
-     dir_array_add (watcom_dirs[2], FALSE);
+     dir_array_add (watcom_dirs[2], false);
 
   return (2 + dir2_found);
 }
@@ -1403,7 +1403,7 @@ static void free_watcom_dirs (void)
  *
  * Setup Borland directories for either a `%INC` or `%LIB` search.
  */
-static BOOL setup_borland_dirs (const compiler_info *cc, smartlist_parse_func parser)
+static bool setup_borland_dirs (const compiler_info *cc, smartlist_parse_func parser)
 {
   smartlist_t *dir_list;
   char        *bin_dir;
@@ -1427,10 +1427,10 @@ static BOOL setup_borland_dirs (const compiler_info *cc, smartlist_parse_func pa
                                   cc->short_name);
 
   if (!dir_list)
-     return (FALSE);
+     return (false);
 
   smartlist_free (dir_list);
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -1460,7 +1460,7 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, const char *line)
 
     snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, copy + strlen(isystem));
     TRACE (2, "dir: %s.\n", dir);
-    dir_array_add (dir, FALSE);
+    dir_array_add (dir, false);
   }
   else if (!strncmp(copy, "-I", 2))
   {
@@ -1496,7 +1496,7 @@ static void bcc32_cfg_parse_lib (smartlist_t *sl, const char *line)
 
     snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, copy + strlen(Ldir));
     TRACE (2, "dir: %s.\n", dir);
-    dir_array_add (dir, FALSE);
+    dir_array_add (dir, false);
   }
   else if (!strncmp(copy, "-L", 2))
   {
@@ -1584,11 +1584,11 @@ static int other_setup_include_path (const struct compiler_info *cc)
 static void compiler_add (const compiler_info *cc,
                           const char *inc_env,
                           const char *lib_env,
-                          BOOL from_cache)
+                          bool from_cache)
 {
   compiler_info *cc_copy;
   char    *full_name;
-  BOOL     is_gcc;
+  bool     is_gcc;
 
   ASSERT (cc->short_name);
   ASSERT (cc->short_name[0]);
@@ -1606,7 +1606,7 @@ static void compiler_add (const compiler_info *cc,
 
   is_gcc = (cc_copy->type == CC_GNU_GCC || cc_copy->type == CC_GNU_GXX);
   if (!is_gcc)
-     cc_copy->no_prefix = FALSE;
+     cc_copy->no_prefix = false;
 
   /* Set these func-pointers since these are not cached.
    */
@@ -1771,11 +1771,11 @@ static int dir_array_make_unique (const char *env_var, const char *compiler_full
  * Push: save an environment variable into a variable
  * and then clear it.
  */
-static BOOL push_env (const char *env_name, char **value)
+static bool push_env (const char *env_name, char **value)
 {
   char *env = getenv_expand (env_name);
   char  buf [100];
-  BOOL  rc = FALSE;
+  bool  rc = false;
 
   *value = env;
   if (env)
@@ -1785,7 +1785,7 @@ static BOOL push_env (const char *env_name, char **value)
     SetEnvironmentVariable (env_name, NULL);
     env = getenv (env_name);
     TRACE (2, "%%%s now: '%s'\n", env_name, env ? env : "<none>");
-    rc = TRUE;
+    rc = true;
   }
   return (rc);
 }
@@ -1794,10 +1794,10 @@ static BOOL push_env (const char *env_name, char **value)
  * Pop: undo the above clearing.
  * Restore the environment variable.
  */
-static BOOL pop_env (const char *env_name, char **value)
+static bool pop_env (const char *env_name, char **value)
 {
   char *env, buf [10+MAX_ENV_VAR];
-  BOOL  rc = FALSE;
+  bool  rc = false;
 
   if (*value)
   {
@@ -1807,7 +1807,7 @@ static BOOL pop_env (const char *env_name, char **value)
     env = getenv (env_name);
     TRACE (2, "%%%s now: '%s'\n", env_name, env ? env : "<none>");
     FREE (*value);
-    rc = TRUE;
+    rc = true;
   }
   return (rc);
 }
@@ -1873,7 +1873,7 @@ static char cc_info_buf [100];
 #elif defined(IS_ZIG_CC)
   const char *compiler_version (void)
   {
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "gcc %s, zig", gcc_version());
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "zig/gcc %s", gcc_version());
     return (cc_info_buf);
   }
 

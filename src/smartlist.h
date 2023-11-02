@@ -1,8 +1,9 @@
 /** \file smartlist.h
  *  \ingroup Misc
  */
-#ifndef _SMARTLIST_H
-#define _SMARTLIST_H
+#pragma once
+
+#include <stdbool.h>
 
 #define SMARTLIST_FOREACH(sl)  for (i = 0; i < smartlist_len(sl); i++)
 #define SMARTLIST_EMPTY(sl)    (smartlist_len(sl) == 0)
@@ -43,7 +44,7 @@ int      smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, smar
 void     smartlist_sort (smartlist_t *sl, smartlist_sort_func compare);
 
 int      smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
-                                smartlist_compare_func compare, int *found_out);
+                                smartlist_compare_func compare, bool *found_out);
 
 void    *smartlist_bsearch (const smartlist_t *sl, const void *key,
                             smartlist_compare_func compare);
@@ -74,4 +75,3 @@ char        *smartlist_join_str (smartlist_t *sl, const char *sep);
   #define smartlist_add_strdup(sl, str) smartlist_add_strdup_dbg (sl, str, #sl, __FILE(), __LINE__)
 #endif
 
-#endif

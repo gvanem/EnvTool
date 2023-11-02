@@ -19,7 +19,7 @@
 #include "cache.h"
 #include "vcpkg.h"
 
-extern BOOL find_vstudio_init (void);
+extern bool find_vstudio_init (void);
 
 /**
  * Test non-Cygwin env-var splitting in split_env_var().
@@ -322,7 +322,7 @@ static void test_fix_path (void)
   for (i = 0; i < DIM(files); i++)
   {
     char buf [_MAX_PATH], *cyg_result = "";
-    BOOL is_dir;
+    bool is_dir;
 
     f = files [i];
     rc1 = _fix_path (f, buf);    /* has only `\\` slashes */
@@ -491,7 +491,7 @@ static void test_ReparsePoints (void)
     const char *p = points[i];
     char  result [_MAX_PATH];
     char  st_result [100] = "";
-    BOOL  rc = get_reparse_point (p, result, sizeof(result));
+    bool  rc = get_reparse_point (p, result, sizeof(result));
 
     C_printf ("  %d: \"%s\" %*s->", i, p, (int)(26-strlen(p)), "");
 
@@ -582,7 +582,7 @@ static void test_PE_wintrust (void)
          file = _strlcpy (path, files[i], sizeof(path));
     }
 
-    wintrust_rc = wintrust_check (file, FALSE, FALSE);
+    wintrust_rc = wintrust_check (file, false, false);
 
     len = strlen (file);
     if (len > 50)
@@ -683,7 +683,7 @@ static int test_python_funcs (void)
 {
   const command_line *c;
   char *str = NULL;
-  BOOL  do_import = FALSE;
+  bool  do_import = false;
 
   if (halt_flag)
      return (1);
@@ -703,7 +703,7 @@ static int test_python_funcs (void)
        * a "import .." statement. Then run it as such.
        */
       if (i == 0 && !FILE_EXISTS(c->argv[j]))
-         do_import = TRUE;
+         do_import = true;
 
       if (i == DIM(py_argv)-1)
       {
@@ -715,7 +715,7 @@ static int test_python_funcs (void)
 
     if (!do_import)
        py_argv[0] = _fix_path (py_argv[0], buf);
-    str = py_execfile ((const char**)py_argv, FALSE, do_import);
+    str = py_execfile ((const char**)py_argv, false, do_import);
   }
   else
     py_test();
@@ -739,7 +739,7 @@ int do_tests (void)
      return test_python_funcs();
 
   if (opt.do_vcpkg)
-     return test_vcpkg_json_parser();
+     return vcpkg_json_parser_test();
 
 #ifdef USE_ASAN
   if (opt.use_cache)

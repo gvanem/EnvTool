@@ -75,7 +75,7 @@ static HANDLE dll_hnd = NULL;
           {                                               \
             WARN ("  Failed to find '%s()' in %s.\n",     \
                   #f, SQLITE_DLL_NAME);                   \
-            return (FALSE);                               \
+            return (false);                               \
           }                                               \
           TRACE (2, "Function %s(): %*s 0x%p.\n",         \
                  #f, 23-(int)strlen(#f), "", p_##f);      \
@@ -97,13 +97,13 @@ DEF_FUNC (int,          sqlite3_exec, (sqlite3 *db, const char *statement,
                                        sqlite3_callback cb, void *cb_arg,
                                        char **p_err_msg));
 
-static BOOL sql3_load (void)
+static bool sql3_load (void)
 {
   dll_hnd = LoadLibrary (SQLITE_DLL_NAME);
   if (!dll_hnd)
   {
     WARN ("  Failed to load %s; %s\n", SQLITE_DLL_NAME, win_strerror(GetLastError()));
-    return (FALSE);
+    return (false);
   }
 
   LOAD_FUNC (0, sqlite3_open);
@@ -117,15 +117,15 @@ static BOOL sql3_load (void)
   LOAD_FUNC (0, sqlite3_sourceid);
   LOAD_FUNC (0, sqlite3_vfs_find);
 
-  return (TRUE);
+  return (true);
 }
 
-static BOOL sql3_unload (void)
+static bool sql3_unload (void)
 {
   if (dll_hnd)
      FreeLibrary (dll_hnd);
   dll_hnd = NULL;
-  return (TRUE);
+  return (true);
 }
 
 static int SQLITE_CALLBACK sql3_callback (void *cb_arg, int argc, char **argv, char **col_name)

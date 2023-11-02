@@ -157,9 +157,9 @@ typedef struct port_node {
         char            version [VCPKG_MAX_VERSION];  /**< The version. */
         char            homepage [VCPKG_MAX_URL];     /**< The URL of it's home-page. */
         char           *description;                  /**< The description. */
-        BOOL            have_CONTROL;                 /**< TRUE if this is a CONTROL-node. */
-        BOOL            have_JSON;                    /**< TRUE if this is a JSON-node. */
-        BOOL            have_portfile;                /**< TRUE if this package has a `portfile.cmake` */
+        bool            have_CONTROL;                 /**< true if this is a CONTROL-node. */
+        bool            have_JSON;                    /**< true if this is a JSON-node. */
+        bool            have_portfile;                /**< true if this package has a `portfile.cmake` */
         VCPKG_plat_list platforms;                    /**< The supported platform(s) and "static" status */
         smartlist_t    *features;                     /**< The features; a smartlist of `char *`. */
         smartlist_t    *depends;                      /**< The dependencies; a smartlist of `char *`. */
@@ -179,9 +179,9 @@ typedef struct vcpkg_package {
         char             arch    [VCPKG_MAX_ARCH];    /**< The OS/CPU and ("-static"). */
         char             ABI     [VCPKG_MAX_ABI];     /**< The SHA256 (?) signature. */
         VCPKG_plat_list  platforms;                   /**< The supported platform(s) and "static" status */
-        BOOL             installed;                   /**< At least 1 combination is installed */
-        BOOL             purged;                      /**< Not installed; ready to be removed/updated */
-        BOOL             no_list_file;                /**< No *.list file for package */
+        bool             installed;                   /**< At least 1 combination is installed */
+        bool             purged;                      /**< Not installed; ready to be removed/updated */
+        bool             no_list_file;                /**< No *.list file for package */
         const port_node *link;                        /**< A link to the corresponding `struct port_node` with more CONTROL/JSON information */
         smartlist_t     *depends;                     /**< What package(s) it depends on; a smartlist of `char *` */
         smartlist_t     *install_info;                /**< A list of `/bin`, `/lib` and `/include` files installed. This is never written/read to/from cache-file */
@@ -231,7 +231,7 @@ static int sub_level = 0;
 /**
  * Print details on installed packages only.
  */
-static BOOL only_installed = TRUE;
+static bool only_installed = true;
 
 /**
  * Total packages-size when `opt.show_size = 1'.
@@ -263,22 +263,22 @@ static const struct search_list platforms [] = {
                               { VCPKG_plat_STATIC,  "static"  }
                             };
 
-static BOOL        get_control_node (int *index_p, const port_node **node_p, const char *package_spec);
+static bool        get_control_node (int *index_p, const port_node **node_p, const char *package_spec);
 static const char *get_platform_name (const VCPKG_plat_list p);
-static BOOL        get_depend_name (const VCPKG_plat_list p_list, const char **name);
-static BOOL        get_installed_info (vcpkg_package *package);
+static bool        get_depend_name (const VCPKG_plat_list p_list, const char **name);
+static bool        get_installed_info (vcpkg_package *package);
 static const char *get_installed_dir (const vcpkg_package *package);
 static const char *get_packages_dir (const vcpkg_package *package);
 static char       *get_cache_dir (void);
 static const char *get_cache_zip (const vcpkg_package *package);
 static int         get_plat_value (VCPKG_platform platform, int idx, const char **name);
 
-static BOOL  is_plat_supported (const VCPKG_plat_list p_list, unsigned platform);
-static BOOL  is_x86_supported (const VCPKG_plat_list p_list);
-static BOOL  is_x64_supported (const VCPKG_plat_list p_list);
-static BOOL  is_windows_supported (const VCPKG_plat_list p_list);
-static BOOL  is_uwp_supported (const VCPKG_plat_list p_list);
-static BOOL  is_static_supported (const VCPKG_plat_list p_list);
+static bool  is_plat_supported (const VCPKG_plat_list p_list, unsigned platform);
+static bool  is_x86_supported (const VCPKG_plat_list p_list);
+static bool  is_x64_supported (const VCPKG_plat_list p_list);
+static bool  is_windows_supported (const VCPKG_plat_list p_list);
+static bool  is_uwp_supported (const VCPKG_plat_list p_list);
+static bool  is_static_supported (const VCPKG_plat_list p_list);
 static int   compare_port_node (const void **_a, const void **_b);
 static int   compare_package (const void **_a, const void **_b);
 static void *find_available_package (const char *pkg_name);
@@ -286,7 +286,7 @@ static void *find_installed_package (int *index_p, const char *pkg_name, const c
 static void *find_or_alloc_package_dependency (const vcpkg_package *package);
 static int   print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int indent);
 static int   print_sub_dependencies (FMT_buf *fmt_buf, const port_node *node, int indent, smartlist_t *sub_package_list);
-static BOOL  print_install_info     (FMT_buf *fmt_buf, const char *package, int indent1);
+static bool  print_install_info     (FMT_buf *fmt_buf, const char *package, int indent1);
 static int   json_parse_ports_file (port_node *node, const char *file);
 
 /**
@@ -332,7 +332,7 @@ static void regex_print (const regex_t *re, const regmatch_t *rm, const char *st
 /**
  * Try to match `str` against the regular expression in `pattern`.
  */
-static BOOL regex_match (const char *str, const char *pattern)
+static bool regex_match (const char *str, const char *pattern)
 {
   memset (&re_matches, '\0', sizeof(re_matches));
   if (!re_hnd.buffer)
@@ -343,7 +343,7 @@ static BOOL regex_match (const char *str, const char *pattern)
       regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
       WARN ("Invalid regular expression \"%s\": %s (%d)\n", pattern, re_errbuf, re_err);
       regex_free();
-      return (FALSE);
+      return (false);
     }
   }
 
@@ -351,21 +351,21 @@ static BOOL regex_match (const char *str, const char *pattern)
   TRACE (1, "regex() pattern '%s' against '%s'. re_err: %d\n", pattern, str, re_err);
 
   if (re_err == REG_NOMATCH)
-     return (FALSE);
+     return (false);
 
   if (re_err == REG_NOERROR)
-     return (TRUE);
+     return (true);
 
   regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
   TRACE (1, "Error while matching \"%s\": %s (%d)\n", str, re_errbuf, re_err);
-  return (FALSE);
+  return (false);
 }
 _WUNUSED_FUNC_POP()
 
 /**
  * Return the value of `only_installed`
  */
-BOOL vcpkg_get_only_installed (void)
+bool vcpkg_get_only_installed (void)
 {
   return (only_installed);
 }
@@ -373,9 +373,9 @@ BOOL vcpkg_get_only_installed (void)
 /**
  * Set the value of `only_installed` and return the current value.
  */
-BOOL vcpkg_set_only_installed (BOOL True)
+bool vcpkg_set_only_installed (bool True)
 {
-  BOOL current = only_installed;
+  bool current = only_installed;
 
   only_installed = True;
   return (current);
@@ -385,7 +385,7 @@ BOOL vcpkg_set_only_installed (BOOL True)
  * Manage a list of already found packages visited in `print_sub_dependencies()`.
  * So they are not recursed and printed more than once.
  */
-static BOOL sub_package_found (const char *package, smartlist_t *sub_package_list)
+static bool sub_package_found (const char *package, smartlist_t *sub_package_list)
 {
   const char *pkg;
   int   i, max = smartlist_len (sub_package_list);
@@ -394,12 +394,12 @@ static BOOL sub_package_found (const char *package, smartlist_t *sub_package_lis
   {
     pkg = smartlist_get (sub_package_list, i);
     if (!strcmp(pkg, package))
-         return (TRUE);
+         return (true);
   }
   /* Simply add the 'char*' pointer to "already found list"
    */
   smartlist_add (sub_package_list, (void*)package);
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -640,7 +640,7 @@ static int print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
   {
     const vcpkg_package *package;
     const char *name;
-    BOOL        supported;
+    bool        supported;
 
     pkg_name = smartlist_get (node->depends, i);
     package = find_available_package (pkg_name);
@@ -667,7 +667,7 @@ static int print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
  * Split a line like "!uwp&!windows" and fill the `package->platforms[]` array for it.
  * On the first call, do it recursively.
  */
-static void CONTROL_add_dependency_platform (vcpkg_package *package, const char *plat_buf, int i, BOOL recurse)
+static void CONTROL_add_dependency_platform (vcpkg_package *package, const char *plat_buf, int i, bool recurse)
 {
   char    *platform = strdupa (plat_buf);
   unsigned val, Not = 0;
@@ -690,7 +690,7 @@ static void CONTROL_add_dependency_platform (vcpkg_package *package, const char 
 
     while (tok)
     {
-      CONTROL_add_dependency_platform (package, tok, i+1, FALSE);
+      CONTROL_add_dependency_platform (package, tok, i+1, false);
       tok = _strtok_r (NULL, "&", &tok_end);
     }
   }
@@ -700,14 +700,14 @@ static void CONTROL_add_dependency_platform (vcpkg_package *package, const char 
  * Split a line like "x86-windows" and (on the first call, do it recursively)
  * set the `VCPKG_platform_x` value for it.
  */
-static BOOL make_package_platform (vcpkg_package *package, const char *platform, int i, BOOL recurse)
+static bool make_package_platform (vcpkg_package *package, const char *platform, int i, bool recurse)
 {
   unsigned val = list_lookup_value (platform, platforms, DIM(platforms));
 
   if (val != UINT_MAX && i < VCPKG_MAX_PLAT)
   {
     package->platforms[i] = val;
-    return (TRUE);
+    return (true);
   }
 
   if (recurse)
@@ -717,20 +717,20 @@ static BOOL make_package_platform (vcpkg_package *package, const char *platform,
     for (tok = _strtok_r(copy, "-", &tok_end); tok;
          tok = _strtok_r(NULL, "-", &tok_end))
     {
-      if (make_package_platform(package, tok, i, FALSE))
+      if (make_package_platform(package, tok, i, false))
          ++i;
     }
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
  * Split a line like "curl_x86-windows[-static]" into cpu and OS and check if these are legal.
  */
-static BOOL legal_package_name (const char *package)
+static bool legal_package_name (const char *package)
 {
   char *cpu, *copy = NULL;
-  BOOL  cpu_ok = FALSE;
+  bool  cpu_ok = false;
 
   if (!package)
      goto quit;
@@ -748,7 +748,7 @@ static BOOL legal_package_name (const char *package)
   {
     cpu += 4;
     if (list_lookup_value (cpu, platforms, DIM(platforms)) == UINT_MAX)
-       cpu_ok = FALSE;
+       cpu_ok = false;
   }
 
 quit:
@@ -802,7 +802,7 @@ static void CONTROL_add_dependencies (port_node *node, char *str)
       *l_paren = '\0';
       p = str_trim (pkg_name);
       TRACE (2, "platform: '%s', tok: '%s', tok_end: '%s'\n", platform, tok, tok_end);
-      CONTROL_add_dependency_platform (&package, platform, 0, TRUE);
+      CONTROL_add_dependency_platform (&package, platform, 0, true);
     }
     smartlist_add_strdup (node->depends, p);  // !! fixme: the 'package.platform[]' is now lost
   }
@@ -918,7 +918,7 @@ static int portfile_cmake_parse (port_node *node, const char *file)
  * \param[in] check_CONTROL  Check for a `CONTROL` in each directory.
  *                           If it's missing, do not add the directory to `dir_list`.
  */
-static void build_dir_list (smartlist_t *dir_list, const char *dir, BOOL check_CONTROL)
+static void build_dir_list (smartlist_t *dir_list, const char *dir, bool check_CONTROL)
 {
   struct dirent2 *de;
   DIR2           *dp;
@@ -978,7 +978,7 @@ static void get_port_info_from_disk (const char *port_dir, int ports_index)
     TRACE (2, "%d: Building port-node for %s.\n", ports_index, CONTROL_file);
 
     node = CALLOC (sizeof(*node), 1);
-    node->have_CONTROL = TRUE;
+    node->have_CONTROL = true;
     node->depends  = smartlist_new();
     node->supports = smartlist_new();
     smartlist_addu (node->supports, VCPKG_plat_ALL);
@@ -995,7 +995,7 @@ static void get_port_info_from_disk (const char *port_dir, int ports_index)
     TRACE (1, "%d: Building JSON port-node for %s.\n", ports_index, JSON_file);
 
     node = CALLOC (sizeof(*node), 1);
-    node->have_JSON = TRUE;
+    node->have_JSON = true;
     node->depends  = smartlist_new();
     node->features = smartlist_new();
     node->supports = smartlist_new();
@@ -1010,7 +1010,7 @@ static void get_port_info_from_disk (const char *port_dir, int ports_index)
 
   if (FILE_EXISTS(port_file) && node && !node->homepage[0])
   {
-    node->have_portfile = TRUE;
+    node->have_portfile = true;
     portfile_cmake_parse (node, port_file);
   }
 }
@@ -1177,7 +1177,7 @@ static void dump_port_dependencies (const port_node *node, const char *indent)
   {
     const vcpkg_package *dep = find_available_package (smartlist_get(node->depends, i));
     const char *name;
-    BOOL  supported;
+    bool  supported;
 
     if (!dep)
        break;
@@ -1526,7 +1526,7 @@ static void dump_packages_cache (void)
  *  \li `node->have_CONTROL == have_CONTROL`  or
  *  \li `node->have_JSON == have_JSON`.
  */
-static unsigned vcpkg_get_num (BOOL have_CONTROL, BOOL have_JSON)
+static unsigned vcpkg_get_num (bool have_CONTROL, bool have_JSON)
 {
   const port_node *node;
   unsigned num = 0;
@@ -1546,12 +1546,12 @@ static unsigned vcpkg_get_num (BOOL have_CONTROL, BOOL have_JSON)
  * (ignoring whether a package is installed or not).
  *
  * \param[in] port_dirs   The `smartlist_t*` of the directories to build the `port_node*` list
- *                        from if `from_cache` is FALSE.
+ *                        from if `from_cache` is false.
  * \param[in] from_cache  Build the `ports_list` from cache only.
  *
  * \retval The length of the `ports_list`.
  */
-static int get_all_available (const smartlist_t *port_dirs, BOOL from_cache)
+static int get_all_available (const smartlist_t *port_dirs, bool from_cache)
 {
   int i, max;
 
@@ -1596,36 +1596,36 @@ static int get_all_available (const smartlist_t *port_dirs, BOOL from_cache)
 /**
  * Try to set the `vcpkg_root` based on a `%VCPKG_ROOT%` env-var.
  */
-static BOOL get_base_env (void)
+static bool get_base_env (void)
 {
   const char *env = getenv ("VCPKG_ROOT");
 
   if (!env)
   {
     _strlcpy (last_err_str, "Env-var ~5VCPKG_ROOT~0 not defined", sizeof(last_err_str));
-    return (FALSE);
+    return (false);
   }
   if (!is_directory_readable(env))
   {
     _strlcpy (last_err_str, "~5VCPKG_ROOT~0 points to a non-existing directory", sizeof(last_err_str));
-    return (FALSE);
+    return (false);
   }
   if (!vcpkg_root)
      vcpkg_root = _fix_path (env, NULL);
-  return (TRUE);
+  return (true);
 }
 
 /**
  * Try to set the `vcpkg_root` based on directory of `vcpkg.exe`.
  */
-static BOOL get_base_exe (const char *exe)
+static bool get_base_exe (const char *exe)
 {
   char *dir;
 
   if (!exe)
   {
     _strlcpy (last_err_str, "vcpkg.exe not found on PATH", sizeof(last_err_str));
-    return (FALSE);
+    return (false);
   }
   dir = dirname (exe);
 
@@ -1635,7 +1635,7 @@ static BOOL get_base_exe (const char *exe)
      vcpkg_root = _fix_path (dir, NULL);
 
   FREE (dir);
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -1657,7 +1657,7 @@ static BOOL get_base_exe (const char *exe)
  * Caller must ensure this function does not parse beyond the allocated
  * file-buffer.
  */
-static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p, BOOL *end_of_record)
+static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p, bool *end_of_record)
 {
   char *next;
   char *line = *line_p;
@@ -1676,8 +1676,8 @@ static int vcpkg_parse_status_line (vcpkg_package *package, char **line_p, BOOL 
   *line_p = ++eol;
 
   if (*eol == '\r' || *eol == '\n')  /* records are separated with newlines */
-       *end_of_record = TRUE;
-  else *end_of_record = FALSE;
+       *end_of_record = true;
+  else *end_of_record = false;
 
   TRACE (2, "line: '%.50s'. end-of-record: %d\n", line, *end_of_record);
 
@@ -1778,7 +1778,7 @@ static int compare_str (const void **_a, const void **_b)
 /**
  * Free memory for a single `package *` structure.
  */
-static void free_package (vcpkg_package *package, BOOL free_package)
+static void free_package (vcpkg_package *package, bool free_package)
 {
   smartlist_free_all (package->install_info);
   smartlist_free_all (package->depends);
@@ -1828,7 +1828,7 @@ static smartlist_t *add_or_merge_features (smartlist_t *sl1, smartlist_t *sl2)
  * We ignore all without a "install ok installed" status or a
  * missing architecture.
  */
-static BOOL add_or_modify_this_package (vcpkg_package *package, vcpkg_package **modify, char **why_not)
+static bool add_or_modify_this_package (vcpkg_package *package, vcpkg_package **modify, char **why_not)
 {
   *why_not = "-";
   *modify = NULL;
@@ -1837,13 +1837,13 @@ static BOOL add_or_modify_this_package (vcpkg_package *package, vcpkg_package **
   {
     *why_not = "not installed";
     TRACE (2, "package->status: '%s'\n", package->status);
-    return (FALSE);
+    return (false);
   }
 
   if (!package->arch[0])
   {
     *why_not = "missing arch";
-    return (FALSE);
+    return (false);
   }
 
   *modify = find_installed_package (NULL, package->package, package->arch);
@@ -1853,9 +1853,9 @@ static BOOL add_or_modify_this_package (vcpkg_package *package, vcpkg_package **
   if (!get_installed_info(package))
   {
     *why_not = "missing info .list files";
-    return (FALSE);
+    return (false);
   }
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -1874,7 +1874,7 @@ static int vcpkg_parse_status_file (void)
   size_t        f_size;
   int           num_parsed = 0;    /* number of parsed lines in current record */
   int           num_records = 0;   /* total number of records parsed */
-  BOOL          EOR;
+  bool          EOR;
 
   snprintf (file, sizeof(file), "%s\\installed\\vcpkg\\status", vcpkg_root);
 
@@ -1913,7 +1913,7 @@ static int vcpkg_parse_status_file (void)
       if (package_modify)
       {
         TRACE (1, "Modifying package: '%s', arch: '%s'\n\n", package_modify->package, package_modify->arch);
-        package_modify->installed = TRUE;
+        package_modify->installed = true;
 #if 1
         package_modify->features = add_or_merge_features (package_modify->features, package.features);
 #endif
@@ -1923,7 +1923,7 @@ static int vcpkg_parse_status_file (void)
         TRACE (1, "Adding package: '%s', arch: '%s', version: '%s'\n\n", package.package, package.arch, package.version);
         package_new = MALLOC (sizeof(*package_new));
         memcpy (package_new, &package, sizeof(*package_new));
-        package_new->installed = TRUE;
+        package_new->installed = true;
         smartlist_add (installed_packages, package_new);
       }
     }
@@ -1932,7 +1932,7 @@ static int vcpkg_parse_status_file (void)
       TRACE (1, "Ignoring package: '%s': %s\n"
                 "                                 (arch: '%s', ver: '%s')\n\n",
              package.package, why_not, package.arch, package.version);
-      free_package (&package, FALSE);
+      free_package (&package, false);
       vcpkg_clear_error();
     }
 
@@ -2082,7 +2082,7 @@ static void put_ports_list_to_cache (void)
 /**
  * Find the location and version for `vcpkg.exe` (on `PATH`).
  */
-BOOL vcpkg_get_info (char **exe, struct ver_info *ver)
+bool vcpkg_get_info (char **exe, struct ver_info *ver)
 {
   static char exe_copy [_MAX_PATH];
 
@@ -2094,7 +2094,7 @@ BOOL vcpkg_get_info (char **exe, struct ver_info *ver)
   if (vcpkg_exe && (vcpkg_ver.val_1 + vcpkg_ver.val_2) > 0)
   {
     *exe = STRDUP (vcpkg_exe);
-    return (TRUE);
+    return (true);
   }
 
   TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
@@ -2114,7 +2114,7 @@ BOOL vcpkg_get_info (char **exe, struct ver_info *ver)
      vcpkg_exe = searchpath ("vcpkg.exe", "PATH");
 
   if (!vcpkg_exe)
-     return (FALSE);
+     return (false);
 
   vcpkg_exe = slashify2 (exe_copy, vcpkg_exe, '\\');
   *exe = STRDUP (vcpkg_exe);
@@ -2268,13 +2268,13 @@ void vcpkg_init (void)
   int            num_cached_ports_dirs;
   int            num_cached_installed_packages;
   int            i, j, max;
-  BOOL           vcpkg_ok;
-  static         BOOL done = FALSE;
+  bool           vcpkg_ok;
+  static         bool done = false;
 
   if (done)
      return;
 
-  done = TRUE;
+  done = true;
 
   vcpkg_get_info (&vcpkg_exe, &vcpkg_ver);
 
@@ -2311,13 +2311,13 @@ void vcpkg_init (void)
    */
   if (smartlist_len(ports_dirs) == 0)
   {
-    build_dir_list (ports_dirs, "ports", FALSE);
+    build_dir_list (ports_dirs, "ports", false);
     put_port_dirs_to_cache (ports_dirs);
   }
 
   if (smartlist_len(packages_dirs) == 0)
   {
-    build_dir_list (packages_dirs, "packages", TRUE);
+    build_dir_list (packages_dirs, "packages", true);
     put_packages_dirs_to_cache (packages_dirs);
   }
 
@@ -2376,7 +2376,7 @@ void vcpkg_init (void)
       package = CALLOC (sizeof(*package), 1);
       *q = '\0';
       _strlcpy (package->package, p, sizeof(package->package));
-      make_package_platform (package, q+1, 0, TRUE);
+      make_package_platform (package, q+1, 0, true);
       get_control_node (&j, &package->link, package->package);
       smartlist_add (installed_packages, package);
 
@@ -2415,7 +2415,7 @@ unsigned vcpkg_get_num_CONTROLS (void)
 
   vcpkg_init();
 
-  num_CONTROLS = vcpkg_get_num (TRUE, FALSE);
+  num_CONTROLS = vcpkg_get_num (true, false);
   if (num_CONTROLS == 0)
      _strlcpy (last_err_str, "No CONTROL files for VCPKG found", sizeof(last_err_str));
   return (num_CONTROLS);
@@ -2432,7 +2432,7 @@ unsigned vcpkg_get_num_JSON (void)
 
   vcpkg_init();
 
-  num_JSON = vcpkg_get_num (FALSE, TRUE);
+  num_JSON = vcpkg_get_num (false, true);
   if (num_JSON == 0)
      _strlcpy (last_err_str, "No JSON files for VCPKG found", sizeof(last_err_str));
   return (num_JSON);
@@ -2449,7 +2449,7 @@ unsigned vcpkg_get_num_portfile (void)
 
   vcpkg_init();
 
-  num_portfiles = vcpkg_get_num (FALSE, FALSE);
+  num_portfiles = vcpkg_get_num (false, false);
   if (num_portfiles == 0)
      _strlcpy (last_err_str, "No portfiles for VCPKG found", sizeof(last_err_str));
   return (num_portfiles);
@@ -2504,9 +2504,9 @@ static const char *get_platform_name (const VCPKG_plat_list p)
 
 /**
  * Get the `package->platforms` name.
- * Return TRUE is the "not bit" is not set.
+ * Return true is the "not bit" is not set.
  */
-static BOOL get_depend_name (const VCPKG_plat_list p_list, const char **name)
+static bool get_depend_name (const VCPKG_plat_list p_list, const char **name)
 {
   unsigned val = p_list[0];
 
@@ -2587,7 +2587,7 @@ _WUNUSED_FUNC_POP()
  *  \li the `include` directory
  *  \li the `share` directory
  *
- * If `opt.show_size == TRUE`, print the total file-size of a package (ignoring
+ * If `opt.show_size == true`, print the total file-size of a package (ignoring
  * files that are not under the above directories).
  */
 static void print_package_info (vcpkg_package *package, FMT_buf *fmt_buf, int indent)
@@ -2689,13 +2689,13 @@ static void info_parse (smartlist_t *sl, const char *buf)
  *   For `zlib:x86-windows` with version `1.2.11-6`, open and parse the file
  *   `<vcpkg_root>/installed/vcpkg/info/zlib_1.2.11-6_x86-windows.list`.
  *
- * Return TRUE if `*.list` file exists and the length of the `package->install_info`
+ * Return true if `*.list` file exists and the length of the `package->install_info`
  * list is greater than zero.
  */
-static BOOL get_installed_info (vcpkg_package *package)
+static bool get_installed_info (vcpkg_package *package)
 {
   if (package->no_list_file)    /* We've already tried this */
-     return (FALSE);
+     return (false);
 
   if (!package->install_info)
   {
@@ -2705,9 +2705,9 @@ static BOOL get_installed_info (vcpkg_package *package)
                                                  vcpkg_root, package->package, package->version, package->arch);
 
     if (!package->install_info || smartlist_len(package->install_info) == 0)
-       package->no_list_file = TRUE;
+       package->no_list_file = true;
 
-    make_package_platform (package, package->arch, 0, TRUE);
+    make_package_platform (package, package->arch, 0, true);
   }
   return (package->install_info && !package->no_list_file);
 }
@@ -2744,13 +2744,13 @@ static const Locations locations[] = {
 static char *get_cache_dir (void)
 {
   static char *cache_dir = NULL;
-  static BOOL  done_this = FALSE;
+  static bool  done_this = false;
   int    i;
 
   if (done_this)
      return (cache_dir);
 
-  done_this = TRUE;
+  done_this = true;
   for (i = 0; i < DIM(locations); i++)
   {
     const char *env = getenv (locations[i].env);
@@ -2800,7 +2800,7 @@ static const char *get_cache_zip (const vcpkg_package *package)
  *
  * \note Only called from `show_version()` in envtool.c.
  */
-unsigned vcpkg_list_installed (BOOL detailed)
+unsigned vcpkg_list_installed (bool detailed)
 {
   const char    *only = "";
   const char    *dir;
@@ -2938,14 +2938,14 @@ void vcpkg_exit (void)
   for (i = 0; i < max; i++)
   {
     package = smartlist_get (installed_packages, i);
-    free_package (package, TRUE);
+    free_package (package, true);
   }
 
   max = available_packages ? smartlist_len (available_packages) : 0;
   for (i = 0; i < max; i++)
   {
     package = smartlist_get (available_packages, i);
-    free_package (package, TRUE);
+    free_package (package, true);
   }
   smartlist_free (available_packages);
   smartlist_free (installed_packages);
@@ -2985,7 +2985,7 @@ void vcpkg_extras (const struct ver_data *v, int pad_len)
  * Get the index at or above `index` that matches `package_spec` in the `ports_list`.
  * Modify `*index_p` on output to the next index to check.
  */
-static BOOL get_control_node (int *index_p, const port_node **node_p, const char *package_spec)
+static bool get_control_node (int *index_p, const port_node **node_p, const char *package_spec)
 {
   int i, index, max = 0;
 
@@ -2993,7 +2993,7 @@ static BOOL get_control_node (int *index_p, const port_node **node_p, const char
   index   = *index_p;
 
   if (!ports_list)
-     return (FALSE);
+     return (false);
 
   max = smartlist_len (ports_list);
 
@@ -3007,10 +3007,10 @@ static BOOL get_control_node (int *index_p, const port_node **node_p, const char
       TRACE (2, "index=%d, i=%d, package: %s\n", index, i, node->package);
       *node_p  = node;
       *index_p = i + 1;
-      return (TRUE);
+      return (true);
     }
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -3027,7 +3027,7 @@ static BOOL get_control_node (int *index_p, const port_node **node_p, const char
  *       -libpath:f:/gv/dx-radio/gnuradio/lib gnuradio-runtime.lib gnuradio-pmt.lib
  *   \endcode
  */
-static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int indent1)
+static bool print_install_info (FMT_buf *fmt_buf, const char *package_name, int indent1)
 {
   const char    *dir, *yes_no, *cpu = NULL;
   unsigned       num_installed = vcpkg_get_num_installed();
@@ -3044,7 +3044,7 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
   if (only_installed && !package)
   {
     BUF_PUTC (fmt_buf, '\n');
-    return (FALSE);
+    return (false);
   }
 
   if (opt.only_32bit)
@@ -3087,10 +3087,10 @@ static BOOL print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
   if (found == 0 && cpu)
   {
     BUF_PRINTF (fmt_buf, "But not for `%s` platform.\n", cpu);
-    return (FALSE);
+    return (false);
   }
   BUF_PUTC (fmt_buf, '\n');
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -3203,40 +3203,40 @@ static int get_plat_value (VCPKG_platform platform, int idx, const char **name)
 /**
  * Test if platform `platform` is in `p_list`.
  */
-static BOOL is_plat_supported (const VCPKG_plat_list p_list, unsigned platform)
+static bool is_plat_supported (const VCPKG_plat_list p_list, unsigned platform)
 {
   int i;
 
   if (p_list[0] == VCPKG_plat_ALL)
-     return (TRUE);
+     return (true);
 
   for (i = 0; i < VCPKG_MAX_PLAT; i++)
       if (platform == (unsigned)p_list[i])
-         return (TRUE);
-  return (FALSE);
+         return (true);
+  return (false);
 }
 
-static BOOL is_x86_supported (const VCPKG_plat_list p_list)
+static bool is_x86_supported (const VCPKG_plat_list p_list)
 {
   return !is_plat_supported (p_list, VCPKG_plat_x86 | 1);
 }
 
-static BOOL is_x64_supported (const VCPKG_plat_list p_list)
+static bool is_x64_supported (const VCPKG_plat_list p_list)
 {
   return !is_plat_supported (p_list, VCPKG_plat_x64 | 1);
 }
 
-static BOOL is_windows_supported (const VCPKG_plat_list p_list)
+static bool is_windows_supported (const VCPKG_plat_list p_list)
 {
   return !is_plat_supported (p_list, VCPKG_plat_WINDOWS | 1);
 }
 
-static BOOL is_uwp_supported (const VCPKG_plat_list p_list)
+static bool is_uwp_supported (const VCPKG_plat_list p_list)
 {
   return !is_plat_supported (p_list, VCPKG_plat_UWP | 1);
 }
 
-static BOOL is_static_supported (const VCPKG_plat_list p_list)
+static bool is_static_supported (const VCPKG_plat_list p_list)
 {
   return !is_plat_supported (p_list, VCPKG_plat_STATIC | 1);
 }
@@ -3340,11 +3340,11 @@ static void json_add_description (port_node *node, char *buf, const JSON_tok_t *
  * Split a string like "(x64 | arm64) & (linux | osx | windows)" into tokens
  * and set the `VCPKG_plat_list[]` value for them.
  */
-static BOOL json_make_supports (port_node *node, const char *buf, int i, BOOL recurse)
+static bool json_make_supports (port_node *node, const char *buf, int i, bool recurse)
 {
   static unsigned Not = 0;
-  BOOL     next_and = FALSE;
-  BOOL     next_or  = FALSE;
+  bool     next_and = false;
+  bool     next_or  = false;
   unsigned val;
   char    *platform  = strdupa (buf);
   char    *platform0 = strdupa (buf); /* For TRACE() */
@@ -3377,11 +3377,11 @@ static BOOL json_make_supports (port_node *node, const char *buf, int i, BOOL re
       TRACE (1, "i: %d, tok: '%s', tok_end: '%s'\n", i, tok, tok_end);
 
       if (*tok_end == '&')
-         next_and = TRUE;
+         next_and = true;
       else if (*tok_end == '|')
-         next_or = TRUE;
+         next_or = true;
 
-      if (json_make_supports (node, tok, i, *tok_end ? TRUE : FALSE))
+      if (json_make_supports (node, tok, i, *tok_end ? true : false))
          ++i;
       tok = _strtok_r (NULL, "&| ", &tok_end);
     }
@@ -3393,7 +3393,7 @@ static BOOL json_make_supports (port_node *node, const char *buf, int i, BOOL re
             platform0, i, val, Not, recurse);
     node->platforms [i] = val | Not;
     Not = 0;
-    return (TRUE);
+    return (true);
   }
 
   TRACE (1, "platform: '%s', platforms[%d]: 0x%04X, Not: %d, recurse: %d\n",
@@ -3401,7 +3401,7 @@ static BOOL json_make_supports (port_node *node, const char *buf, int i, BOOL re
 
   ARGSUSED (next_or);
   ARGSUSED (next_and);
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -3501,7 +3501,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
 
       TRACE (1, "supports:     '%.*s'\n", (int)len, str);
       str_copy = str_ndup (str, len);
-      json_make_supports (node, str_copy, 0, TRUE);
+      json_make_supports (node, str_copy, 0, true);
       FREE (str_copy);
       for (j = 0; node->platforms[j] != VCPKG_plat_ALL; j++)
           smartlist_addu (node->supports, node->platforms[j]);
@@ -3519,7 +3519,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
 
         C_putc ('\n');
         TRACE (1, "test_string:  '%s'\n", test_string[j]);
-        json_make_supports (node, test_string[j], 0, TRUE);
+        json_make_supports (node, test_string[j], 0, true);
 
         for (k = 0; node->platforms[k] != VCPKG_plat_ALL; k++)
            smartlist_addu (node->supports, node->platforms[k]);
@@ -3690,7 +3690,7 @@ static void json_port_node_dump (const port_node *node)
 /*
  * Called from test.c if 'opt.do_vcpkg > 0'.
  */
-int test_vcpkg_json_parser (void)
+int vcpkg_json_parser_test (void)
 {
   port_node node = { "" };
   int  rc;

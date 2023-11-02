@@ -29,12 +29,12 @@ struct compiler_info *compiler_lookup (compiler_type type);
 const char           *compiler_GCC_prefix_first (void);
 const char           *compiler_GCC_prefix_next (void);
 
-void compiler_init (BOOL print_info, BOOL print_lib_path);
+void compiler_init (bool print_info, bool print_lib_path);
 void compiler_exit (void);
 
 int  compiler_check_includes (compiler_type type);
 int  compiler_check_libraries (compiler_type type);
-BOOL compiler_cfg_handler (const char *section, const char *key, const char *value);
+bool compiler_cfg_handler (const char *section, const char *key, const char *value);
 
 /**
  * Print compiler version and CFLAGS + LDFLAGS the

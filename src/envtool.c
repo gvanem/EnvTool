@@ -63,8 +63,8 @@
 
 char *program_name = NULL;   /**< For getopt_long.c */
 
-BOOL have_sys_native_dir = FALSE;
-BOOL have_sys_wow64_dir  = FALSE;
+bool have_sys_native_dir = false;
+bool have_sys_wow64_dir  = false;
 
 /**
  * All program options are kept here.
@@ -203,7 +203,7 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
  *
  * \todo This should be done in a thread.
  */
-static BOOL get_evry_version (HWND wnd, struct ver_info *ver)
+static bool get_evry_version (HWND wnd, struct ver_info *ver)
 {
   LRESULT major    = SendMessage (wnd, WM_USER, EVERYTHING_IPC_GET_MAJOR_VERSION, 0);
   LRESULT minor    = SendMessage (wnd, WM_USER, EVERYTHING_IPC_GET_MINOR_VERSION, 0);
@@ -329,28 +329,28 @@ static void show_ext_versions (void)
 }
 
 /**
- * Returns TRUE if program was compiled with
+ * Returns true if program was compiled with
  * "AddressSanitizer" support.
  */
-static BOOL asan_enabled (void)
+static bool asan_enabled (void)
 {
 #ifdef USE_ASAN
-  return (TRUE);
+  return (true);
 #else
-  return (FALSE);
+  return (false);
 #endif
 }
 
 /**
- * Returns TRUE if program was compiled with
+ * Returns true if program was compiled with
  * "Undefined Behaviour Sanitizer" support.
  */
-static BOOL ubsan_enabled (void)
+static bool ubsan_enabled (void)
 {
 #ifdef USE_UBSAN
-  return (TRUE);
+  return (true);
 #else
-  return (FALSE);
+  return (false);
 #endif
 }
 
@@ -431,7 +431,7 @@ static int show_version (void)
     compiler_print_build_ldflags();
 
     C_printf ("\n  Supported compilers on ~3PATH~0:\n");
-    compiler_init (TRUE, opt.do_version >= 3);
+    compiler_init (true, opt.do_version >= 3);
 
     if (opt.do_version >= 3)
     {
@@ -620,19 +620,19 @@ smartlist_t *dir_array_head (void)
  * Add (or insert at position 0) the `dir` to the `dir_array` smartlist.
  *
  * \param[in] dir         the directory to add to the smartlist.
- * \param[in] is_cwd      TRUE if `dir` is the current working directory.
+ * \param[in] is_cwd      true if `dir` is the current working directory.
  * \param[in] insert_at0  insert the new `d` element at position 0 in `dir_array`.
  *
  * Since this function could be called with a `dir` from `expand_env_var()`,
  * we check here if it returned with no `%`.
  */
-static struct directory_array *dir_array_add_or_insert (const char *dir, BOOL is_cwd, BOOL insert_at0)
+static struct directory_array *dir_array_add_or_insert (const char *dir, bool is_cwd, bool insert_at0)
 {
   struct directory_array *d = CALLOC (1, sizeof(*d));
   struct stat st;
   int    max, i, exp_ok = (dir && *dir != '%');
-  BOOL   exists = FALSE;
-  BOOL   is_dir = FALSE;
+  bool   exists = false;
+  bool   is_dir = false;
 
   if (!opt.lua_mode && safe_stat(dir, &st, NULL) == 0)
      is_dir = exists = _S_ISDIR (st.st_mode);
@@ -659,7 +659,7 @@ static struct directory_array *dir_array_add_or_insert (const char *dir, BOOL is
 #if (IS_WIN64)
   if (d->is_native && !d->exist)  /* No access to this directory from WIN64; ignore */
   {
-    d->exist = d->is_dir = TRUE;
+    d->exist = d->is_dir = true;
     TRACE (2, "Ignore native dir '%s'.\n", dir);
   }
 #else
@@ -671,7 +671,7 @@ static struct directory_array *dir_array_add_or_insert (const char *dir, BOOL is
      * exist if it has a sys-native prefix.
      */
     if (d->is_native && have_sys_native_dir)
-         d->exist = d->is_dir = TRUE;
+         d->exist = d->is_dir = true;
     else TRACE (2, "'%s' doesn't exist.\n", dir);
   }
 #endif
@@ -694,14 +694,14 @@ static struct directory_array *dir_array_add_or_insert (const char *dir, BOOL is
   return (d);
 }
 
-struct directory_array *dir_array_add (const char *dir, BOOL is_cwd)
+struct directory_array *dir_array_add (const char *dir, bool is_cwd)
 {
-  return dir_array_add_or_insert (dir, is_cwd, FALSE);
+  return dir_array_add_or_insert (dir, is_cwd, false);
 }
 
-struct directory_array *dir_array_prepend (const char *dir, BOOL is_cwd)
+struct directory_array *dir_array_prepend (const char *dir, bool is_cwd)
 {
-  return dir_array_add_or_insert (dir, is_cwd, TRUE);
+  return dir_array_add_or_insert (dir, is_cwd, true);
 }
 
 /**
@@ -890,7 +890,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   char *tok, *val, *_end;
   int   is_cwd, max, i;
   char  sep [2];
-  BOOL  cwd_added = FALSE;
+  bool  cwd_added = false;
 
   if (!value)
   {
@@ -929,8 +929,8 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   i = 0;
   if (!opt.no_cwd && !is_cwd)
   {
-    dir_array_add (current_dir, TRUE);
-    cwd_added = TRUE;
+    dir_array_add (current_dir, true);
+    cwd_added = true;
   }
 
   max = INT_MAX;
@@ -980,11 +980,11 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
     if (str_equal(tok, current_dir))
     {
       if (!cwd_added)
-         dir_array_add (tok, TRUE);
-      cwd_added = TRUE;
+         dir_array_add (tok, true);
+      cwd_added = true;
     }
     else
-      dir_array_add (tok, FALSE);
+      dir_array_add (tok, false);
 
     tok = _strtok_r (NULL, sep, &_end);
   }
@@ -992,7 +992,7 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   /* Insert CWD at position 0 if not done already
    */
   if (!cwd_added && !opt.no_cwd)
-     dir_array_prepend (current_dir, TRUE);
+     dir_array_prepend (current_dir, true);
 
   FREE (val);
   return (dir_array);
@@ -1130,11 +1130,11 @@ static char *fix_filespec (char **sub_dir)
  * \param in         The data to expand the environment variable(s) in.
  * \param out        The buffer that receives the expanded variable.
  * \param out_len    The size of `out` buffer.
- * \param for_system If TRUE, search the `SYSTEM` environment for the `in` variable.
+ * \param for_system If true, search the `SYSTEM` environment for the `in` variable.
  *
  * \note `in` and `out` can point to the same buffer.
  */
-static void expand_env_var (const char *in, char *out, size_t out_len, BOOL for_system)
+static void expand_env_var (const char *in, char *out, size_t out_len, bool for_system)
 {
   char *rc;
 
@@ -1151,7 +1151,7 @@ static void expand_env_var (const char *in, char *out, size_t out_len, BOOL for_
     _strlcpy (out, "<none>", out_len);
 }
 
-static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **ret)
+static bool enum_sub_values (HKEY top_key, const char *key_name, const char **ret)
 {
   HKEY   key = NULL;
   u_long num;
@@ -1169,7 +1169,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
   {
     WARN ("    Error opening registry key \"%s\\%s\", rc=%lu\n",
           reg_top_key_name(top_key), key_name, (u_long)rc);
-    return (FALSE);
+    return (false);
   }
 
   for (num = 0; rc == ERROR_SUCCESS; num++)
@@ -1191,7 +1191,7 @@ static BOOL enum_sub_values (HKEY top_key, const char *key_name, const char **re
     val64 = *(LONG64*) &data[0];
 
     if (type == REG_EXPAND_SZ && strchr(data, '%'))
-       expand_env_var (data, data, sizeof(data), TRUE);
+       expand_env_var (data, data, sizeof(data), true);
 
     switch (type)
     {
@@ -1328,7 +1328,7 @@ static void scan_reg_environment (HKEY top_key, const char *sub_key,
        break;
 
     if (type == REG_EXPAND_SZ && strchr(value, '%'))
-       expand_env_var (value, value, sizeof(value), TRUE);
+       expand_env_var (value, value, sizeof(value), true);
 
     if (!stricmp(name, "PATH"))
        *path = STRDUP (value);
@@ -1484,7 +1484,7 @@ static int do_check_registry (void)
  * \note It is quite normal that e.g. `"%INCLUDE"` contain a directory with
  *       no .h-files but at least 1 subdirectory with .h-files.
  */
-static BOOL dir_is_empty (const char *dir)
+static bool dir_is_empty (const char *dir)
 {
   HANDLE          handle;
   WIN32_FIND_DATA ff_data;
@@ -1494,7 +1494,7 @@ static BOOL dir_is_empty (const char *dir)
   snprintf (path, sizeof(path), "%s\\*", dir);
   handle = FindFirstFile (path, &ff_data);
   if (handle == INVALID_HANDLE_VALUE)
-     return (FALSE);    /* We really can't tell */
+     return (false);    /* We really can't tell */
 
   do
   {
@@ -1511,33 +1511,33 @@ static BOOL dir_is_empty (const char *dir)
 /**
  * Try to match `str` against the global regular expression in `opt.file_spec`.
  */
-static BOOL regex_match (const char *str)
+static bool regex_match (const char *str)
 {
   memset (&re_matches, '\0', sizeof(re_matches));
   re_err = regexec (&re_hnd, str, DIM(re_matches), re_matches, 0);
   TRACE (3, "regex() pattern '%s' against '%s'. re_err: %d\n", opt.file_spec, str, re_err);
 
   if (re_err == REG_NOMATCH)
-     return (FALSE);
+     return (false);
 
   if (re_err == REG_NOERROR)
-     return (TRUE);
+     return (true);
 
   regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
   TRACE (0, "Error while matching \"%s\": %d\n", str, re_err);
-  return (FALSE);
+  return (false);
 }
 
 /**
  * Process directory specified by `path` and report any matches
  * to the global `opt.file_spec`.
  */
-int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
-                 BOOL is_dir, BOOL exp_ok, const char *prefix, HKEY key)
+int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
+                 bool is_dir, bool exp_ok, const char *prefix, HKEY key)
 {
   HANDLE          handle;
   WIN32_FIND_DATA ff_data;
-  BOOL            ff_more;
+  bool            ff_more;
   char            fqfn  [_MAX_PATH];  /* Fully qualified file-name */
   char            _path [_MAX_PATH];  /* Copy of 'path' */
   int             found = 0;
@@ -1602,14 +1602,14 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     return (0);
   }
 
-  for (ff_more = TRUE; ff_more; ff_more = FindNextFile(handle, &ff_data))
+  for (ff_more = true; ff_more; ff_more = FindNextFile(handle, &ff_data))
   {
     struct stat   st;
     char  *base, *file = ff_data.cFileName;
     char  *true_fname = NULL;
     char  *end_pos;
     int    match, len;
-    BOOL   is_junction;
+    bool   is_junction;
 
     ignore = ((file[0] == '.' && file[1] == '\0') ||                   /* current dir entry */
               (file[0] == '.' && file[1] == '.' && file[2] == '\0'));  /* parent dir entry */
@@ -1621,7 +1621,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     {
       if (str_endswith(ff_data.cFileName, ".dist-info") ||
           str_endswith(ff_data.cFileName, ".egg-info"))
-         ignore = TRUE;
+         ignore = true;
     }
 
     if (ignore)
@@ -1662,7 +1662,7 @@ int process_dir (const char *path, int num_dup, BOOL exist, BOOL check_empty,
     if (opt.case_sensitive && subdir)
     {
       true_fname = fqfn;
-      if (get_actual_filename(&true_fname, FALSE))
+      if (get_actual_filename(&true_fname, false))
       {
         _strlcpy (fqfn, true_fname, sizeof(fqfn));
         FREE (true_fname);
@@ -1761,10 +1761,10 @@ static const char *evry_strerror (DWORD err)
   return (buf);
 }
 
-static void check_sys_dir (const char *dir, const char *name, BOOL *have_it)
+static void check_sys_dir (const char *dir, const char *name, bool *have_it)
 {
   DWORD attr = GetFileAttributes (dir);
-  BOOL  is_dir = (attr != INVALID_FILE_ATTRIBUTES) &&
+  bool  is_dir = (attr != INVALID_FILE_ATTRIBUTES) &&
                  (attr & FILE_ATTRIBUTE_DIRECTORY);
 
   if (is_dir)
@@ -1845,17 +1845,17 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  *   ```
  *  where to get this state?
  */
-static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL *is_shadow)
+static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, bool *is_shadow)
 {
   struct stat   st;
   struct report r;
-  BOOL        is_dir = FALSE;
+  bool        is_dir = false;
   const char *file2;
   size_t      len = strlen (file);
   DWORD       win_err = 0, attr = 0;
 
   memset (&st, '\0', sizeof(st));
-  *is_shadow = FALSE;
+  *is_shadow = false;
 
   if (len >= 260)   /* MAX_PATH */
   {
@@ -1881,7 +1881,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
     if (file2 != file)
     {
       TRACE (1, "shadow: '%s' -> '%s'\n", file, file2);
-      *is_shadow = TRUE;
+      *is_shadow = true;
     }
     file = file2;
   }
@@ -1916,36 +1916,36 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, BOOL 
 /**
  * Check if EveryThing database is loaded.
  */
-static BOOL evry_is_db_loaded (HWND wnd)
+static bool evry_is_db_loaded (HWND wnd)
 {
-  BOOL loaded = (BOOL) Everything_IsDBLoaded();
+  BOOL loaded = Everything_IsDBLoaded();
 
   TRACE (1, "wnd: %p, loaded: %d.\n", wnd, loaded);
-  return (loaded);
+  return (bool) loaded;
 }
 
 /**
  * Check if EveryThing is busy indexing it's database.
  */
-static BOOL evry_is_busy (HWND wnd)
+static bool evry_is_busy (HWND wnd)
 {
-  BOOL busy = (BOOL) Everything_IsDBBusy();
+  BOOL busy = Everything_IsDBBusy();
 
   TRACE (1, "wnd: %p, busy: %d.\n", wnd, busy);
-  return (busy);
+  return (bool) busy;
 }
 
 /**
  * If EveryThing is busy indexing itself, wait for maximum `sec` before returning.
- * Or return FALSE if user pressed a key first.
+ * Or return false if user pressed a key first.
  */
-static BOOL evry_busy_wait (HWND wnd, UINT sec)
+static bool evry_busy_wait (HWND wnd, UINT sec)
 {
-  BOOL busy = evry_is_busy (wnd);
+  bool busy = evry_is_busy (wnd);
 
   C_flush();
   if (kbhit())
-     return (FALSE);
+     return (false);
 
   if (busy && sec > 1)
   {
@@ -2172,7 +2172,7 @@ static int do_check_evry (void)
     char   file [_MAX_PATH];
     UINT64 fsize = (UINT64) -1;  /* since a 0-byte file is valid */
     time_t mtime = 0;
-    BOOL   is_shadow = FALSE;
+    bool   is_shadow = false;
     int    ignore;
 
     if (halt_flag > 0)
@@ -2287,7 +2287,7 @@ int do_check_env (const char *env_name)
 {
   smartlist_t *list;
   int          i, max, found = 0;
-  BOOL         check_empty = FALSE;
+  bool         check_empty = false;
   char        *orig_e = getenv_expand (env_name);
 
   if (!orig_e)
@@ -2302,7 +2302,7 @@ int do_check_env (const char *env_name)
       !strcmp(env_name, "INCLUDE") ||
       !strcmp(env_name, "C_INCLUDE_PATH") ||
       !strcmp(env_name, "CPLUS_INCLUDE_PATH"))
-    check_empty = TRUE;
+    check_empty = true;
 
   list = split_env_var (env_name, orig_e);
   max  = smartlist_len (list);
@@ -2319,7 +2319,7 @@ int do_check_env (const char *env_name)
     if (!arr->done)
        found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
                              arr->is_dir, arr->exp_ok, env_name, NULL);
-    arr->done = TRUE;
+    arr->done = true;
   }
   dir_array_free();
   FREE (orig_e);
@@ -2338,7 +2338,7 @@ static int check_man_dir (const char *dir, const char *env_name)
   else _dir = dir;
 
   TRACE (1, "Looking for \"%s\" in \"%s\".\n", opt.file_spec, _dir);
-  return process_dir (dir, 0, TRUE, TRUE, 1, TRUE, env_name, HKEY_MAN_FILE);
+  return process_dir (dir, 0, true, true, 1, true, env_name, HKEY_MAN_FILE);
 }
 
 /**
@@ -2354,7 +2354,7 @@ static int do_check_manpath (void)
   smartlist_t *list;
   int          i, j, max, found = 0;
   char        *orig_e;
-  BOOL         save1, save2, done_cwd = FALSE;
+  bool         save1, save2, done_cwd = false;
   static const char env_name[] = "MANPATH";
 
   /* \todo
@@ -2411,7 +2411,7 @@ static int do_check_manpath (void)
       if (done_cwd)
            WARN ("%s: Contains multiple \".\\\".\n", env_name);
       else found += check_man_dir (".\\", env_name);
-      done_cwd = TRUE;
+      done_cwd = true;
     }
 
     if (done_cwd)
@@ -2619,7 +2619,7 @@ static void set_vcpkg_options (const char *arg)
   TRACE (2, "optarg: '%s'\n", arg);
   ASSERT (arg);
   if (!strcmp(arg, "all"))
-       vcpkg_set_only_installed (FALSE);
+       vcpkg_set_only_installed (false);
   else usage ("Illegal '--vcpkg' option: '%s'.\n"
               "Use '--vcpkg' or 'vcpkg=all'.\n", arg);
 }
@@ -2714,10 +2714,10 @@ static void set_short_option (int o, const char *arg)
          opt.dir_mode = 1;
          break;
     case 'c':
-         opt.case_sensitive = 1;
+         opt.case_sensitive = true;
          break;
     case 'k':
-         opt.keep_temp = 1;
+         opt.keep_temp = true;
          break;
     case 'o':
          opt.grep.only = 1;
@@ -2843,7 +2843,7 @@ static void set_long_option (int o, const char *arg)
 /**
  * Parse the command-line.
  *
- * if there are several non-options, an `--evry` search must have `opt.evry_raw == TRUE` to
+ * if there are several non-options, an `--evry` search must have `opt.evry_raw == true` to
  * pass the remaining cmd-line unchanged to `Everything_SetSearchA()`.
  */
 static void parse_cmdline (void)
@@ -2864,7 +2864,7 @@ static void parse_cmdline (void)
   {
     FREE (opt.file_spec);
     opt.file_spec = str_join (c->argv + c->argc0, " ");
-    opt.evry_raw  = TRUE;
+    opt.evry_raw  = true;
   }
 
   TRACE (2, "c->argc0:      %d\n", c->argc0);
@@ -2884,10 +2884,10 @@ static int eval_options (void)
   }
 
   if (!opt.PE_check && !opt.do_vcpkg && !opt.do_man && !opt.do_cmake && (opt.only_32bit || opt.only_64bit))
-     opt.PE_check = TRUE;
+     opt.PE_check = true;
 
   if (!opt.PE_check && opt.signed_status != SIGN_CHECK_NONE)
-     opt.PE_check = TRUE;
+     opt.PE_check = true;
 
   if (opt.do_check &&
       (opt.do_path  || opt.do_lib || opt.do_include || opt.do_evry   || opt.do_man ||
@@ -2990,7 +2990,7 @@ static void MS_CDECL cleanup (void)
  */
 static void MS_CDECL halt (int sig)
 {
-  BOOL quick_exit = FALSE;
+  bool quick_exit = false;
 
   halt_flag++;
   CRTDBG_CHECK_OFF();
@@ -3010,14 +3010,14 @@ static void MS_CDECL halt (int sig)
   if (sig == SIGTRAP)
   {
     C_puts ("\n~5Got SIGTRAP.~0\n");
-    quick_exit = TRUE;
+    quick_exit = true;
   }
 #endif
 
   if (sig == SIGILL)
   {
     C_puts ("\n~5Illegal instruction.~0\n");
-    quick_exit = TRUE;
+    quick_exit = true;
   }
 
   if (quick_exit)
@@ -3060,7 +3060,7 @@ static void init_all (const char *argv0)
 
   C_use_colours = 1;  /* Turned off by "--no-colour" */
 
-  vcpkg_set_only_installed (TRUE);
+  vcpkg_set_only_installed (true);
 
   dir_array = smartlist_new();
   reg_array = smartlist_new();
@@ -3091,66 +3091,66 @@ static void init_all (const char *argv0)
 /**
  * The config-file handler for "beep.*" key/value pairs.
  */
-static BOOL cfg_beep_handler (const char *key, const char *value)
+static bool cfg_beep_handler (const char *key, const char *value)
 {
   if (!stricmp(key, "enable"))
   {
     opt.beep.enable = atoi (value);
-    return (TRUE);
+    return (true);
   }
   if (!stricmp(key, "limit"))
   {
     opt.beep.limit = (unsigned) atoi (value);
-    return (TRUE);
+    return (true);
   }
   if (!stricmp(key, "freq"))
   {
     opt.beep.freq = (unsigned) atoi (value);
-    return (TRUE);
+    return (true);
   }
   if (!stricmp(key, "msec"))
   {
     opt.beep.msec = (unsigned) atoi (value);
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
  * The config-file handler for "ETP.*" key/value pairs.
  */
-static BOOL cfg_ETP_handler (const char *key, const char *value)
+static bool cfg_ETP_handler (const char *key, const char *value)
 {
   if (!stricmp(key, "buffered_io"))
   {
     opt.use_buffered_io = atoi (value);
-    return (TRUE);
+    return (true);
   }
   if (!stricmp(key, "nonblock_io"))
   {
     opt.use_nonblock_io = atoi (value);
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
  * The config-file handler for "grep.*" key/value pairs.
  */
-static BOOL cfg_grep_handler (const char *key, const char *value)
+static bool cfg_grep_handler (const char *key, const char *value)
 {
   if (!stricmp(key, "max_matches"))
   {
     opt.grep.max_matches = atoi (value);
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
  * The config-file handler for key/value pairs in the "[Shadow]" section.
  */
-static BOOL shadow_ignore_handler (const char *section, const char *key, const char *value)
+static bool shadow_ignore_handler (const char *section, const char *key, const char *value)
 {
   if (!stricmp(key, "ignore"))
      return cfg_ignore_handler (section, key, value);
@@ -3164,9 +3164,9 @@ static BOOL shadow_ignore_handler (const char *section, const char *key, const c
          TRACE (1, "illegal dtime: '%s'\n", value);
     else opt.shadow_dtime = 10000000ULL * val;        /* Convert to 100 nsec file-time units */
     TRACE (1, "opt.shadow_dtime: %0.f sec.\n", (double)opt.shadow_dtime/1E7);
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 #ifdef NOT_YET
@@ -3174,11 +3174,11 @@ static BOOL shadow_ignore_handler (const char *section, const char *key, const c
  * "colour.1 = bright yellow"   -> Map color "~1" to bright yellow on default background ( == 6 | FOREGROUND_INTENSITY)
  * "colour.2 = bri red on blue" -> Map color "~2" to bright red on blue background ( == 4 | FOREGROUND_INTENSITY + 16*4)
  */
-static BOOL colour_handler (const char *key, const char *value)
+static bool colour_handler (const char *key, const char *value)
 {
   int key_idx = atoi (key);
   C_init_colour (key_idx, value);
-  return (TRUE);
+  return (true);
 }
 #endif
 
@@ -3186,7 +3186,7 @@ static BOOL colour_handler (const char *key, const char *value)
  * The config-file parser for key/value pairs *not* in any section
  * (at the start of the `%APPDATA%/envtool.cfg` file).
  */
-static BOOL envtool_cfg_handler (const char *section, const char *key, const char *value)
+static bool envtool_cfg_handler (const char *section, const char *key, const char *value)
 {
   if (!strnicmp(key, "beep.", 5))
   {
@@ -3215,23 +3215,23 @@ static BOOL envtool_cfg_handler (const char *section, const char *key, const cha
     return colour_handler (key+6, value);
   }
 #endif
-  return (FALSE);
+  return (false);
 }
 
 /**
  * The config-file handler for key/value pairs in the "[PATH]" section.
  */
-static BOOL path_cfg_handler (const char *section, const char *key, const char *value)
+static bool path_cfg_handler (const char *section, const char *key, const char *value)
 {
   if (!stricmp(key, "ignore"))
      return cfg_ignore_handler (section, key, value);
-  return (FALSE);
+  return (false);
 }
 
 /**
  * The config-file handler for key/value pairs in the "[Everything]" section.
  */
-static BOOL evry_cfg_handler (const char *section, const char *key, const char *value)
+static bool evry_cfg_handler (const char *section, const char *key, const char *value)
 {
   if (!stricmp(key, "ignore"))
      return cfg_ignore_handler (section, key, value);
@@ -3239,9 +3239,9 @@ static BOOL evry_cfg_handler (const char *section, const char *key, const char *
   if (!stricmp(key, "busy_wait"))
   {
     opt.evry_busy_wait = atoi (value);
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -3331,7 +3331,7 @@ int MS_CDECL main (int argc, const char **argv)
      opt.no_sys_env = opt.no_usr_env = opt.no_app_path = 1;
 
   if (opt.do_lib || opt.do_include)
-     compiler_init (FALSE, FALSE);
+     compiler_init (false, false);
 
   if (!(opt.do_path || opt.do_lib || opt.do_include))
      opt.no_sys_env = opt.no_usr_env = 1;
@@ -3374,7 +3374,7 @@ int MS_CDECL main (int argc, const char **argv)
     else
     {
       re_err = regcomp (&re_hnd, opt.file_spec, opt.case_sensitive ? 0 : REG_ICASE);
-      re_alloc = TRUE;
+      re_alloc = true;
       if (re_err)
       {
         regerror (re_err, &re_hnd, re_errbuf, sizeof(re_errbuf));
@@ -3577,7 +3577,7 @@ smartlist_t *get_matching_files (const char *dir, const char *file_spec)
  * Ignore if the file or (it's basename) is listed as `ignore` in the `[Shadow]`
  * section of `~/envtool.cfg`.
  */
-static BOOL is_shadow_candidate (const struct dirent2 *this_de,
+static bool is_shadow_candidate (const struct dirent2 *this_de,
                                  const struct dirent2 *prev_de,
                                  FILETIME *newest, FILETIME *oldest)
 {
@@ -3586,14 +3586,14 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
   ULONGLONG   this_ft, prev_ft, diff;
 
   if (stricmp(this_base, prev_base))
-     return (FALSE);
+     return (false);
 
   if (cfg_ignore_lookup("[Shadow]", this_base) ||
       cfg_ignore_lookup("[Shadow]", this_de->d_name) ||
       cfg_ignore_lookup("[Shadow]", prev_de->d_name))
   {
     TRACE (2, "Ignoring file '%s' and '%s'.\n", this_de->d_name, prev_de->d_name);
-    return (FALSE);
+    return (false);
   }
 
   this_ft = (((ULONGLONG)this_de->d_time_write.dwHighDateTime) << 32) + this_de->d_time_write.dwLowDateTime;
@@ -3605,7 +3605,7 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
     TRACE (1, "Write-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
     *newest = prev_de->d_time_write;
     *oldest = this_de->d_time_write;
-    return (TRUE);
+    return (true);
   }
 
 #if 0
@@ -3618,11 +3618,11 @@ static BOOL is_shadow_candidate (const struct dirent2 *this_de,
     TRACE (1, "Creation-time of '%s' shadows '%s'.\n", this_de->d_name, prev_de->d_name);
     *newest = prev_de->d_time_create;
     *oldest = this_de->d_time_create;
-    return (TRUE);
+    return (true);
   }
 #endif
 
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -4033,7 +4033,7 @@ static void check_app_paths (HKEY key)
       snprintf (fbuf2, sizeof(fbuf2), "%s\\%s", arr->path, arr->fname);
       fname = fbuf2;
 
-      if (get_actual_filename(&fname, FALSE))
+      if (get_actual_filename(&fname, false))
       {
         print_raw (fname, NULL, NULL);
         FREE (fname);
@@ -4107,7 +4107,7 @@ static void compare_user_sys_env (const char *env_var, const char *sys_value, in
   const char *user_value = getenv (env_var);
   char       *sys_val = getenv_expand_sys (sys_value);
   int         i;
-  BOOL        equal = FALSE;
+  bool        equal = false;
   size_t      sys_len, indent2;
 
   if (sys_val)
@@ -4138,7 +4138,7 @@ static void compare_user_sys_env (const char *env_var, const char *sys_value, in
     for (i = 0; i < DIM(equals) && !equal; i++)
     {
       if (!stricmp(sys_value, equals[i]) || !stricmp(user_value, equals[i]))
-         equal = TRUE;
+         equal = true;
     }
     if (!equal)
        equal = (strnicmp(user_value, sys_value, sys_len) == 0);

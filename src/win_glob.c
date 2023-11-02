@@ -33,7 +33,7 @@ static DWORD recursion_level;
 static DWORD num_ignored_errors;
 
 static int glob2 (const char *pattern, char *epathbuf);
-static int glob_add (const char *path, BOOL is_dir, unsigned line);
+static int glob_add (const char *path, bool is_dir, unsigned line);
 static int MS_CDECL str_compare (const void *va, const void *vb);
 
 struct ffblk {
@@ -323,7 +323,7 @@ int msdos_tolower_fname (int c)
   return (c >= 'A' && c <= 'Z') ? c + 'a' - 'A' : c;
 }
 
-static int glob_add (const char *path, BOOL is_dir, unsigned line)
+static int glob_add (const char *path, bool is_dir, unsigned line)
 {
   Save *sp;
 
@@ -340,7 +340,7 @@ static int glob_add (const char *path, BOOL is_dir, unsigned line)
   if (is_dir)
   {
     char result [_MAX_PATH] = "??";
-    BOOL rc = get_reparse_point (path, result, sizeof(result));
+    bool rc = get_reparse_point (path, result, sizeof(result));
 
     if (!rc)
          TRACE (1, "get_reparse_point(): %s\n", last_reparse_err);
@@ -392,7 +392,7 @@ static int glob_dirs (const char *rest, char *epathbuf,
         epathbuf[-1] = '\0';
 
       if (FILE_EXISTS(pathbuf))
-         if (!glob_add(pathbuf,FALSE,__LINE__))
+         if (!glob_add(pathbuf, false, __LINE__))
             return (GLOB_NOSPACE);
       epathbuf[-1] = sl;
     }
@@ -425,7 +425,7 @@ static int glob_dirs (const char *rest, char *epathbuf,
       {
         if (!(glob_flags & GLOB_MARK))
            tp[-1] = '\0';
-        if (!glob_add(pathbuf,TRUE,__LINE__))
+        if (!glob_add(pathbuf, true, __LINE__))
            return (GLOB_NOSPACE);
         tp[-1] = slash;
       }
@@ -505,7 +505,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
   {
     if (FILE_EXISTS(pathbuf))
     {
-      BOOL is_dir = FALSE;
+      bool is_dir = false;
 
       if (glob_flags & GLOB_MARK)
       {
@@ -518,7 +518,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
 
           *_pathbuf++ = global_slash;
           *_pathbuf = '\0';
-          is_dir = TRUE;
+          is_dir = true;
         }
       }
       if (!glob_add(pathbuf, is_dir, __LINE__))
@@ -584,7 +584,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
         }
         else
         {
-          BOOL is_dir;
+          bool is_dir;
 
           TRACE (1, "ffmatch: '%s' matching '%s', add '%s'\n",
                  ff.ff_name, my_pattern, pathbuf);
@@ -597,7 +597,7 @@ static int glob2 (const char *pattern, char *epathbuf)  /* both point *after* th
             bp [len+1] = '\0';
             bp [len] = slash;
           }
-          if (!glob_add(pathbuf,is_dir,__LINE__))
+          if (!glob_add(pathbuf, is_dir, __LINE__))
              return (GLOB_NOSPACE);
         }
       }
@@ -725,9 +725,9 @@ static int ft_callback (const char *path, const struct ffblk *ff)
 {
   char  attr_str[14]    = "_____________";
   char *base            = basename (path);
-  BOOL  is_dir          = (ff->ff_attrib & FILE_ATTRIBUTE_DIRECTORY);
-  BOOL  is_junction     = (ff->ff_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
-  BOOL  no_ext          = !is_dir && !is_junction && (strchr(base, '.') == NULL);
+  bool  is_dir          = (ff->ff_attrib & FILE_ATTRIBUTE_DIRECTORY);
+  bool  is_junction     = (ff->ff_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+  bool  no_ext          = !is_dir && !is_junction && (strchr(base, '.') == NULL);
   const char *spec      = NULL;
   const char *orig_path = "";
 
@@ -789,7 +789,7 @@ static int ft_callback (const char *path, const struct ffblk *ff)
   {
     char result [_MAX_PATH] = "??";
     char orig   [_MAX_PATH+5];
-    BOOL rc = get_reparse_point (path, result, sizeof(result));
+    bool rc = get_reparse_point (path, result, sizeof(result));
 
     if (rc)
     {

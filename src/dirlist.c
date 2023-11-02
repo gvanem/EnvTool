@@ -42,13 +42,13 @@ static void  free_contents (DIR2 *dp);
 static void  set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, ScandirCmpFunc *sd_cmp_func);
 static void  print_tree_branch (const char *sz_buf, const char *directory);
 
-static BOOL setdirent2 (struct dirent2 *de, const char *dir, const char *file)
+static bool setdirent2 (struct dirent2 *de, const char *dir, const char *file)
 {
   size_t len = strlen(file) + strlen(dir) + 2;
   char  *p   = MALLOC (len);
 
   if (!p)
-     return (FALSE);
+     return (false);
 
   de->d_name   = p;
   de->d_reclen = len;
@@ -62,7 +62,7 @@ static BOOL setdirent2 (struct dirent2 *de, const char *dir, const char *file)
   strcpy (p, file);
 
   TRACE (3, "len: %u, de->d_name: '%s'\n", (unsigned)len, de->d_name);
-  return (TRUE);
+  return (true);
 }
 
 static int sort_reverse = 0;
@@ -82,14 +82,14 @@ static int reverse_sort (int rc)
  * Prevent an ugly "disk not ready" dialogue from Windows before
  * we call `stat()` or `FindFirstFile()`.
  */
-static BOOL safe_to_access (const char *file)
+static bool safe_to_access (const char *file)
 {
   if (_has_drive(file) && !chk_disk_ready((int)file[0]))
   {
     TRACE (2, "Disk %c: not safe to access.\n", (int)file[0]);
-    return (FALSE);
+    return (false);
   }
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -111,7 +111,7 @@ int make_dir_spec (const char *arg, char *dir, char *spec)
   struct stat st;
   const char *p, *_arg;
   char *end, *a_copy;
-  BOOL  unc, safe;
+  bool  unc, safe;
 
   /* First, remove any enclosing `"` given in `arg`.
    */
@@ -333,7 +333,7 @@ static void free_contents (DIR2 *dp)
 
 static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
 {
-  BOOL  okay = FALSE;
+  bool  okay = false;
   char *rc   = NULL;
 
   memset (ff, '\0', sizeof(*ff));
@@ -345,7 +345,7 @@ static char *getdirent2 (HANDLE *hnd, const char *spec, WIN32_FIND_DATA *ff)
     else *hnd = FindFirstFile (spec, ff);
 
     if (*hnd != INVALID_HANDLE_VALUE)
-       okay = TRUE;
+       okay = true;
   }
   else          /* get next entry */
     okay = FindNextFile (*hnd, ff);
@@ -494,8 +494,8 @@ static int MS_CDECL compare_alphasort (const struct dirent2 *a, const struct dir
 
 static int MS_CDECL compare_dirs_first (const struct dirent2 *a, const struct dirent2 *b)
 {
-  BOOL a_dir = (a->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-  BOOL b_dir = (b->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+  bool a_dir = (a->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+  bool b_dir = (b->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
   int  rc;
 
   if (!a_dir && !b_dir)
@@ -513,8 +513,8 @@ static int MS_CDECL compare_dirs_first (const struct dirent2 *a, const struct di
 
 static int MS_CDECL compare_files_first (const struct dirent2 *a, const struct dirent2 *b)
 {
-  BOOL a_dir = (a->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-  BOOL b_dir = (b->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+  bool a_dir = (a->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+  bool b_dir = (b->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
   int  rc;
 
   if (!a_dir && !b_dir)
@@ -604,16 +604,16 @@ static DWORD  num_files = 0;
 static UINT64 total_size = 0;
 static UINT64 total_size_alloc = 0;
 static UINT64 total_size_compr = 0;
-static BOOL   follow_junctions = TRUE;
-static BOOL   use_scandir = FALSE;
+static bool   follow_junctions = true;
+static bool   use_scandir = false;
 static char   drive_root [4];
 
 /* Globals for 'do_disk_usage()':
  */
-static BOOL   disk_usage_mode  = FALSE;
-static BOOL   disk_usage_time  = FALSE;
-static BOOL   disk_usage_tree  = FALSE;
-static BOOL   disk_usage_alloc = FALSE;
+static bool   disk_usage_mode  = false;
+static bool   disk_usage_time  = false;
+static bool   disk_usage_tree  = false;
+static bool   disk_usage_alloc = false;
 static int    disk_usage_print = 'b';
 static UINT64 disk_usage_sum_raw   = 0ULL;
 static UINT64 disk_usage_sum_alloc = 0ULL;
@@ -667,8 +667,8 @@ static int print_it (const char  *file,
                      DWORD64      fsize,
                      const char  *prefix,
                      const struct od2x_options *opts,
-                     BOOL         show_size,
-                     BOOL         show_owner)
+                     bool         show_size,
+                     bool         show_owner)
 {
   const char *f;
   int         slash;
@@ -732,8 +732,8 @@ static void print_dirent2 (const struct dirent2 *de, int idx, const struct od2x_
   {
     static char prefix[] = " \n              -> ~3";
 
-    prefix[0] = (char) print_it (de->d_name, 0ULL, NULL, opts, FALSE, FALSE);
-    slash = print_it (de->d_link ? de->d_link : "??", 0ULL, prefix, opts, FALSE, FALSE);
+    prefix[0] = (char) print_it (de->d_name, 0ULL, NULL, opts, false, false);
+    slash = print_it (de->d_link ? de->d_link : "??", 0ULL, prefix, opts, false, false);
     if (de->d_link)
        C_putc (slash);
   }
@@ -843,7 +843,7 @@ static char *_get_actual_filename (char *link)
 #if USE_get_actual_filename
   char *New = link;
 
-  if (get_actual_filename(&New, FALSE))
+  if (get_actual_filename(&New, false))
      link = New;
   else
 #endif
@@ -879,7 +879,7 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
       if (is_junction && follow_junctions && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
       {
         char result [_MAX_PATH] = "??";
-        BOOL rc = get_reparse_point (de->d_name, result, sizeof(result));
+        bool rc = get_reparse_point (de->d_name, result, sizeof(result));
 
         if (rc)
            namelist[i]->d_link = _get_actual_filename (result);
@@ -931,7 +931,7 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
     if (is_junction && follow_junctions && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
     {
       char result [_MAX_PATH] = "??";
-      BOOL rc = get_reparse_point (de->d_name, result, sizeof(result));
+      bool rc = get_reparse_point (de->d_name, result, sizeof(result));
 
       if (rc)
          de->d_link = _get_actual_filename (result);
@@ -1079,7 +1079,7 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
 
 static void print_tree_branch (const char *sz_buf, const char *directory)
 {
-  BOOL at_top = (recursion_level == 0);
+  bool at_top = (recursion_level == 0);
 
   C_printf ("%s, l:%2lu ", sz_buf, recursion_level);
 
@@ -1126,7 +1126,7 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
      switch (ch)
      {
        case 'a':
-            disk_usage_alloc = TRUE;
+            disk_usage_alloc = true;
             break;
        case 'c':
             opts->sort |= OD2X_SORT_EXACT;
@@ -1135,7 +1135,7 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
             opt.debug++;
             break;
        case 'j':
-            follow_junctions = FALSE;
+            follow_junctions = false;
             break;
        case 'u':
             opts->unixy_paths++;
@@ -1147,7 +1147,7 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
             opts->recursive = 0;
             break;
        case 'S':
-            use_scandir = TRUE;
+            use_scandir = true;
             break;
        case 's':
             opts->sort |= get_sorting (optarg);
@@ -1156,10 +1156,10 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
             opt.show_owner++;
             break;
        case 't':
-            disk_usage_time = TRUE; /* not yet */
+            disk_usage_time = true; /* not yet */
             break;
        case 'T':
-            disk_usage_tree = TRUE;
+            disk_usage_tree = true;
             break;
        case 'z':
             opt.show_size++;
@@ -1191,7 +1191,7 @@ int MS_CDECL main (int argc, char **argv)
 
   if (argc >= 2 && !strcmp(argv[0], "--disk-usage"))  /* called from 'du.exe' */
   {
-    disk_usage_mode = TRUE;
+    disk_usage_mode = true;
     opts.recursive  = 1;  /* option '-R' reverts this */
     argc--;
     argv++;

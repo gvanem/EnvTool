@@ -28,7 +28,7 @@ typedef enum login_source {
  * Data for each parsed entry from one of the files in `enum login_source`.
  */
 struct login_info {
-       BOOL         is_default;  /**< This is the `default` user/password entry for non-matching lookups */
+       bool         is_default;  /**< This is the `default` user/password entry for non-matching lookups */
        login_source src;         /**< Which file this entry came from */
        char        *host;        /**< The hostname of the entry */
        char        *user;        /**< The username of the entry */
@@ -167,7 +167,7 @@ static void netrc_parse (smartlist_t *sl, const char *line)
     li = CALLOC (1, sizeof(*li));
     li->user       = STRDUP (user);
     li->passw      = STRDUP (passw);
-    li->is_default = TRUE;
+    li->is_default = true;
     li->src        = LOGIN_NETRC;
   }
   if (li)
@@ -205,7 +205,7 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
     li->user       = STRDUP (user);
     li->passw      = STRDUP (passw);
     li->port       = port;
-    li->is_default = TRUE;
+    li->is_default = true;
     li->src        = LOGIN_AUTHINFO;
   }
   if (li)
@@ -221,7 +221,7 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
  *   ```
  * And add to the `login_list [LOGIN_ENVTOOL_CFG]` smartlist.
  */
-BOOL auth_envtool_handler (const char *section, const char *key, const char *value)
+bool auth_envtool_handler (const char *section, const char *key, const char *value)
 {
   char user [256];
   char passw[256];
@@ -244,7 +244,7 @@ BOOL auth_envtool_handler (const char *section, const char *key, const char *val
     smartlist_add (login_list[LOGIN_ENVTOOL_CFG], li);
   }
   ARGSUSED (section);
-  return (TRUE);
+  return (true);
 }
 
 /**

@@ -224,7 +224,7 @@ DECLARE_INTERFACE_ (ISetupConfiguration2, ISetupConfiguration)
   STDMETHOD_ (HRESULT, Release) (THIS);
 };
 
-static BOOL get_install_name (void *This, ISetupInstance2 *inst)
+static bool get_install_name (void *This, ISetupInstance2 *inst)
 {
   OLECHAR *name;
   HRESULT  hr = (*inst->lpVtbl->GetDisplayName) (This, LOCALE_USER_DEFAULT, &name);
@@ -233,15 +233,15 @@ static BOOL get_install_name (void *This, ISetupInstance2 *inst)
   if (FAILED(hr))
   {
     TRACE (1, "hr: %s\n", win_strerror(hr));
-    return (FALSE);
+    return (false);
   }
   TRACE (1, "name: %" WIDESTR_FMT "\n", name);
   wchar_to_mbchar (str, sizeof(str), name);
   SysFreeString (name);
-  return (TRUE);
+  return (true);
 }
 
-static BOOL get_install_version (void *This, ISetupInstance *inst)
+static bool get_install_version (void *This, ISetupInstance *inst)
 {
   OLECHAR *ver;
   HRESULT  hr = (*inst->lpVtbl->GetInstallationVersion) (This, &ver);
@@ -250,15 +250,15 @@ static BOOL get_install_version (void *This, ISetupInstance *inst)
   if (FAILED(hr))
   {
     TRACE (1, "hr: %s\n", win_strerror(hr));
-    return (FALSE);
+    return (false);
   }
   TRACE (1, "ver: %" WIDESTR_FMT "\n", ver);
   wchar_to_mbchar (str, sizeof(str), ver);
   SysFreeString (ver);
-  return (TRUE);
+  return (true);
 }
 
-static BOOL get_install_path (void *This, ISetupInstance *inst)
+static bool get_install_path (void *This, ISetupInstance *inst)
 {
   OLECHAR *path;
   HRESULT  hr = (*inst->lpVtbl->GetInstallationPath) (This, &path);
@@ -267,15 +267,15 @@ static BOOL get_install_path (void *This, ISetupInstance *inst)
   if (FAILED(hr))
   {
     TRACE (1, "hr: %s\n", win_strerror(hr));
-    return (FALSE);
+    return (false);
   }
   TRACE (1, "path: %" WIDESTR_FMT "\n", path);
   wchar_to_mbchar (str, sizeof(str), path);
   SysFreeString (path);
-  return (TRUE);
+  return (true);
 }
 
-static BOOL get_installed_packages (void *This, ISetupInstance2 *inst)
+static bool get_installed_packages (void *This, ISetupInstance2 *inst)
 {
   SAFEARRAY              *sa_packages = NULL;
   ISetupPackageReference *package  = NULL;
@@ -335,7 +335,7 @@ static BOOL get_installed_packages (void *This, ISetupInstance2 *inst)
 
   SafeArrayUnaccessData (sa_packages);
   SafeArrayDestroy (sa_packages);
-  return (TRUE);
+  return (true);
 
 error:
   if (package)
@@ -347,7 +347,7 @@ error:
        SafeArrayUnaccessData (sa_packages);
     SafeArrayDestroy (sa_packages);
   }
-  return (FALSE);
+  return (false);
 }
 
 
@@ -355,7 +355,7 @@ error:
  * This function will load `Microsoft.VisualStudio.Setup.Configuration.Native.dll`
  * to do the required work via COM.
  */
-static BOOL find_all_instances (void *This)
+static bool find_all_instances (void *This)
 {
   ISetupConfiguration2 *sc2   = NULL;
   IEnumSetupInstances  *enm   = NULL;
@@ -401,7 +401,7 @@ static BOOL find_all_instances (void *This)
   (*enm->lpVtbl->Release) (This);
   (*sc2->lpVtbl->Release) (This);
   (*sc->lpVtbl->Release) (This);
-  return (TRUE);
+  return (true);
 
 error:
   if (inst2)
@@ -416,7 +416,7 @@ error:
   if (sc)
     (*sc->lpVtbl->Release) (This);
 
-  return (FALSE);
+  return (false);
 }
 
 /*
@@ -426,9 +426,9 @@ error:
  * To avoid impact on other parts of your application,
  * use a new thread to make this call.
  */
-BOOL find_vstudio_init (void)
+bool find_vstudio_init (void)
 {
-  BOOL    rc = FALSE;
+  bool    rc = false;
   HRESULT hr = CoInitializeEx (NULL, COINIT_MULTITHREADED);
   void   *This = NULL;
 

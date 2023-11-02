@@ -69,7 +69,7 @@ const char *get_file_assoc_last_err (void)
 /**
  * Print all registered associations for an file-extension.
  */
-BOOL get_file_assoc_all (const char *extension)
+bool get_file_assoc_all (const char *extension)
 {
   HRESULT hr;
   char    buf [1024];
@@ -96,14 +96,14 @@ BOOL get_file_assoc_all (const char *extension)
   }
   if (failed == 0)
      last_err[0] = '\0';
-  return (failed > 0 ? FALSE : TRUE);
+  return (failed > 0 ? false : true);
 }
 
 /**
  * Retrieves the registered friendly-name (`*program_descr`) and
  * executable program (`*program_exe`) associated for an file-extension.
  */
-BOOL get_file_assoc (const char *extension, char **program_descr, char **program_exe)
+bool get_file_assoc (const char *extension, char **program_descr, char **program_exe)
 {
   char    buf [1024];
   DWORD   buf_len = sizeof(buf);
@@ -117,7 +117,7 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
   {
     _strlcpy (last_err, win_strerror(hr), sizeof(last_err));
     TRACE (1, "Failed: %s\n", last_err);
-    return (FALSE);
+    return (false);
   }
   *program_descr = STRDUP (buf);
 
@@ -128,18 +128,18 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
   {
     _strlcpy (last_err, win_strerror(hr), sizeof(last_err));
     TRACE (1, "Failed: %s\n", last_err);
-    return (FALSE);
+    return (false);
   }
 
   last_err[0] = '\0';
   *program_exe = STRDUP (buf);
-  return (TRUE);
+  return (true);
 }
 
 /**
  * Get the actual casing for a full file-name by getting the short-name
  * and then the long-name. This function therefore first checks if the
- * `*file_p` is already on a short-name form (`is_sfn`). If TRUE, a call
+ * `*file_p` is already on a short-name form (`is_sfn`). If true, a call
  * to `GetShortPathNameA()` is not done.
  *
  * Internally, these functions seems to be using `SHGetFileInfo()`: <br>
@@ -148,11 +148,11 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
  * \param[in,out] file_p     A pointer to the file to be converted. <br>
  *                           The new proper file-name is returned at the same location. <br>
  *
- * \param[in]     allocated  If TRUE, the `*file_p` was allocated by STRDUP() and will
+ * \param[in]     allocated  If true, the `*file_p` was allocated by STRDUP() and will
  *                           be FREE() before `*file_p` is set to the new value.
  *
- * \retval  TRUE  if the `*file_p` was converted successfully.
- * \retval  FALSE if the convertion failed, `*file_p` is unchanged.
+ * \retval  true  if the `*file_p` was converted successfully.
+ * \retval  false if the convertion failed, `*file_p` is unchanged.
  *
  * \note
  *   The drive-letter is down-cased using `_fix_drive()` since
@@ -162,10 +162,10 @@ BOOL get_file_assoc (const char *extension, char **program_descr, char **program
  *   Written with the inspiration from: <br>
  *    http://stackoverflow.com/questions/74451/getting-actual-file-name-with-proper-casing-on-windows
  */
-BOOL get_actual_filename (char **file_p, BOOL allocated)
+bool get_actual_filename (char **file_p, bool allocated)
 {
   char buf [_MAX_PATH], *_new, *file;
-  BOOL is_sfn;
+  bool is_sfn;
 
   is_sfn = (strchr(*file_p,'~') != NULL);
 
@@ -173,12 +173,12 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   {
     _strlcpy (last_err, win_strerror(GetLastError()), sizeof(last_err));
     TRACE (1, "*file_p: '%s' failed: %s\n", *file_p, last_err);
-    return (FALSE);
+    return (false);
   }
 
   _new = MALLOC (_MAX_PATH);
   if (!_new)
-     return (FALSE);
+     return (false);
 
   file = is_sfn ? *file_p : buf;
 
@@ -187,7 +187,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
     _strlcpy (last_err, win_strerror(GetLastError()), sizeof(last_err));
     TRACE (1, "file: '%s' failed: %s\n", file, last_err);
     FREE (_new);
-    return (FALSE);
+    return (false);
   }
 
   if (allocated)
@@ -198,7 +198,7 @@ BOOL get_actual_filename (char **file_p, BOOL allocated)
   last_err[0] = '\0';
 
   TRACE (3, "\n    short: '%s' ->\n    long:  '%s'\n", buf, *file_p);
-  return (TRUE);
+  return (true);
 }
 
 
@@ -250,7 +250,7 @@ int MS_CDECL main (int argc, char **argv)
      * convert to a long-name which should not contain any '~' SFN character.
      */
     if (*program_exe != '\0' && FILE_EXISTS(program_exe))
-       get_actual_filename (&program_exe, TRUE);
+       get_actual_filename (&program_exe, true);
 
     C_printf ("  ~3%s~0 -> ~6%s~0\n", program_descr, program_exe);
 

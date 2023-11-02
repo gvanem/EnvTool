@@ -487,8 +487,8 @@ typedef struct EVERYTHING_IPC_COMMAND_LINE
 // Everything will send the results to the reply_hwnd in the form of a
 // WM_COPYDATA message with the dwData value you specify.
 //
-// Everything will return TRUE if successful.
-// returns FALSE if not supported.
+// Everything will return true if successful.
+// returns false if not supported.
 //
 // If you query with EVERYTHING_IPC_COPYDATAQUERYW, the results sent from Everything will be Unicode.
 //
@@ -558,7 +558,7 @@ typedef struct EVERYTHING_IPC_QUERYA
 //
 // make a copy of the data before returning.
 //
-// return TRUE if you processed the WM_COPYDATA message.
+// return true if you processed the WM_COPYDATA message.
 //
 
 typedef struct EVERYTHING_IPC_ITEMW
@@ -748,8 +748,8 @@ typedef struct EVERYTHING_IPC_LISTA
 // Everything will send the results to the reply_hwnd in the form of a
 // WM_COPYDATA message with the dwData value you specify.
 //
-// Everything will return TRUE if successful.
-// returns FALSE if not supported.
+// Everything will return true if successful.
+// returns false if not supported.
 //
 // If you query with EVERYTHING_IPC_COPYDATA_QUERYW, the results sent from Everything will be Unicode.
 //

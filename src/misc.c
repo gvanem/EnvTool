@@ -220,7 +220,7 @@ static func_DestroyEnvironmentBlock          p_DestroyEnvironmentBlock;
  */
 void init_misc (void)
 {
-  static BOOL done = FALSE;
+  static bool done = false;
 
   if (done)
      return;
@@ -256,7 +256,7 @@ void init_misc (void)
                                                 "DestroyEnvironmentBlock");
 
   }
-  done = TRUE;
+  done = true;
 }
 
 /**
@@ -310,7 +310,7 @@ const char *check_if_shebang (const char *fname)
   }
 
   if (strncmp(shebang, "#!", 2))
-     return (FALSE);
+     return (NULL);
 
   /** If it's a Unix file with 2 "\r\r" in the `shebang[]` buffer,
    *  we cannot use `str_strip_nl()`. That will only remove the last
@@ -337,19 +337,19 @@ const char *check_if_shebang (const char *fname)
 /**
  * Open a `fname` and check if there's a `"PK\3\4"` signature in the first 4 bytes.
  */
-int check_if_zip (const char *fname)
+bool check_if_zip (const char *fname)
 {
   static const char header [4] = { 'P', 'K', 3, 4 };
   const char *ext;
   char   buf [sizeof(header)];
   FILE  *f;
-  int    rc = 0;
+  bool   rc = false;
 
   /** Return 0 if extension is neither `.egg` nor `.zip` nor `.whl`.
    */
   ext = get_file_ext (fname);
   if (stricmp(ext, "egg") && stricmp(ext, "whl") && stricmp(ext, "zip"))
-     return (0);
+     return (false);
 
   f = fopen (fname, "rb");
   if (f)
@@ -368,15 +368,15 @@ int check_if_zip (const char *fname)
  * Gzip format:
  *   https://www.onicos.com/staff/iz/formats/gzip.html
  */
-int check_if_gzip (const char *fname)
+bool check_if_gzip (const char *fname)
 {
   static const BYTE header1 [4] = { 0x1F, 0x8B, 0x08, 0x08 };
   static const BYTE header2 [4] = { 0x1F, 0x8B, 0x08, 0x00 };
   const char *ext;
   char         buf [sizeof(header1)];
   FILE        *f;
-  BOOL         is_gzip, is_tgz;
-  int          rc = 0;
+  bool         is_gzip, is_tgz;
+  bool         rc = false;
 
   /** Accept only `.gz`, `.tgz` or `.tar.gz` extensions.
    */
@@ -387,8 +387,8 @@ int check_if_gzip (const char *fname)
   if (!is_gzip && !is_tgz)
   {
     TRACE_NL (2);
-    TRACE (2, "\"%s\" does have wrong extension: '%s'.\n", fname, ext);
-    return (0);
+    TRACE (2, "\"%s\" has wrong extension: '%s'.\n", fname, ext);
+    return (false);
   }
 
   f = fopen (fname, "rb");
@@ -396,7 +396,7 @@ int check_if_gzip (const char *fname)
   {
     if (fread(&buf, 1, sizeof(buf), f) == sizeof(buf) &&
         (!memcmp(&buf, &header1, sizeof(buf)) || !memcmp(&buf, &header2, sizeof(buf))) )
-       rc = 1;
+       rc = true;
     fclose (f);
   }
   TRACE_NL (2);
@@ -427,7 +427,7 @@ static int gzip_cb (char *buf, int index)
 const char *get_gzip_link (const char *file)
 {
   static char gzip_exe [_MAX_PATH];
-  static BOOL done = FALSE;
+  static bool done = false;
   const char *f = file;
   const char *p;
 
@@ -436,7 +436,7 @@ const char *get_gzip_link (const char *file)
     p = searchpath ("gzip.exe", "PATH");
     if (p)
        slashify2 (gzip_exe, p, '\\');
-    done = TRUE;
+    done = true;
   }
 
   if (!gzip_exe[0])
@@ -525,10 +525,10 @@ const char *get_sym_link (const char *file)
   return (NULL);
 }
 
-BOOL check_if_cwd_in_search_path (const char *program)
+bool check_if_cwd_in_search_path (const char *program)
 {
   if (!p_NeedCurrentDirectoryForExePathA)
-     return (TRUE);
+     return (true);
   return (*p_NeedCurrentDirectoryForExePathA) (program);
 }
 
@@ -546,11 +546,11 @@ static enum Bitness last_bitness = -1;
  *  + For verifying it's signature.
  *  + Showing the version information (if any) in it's resources.
  */
-int check_if_PE (const char *fname, enum Bitness *bits)
+bool check_if_PE (const char *fname, enum Bitness *bits)
 {
-  BOOL   is_exe, is_pe;
-  BOOL   is_32Bit = FALSE;
-  BOOL   is_64Bit = FALSE;
+  bool   is_exe, is_pe;
+  bool   is_32Bit = false;
+  bool   is_64Bit = false;
   size_t len = 0;
   FILE  *f = fopen (fname, "rb");
 
@@ -569,7 +569,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   if (len < sizeof(file_buf))
   {
     TRACE (3, "%s: failed fread(). errno: %d\n", fname, errno);
-    return (FALSE);
+    return (false);
   }
 
   dos = (const IMAGE_DOS_HEADER*) file_buf;
@@ -583,7 +583,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
   if ((char*)nt > file_buf + sizeof(file_buf) || (char*)nt < file_buf)
   {
     TRACE (3, "%s: NT-header at wild offset.\n", fname);
-    return (FALSE);
+    return (false);
   }
 
   is_exe = (dos->e_magic  == IMAGE_DOS_SIGNATURE);  /* 'MZ' */
@@ -621,7 +621,7 @@ int check_if_PE (const char *fname, enum Bitness *bits)
  * Verify the checksum of last opened file above.
  * if `CheckSum == 0` is set to 0, it meants `"don't care"`
  */
-int verify_PE_checksum (const char *fname)
+bool verify_PE_checksum (const char *fname)
 {
   const IMAGE_OPTIONAL_HEADER64 *oh;
   DWORD file_sum, header_sum, calc_chk_sum, rc;
@@ -637,7 +637,7 @@ int verify_PE_checksum (const char *fname)
     file_sum = oh->CheckSum;
   }
   else
-    return (FALSE);
+    return (false);
 
   TRACE (1, "last_bitness: %u, Opt magic: 0x%04X, file_sum: 0x%08lX\n",
          last_bitness, nt->OptionalHeader.Magic, (u_long)file_sum);
@@ -655,9 +655,9 @@ int verify_PE_checksum (const char *fname)
  *  + https://en.wikipedia.org/wiki/WoW64
  *  + https://everything.explained.today/WoW64/
  */
-BOOL is_wow64_active (void)
+bool is_wow64_active (void)
 {
-  BOOL rc    = FALSE;
+  bool rc    = false;
   BOOL wow64 = FALSE;
 
   init_misc();
@@ -704,16 +704,16 @@ time_t FILETIME_to_time_t (const FILETIME *ft)
  * \param[in] proc     The handle of the process to get the filname for.
  *                     Or NULL if our own process.
  * \param[in] filename Assumed to hold `MAX_PATH` characters.
- * \retval FALSE       if this function is not available.
+ * \retval false       if this function is not available.
  * \retval             the return value from `(*p_GetModuleFileNameEx)()`.
  */
-BOOL get_module_filename_ex (HANDLE proc, char *filename)
+bool get_module_filename_ex (HANDLE proc, char *filename)
 {
   init_misc();
 
   if (p_GetModuleFileNameEx)
      return (*p_GetModuleFileNameEx) (proc, 0, filename, _MAX_PATH);
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -751,7 +751,7 @@ char *evry_raw_query (void)
  */
 static const char *sid_owner_cache (PSID sid)
 {
-  static BOOL done = FALSE;
+  static bool done = false;
   static char sid_buf1 [200] = { '\0' };
   static char sid_buf2 [200] = { '\0' };
 
@@ -770,7 +770,7 @@ static const char *sid_owner_cache (PSID sid)
       LocalFree (sid_str);
     }
   }
-  done = TRUE;
+  done = true;
   if (EqualSid(sid, sid_buf1) && sid_buf2[0])
      return (sid_buf2);
   return (NULL);
@@ -805,10 +805,10 @@ static const char *sid_owner_cache (PSID sid)
  *  + LookupAccountSid()
  *    https://docs.microsoft.com/en-us/windows/desktop/api/winbase/nf-winbase-lookupaccountsida
  */
-static BOOL get_file_owner_internal (const char *file, char **domain_name_p, char **account_name_p, void **sid_p)
+static bool get_file_owner_internal (const char *file, char **domain_name_p, char **account_name_p, void **sid_p)
 {
   DWORD        rc, attr, err;
-  BOOL         rc2, is_dir;
+  bool         rc2, is_dir;
   DWORD        account_name_sz = 0;
   DWORD        domain_name_sz  = 0;
   char        *domain_name;
@@ -838,7 +838,7 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
   {
     *account_name_p = STRDUP ("<No access>");
     TRACE (1, "CreateFile (\"%s\") error = %s\n", file, win_strerror(GetLastError()));
-    return (FALSE);
+    return (false);
   }
 
   /* Get the owner SID of the file.
@@ -854,7 +854,7 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
   if (rc != ERROR_SUCCESS)
   {
     TRACE (1, "GetSecurityInfo error = %s\n", win_strerror(GetLastError()));
-    return (FALSE);
+    return (false);
   }
 
   /* First call to LookupAccountSid() to get the sizes of account/domain names.
@@ -889,23 +889,23 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
         {
           *account_name_p = STRDUP (sid_str);
           *domain_name_p  = NULL;
-          return (TRUE);
+          return (true);
         }
       }
 #endif
-      return (FALSE);
+      return (false);
     }
   }
 
   account_name = MALLOC (account_name_sz);
   if (!account_name)
-     return (FALSE);
+     return (false);
 
   domain_name = MALLOC (domain_name_sz);
   if (!domain_name)
   {
     FREE (account_name);
-    return (FALSE);
+    return (false);
   }
 
   /* Second call to LookupAccountSid() to get the account/domain names.
@@ -925,20 +925,20 @@ static BOOL get_file_owner_internal (const char *file, char **domain_name_p, cha
     else TRACE (1, "(2) Error in LookupAccountSid(): %s.\n", win_strerror(err));
     FREE (domain_name);
     FREE (account_name);
-    return (FALSE);
+    return (false);
   }
 
   *account_name_p = account_name;
   *domain_name_p  = domain_name;
-  return (TRUE);
+  return (true);
 }
 
-BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name_p)
+bool get_file_owner (const char *file, char **domain_name_p, char **account_name_p)
 {
   void *sid_p;
   char *dummy1 = NULL;
   char *dummy2 = NULL;
-  BOOL  rc;
+  bool  rc;
 
   if (!domain_name_p)
      domain_name_p = &dummy1;
@@ -977,22 +977,22 @@ BOOL get_file_owner (const char *file, char **domain_name_p, char **account_name
 #endif
 
 /**
- * Return TRUE if directory is truly readable.
+ * Return true if directory is truly readable.
  */
-BOOL is_directory_readable (const char *path)
+bool is_directory_readable (const char *path)
 {
   if (!is_directory(path))
-     return (FALSE);
+     return (false);
   return is_directory_accessible (path, GENERIC_READ);
 }
 
 /**
- * Return TRUE if directory is truly writeable.
+ * Return true if directory is truly writeable.
  */
-BOOL is_directory_writable (const char *path)
+bool is_directory_writable (const char *path)
 {
   if (!is_directory(path))
-     return (FALSE);
+     return (false);
   return is_directory_accessible (path, GENERIC_WRITE);
 }
 
@@ -1006,9 +1006,9 @@ BOOL is_directory_writable (const char *path)
  *  + OpenProcessToken()
  *    https://docs.microsoft.com/en-us/windows/desktop/api/processthreadsapi/nf-processthreadsapi-openprocesstoken
  */
-BOOL is_directory_accessible (const char *path, DWORD access)
+bool is_directory_accessible (const char *path, DWORD access)
 {
-  BOOL     answer = FALSE;
+  bool     answer = false;
   DWORD    length = 0;
   HANDLE   token  = NULL;
   DWORD    access_flg;
@@ -1019,19 +1019,19 @@ BOOL is_directory_accessible (const char *path, DWORD access)
    */
   sec_info = OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION;
   if (GetFileSecurity(path, sec_info, NULL, 0, &length))
-     return (FALSE);
+     return (false);
 
   if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
-     return (FALSE);
+     return (false);
 
   security = CALLOC (1, length);
   if (!security)
-     return (FALSE);
+     return (false);
 
   /* GetFileSecurity() should succeed.
    */
   if (!GetFileSecurity(path, sec_info, security, length, &length))
-     return (FALSE);
+     return (false);
 
   access_flg = TOKEN_IMPERSONATE | TOKEN_QUERY | TOKEN_DUPLICATE | STANDARD_RIGHTS_READ;
 
@@ -1208,12 +1208,12 @@ char *str_trim (char *s)
 }
 
 /**
- * Return TRUE if string `s1` starts with `s2`.
+ * Return true if string `s1` starts with `s2`.
  *
  * Ignore casing of both strings.
  * And drop leading blanks in `s1` first.
  */
-BOOL str_startswith (const char *s1, const char *s2)
+bool str_startswith (const char *s1, const char *s2)
 {
   size_t s1_len;
   size_t s2_len;
@@ -1223,22 +1223,22 @@ BOOL str_startswith (const char *s1, const char *s2)
   s2_len = strlen (s2);
 
   if (s2_len > s1_len)
-     return (FALSE);
+     return (false);
 
   if (!strnicmp (s1, s2, s2_len))
-     return (TRUE);
-  return (FALSE);
+     return (true);
+  return (false);
 }
 
 /**
- * Return TRUE if string `s1` ends with `s2`.
+ * Return true if string `s1` ends with `s2`.
  */
-BOOL str_endswith (const char *s1, const char *s2)
+bool str_endswith (const char *s1, const char *s2)
 {
   const char *s1_end, *s2_end;
 
   if (strlen(s2) > strlen(s1))
-     return (FALSE);
+     return (false);
 
   s1_end = strchr (s1, '\0') - 1;
   s2_end = strchr (s2, '\0') - 1;
@@ -1257,16 +1257,16 @@ BOOL str_endswith (const char *s1, const char *s2)
  * Match a string `str` against word `what`.
  * Set `*next` to position after `what` in `str`.
  */
-BOOL str_match (const char *str, const char *what, char **next)
+bool str_match (const char *str, const char *what, char **next)
 {
   size_t len = strlen (what);
 
   if (str_startswith(str, what))
   {
     *next = str_ltrim ((char*)str + len);
-    return (TRUE);
+    return (true);
   }
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -1369,7 +1369,7 @@ char *str_unquote (char *str)
 }
 
 /**
- * Return TRUE if string `str` is quoted with `quote`.
+ * Return true if string `str` is quoted with `quote`.
  */
 static int _str_isquoted (const char *str, char quote)
 {
@@ -1380,7 +1380,7 @@ static int _str_isquoted (const char *str, char quote)
 }
 
 /**
- * Return TRUE if string `str` is properly quoted with `"` or `'`.
+ * Return true if string `str` is properly quoted with `"` or `'`.
  */
 int str_isquoted (const char *str)
 {
@@ -1538,18 +1538,18 @@ char *str_plural (DWORD val, const char *singular, const char *plural)
  *
  * \ref https://learn.microsoft.com/en-gb/windows/win32/fileio/naming-a-file
  */
-BOOL legal_file_name (const char *fname)
+bool legal_file_name (const char *fname)
 {
   const char *p;
 
   for (p = fname; *p; p++)
   {
     if (*p >= 1 && *p <= 31)
-       return (FALSE);
+       return (false);
     if (strchr ("|<>\"?*", *p))
-       return (FALSE);
+       return (false);
   }
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -1900,30 +1900,30 @@ char *_fix_drive (char *path)
 }
 
 /**
- * Return TRUE if `path` starts with a drive-letter (`A:` - `Z:`)
+ * Return true if `path` starts with a drive-letter (`A:` - `Z:`)
  * and is followed by a slash (`\\` or `/`).
  */
-BOOL _has_drive (const char *path)
+bool _has_drive (const char *path)
 {
   int disk = TOUPPER (path[0]);
 
   if (disk >= 'A' && disk <= 'Z' && strlen(path) >= 3 &&
       path[1] == ':' && IS_SLASH(path[2]))
-     return (TRUE);
-  return (FALSE);
+     return (true);
+  return (false);
 }
 
 /**
- * Return TRUE if `path` starts with a drive-letter (`A:` - `Z:`).
+ * Return true if `path` starts with a drive-letter (`A:` - `Z:`).
  * Not required to be followed by a slash (`\\` or `/`).
  */
-BOOL _has_drive2 (const char *path)
+bool _has_drive2 (const char *path)
 {
   int disk = TOUPPER (path[0]);
 
   if (disk >= 'A' && disk <= 'Z' && strlen(path) >= 2)
-     return (TRUE);
-  return (FALSE);
+     return (true);
+  return (false);
 }
 
 /**
@@ -1944,15 +1944,15 @@ const char *get_file_ext (const char *file)
 }
 
 /**
- * Returns TRUE if `file` is a directory.
+ * Returns true if `file` is a directory.
  */
-BOOL is_directory (const char *path)
+bool is_directory (const char *path)
 {
   struct stat st;
 
   if (safe_stat(path, &st, NULL) == 0)
      return (_S_ISDIR(st.st_mode));
-  return (FALSE);
+  return (false);
 }
 
 /**
@@ -2009,7 +2009,7 @@ int safe_stat (const char *file, struct stat *st, DWORD *win_err)
 {
   DWORD   err = 0;
   DWORD   attr = 0;
-  BOOL    is_dir;
+  bool    is_dir;
   HANDLE  hnd = INVALID_HANDLE_VALUE;
   size_t  len = strlen (file);
   wchar_t w_file [32*1024] = { 0 };
@@ -2171,7 +2171,7 @@ void set_error_mode (int restore)
   {
     static DWORD old_mode = 0;
     DWORD  mode = restore ? old_mode : SEM_FAILCRITICALERRORS;
-    BOOL   rc;
+    bool   rc;
 
     if (restore)
          rc = (*p_SetThreadErrorMode) (mode, NULL);
@@ -2195,24 +2195,24 @@ void set_error_mode (int restore)
  * Get a cached `cluster_size` for `disk`. (`A:` - `Z:`).
  * Only works on local disks; I.e. `disk-type == DRIVE_FIXED`.
  *
- * \retval TRUE  on success.
- * \retval FALSE if disk out of range or if `GetDiskFreeSpace()` fails.
+ * \retval true  on success.
+ * \retval false if disk out of range or if `GetDiskFreeSpace()` fails.
  * \ref https://www.foldersizes.com/wordpress/index.php/2020/07/actual-vs-allocated-disk-space.htm
  */
-BOOL get_disk_cluster_size (int disk, DWORD *size)
+bool get_disk_cluster_size (int disk, DWORD *size)
 {
   static DWORD cluster_size  ['Z' - 'A' + 1];
-  static BOOL  is_local_disk ['Z' - 'A' + 1];
+  static bool  is_local_disk ['Z' - 'A' + 1];
   static char  root[] = "?:\\";
 
   DWORD  sect_per_cluster, bytes_per_sector, free_clusters, total_clusters;
-  BOOL   rc;
+  bool   rc;
   char  *err = "<none>";
   int    i;
 
   disk = TOUPPER (disk);
   if (disk < 'A' || disk > 'Z') /* What to do? */
-     return (FALSE);
+     return (false);
 
   i = disk - 'A';
   ASSERT (i >= 0 && i < DIM(is_local_disk));
@@ -2222,7 +2222,7 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
   {
     if (size)
        *size = cluster_size[i];
-    return (TRUE);
+    return (true);
   }
 
   root[0] = (char) disk;
@@ -2230,15 +2230,15 @@ BOOL get_disk_cluster_size (int disk, DWORD *size)
 
   if (!GetDiskFreeSpace(root, &sect_per_cluster, &bytes_per_sector, &free_clusters, &total_clusters))
   {
-    is_local_disk[i] = FALSE;
+    is_local_disk[i] = false;
     err = win_strerror (GetLastError());
-    rc  = FALSE;
+    rc  = false;
   }
   else
   {
-    is_local_disk[i] = TRUE;
+    is_local_disk[i] = true;
     cluster_size[i]  = sect_per_cluster * bytes_per_sector;
-    rc = TRUE;
+    rc = true;
   }
 
   TRACE (1, "GetDiskFreeSpace (\"%s\"): sect_per_cluster: %lu, bytes_per_sector: %lu, total_clusters: %lu, error: %s\n",
@@ -2304,7 +2304,7 @@ UINT64 get_file_alloc_size (const char *file, UINT64 size)
 /**
  * Get the compressed size of a file.
  */
-BOOL get_file_compr_size (const char *file, UINT64 *fsize)
+bool get_file_compr_size (const char *file, UINT64 *fsize)
 {
   DWORD loDword, hiDword = 0;
 
@@ -2312,11 +2312,11 @@ BOOL get_file_compr_size (const char *file, UINT64 *fsize)
   loDword = GetCompressedFileSize (file, &hiDword);
 
   if (loDword == INVALID_FILE_SIZE)
-     return (FALSE);
+     return (false);
   *fsize = hiDword;
   *fsize <<= 32;
   *fsize += loDword;
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -2386,17 +2386,17 @@ UINT get_disk_type (int disk)
 /**
  * Get the volume mount point where the specified disk is mounted.
  */
-BOOL get_volume_path (int disk, char **mount)
+bool get_volume_path (int disk, char **mount)
 {
   char  *err    = "<none>";
   char   root[] = "?:\\";
-  BOOL   rc = FALSE;
+  bool   rc = false;
   static char res [2*_MAX_PATH];
 
   root[0] = (char) disk;
   if (!GetVolumePathName(root, res, sizeof(res)))
        err = win_strerror (GetLastError());
-  else rc = TRUE;
+  else rc = true;
 
   if (rc && mount)
      *mount = res;
@@ -2447,7 +2447,7 @@ int disk_ready (int disk)
 
     char  buf [sizeof(FILE_NOTIFY_INFORMATION) + _MAX_PATH + 3];
     DWORD size = sizeof(buf);
-    BOOL  rd_change = ReadDirectoryChangesA (hnd, &buf, size, FALSE, filter, NULL, NULL, NULL);
+    bool  rd_change = ReadDirectoryChangesA (hnd, &buf, size, FALSE, filter, NULL, NULL, NULL);
 
     if (!rd_change)
     {
@@ -2478,15 +2478,15 @@ quit:
  * Return a cached status for a `disk` ready status.
  * \param[in] disk  the disk to check: `['A'..'Z']`.
  */
-BOOL chk_disk_ready (int disk)
+bool chk_disk_ready (int disk)
 {
-  static BOOL checked ['Z' - 'A' + 1];
+  static bool checked ['Z' - 'A' + 1];
   static int  status  ['Z' - 'A' + 1];
   int    i;
 
   disk = TOUPPER (disk);
   if (disk < 'A' || disk > 'Z') /* What to do? */
-     return (TRUE);
+     return (true);
 
   i = disk - 'A';
   ASSERT (i >= 0 && i < sizeof(checked));
@@ -2509,7 +2509,7 @@ BOOL chk_disk_ready (int disk)
     }
     TRACE (3, "drive: %c, status: %d.\n", disk, status[i]);
   }
-  checked [i] = TRUE;
+  checked [i] = true;
   return (status[i] >= 1);
 }
 
@@ -2570,22 +2570,22 @@ char *_fix_uuid (const char *uuid, char *result)
 }
 
 /**
- * Return TRUE if this program is executed as an `elevated` process.
+ * Return true if this program is executed as an `elevated` process.
  *
  * Taken from Python 3.5's `src/PC/bdist_wininst/install.c`.
  */
-BOOL is_user_admin (void)
+bool is_user_admin (void)
 {
   typedef BOOL (WINAPI *func_IsUserAnAdmin) (void);
   func_IsUserAnAdmin p_IsUserAnAdmin;
 
   HMODULE shell32 = LoadLibrary ("shell32.dll");
-  BOOL    rc;
+  bool    rc;
 
   /* This function isn't guaranteed to be available.
    */
   if (!shell32)
-     return (FALSE);
+     return (false);
 
   p_IsUserAnAdmin = GETPROCADDRESS (func_IsUserAnAdmin, shell32, "IsUserAnAdmin");
   if (!p_IsUserAnAdmin)
@@ -2599,7 +2599,7 @@ BOOL is_user_admin (void)
 /*
  * The same taken from NPcap and modified.
  */
-BOOL is_user_admin2 (void)
+bool is_user_admin2 (void)
 {
   BOOL  is_admin = FALSE;
   DWORD rc = ERROR_SUCCESS;
@@ -2628,7 +2628,7 @@ cleanup:
      FreeSid (admin_group);
 
   TRACE (1, "is_user_admin2(): rc: %lu, %s\n", rc, is_admin? "yes" : "no");
-  return (is_admin);
+  return (bool) is_admin;
 }
 
 /**
@@ -2966,10 +2966,10 @@ int compare_file_time_ver (time_t mtime_a, time_t mtime_b,
 /**
  * Return error-string for `err` from `kernel32.dll`.
  */
-static BOOL get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
+static bool get_error_from_kernel32 (DWORD err, char *buf, DWORD buf_len)
 {
   HMODULE mod = GetModuleHandle ("kernel32.dll");
-  BOOL    rc = FALSE;
+  bool    rc = false;
 
   if (mod)
   {
@@ -3081,7 +3081,7 @@ char *strdup_at (const char *str, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = len;
   add_to_mem_list (head, file, line);
-  return (char*) (head+1);
+  return (char*) (head + 1);
 }
 
 /**
@@ -3102,7 +3102,7 @@ wchar_t *wcsdup_at (const wchar_t *str, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = len;
   add_to_mem_list (head, file, line);
-  return (wchar_t*) (head+1);
+  return (wchar_t*) (head + 1);
 }
 
 /**
@@ -3124,7 +3124,7 @@ void *malloc_at (size_t size, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = size;
   add_to_mem_list (head, file, line);
-  return (head+1);
+  return (head + 1);
 }
 
 /**
@@ -3146,7 +3146,7 @@ void *calloc_at (size_t num, size_t size, const char *file, unsigned line)
   head->marker = MEM_MARKER;
   head->size   = size;
   add_to_mem_list (head, file, line);
-  return (head+1);
+  return (head + 1);
 }
 
 /**
@@ -4061,7 +4061,7 @@ static DWORD WINAPI threaded_pipe_read (void *arg)
   struct popen2_st *popen = (struct popen2_st*) arg;
   ULONGLONG         start_t = GetTickCount64();
   ULONGLONG         spent_t;
-  BOOL              got_newline;
+  bool              got_newline;
   char             *out       = popen->stdout_data;
   int               out_bytes = sizeof(popen->stdout_data) - 1;
   char             *p = out;
@@ -4337,7 +4337,7 @@ char *getenv_expand_sys (const char *variable)
  * Should later be called from `do_check()` to check for mismatches
  * in the User environment block.
  */
-BOOL getenv_system (smartlist_t **sl)
+bool getenv_system (smartlist_t **sl)
 {
   void          *env_blk;
   smartlist_t   *list;
@@ -4351,13 +4351,13 @@ BOOL getenv_system (smartlist_t **sl)
   if (!p_CreateEnvironmentBlock || !p_DestroyEnvironmentBlock)
   {
     TRACE (1, "p_CreateEnvironmentBlock and/or p_DestroyEnvironmentBlock not available.\n");
-    return (FALSE);
+    return (false);
   }
 
   if (!(*p_CreateEnvironmentBlock)(&env_blk, NULL, FALSE) || !env_blk)
   {
     TRACE (1, "CreateEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
-    return (FALSE);
+    return (false);
   }
 
   list = smartlist_new();
@@ -4383,7 +4383,7 @@ BOOL getenv_system (smartlist_t **sl)
   if (!(*p_DestroyEnvironmentBlock) (env_blk))
      TRACE (1, "DestroyEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
   *sl = list;
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -4475,7 +4475,7 @@ void test_shell_pattern (void)
   for (i = 0; i < DIM(patterns); i++)
   {
     const char *result = translate_shell_pattern (patterns[i].test_pattern);
-    BOOL        equal  = !strcmp (result, patterns[i].expect);
+    bool        equal  = !strcmp (result, patterns[i].expect);
 
     printf ("out: '%-15s' -> %s\n", result, equal ? "OKAY" : "FAILED");
   }
@@ -4623,7 +4623,7 @@ struct REPARSE_DATA_BUFFER {
 
 const char *last_reparse_err;
 
-static BOOL reparse_err (int dbg_level, const char *fmt, ...)
+static bool reparse_err (int dbg_level, const char *fmt, ...)
 {
   static char err_buf [1000];
   va_list args;
@@ -4631,7 +4631,7 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
   if (!fmt)
   {
     err_buf[0] = '\0';
-    return (TRUE);
+    return (true);
   }
 
   va_start (args, fmt);
@@ -4639,7 +4639,7 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
   va_end (args);
   last_reparse_err = err_buf;
   TRACE (dbg_level, last_reparse_err);
-  return (FALSE);
+  return (false);
 }
 
 #ifndef MAXIMUM_REPARSE_DATA_BUFFER_SIZE
@@ -4667,7 +4667,7 @@ static BOOL reparse_err (int dbg_level, const char *fmt, ...)
  */
 #define WIDECHAR_ERR(...)  reparse_err (__VA_ARGS__)
 
-BOOL wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
+bool wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
 {
   int   size_needed, rc;
   DWORD cp = CP_ACP;
@@ -4691,22 +4691,22 @@ BOOL wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
   WIDECHAR_ERR (0, NULL); /* clear any previous error */
 
   TRACE (2, "rc: %d, result: '%s'\n", rc, result);
-  return (TRUE);
+  return (true);
 }
 
-BOOL mbchar_to_wchar (wchar_t *result, size_t result_size, const char *a_buf)
+bool mbchar_to_wchar (wchar_t *result, size_t result_size, const char *a_buf)
 {
   size_t size_needed = MultiByteToWideChar (CP_ACP, 0, a_buf, -1, NULL, 0);
 
   if (size_needed == 0 || size_needed >= result_size)  /* including NUL-termination */
-     return (FALSE);
+     return (false);
 
   if (!MultiByteToWideChar(CP_ACP, 0, a_buf, (int)strlen(a_buf)+1, result, (int)size_needed))
   {
     TRACE (2, "GetLastError(): %s.\n", win_strerror(GetLastError()));
-    return (FALSE);
+    return (false);
   }
-  return (TRUE);
+  return (true);
 }
 
 /**
@@ -4716,14 +4716,14 @@ BOOL mbchar_to_wchar (wchar_t *result, size_t result_size, const char *a_buf)
  * So it is a good idea to call `get_disk_type(dir[0])` and verify
  * that it returns `DRIVE_FIXED` first.
  */
-BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
+bool get_reparse_point (const char *dir, char *result, size_t result_size)
 {
   struct REPARSE_DATA_BUFFER *rdata;
   HANDLE   hnd;
   size_t   ofs, plen, slen;
   wchar_t *print_name, *sub_name;
   DWORD    ret_len, share_mode, flags;
-  BOOL     rc;
+  bool     rc;
 
   last_reparse_err = NULL;
   *result = '\0';
@@ -4806,7 +4806,7 @@ BOOL get_reparse_point (const char *dir, char *result, size_t result_size)
   }
 
   if (result_size < plen)
-     return (FALSE);
+     return (false);
   return wchar_to_mbchar (result, result_size, print_name);
 }
 
@@ -4990,7 +4990,7 @@ typedef BOOL (WINAPI *func_GetCoreTempInfo) (CORE_TEMP_SHARED_DATA *pData);
 #define LOAD_LIBRARY_SEARCH_SYSTEM32  0x00000800
 #endif
 
-static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *indent)
+static bool get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *indent)
 {
   func_GetCoreTempInfo p_GetCoreTempInfoAlt;
   ULONG   index;
@@ -5005,7 +5005,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   if (!ct_dll)
   {
     TRACE (1, "\"GetCoreTempInfo.dll\" is not installed.\n");
-    return (FALSE);
+    return (false);
   }
 
   p_GetCoreTempInfoAlt = GETPROCADDRESS (func_GetCoreTempInfo, ct_dll, "fnGetCoreTempInfoAlt");
@@ -5013,7 +5013,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   {
     TRACE (1, "\nError: The function \"fnGetCoreTempInfo\" in \"GetCoreTempInfo.dll\" could not be found.\n");
     FreeLibrary (ct_dll);
-    return (FALSE);
+    return (false);
   }
 
   memset (ct_data, '\0', sizeof(*ct_data));
@@ -5021,7 +5021,7 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
   {
     C_printf ("\"Core Temp\" is not running or shared memory could not be read.\n");
     FreeLibrary (ct_dll);
-    return (FALSE);
+    return (false);
   }
 
   temp_type = ct_data->ucFahrenheit ? 'F' : 'C';
@@ -5055,20 +5055,20 @@ static BOOL get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
     }
   }
   FreeLibrary (ct_dll);
-  return (TRUE);
+  return (true);
 }
 
 /**
  * Print the information from the CoreTemp driver.
  */
-BOOL print_core_temp_info (void)
+bool print_core_temp_info (void)
 {
   CORE_TEMP_SHARED_DATA ct_data;
 
   /* Try to open the 'Core Temp' mutex
    */
   HANDLE ev = CreateEvent (NULL, FALSE, FALSE, "Local\\PowerInfoMutex");
-  BOOL   is_running = (ev == NULL && GetLastError() == ERROR_INVALID_HANDLE);
+  bool   is_running = (ev == NULL && GetLastError() == ERROR_INVALID_HANDLE);
 
   if (is_running)
   {
@@ -5082,14 +5082,14 @@ BOOL print_core_temp_info (void)
     return get_core_temp_info (&ct_data, "              ");
   }
   C_printf ("\"Core Temp\" is not running.\n");
-  return (FALSE);
+  return (false);
 }
 
 /**
  * A simple rotating spinner text-bar running it's own thread.
  */
 static HANDLE spinner_hnd = INVALID_HANDLE_VALUE;
-static BOOL   spin_pause = FALSE;
+static bool   spin_pause = false;
 static int    spin_idx = 0;
 
 #ifdef USE_FANCY_BAR
@@ -5162,7 +5162,7 @@ void spinner_start (void)
 /**
  * Pause printing of the spinner bar.
  */
-void spinner_pause (BOOL on_off)
+void spinner_pause (bool on_off)
 {
   spin_pause = on_off;
 }
