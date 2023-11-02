@@ -7,7 +7,7 @@ install:
   #
   # Set compiler environment for MSVC first.
   #
-  - cmd: call "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x64
+  - cmd: call "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
 
 build_script:
     - cmd: appveyor-script.bat build
