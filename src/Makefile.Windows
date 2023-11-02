@@ -469,11 +469,14 @@ ifeq ($(USE_Wall),1)
   else ifeq ($(CC),icx)
     CFLAGS += -Wall                \
               -Wno-varargs         \
+              -Wno-unused-function \
               -Wno-unused-variable \
-              -Wno-format-security
+              -Wno-format-security \
+              -Wno-unused-but-set-variable
 
   else ifeq ($(CC),zig)
     CFLAGS += -Wall                \
+              -Wno-unknown-pragmas \
               -Wno-format-security \
               -Wno-varargs         \
               -Wno-unused-function \
