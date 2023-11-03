@@ -2903,6 +2903,15 @@ char *slashify (const char *path, char use)
   const char *p;
   const char *end = path + strlen(path);
 
+ /* Do not collapse multiple slashes here
+  */
+  if (!strnicmp(path, "\\\\wsl.", 6))
+  {
+    strncpy (s, path, 6);
+    path += 6;
+    s    += 6;
+  }
+
   for (p = path; p < end; p++)
   {
     if (IS_SLASH(*p))
@@ -2927,6 +2936,15 @@ char *slashify2 (char *buf, const char *path, char use)
 {
   const char *p, *end = strchr (path, '\0');
   char       *s = buf;
+
+ /* Do not collapse multiple slashes here
+  */
+  if (!strnicmp(path, "\\\\wsl.", 6))
+  {
+    strncpy (s, path, 6);
+    path += 6;
+    s    += 6;
+  }
 
   for (p = path; p < end; p++)
   {

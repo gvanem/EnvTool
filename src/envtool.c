@@ -857,7 +857,7 @@ static void check_component (const char *env_name, char *tok, int is_cwd)
 
     /* Check for missing drive-letter (`x:`) in component.
      */
-    if (!is_cwd && IS_SLASH(tok[0]) && !str_equal_n(tok, "/cygdrive/", 10))
+    if (!is_cwd && IS_SLASH(tok[0]) && !str_equal_n(tok, "/cygdrive/", 10) && strnicmp(tok, "\\\\wsl.", 6))
        WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
 
     /* Warn on `x:` (a missing trailing slash)
@@ -1542,7 +1542,7 @@ int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
   char            _path [_MAX_PATH];  /* Copy of 'path' */
   int             found = 0;
   int             ignore = 0;
-  char            *end;
+  char           *end;
 
   /* We need to set these only once; `opt.file_spec` is constant throughout the program.
    */
