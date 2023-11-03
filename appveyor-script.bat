@@ -61,6 +61,8 @@ exit /b 1
   ::
   del /q c:\hostedtoolcache\windows\Python\3.7.9\x64\python.exe 2> NUL
 
+  copy ..\CI\winsqlite3.dll > NUL
+
   echo on
 
   @call :green_msg Testing version output:
@@ -94,7 +96,7 @@ exit /b 1
   @"c:\Program Files\Git\usr\bin\tail" --lines=20 %TEMP%\envtool.cache
 
   @echo off
-  del /q %APPDATA%\.netrc %APPDATA%\.authinfo
+  del /q %APPDATA%\.netrc %APPDATA%\.authinfo winsqlite3.dll
   exit /b
 
 ::
