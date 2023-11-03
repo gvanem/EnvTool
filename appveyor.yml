@@ -11,7 +11,6 @@ install:
   # And start the CoreTemp program. Does not work.
   #
   - cmd: call "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %CPU%
-  # - cmd: start CI\CoreTemp.exe
 
 build_script:
     - cmd: appveyor-script.bat build

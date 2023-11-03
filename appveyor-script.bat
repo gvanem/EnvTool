@@ -29,8 +29,7 @@ exit /b 1
 :build
   cd %APPVEYOR_BUILD_FOLDER%\src
   set WK_VER=8.1
-  rem msbuild -nologo -p:Configuration=%REL_DBG% -p:Platform="Win32" envtool.sln
-  call nmake -nologo -f Makefile.VC clean all
+  call nmake -nologo -f Makefile.VC all
   exit /b
 
 ::
