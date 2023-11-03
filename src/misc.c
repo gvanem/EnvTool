@@ -4621,6 +4621,46 @@ struct REPARSE_DATA_BUFFER {
        };
      };
 
+/**
+ * Extra "Windows Subsystem for Linux" `IO_REPARSE_TAG` values:
+ * \def IO_REPARSE_TAG_AF_UNIX    Used WSL to represent a UNIX domain socket.
+ * \def IO_REPARSE_TAG_LX_FIFO    Used WSL to represent a UNIX FIFO (named pipe).
+ * \def IO_REPARSE_TAG_LX_CHR     Used WSL to represent a UNIX character special file.
+ * \def IO_REPARSE_TAG_LX_BLK     Used WSL to represent a UNIX block special file.
+ * \def IO_REPARSE_TAG_LX_SYMLINK Used WSL to represent a UNIX symbolic link.
+ *
+ * \ref https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-FSCC/%5BMS-FSCC%5D.pdf
+ * \ref https://github.com/0xbadfca11/lxsstat/wiki/WSL-filesystem
+ */
+#ifndef IO_REPARSE_TAG_AF_UNIX
+#define IO_REPARSE_TAG_AF_UNIX  0x80000023
+#endif
+
+#ifndef IO_REPARSE_TAG_LX_FIFO
+#define IO_REPARSE_TAG_LX_FIFO  0x80000024
+#endif
+
+#ifndef IO_REPARSE_TAG_LX_CHR
+#define IO_REPARSE_TAG_LX_CHR   0x80000025
+#endif
+
+#ifndef IO_REPARSE_TAG_LX_BLK
+#define IO_REPARSE_TAG_LX_BLK   0x80000026
+#endif
+
+#ifndef IO_REPARSE_TAG_LX_SYMLINK
+#define IO_REPARSE_TAG_LX_SYMLINK 0xA000001DL
+#endif
+
+static const char *wsl_tag_name (DWORD tag)
+{
+  return (tag == IO_REPARSE_TAG_AF_UNIX    ? "IO_REPARSE_TAG_AF_UNIX"    :
+          tag == IO_REPARSE_TAG_LX_FIFO    ? "IO_REPARSE_TAG_LX_FIFO"    :
+          tag == IO_REPARSE_TAG_LX_CHR     ? "IO_REPARSE_TAG_LX_CHR"     :
+          tag == IO_REPARSE_TAG_LX_BLK     ? "IO_REPARSE_TAG_LX_BLK"     :
+          tag == IO_REPARSE_TAG_LX_SYMLINK ? "IO_REPARSE_TAG_LX_SYMLINK" : NULL);
+}
+
 const char *last_reparse_err;
 
 static bool reparse_err (int dbg_level, const char *fmt, ...)
@@ -4628,11 +4668,9 @@ static bool reparse_err (int dbg_level, const char *fmt, ...)
   static char err_buf [1000];
   va_list args;
 
+  err_buf[0] = '\0';
   if (!fmt)
-  {
-    err_buf[0] = '\0';
-    return (true);
-  }
+     return (true);
 
   va_start (args, fmt);
   vsnprintf (err_buf, sizeof(err_buf), fmt, args);
@@ -4647,7 +4685,11 @@ static bool reparse_err (int dbg_level, const char *fmt, ...)
 #endif
 
 #ifndef IsReparseTagMicrosoft
-#define IsReparseTagMicrosoft(_tag) (_tag & 0x80000000)
+#define IsReparseTagMicrosoft(_tag)     (_tag & 0x80000000)
+#endif
+
+#ifndef IsReparseTagNameSurrogate
+#define IsReparseTagNameSurrogate(_tag) (_tag & 0x20000000)
 #endif
 
 #ifndef FSCTL_GET_REPARSE_POINT
@@ -4675,18 +4717,17 @@ bool wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
 
   /* Figure out the size needed for the conversion.
    */
-  size_needed = WideCharToMultiByte (cp, 0, w_buf, (int)result_size, NULL, 0, def_char, NULL);
+  size_needed = WideCharToMultiByte (cp, 0, w_buf, (int)wcslen(w_buf), NULL, 0, def_char, NULL);
   if (size_needed == 0)
-     return WIDECHAR_ERR (1, "WideCharToMultiByte(): %s",
-                          win_strerror(GetLastError()));
+     return WIDECHAR_ERR (1, "1: WideCharToMultiByte(): %s", win_strerror(GetLastError()));
 
   if (size_needed > (int)result_size)
-     return WIDECHAR_ERR (1, "result_size too small (%u). Need %d bytes for WideCharToMultiByte().",
-                          result_size, size_needed);
+     return WIDECHAR_ERR (1, "result_size too small (%u). Need %d bytes for WideCharToMultiByte (\"%.10" WIDESTR_FMT "...\").",
+                          result_size, size_needed, w_buf);
 
-  rc = WideCharToMultiByte (cp, 0, w_buf, (int)result_size, result, (int)result_size, def_char, NULL);
+  rc = WideCharToMultiByte (cp, 0, w_buf, size_needed, result, size_needed, def_char, NULL);
   if (rc <= 0)
-     return WIDECHAR_ERR (1, "WideCharToMultiByte(): %s", win_strerror(GetLastError()));
+     return WIDECHAR_ERR (1, "2: WideCharToMultiByte(): %s", win_strerror(GetLastError()));
 
   WIDECHAR_ERR (0, NULL); /* clear any previous error */
 
@@ -4715,15 +4756,18 @@ bool mbchar_to_wchar (wchar_t *result, size_t result_size, const char *a_buf)
  *
  * So it is a good idea to call `get_disk_type(dir[0])` and verify
  * that it returns `DRIVE_FIXED` first.
+ *
+ * \ref https://github.com/mirror/newlib-cygwin/blob/fe2545e9faaf4bf9586f61a7b83d5cb5af501194/winsup/cygwin/path.cc#L2533
  */
 bool get_reparse_point (const char *dir, char *result, size_t result_size)
 {
   struct REPARSE_DATA_BUFFER *rdata;
-  HANDLE   hnd;
-  size_t   ofs, plen, slen;
-  wchar_t *print_name, *sub_name;
-  DWORD    ret_len, share_mode, flags;
-  bool     rc;
+  HANDLE      hnd;
+  size_t      ofs, plen, slen;
+  wchar_t    *print_name, *sub_name;
+  const char *tag;
+  DWORD       ret_len, share_mode, flags;
+  bool        rc;
 
   last_reparse_err = NULL;
   *result = '\0';
@@ -4737,8 +4781,7 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
                     NULL, OPEN_EXISTING, flags, NULL);
 
   if (hnd == INVALID_HANDLE_VALUE)
-     return reparse_err (1, "Could not open dir '%s'; %s",
-                         dir, win_strerror(GetLastError()));
+     return reparse_err (1, "Could not open dir '%s'; %s", dir, win_strerror(GetLastError()));
 
   rdata = alloca (MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
   rc = DeviceIoControl (hnd, FSCTL_GET_REPARSE_POINT, NULL, 0,
@@ -4748,15 +4791,14 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
   CloseHandle (hnd);
 
   if (!rc)
-     return reparse_err (1, "DeviceIoControl(): %s",
-                         win_strerror(GetLastError()));
+     return reparse_err (1, "DeviceIoControl(): %s", win_strerror(GetLastError()));
 
   if (!IsReparseTagMicrosoft(rdata->ReparseTag))
      return reparse_err (1, "Not a Microsoft-reparse point - could not query data!");
 
   if (rdata->ReparseTag == IO_REPARSE_TAG_SYMLINK)
   {
-    TRACE (2, "Symbolic-Link\n");
+    TRACE (2, "A Symbolic-Link:\n");
 
     slen     = rdata->SymbolicLinkReparseBuffer.SubstituteNameLength;
     ofs      = rdata->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(wchar_t);
@@ -4768,7 +4810,7 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
   }
   else if (rdata->ReparseTag == IO_REPARSE_TAG_MOUNT_POINT)
   {
-    TRACE (2, "Mount-Point\n");
+    TRACE (2, "A Mount-Point:\n");
 
     slen     = rdata->MountPointReparseBuffer.SubstituteNameLength;
     ofs      = rdata->MountPointReparseBuffer.SubstituteNameOffset / sizeof(wchar_t);
@@ -4780,9 +4822,12 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
   }
   else
   {
-    TRACE (2, "ReparseTag: 0x%08lX??\n", (unsigned long)rdata->ReparseTag);
-    return reparse_err (1, "Not a Mount-Point nor a Symbolic-Link; ReparseTag: 0x%08lX??\n",
-                        (unsigned long)rdata->ReparseTag);
+    tag = wsl_tag_name (rdata->ReparseTag);
+    if (tag)
+       return reparse_err (1, "Unsupported reparse tag: %s == 0x%08lX%s\n",
+                           tag, rdata->ReparseTag,
+                           IsReparseTagNameSurrogate(rdata->ReparseTag) ? " (surrogate)" : "");
+    return reparse_err (1, "Unknown reparse tag: 0x%08lX??\n", rdata->ReparseTag);
   }
 
   /* Account for 0-termination
@@ -4793,15 +4838,15 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
   sub_name [slen/2] = L'\0';
   print_name [plen/2] = L'\0';
 
-  TRACE (2, "SubstitutionName: '%S'\n", sub_name);
-  TRACE (2, "PrintName:        '%S'\n", print_name);
+  TRACE (2, "  SubstitutionName: '%S'\n", sub_name);
+  TRACE (2, "  PrintName:        '%S'\n", print_name);
 
   if (opt.debug >= 3)
   {
-    TRACE (3, "hex-dump sub_name:\n");
+    TRACE (3, "  hex-dump sub_name:\n");
     hex_dump (sub_name, slen);
 
-    TRACE (3, "hex-dump print_name:\n");
+    TRACE (3, "  hex-dump print_name:\n");
     hex_dump (print_name, plen);
   }
 
