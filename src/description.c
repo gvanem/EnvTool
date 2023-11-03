@@ -71,17 +71,17 @@ static const char *curr_dir;
 /**
  * Initialise this module.
  */
-void file_descr_init (void)
+bool file_descr_init (void)
 {
   const char *env, *line, *shell;
 
   if (all_descr)
-     return;
+     return (false);
 
   all_descr = smartlist_new();
   env = getenv ("COMSPEC");
   if (!env)
-     return;
+     return (false);
 
   shell = strlwr (basename(env));
   if (!strcmp(shell, "4nt.exe") || !strcmp(env, "tcc.exe"))
@@ -91,15 +91,16 @@ void file_descr_init (void)
     popen_run (NULL, env, "/C echo %%_dname");
     line = popen_last_line();
     TRACE (2, "line: '%s'.\n", line);
-    if (*line && strchr(line,'.'))
+    if (*line && strchr(line, '.'))
        _strlcpy (descr_name, line, sizeof(descr_name));
-   }
+  }
+  return (true);
 }
 
 /**
  * Report a summary for `all_descr`.
  */
-static void all_descr_dump (void)
+static void file_descr_dump (void)
 {
   const struct descr_dir  *dd;
   const struct descr_node *dn;
@@ -132,7 +133,7 @@ static void all_descr_dump (void)
  * 'smartlist_wipe()' helper.
  * Free an item in the 'all_descr' smartlist.
  */
-static void all_descr_free (void *_d)
+static void file_descr_free_all (void *_d)
 {
   struct descr_dir *dd = (struct descr_dir*) _d;
 
@@ -149,9 +150,9 @@ void file_descr_exit (void)
      return;
 
   if (opt.debug >= 2)
-     all_descr_dump();
+     file_descr_dump();
 
-  smartlist_wipe (all_descr, all_descr_free);
+  smartlist_wipe (all_descr, file_descr_free_all);
   smartlist_free (all_descr);
   all_descr = NULL;
 }
@@ -160,7 +161,7 @@ void file_descr_exit (void)
  * Parser for a single `DESCRIPT.ION` file for a specific directory.
  * Add `struct descr_node` elements to this smartlist as we parse the file.
  */
-static void descr_parse (smartlist_t *sl, const char *buf)
+static void file_descr_parse (smartlist_t *sl, const char *buf)
 {
   char  file [_MAX_PATH]  = "?";
   char  descr [MAX_DESCR] = "?";
@@ -215,7 +216,7 @@ static void descr_parse (smartlist_t *sl, const char *buf)
  * \retval !NULL The file/dir description found.
  * \retval NULL  The file/dir have no description.
  */
-static const char *lookup_file_descr (const smartlist_t *sl, const char *file_dir)
+static const char *file_descr_lookup (const smartlist_t *sl, const char *file_dir)
 {
   int i, max = smartlist_len (sl);
 
@@ -233,7 +234,7 @@ static const char *lookup_file_descr (const smartlist_t *sl, const char *file_di
 }
 
 #if defined(__GNUC__) && (__GNUC__ >= 7)
-#pragma GCC diagnostic ignored "-Wformat-truncation"
+// #pragma GCC diagnostic ignored "-Wformat-truncation"
 #endif
 
 /**
@@ -248,13 +249,13 @@ static const char *lookup_file_descr (const smartlist_t *sl, const char *file_di
  * \retval !NULL The file/dir description found.
  * \retval NULL  The file/dir have no description.
  */
-static const char *all_descr_new (const char *dir, const char *file_dir)
+static const char *file_descr_new (const char *dir, const char *file_dir)
 {
   struct descr_dir *dd;
 
   curr_dir = dir;
   dd = CALLOC (1, sizeof(*dd));
-  dd->descr = smartlist_read_file (descr_parse, "%s\\%s", dir, descr_name);
+  dd->descr = smartlist_read_file (file_descr_parse, "%s\\%s", dir, descr_name);
   _strlcpy (dd->dir, dir, sizeof(dd->dir));
 
   if (dd->descr)
@@ -266,7 +267,7 @@ static const char *all_descr_new (const char *dir, const char *file_dir)
   /* Is it found now?
    */
   if (dd->descr)
-     return lookup_file_descr (dd->descr, file_dir);
+     return file_descr_lookup (dd->descr, file_dir);
   return (NULL);
 }
 
@@ -279,13 +280,13 @@ static const char *all_descr_new (const char *dir, const char *file_dir)
  * \retval !NULL The file/dir description was found.
  * \retval NULL  The file/dir have no description.
  */
-static const char *all_descr_lookup (const char *dir, const char *file_dir, bool *empty)
+static const char *file_descr_lookup_all (const char *dir, const char *file_dir, bool *empty)
 {
   const struct descr_dir *dd;
   int   i, max = smartlist_len (all_descr);
 
   *empty = false;
-  TRACE (2, "all_descr_lookup(): max: %d, looking for dir: '%s'\n", max, dir);
+  TRACE (2, "%s(): max: %d, looking for dir: '%s'\n", __FUNCTION__, max, dir);
 
   for (i = 0; i < max; i++)
   {
@@ -295,7 +296,7 @@ static const char *all_descr_lookup (const char *dir, const char *file_dir, bool
     if (!stricmp(dir, dd->dir))
     {
       if (dd->descr)
-         return lookup_file_descr (dd->descr, file_dir);
+         return file_descr_lookup (dd->descr, file_dir);
       *empty = true;
     }
   }
@@ -338,13 +339,13 @@ const char *file_descr_get (const char *file_dir)
      C_putc ('\n');
   TRACE (2, "file_dir: '%s', fname: '%s'\n", file_dir, fname);
 
-  descr = all_descr_lookup (dir, fname, &empty);
+  descr = file_descr_lookup_all (dir, fname, &empty);
   if (empty)
      return (NULL);
 
   if (descr)
        cache_hits++;
-  else descr = all_descr_new (dir, fname);
+  else descr = file_descr_new (dir, fname);
 
   return (descr);
 }
@@ -352,19 +353,26 @@ const char *file_descr_get (const char *file_dir)
 #if defined(DESCRIPTION_TEST) || defined(__DOXYGEN__)
 struct prog_options opt;
 
-static void init (int argc, char **argv)
+static void test_init (int argc, char **argv)
 {
-  if (argc == 2)
+  if (argc >= 2)
   {
     if (!strcmp(argv[1], "-d"))
-      opt.debug = 2;
+       opt.debug = 2;
     else if (!strcmp(argv[1], "-dd"))
-      opt.debug = 3;
+       opt.debug = 3;
   }
-
   C_init();
   crtdbug_init();
   file_descr_init();
+}
+
+static void test_exit (void)
+{
+  file_descr_exit();
+  mem_report();
+  C_exit();
+  crtdbug_exit();
 }
 
 /**
@@ -378,7 +386,7 @@ static void init (int argc, char **argv)
  *   envtool.exe    708096   3.10.19  12.18 EnvTool program.  Just some long lines of text to test the parser. Lorem ipsum dolor sit amet, consectetur adipiscing elit->
  * ```
  */
-static void create_descr_file (void)
+static void test_create (void)
 {
   char  fbuf [210];
   FILE *fil;
@@ -400,17 +408,17 @@ static void create_descr_file (void)
 int main (int argc, char **argv)
 {
   static const char *files[] = {
-                    "envtool.exe",      /* calls 'all_descr_new()' */
+                    "envtool.exe",      /* calls 'file_descr_new()' */
                     "envtool.exe",      /* Should be a negative cache-hit */
-                    "../envtool.cfg",   /* calls 'all_descr_new()' */
+                    "../envtool.cfg",   /* calls 'file_descr_new()' */
                     "../envtool.exe",   /* Should be a positive cache-hit */
                     "../envtool.exe",   /* Should be a positive cache-hit */
                     "../src"            /* Test directory description. Should be a positive cache-hit */
                   };
   int i;
 
-  init (argc, argv);
-  create_descr_file();
+  test_init (argc, argv);
+  test_create();
 
   for (i = 0; i < DIM(files); i++)
   {
@@ -424,10 +432,7 @@ int main (int argc, char **argv)
        printf ("Cached logic seems to work.\n");
   else printf ("Cached logic failed!? cache_hits: %lu.\n", cache_hits);
 
-  file_descr_exit();
-  mem_report();
-  C_exit();
-  crtdbug_exit();
+  test_exit();
   return (0);
 }
 #endif /* DESCRIPTION_TEST || __DOXYGEN__ */
