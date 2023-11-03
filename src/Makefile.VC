@@ -41,7 +41,7 @@ OS_LIBS = advapi32.lib crypt32.lib imagehlp.lib psapi.lib shell32.lib shlwapi.li
 # A silly hack for builing an AppVeyor; fails to find 'stdbool.h'!
 #
 !if "$(APPVEYOR_BUILD)" == "1"
-CFLAGS = $(CFLAGS) -I../CI
+# CFLAGS = $(CFLAGS) -I../CI
 !endif
 
 !if "$(DEBUG)" == "1"
