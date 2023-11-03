@@ -8,8 +8,10 @@ environment:
 install:
   #
   # Set compiler environment for MSVC first.
+  # And start the CoreTemp program.
   #
   - cmd: call "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %CPU%
+  - cmd: Ci\CoreTemp.exe
 
 build_script:
     - cmd: appveyor-script.bat build
