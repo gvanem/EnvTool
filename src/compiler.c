@@ -1871,9 +1871,11 @@ static char cc_info_buf [100];
   }
 
 #elif defined(IS_ZIG_CC)
+  #include "zig_version.h"
+
   const char *compiler_version (void)
   {
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "zig/gcc %s", gcc_version());
+    snprintf (cc_info_buf, sizeof(cc_info_buf), "zig %s/gcc %s", zig_version, gcc_version());
     return (cc_info_buf);
   }
 
