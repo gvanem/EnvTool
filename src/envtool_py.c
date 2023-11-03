@@ -1514,7 +1514,9 @@ static int py_print_modinfo (const char *spec, bool get_details)
  *       https://docs.python.org/3/reference/import.html#packages
  */
 #define PY_LIST_MODULES()                                                              \
-        "import os, sys, zipfile\n"                                                    \
+        "import os, sys, warnings, zipfile\n"                                          \
+        "\n"                                                                           \
+        "warnings.filterwarnings(\"ignore\", category=DeprecationWarning)\n"           \
         "\n"                                                                           \
         "def list_modules (spec):\n"                                                   \
         "  try:\n"                                                                     \
