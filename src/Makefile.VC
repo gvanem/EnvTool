@@ -218,7 +218,7 @@ $(OBJ_DIR)\ldflags_cl.h: Makefile.VC
 
 clean vclean:
 	-rd /Q /S objects
-	-del /q *.sbr vc1*.idb vc*.pdb \
+	-del /q *.sbr vc1*.idb vc*.pdb link.tmp \
 	        envtool.map description.exe dirlist.exe du.exe win_glob.exe win_trust.exe win_ver.exe \
 	        envtool.exe description.map dirlist.map du.map win_glob.map win_trust.map win_ver.map \
 	        envtool.pdb description.pdb dirlist.pdb du.pdb win_glob.pdb win_trust.pdb win_ver.pdb

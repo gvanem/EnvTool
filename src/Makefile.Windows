@@ -1,5 +1,5 @@
 #
-# GNU Makefile for Envtool (MSVC + Clang-CL + zig + Intel, 32 and 64-bit).
+# GNU Makefile for Envtool (MSVC + clang-cl + zig + Intel, 32 and 64-bit).
 #
 # By <gvanem@yahoo.no>.
 #
@@ -44,7 +44,7 @@ USE_ASAN ?= 0
 USE_UBSAN ?= 0
 
 #
-# Use '-Wall' with 'clang-cl', 'zig' or 'icx'.
+# Use '-Wall' with 'clang-cl', 'zig cc' or 'icx'.
 #
 USE_Wall ?= 1
 
@@ -74,6 +74,8 @@ ifeq ($(CC),icx)
   #
   CPU  = x64
   LINK = xilink.exe
+else ifeq ($(CC),zig)
+  LINK = zig cc
 else
   LINK = link.exe
 endif
@@ -156,41 +158,44 @@ file_exist = $(wildcard $(1))
 
 ifeq ($(call file_exist,$(CL_CC)),)
   define check_cl
-    $(error "$(CL_CC)" not found. Edit $(THIS_FILE) manually)
+    $(error "$(_CC)" not found. Edit $(THIS_FILE) manually)
   endef
 else
   define check_cl
-    $(info Assuming $(CL_CC) is okay.)
+    $(info Assuming $(_CC) is okay.)
   endef
 endif
 
 ifeq ($(call file_exist,$(CLANG_CL)),)
   define check_clang
-    $(error "$(CLANG_CL)" not found. Edit $(THIS_FILE) manually.)
+    $(error "$(_CC)" not found. Edit $(THIS_FILE) manually.)
   endef
 else
   define check_clang
-    $(info Assuming $(CLANG_CL) is okay.)
+    $(info Assuming $(_CC) is okay.)
   endef
 endif
 
 ifeq ($(call path_find,icx.exe),)
   define check_icx
-    $(error "icx.exe" not found on PATH. Edit $(THIS_FILE) manually.)
+    $(error "$(_CC)" not found on PATH. Edit $(THIS_FILE) manually.)
   endef
 else
   define check_icx
-    $(info icx found as $(call path_find,icx.exe))
+    $(info "icx" found as $(call path_find,$(_CC)))
   endef
 endif
 
+#
+# A 'zig.bat' on '%PATH%' is OK.
+#
 ifeq ($(call path_find,zig.*),)
   define check_zig
     $(error "zig" not found on PATH. Edit $(THIS_FILE) manually.)
   endef
 else
   define check_zig
-    $(info zig found as $(call path_find,zig.*))
+    $(info "zig" found as $(call path_find,zig.*))
   endef
 endif
 
@@ -200,7 +205,7 @@ ifeq ($(call path_find,$(LINK)),)
   endef
 else
   define check_xilink
-    $(info $(LINK) found as $(call path_find,$(LINK)))
+    $(info "LINK" found as $(call path_find,$(LINK)))
   endef
 endif
 
@@ -209,8 +214,15 @@ ifeq ($(CC),zig)
   # CFLAGS, LDFLAGS and RCFLAGS for 'zig cc':
   #
   CFLAGS  = -DIS_ZIG_CC
+
+  #
+  # Without this '-fno-sanitize=undefined' flag, 'zig cc' will generate Illegal instructions in
+  # lots of places. Ref: https://ruoyusun.com/2022/02/27/zig-cc.html
+  #
+  CFLAGS += -fno-sanitize=undefined
   LDFLAGS =
   RCFLAGS = -nologo -DIS_ZIG_CC -DBITNESS=$(BITS) -DWIN$(BITS)
+  RC      = zig rc
 else
   #
   # CFLAGS, LDFLAGS and RCFLAGS for MSVC + clang-cl + icx:
@@ -281,6 +293,8 @@ else
   #
   ifeq ($(CPU),arm)
     RC := $(WK_ROOT)/bin/$(WindowsSdkVer)/arm64/rc.exe
+  else
+    RC = rc
   endif
 endif   # ifeq ($(CC),zig)
 
@@ -289,21 +303,25 @@ ifeq ($(CC),cl)
   LDFLAGS  += -map -verbose
   OBJ_DIR   = objects/MSVC
   CHECKS    = $(call check_cl)
+  _CC       = $(CL_CC)
 
 else ifeq ($(CC),clang-cl)
   CFLAGS  += -ferror-limit=5 -fms-compatibility -m$(BITS)
   LDFLAGS += -map -verbose
   OBJ_DIR   = objects/clang
   CHECKS    = $(call check_clang)
+  _CC       = $(CLANG_CL)
 
 else ifeq ($(CC),icx)
   LDFLAGS += -map -verbose
   OBJ_DIR   = objects/icx
   CHECKS    = $(call check_icx) $(call check_xilink)
+  _CC       = icx.exe
 
 else ifeq ($(CC),zig)
   OBJ_DIR = objects/zig
   CHECKS  = $(call check_zig)
+  _CC     = zig cc
 
 else
   $(error $(Usage))
@@ -312,11 +330,16 @@ endif
 GENERATED = $(OBJ_DIR)/cflags_$(CC).h \
             $(OBJ_DIR)/ldflags_$(CC).h
 
+ifeq ($(CC),zig)
+  GENERATED += $(OBJ_DIR)/zig_version.h
+endif
+
 CFLAGS += -DWIN32_WINNT=0xA000       \
           -DNTDDI_VERSION=0x0A000000 \
           -D_WIN32_IE=0x800          \
           -DWIN32_LEAN_AND_MEAN      \
           -DEVERYTHINGUSERAPI=       \
+          -DEVERYTHINGAPI=__cdecl    \
           -I./$(OBJ_DIR)
 
 ifeq ($(USE_WSOCK_TRACE),1)
@@ -325,17 +348,9 @@ else
   WS2_32_LIB = ws2_32.lib
 endif
 
-ifeq ($(CC),zig)
-  CFLAGS += -DEVERYTHINGAPI=
-else
-  CFLAGS += -DEVERYTHINGAPI=__cdecl
-endif
-
-ifeq ($(USE_CRT_DEBUG),0)
-  #
-  # Disables all 'assert()' macros.
-  #
-  # CFLAGS += -DNDEBUG
+ifeq ($(CC)-$(USE_ASAN),zig-1)
+  $(warning Disabling ASAN for '$(_CC)')
+  USE_ASAN := 0
 endif
 
 ifeq ($(USE_FANCY_BAR),1)
@@ -625,28 +640,28 @@ $(CC).args: $(THIS_FILE)
 	$(call create_resp_file, $@, -c $(call filter_D_args_first, $(CFLAGS)))
 
 $(OBJ_DIR)/dl_%.obj: %.c | $(CC).args
-	$(call Compile, -DDIRLIST_TEST $<, $@)
+	$(call Compile, $@, -DDIRLIST_TEST $<)
 
 $(OBJ_DIR)/gfa_%.obj: %.c | $(CC).args
-	$(call Compile, -DGET_FILE_ASSOC_TEST $<, $@)
+	$(call Compile, $@, -DGET_FILE_ASSOC_TEST $<)
 
 $(OBJ_DIR)/descr_%.obj: %.c | $(CC).args
-	$(call Compile, -DDESCRIPTION_TEST $<, $@)
+	$(call Compile, $@, -DDESCRIPTION_TEST $<)
 
 $(OBJ_DIR)/wg_%.obj: %.c | $(CC).args
-	$(call Compile, -DWIN_GLOB_TEST $<, $@)
+	$(call Compile, $@, -DWIN_GLOB_TEST $<)
 
 $(OBJ_DIR)/wt_%.obj: %.c | $(CC).args
-	$(call Compile, -DWIN_TRUST_TEST $<, $@)
+	$(call Compile, $@, -DWIN_TRUST_TEST $<)
 
 $(OBJ_DIR)/wv_%.obj: %.c | $(CC).args
-	$(call Compile, -DWIN_VER_TEST $<, $@)
+	$(call Compile, $@, -DWIN_VER_TEST $<)
 
 $(OBJ_DIR)/%.obj: %.c | $(CC).args
-	$(call Compile, $<, $@)
+	$(call Compile, $@, $<)
 
 $(OBJ_DIR)/%.res: %.rc
-	$(call create_res_file, $<, $@)
+	$(call create_res_file, $@, $<)
 
 %.i: %.c FORCE | cpp-filter.py $(CC).args
 	$(call C_preprocess, $@, $<)
@@ -659,7 +674,7 @@ check-for-unused-libs.py: $(THIS_FILE)
 
 ifeq ($(CC)-$(USE_MP_COMPILE),cl-1)
   $(ENVTOOL_OBJ): $(ENVTOOL_SRC) | $(CC).args
-	$(call Compile, -MP $(ENVTOOL_SRC), $(OBJ_DIR)\\)
+	$(call Compile, $(OBJ_DIR)\\, -MP $(ENVTOOL_SRC))
 endif
 
 FORCE:
@@ -679,18 +694,13 @@ ANALYZE_CFLAGS = $(CFLAGS) -D_DEBUG -MP        \
 
 analyze_cl:
 	$(call green_msg, Analyzing 'ENVTOOL_SRC' ...)
-	$(CL_CC) $(ANALYZE_CFLAGS) $(ENVTOOL_SRC) > analyze-output.txt
+	$(_CC) $(ANALYZE_CFLAGS) $(ENVTOOL_SRC) > analyze-output.txt
 	@echo
 
-clean: clean_$(CC)
+clean:
 	rm -fr $(OBJ_DIR)
 	rm -f $(GENERATED) cl.args clang-cl.args icx.args zig.args link.args \
-	      cpp-filter.py check-for-unused-libs.py
-
-clean_zig: ;
-
-clean_cl clean_clang-cl clean_icx:
-	rm -f vc1*.pdb $(PROGRAMS:.exe=.pdb)
+	      cpp-filter.py check-for-unused-libs.py vc1*.pdb $(PROGRAMS:.exe=.pdb)
 
 vstudio_clean: clean
 	rm -fr Debug Release .vs
@@ -705,36 +715,39 @@ realclean vclean: clean
 cflags:  $(OBJ_DIR)/cflags_cl.h  $(OBJ_DIR)/cflags_clang-cl.h  $(OBJ_DIR)/cflags_icx.h  $(OBJ_DIR)/cflags_zig.h  FORCE
 ldflags: $(OBJ_DIR)/ldflags_cl.h $(OBJ_DIR)/ldflags_clang-cl.h $(OBJ_DIR)/ldflags_icx.h $(OBJ_DIR)/ldflags_zig.h FORCE
 
-
 $(OBJ_DIR)/cflags_cl.h: $(THIS_FILE)
-	$(call generate_cflags_h, $@, $(CL_CC) $(CFLAGS))
+	$(call generate_cflags_h, $@, $(_CC) $(CFLAGS))
 
 $(OBJ_DIR)/cflags_clang-cl.h: $(THIS_FILE)
-	$(call generate_cflags_h, $@, $(CLANG_CL) $(CFLAGS))
+	$(call generate_cflags_h, $@, $(_CC) $(CFLAGS))
 
 $(OBJ_DIR)/cflags_icx.h: $(THIS_FILE)
-	$(call generate_cflags_h, $@, icx.exe $(CFLAGS))
+	$(call generate_cflags_h, $@, $(_CC) $(CFLAGS))
 
 $(OBJ_DIR)/cflags_zig.h:: $(THIS_FILE)
-	$(call generate_cflags_h, $@, zig cc $(CFLAGS))
+	$(call generate_cflags_h, $@, $(_CC) $(CFLAGS))
+
+$(OBJ_DIR)/zig_version.h:: $(THIS_FILE)
+	$(call generate, $@, //)
+	$(file >> $@, const char *zig_version = "$(shell zig version)";)
 
 #--- '$(OBJ_DIR)/ldflags_*.h': ----------------------
 
-ldflags_COMMON = $(LDFLAGS) -out:envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res \
+ldflags_COMMON = $(LDFLAGS) $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res \
 	         advapi32.lib crypt32.lib imagehlp.lib ole32.lib oleaut32.lib shell32.lib \
 	         shlwapi.lib user32.lib version.lib wintrust.lib $(WS2_32_LIB)
 
 $(OBJ_DIR)/ldflags_cl.h: $(THIS_FILE) | $(OBJ_DIR)
-	$(call generate_ldflags_h, $@, link.exe $(ldflags_COMMON))
+	$(call generate_ldflags_h, $@, link.exe -out:envtool.exe $(ldflags_COMMON))
 
 $(OBJ_DIR)/ldflags_clang-cl.h: $(THIS_FILE) | $(OBJ_DIR)
-	$(call generate_ldflags_h, $@, link.exe $(ldflags_COMMON))
+	$(call generate_ldflags_h, $@, link.exe -out:envtool.exe $(ldflags_COMMON))
 
 $(OBJ_DIR)/ldflags_icx.h: $(THIS_FILE) | $(OBJ_DIR)
-	$(call generate_ldflags_h, $@, $(LINK) $(ldflags_COMMON))
+	$(call generate_ldflags_h, $@, $(LINK) -out:envtool.exe $(ldflags_COMMON))
 
 $(OBJ_DIR)/ldflags_zig.h: $(THIS_FILE) | $(OBJ_DIR)
-	$(call generate_ldflags_h, $@, zig cc $(LDFLAGS) -o envtool.exe $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(OS_LIBS) ole32.lib oleaut32.lib shlwapi.lib $(WS2_32_LIB))
+	$(call generate_ldflags_h, $@, $(LINK) -o envtool.exe $(ldflags_COMMON))
 
 $(OBJ_DIR)/compiler.obj: $(GENERATED)
 
@@ -762,12 +775,31 @@ BRIGHT_WHITE = \e[1;37m
 colour_msg = @echo -e '$(1)\e[0m'
 green_msg  = $(call colour_msg,$(BRIGHT_GREEN)$(strip $(1)))
 
-ifeq ($(CC),cl)
-  define Compile
-    $(CL_CC) @$(CC).args -Fo./$(strip $(2) $(1))
+#
+# Only 'zig cc' uses gnu-c compile + link cmdline style.
+#
+ifeq ($(CC),zig)
+  ARGS = -o $(strip $(1))
+else
+  ARGS = -Fo./$(strip $(1))
+endif
+
+define Compile
+  $(_CC) @$(CC).args $(call ARGS, $(1) $(2))
+  @echo
+endef
+
+#
+# No '-verbose' link mode with 'zig cc'.
+#
+ifeq ($(CC),zig)
+  define link_EXE
+    $(call green_msg, Linking $(1).)
+    $(call create_resp_file, link.args, $(LDFLAGS) $(2))
+    $(LINK) -o $(1) @link.args
     @echo
   endef
-
+else
   define link_EXE
     $(call green_msg, Linking $(1).)
     $(call create_resp_file, link.args, $(LDFLAGS) $(2))
@@ -775,53 +807,11 @@ ifeq ($(CC),cl)
     @cat link.tmp >> $(1:.exe=.map)
     @rm -f $(1:.exe=.lib) $(1:.exe=.exp)
     @$(PYTHON) check-for-unused-libs.py link.tmp
-  endef
-
-else ifeq ($(CC),clang-cl)
-  define Compile
-    $(CLANG_CL) @$(CC).args -Fo./$(strip $(2) $(1))
-    @echo
-  endef
-
-  define link_EXE
-    $(call green_msg, Linking $(1).)
-    $(call create_resp_file, link.args, $(LDFLAGS) $(2))
-    $(LINK) -out:$(strip $(1)) @link.args > link.tmp
-    @cat link.tmp >> $(1:.exe=.map)
-    @rm -f $(1:.exe=.lib) $(1:.exe=.exp)
-    @$(PYTHON) check-for-unused-libs.py link.tmp
-  endef
-
-else ifeq ($(CC),icx)
-  define Compile
-    $(CC) @$(CC).args -Fo./$(strip $(2) $(1))
-    @echo
-  endef
-
-  define link_EXE
-    $(call green_msg, Linking $(1).)
-    $(call create_resp_file, link.args, $(LDFLAGS) $(2))
-    $(LINK) -out:$(strip $(1)) @link.args > link.tmp
-    @cat link.tmp >> $(1:.exe=.map)
-    @rm -f $(1:.exe=.lib) $(1:.exe=.exp)
-    @$(PYTHON) check-for-unused-libs.py link.tmp
-  endef
-
-else ifeq ($(CC),zig)
-  define Compile
-    zig cc @$(CC).args -o $(strip $(2) $(1))
-    @echo
-  endef
-
-  define link_EXE
-    $(call green_msg, Linking $(1).)
-    zig cc -o $(1) $(LDFLAGS) $(2)
-    @echo
   endef
 endif
 
 define create_res_file
-  rc $(RCFLAGS) -fo $(strip $(2) $(1))
+  $(RC) $(RCFLAGS) -fo $(strip $(1) $(2))
   @echo
 endef
 
