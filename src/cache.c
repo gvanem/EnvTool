@@ -1055,10 +1055,10 @@ static void cache_test_init (void)
   }
 }
 
-static int cache_test_getf (void)
+static size_t cache_test_getf (void)
 {
   const struct test_table *t = tests + 0;
-  int         i, num_ok = 0;
+  size_t      i, num_ok = 0;
   char       *args [CACHE_MAX_ARGS+1];
 
   TRACE (2, "%s():\n", __FUNCTION__);
@@ -1109,7 +1109,7 @@ static int cache_test_getf (void)
 
   if (num_ok == i)
        C_printf ("  All tests ran ~2OKAY~0.\n\n");
-  else C_printf ("  %d tests ~5FAILED~0.\n\n", i - num_ok);
+  else C_printf ("  %zu out of %u tests ~5FAILED~0.\n\n", i - num_ok, DIM(tests));
   return (num_ok);
 }
 
@@ -1119,13 +1119,15 @@ static int cache_test_getf (void)
  * Should only be called from 'tests.c' if 'USE_ASAN' is defined.
  * Otherwise let that be 'FATAL()'
  */
-int cache_test (void)
+void cache_test (void)
 {
+  int save = opt.debug;
+
 #if !defined(USE_ASAN)
   FATAL ("'cache_test()' needs '-DUSE_ASAN' to be called.\n");
 #endif
 
-  C_puts ("~3cache_test():~0\n");
+  C_puts ("~3cache_test()~0 with ~6-DUSE_ASAN~0:\n");
   cache_test_init();
   opt.debug = 3;
 
@@ -1174,6 +1176,5 @@ int cache_test (void)
            str[12]);
   }
 #endif
-
-  exit (0);
+  opt.debug = save;
 }
