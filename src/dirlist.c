@@ -464,7 +464,7 @@ int scandir2 (const char       *dirname,
   closedir2 (dirptr);
 
   *namelist_p = namelist;
-  return (num);
+  return (int) num;
 
 enomem:
   if (dirptr)
@@ -596,16 +596,17 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
 struct prog_options opt;
 char  *program_name = "dirlist";
 
-static DWORD  recursion_level = 0;
-static DWORD  num_directories = 0;
-static DWORD  num_junctions = 0;
-static DWORD  num_junctions_err = 0;
-static DWORD  num_files = 0;
-static UINT64 total_size = 0;
-static UINT64 total_size_alloc = 0;
-static UINT64 total_size_compr = 0;
-static bool   follow_junctions = true;
-static bool   use_scandir = false;
+static DWORD  recursion_level;
+static DWORD  num_directories;
+static DWORD  num_junctions;
+static DWORD  num_junctions_err;
+static DWORD  num_files;
+static UINT64 total_size;
+static UINT64 total_size_alloc;
+static UINT64 total_size_compr;
+static bool   follow_junctions;
+static bool   follow_junctions_only;
+static bool   use_scandir;
 static char   drive_root [4];
 
 /* Globals for 'do_disk_usage()':
@@ -635,6 +636,8 @@ void usage (void)
   else puts ("Usage: dirlist [-cdourzSs<type>] [dir\\spec*]\n"
              "       -c:      case-sensitive.\n"
              "       -d:      debug-level.\n"
+             "       -j:      do not follow Junctions and Symlinks.\n"
+             "       -J:      only follow Junctions and Symlinks.\n"
              "       -o:      show file-owner.\n"
              "       -u:      show files on Unix form.\n"
              "       -r:      be recursive.\n"
@@ -717,9 +720,12 @@ static int print_it (const char  *file,
 
 static void print_dirent2 (const struct dirent2 *de, int idx, const struct od2x_options *opts)
 {
-  int is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-  int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
-  int slash;
+  bool is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+  bool is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+  int  slash;
+
+  if (follow_junctions_only && !is_junction)
+     return;
 
   C_printf ("~1%5d ~0(%lu): ", idx, (unsigned long)recursion_level);
   if (recursion_level < 10)
@@ -730,7 +736,7 @@ static void print_dirent2 (const struct dirent2 *de, int idx, const struct od2x_
    */
   if (is_junction)
   {
-    static char prefix[] = " \n              -> ~3";
+    static char prefix[] = " \n                -> ~3";
 
     prefix[0] = (char) print_it (de->d_name, 0ULL, NULL, opts, false, false);
     slash = print_it (de->d_link ? de->d_link : "??", 0ULL, prefix, opts, false, false);
@@ -873,8 +879,8 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
     for (i = 0; i < n; i++)
     {
       struct dirent2 *de = namelist[i];
-      int    is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-      int    is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+      bool   is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+      bool   is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
 
       if (is_junction && follow_junctions && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
       {
@@ -886,7 +892,9 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
       }
 
       if (fnmatch(opts->pattern, basename(de->d_name), fnmatch_case(FNM_FLAG_PATHNAME)) == FNM_MATCH)
-         print_dirent2 (de, i, opts);
+      {
+        print_dirent2 (de, i, opts);
+      }
 
       if (opts->recursive && (is_dir || is_junction))
       {
@@ -925,8 +933,8 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
 
   while ((de = readdir2(dp)) != NULL)
   {
-    int is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
-    int is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
+    bool is_dir      = (de->d_attrib & FILE_ATTRIBUTE_DIRECTORY);
+    bool is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
 
     if (is_junction && follow_junctions && get_disk_type(de->d_name[0]) != DRIVE_REMOTE)
     {
@@ -936,7 +944,6 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
       if (rc)
          de->d_link = _get_actual_filename (result);
     }
-
     print_dirent2 (de, i++, opts);
 
     if (opts->recursive && (is_dir || is_junction))
@@ -1137,6 +1144,9 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
        case 'j':
             follow_junctions = false;
             break;
+       case 'J':
+            follow_junctions_only = follow_junctions = true;
+            break;
        case 'u':
             opts->unixy_paths++;
             break;
@@ -1188,6 +1198,7 @@ int MS_CDECL main (int argc, char **argv)
   crtdbug_init();
   memset (&opts, '\0', sizeof(opts));
   memset (&opt, '\0', sizeof(opt));
+  follow_junctions = true;
 
   if (argc >= 2 && !strcmp(argv[0], "--disk-usage"))  /* called from 'du.exe' */
   {
@@ -1195,10 +1206,10 @@ int MS_CDECL main (int argc, char **argv)
     opts.recursive  = 1;  /* option '-R' reverts this */
     argc--;
     argv++;
-    do_getopt (argc, argv, "aubdmkHRtTh?", &opts);
+    do_getopt (argc, argv, "aubdjJmkHRtTh?", &opts);
   }
   else
-    do_getopt (argc, argv, "cdjors:Suzh?", &opts);
+    do_getopt (argc, argv, "cdjJors:Suzh?", &opts);
 
   if (!argv[optind])
   {
