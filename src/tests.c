@@ -470,7 +470,8 @@ static void test_SHGetFolderPath (void)
  *
  * Also make a test similar to the `dir /AL` command (Attribute Reparse Points):
  *
- * `cmd.exe /c dir \ /s /AL`
+ * `cmd.exe /c dir c:\ /s /AL`
+ * `tcc.exe /c dir c:\ /sal`
  */
 static void test_ReparsePoints (void)
 {
@@ -489,7 +490,7 @@ static void test_ReparsePoints (void)
   for (i = 0; i < DIM(points); i++)
   {
     const char *p = points[i];
-    char  result [_MAX_PATH];
+    char  result [_MAX_PATH] = "?";
     char  st_result [100] = "";
     bool  rc = get_reparse_point (p, result, sizeof(result));
 
@@ -740,11 +741,6 @@ int do_tests (void)
 
   if (opt.do_vcpkg)
      return vcpkg_json_parser_test();
-
-#ifdef USE_ASAN
-  if (opt.use_cache)
-     cache_test();
-#endif
 
   test_split_env ("PATH");
   test_split_env ("MANPATH");

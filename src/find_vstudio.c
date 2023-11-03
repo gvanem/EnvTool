@@ -350,7 +350,6 @@ error:
   return (false);
 }
 
-
 /**
  * This function will load `Microsoft.VisualStudio.Setup.Configuration.Native.dll`
  * to do the required work via COM.
@@ -381,8 +380,7 @@ static bool find_all_instances (void *This)
   }
   if (enm == NULL)
   {
-    TRACE (1, "sc2->lpVtbl->EnumAllInstances() failed, hr: %s\n",
-           win_strerror(hr));
+    TRACE (1, "sc2->lpVtbl->EnumAllInstances() failed, hr: %s\n", win_strerror(hr));
     goto error;
   }
 
@@ -404,16 +402,16 @@ static bool find_all_instances (void *This)
   return (true);
 
 error:
-  if (inst2)
+  if (inst2 && inst2->lpVtbl)
     (*inst2->lpVtbl->Release) (This);
 
-  if (enm)
+  if (enm && enm->lpVtbl)
     (*enm->lpVtbl->Release) (This);
 
-  if (sc2)
+  if (sc2 && sc2->lpVtbl)
     (*sc2->lpVtbl->Release) (This);
 
-  if (sc)
+  if (sc && sc->lpVtbl)
     (*sc->lpVtbl->Release) (This);
 
   return (false);

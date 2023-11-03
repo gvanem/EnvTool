@@ -644,8 +644,7 @@ extern bool is_directory_writable (const char *path);
  *  (Junctions and Symlinks).
  */
 extern const char *last_reparse_err;
-extern bool        get_reparse_point (const char *dir, char *result,
-                                      size_t result_size);
+extern bool        get_reparse_point (const char *dir, char *result, size_t result_size);
 
 /** \typedef struct ver_info
  *
@@ -936,21 +935,6 @@ extern char *fnmatch_res  (int rc);
                                 debug_printf (__VA_ARGS__);        \
                              }                                     \
                            } while (0)
-
-
-/*
- * Used to debug ASAN bugs when 'USE_ASAN' is defined.
- * Otherwise, active only for 'opt.debug >= 3'.
- */
-#if defined(USE_ASAN)
-  #define ASAN_TRACE(...)  do {                                 \
-                             debug_printf ("ASAN: %s(%u): ",    \
-                                           __FILE(), __LINE__); \
-                             debug_printf (__VA_ARGS__);        \
-                           } while (0)
-#else
-  #define ASAN_TRACE(...)  TRACE (3, __VA_ARGS__)
-#endif
 
 #define TRACE_NL(level)    do {                      \
                              if (opt.debug >= level) \

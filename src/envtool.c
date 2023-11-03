@@ -3304,7 +3304,6 @@ int MS_CDECL main (int argc, const char **argv)
 
   /* Sometimes the IPC connection to the EveryThing Database will hang.
    * Clean up if user presses ^C.
-   * SIGILL handler is needed for test_libssp().
    */
   signal (SIGINT, halt);
   signal (SIGILL, halt);
