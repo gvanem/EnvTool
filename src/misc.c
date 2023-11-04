@@ -2378,7 +2378,7 @@ UINT get_disk_type (int disk)
   root[0] = (char) disk;
   type = GetDriveType (root);
 
-  TRACE (1, "GetDriveType (\"%s\"): type: %s (%d).\n",
+  TRACE (2, "GetDriveType (\"%s\"): type: %s (%d).\n",
          root, list_lookup_name(type, disk_types, DIM(disk_types)), type);
   return (type);
 }
@@ -4505,28 +4505,36 @@ void test_shell_pattern (void)
  *
  * \eg
  * \code
+ *   hex-dump WSL-tag:
  *   19: 0000: 00 00 00 00 03 AC B5 02-00 00 00 00 18 00 00 00 .....zz.........
  *       0010: A1 D3 BC                                        í++
  * \endcode
  */
-void hex_dump (const void *data_p, size_t datalen)
+void hex_dump (int dbg_level, const char *intro, const void *data_p, size_t datalen)
 {
   const BYTE *data = (const BYTE*) data_p;
   UINT  ofs;
+
+  if (opt.debug < dbg_level)
+     return;
+
+  printf ("  %s: %s\n", intro, datalen == 0 ? "no data" : "");
+  if (datalen == 0)
+     return;
 
   for (ofs = 0; ofs < datalen; ofs += 16)
   {
     UINT j;
 
     if (ofs == 0)
-         printf ("%u:%s%04X: ", (unsigned int)datalen,
+         printf ("  %u:%s%04X: ", (unsigned int)datalen,
                  datalen > 9999 ? " "    :
                  datalen > 999  ? "  "   :
                  datalen > 99   ? "   "  :
                  datalen > 9    ? "    " :
                                   "     ",
                  ofs);
-    else printf ("       %04X: ", ofs);
+    else printf ("         %04X: ", ofs);
 
     for (j = 0; j < 16 && j+ofs < datalen; j++)
         printf ("%02X%c", (unsigned)data[j+ofs],
@@ -4641,11 +4649,11 @@ struct REPARSE_DATA_BUFFER {
 
 /**
  * Extra "Windows Subsystem for Linux" `IO_REPARSE_TAG` values:
- * \def IO_REPARSE_TAG_AF_UNIX    Used WSL to represent a UNIX domain socket.
- * \def IO_REPARSE_TAG_LX_FIFO    Used WSL to represent a UNIX FIFO (named pipe).
- * \def IO_REPARSE_TAG_LX_CHR     Used WSL to represent a UNIX character special file.
- * \def IO_REPARSE_TAG_LX_BLK     Used WSL to represent a UNIX block special file.
- * \def IO_REPARSE_TAG_LX_SYMLINK Used WSL to represent a UNIX symbolic link.
+ *  \def IO_REPARSE_TAG_AF_UNIX    Used in WSL to represent a UNIX domain socket.
+ *  \def IO_REPARSE_TAG_LX_FIFO    Used in WSL to represent a UNIX FIFO (named pipe).
+ *  \def IO_REPARSE_TAG_LX_CHR     Used in WSL to represent a UNIX character special file.
+ *  \def IO_REPARSE_TAG_LX_BLK     Used in WSL to represent a UNIX block special file.
+ *  \def IO_REPARSE_TAG_LX_SYMLINK Used in WSL to represent a UNIX symbolic link.
  *
  * \ref https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-FSCC/%5BMS-FSCC%5D.pdf
  * \ref https://github.com/0xbadfca11/lxsstat/wiki/WSL-filesystem
@@ -4667,19 +4675,66 @@ struct REPARSE_DATA_BUFFER {
 #endif
 
 #ifndef IO_REPARSE_TAG_LX_SYMLINK
-#define IO_REPARSE_TAG_LX_SYMLINK 0xA000001DL
+#define IO_REPARSE_TAG_LX_SYMLINK   0xA000001DL
 #endif
 
-static const char *wsl_tag_name (DWORD tag)
+/* App execution aliases are commonly used by Windows Store apps.
+ */
+#ifndef IO_REPARSE_TAG_APPEXECLINK
+#define IO_REPARSE_TAG_APPEXECLINK  0x8000001BL
+#endif
+
+/* A Cygwin AF_UNIX socket reparse points.
+ */
+#ifndef IO_REPARSE_TAG_CYGUNIX
+#define IO_REPARSE_TAG_CYGUNIX  0x00006375
+#endif
+
+/*
+ * Taken from Cygwin's winsup/cygwin/path.cc
+ *
+ * \ref https://github.com/mirror/newlib-cygwin/blob/master/winsup/cygwin/path.cc
+ */
+typedef struct REPARSE_LX_SYMLINK_BUFFER {
+        DWORD ReparseTag;
+        WORD  ReparseDataLength;
+        WORD  Reserved;          /* == 0 */
+        struct {
+          DWORD FileType;        /* == 2 for symlinks */
+          char  PathBuffer [1];  /* POSIX path as given to symlink(2).
+                                  * Path is not \0 terminated.
+                                  */
+        } LxSymlinkReparseBuffer;
+      } REPARSE_LX_SYMLINK_BUFFER;
+
+typedef struct REPARSE_APPEXECLINK_BUFFER {
+        DWORD ReparseTag;
+        WORD  ReparseDataLength;
+        WORD  Reserved;
+        struct  {
+          DWORD Version;       /* Take member name with a grain of salt. */
+          WCHAR Strings [1];   /* Four serialized, NUL-terminated WCHAR strings:
+                                *  0 - Package ID
+                                *  1 - Entry Point
+                                *  2 - Executable Path
+                                *  3 - Application Type
+                                */
+        } AppExecLinkReparseBuffer;
+      } REPARSE_APPEXECLINK_BUFFER;
+
+static const char *tag_name (DWORD tag)
 {
-  return (tag == IO_REPARSE_TAG_AF_UNIX    ? "IO_REPARSE_TAG_AF_UNIX"    :
-          tag == IO_REPARSE_TAG_LX_FIFO    ? "IO_REPARSE_TAG_LX_FIFO"    :
-          tag == IO_REPARSE_TAG_LX_CHR     ? "IO_REPARSE_TAG_LX_CHR"     :
-          tag == IO_REPARSE_TAG_LX_BLK     ? "IO_REPARSE_TAG_LX_BLK"     :
-          tag == IO_REPARSE_TAG_LX_SYMLINK ? "IO_REPARSE_TAG_LX_SYMLINK" : NULL);
+  return (tag == IO_REPARSE_TAG_AF_UNIX     ? "IO_REPARSE_TAG_AF_UNIX"     :
+          tag == IO_REPARSE_TAG_LX_FIFO     ? "IO_REPARSE_TAG_LX_FIFO"     :
+          tag == IO_REPARSE_TAG_LX_CHR      ? "IO_REPARSE_TAG_LX_CHR"      :
+          tag == IO_REPARSE_TAG_LX_BLK      ? "IO_REPARSE_TAG_LX_BLK"      :
+          tag == IO_REPARSE_TAG_LX_SYMLINK  ? "IO_REPARSE_TAG_LX_SYMLINK"  :
+          tag == IO_REPARSE_TAG_APPEXECLINK ? "IO_REPARSE_TAG_APPEXECLINK" :
+          tag == IO_REPARSE_TAG_CYGUNIX     ? "IO_REPARSE_TAG_CYGUNIX"     : NULL);
 }
 
 const char *last_reparse_err;
+static bool was_special_link = false;
 
 static bool reparse_err (int dbg_level, const char *fmt, ...)
 {
@@ -4787,6 +4842,7 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
   DWORD       ret_len, share_mode, flags;
   bool        rc;
 
+  was_special_link = false;
   last_reparse_err = NULL;
   *result = '\0';
   reparse_err (0, NULL);
@@ -4838,13 +4894,67 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
     ofs        = rdata->MountPointReparseBuffer.PrintNameOffset / sizeof(wchar_t);
     print_name = rdata->MountPointReparseBuffer.PathBuffer + ofs;
   }
+  else if (rdata->ReparseTag == IO_REPARSE_TAG_LX_SYMLINK)
+  {
+    const REPARSE_LX_SYMLINK_BUFFER *lx = (const REPARSE_LX_SYMLINK_BUFFER*) rdata;
+    size_t sz = lx->ReparseDataLength - sizeof(lx->LxSymlinkReparseBuffer.FileType);
+
+    TRACE (1, "WSL-symlink: '%.*s'\n", sz, lx->LxSymlinkReparseBuffer.PathBuffer);
+    if (result_size < sz)
+       return (false);
+    _strlcpy (result, lx->LxSymlinkReparseBuffer.PathBuffer, sz);
+    was_special_link = true;
+    return (true);
+  }
+  else if (rdata->ReparseTag == IO_REPARSE_TAG_APPEXECLINK)
+  {
+    const REPARSE_APPEXECLINK_BUFFER *app = (const REPARSE_APPEXECLINK_BUFFER*) rdata;
+    const WCHAR *buf  = app->AppExecLinkReparseBuffer.Strings;
+    size_t       size = app->ReparseDataLength / sizeof(WCHAR);
+    int          i;
+    size_t       app_len = 0;
+    WCHAR       *app_name = NULL;
+    const char  *app_exec[4] = { "package-ID ",
+                                 "entry-point",
+                                 "executable ",
+                                 "app-type" };
+
+    /* App execution aliases have a payload of four NUL-separated wide string:
+     * package id, entry point, executable and application type.
+     * Return the "executable" as the link-result.
+     */
+    for (i = 0; i < DIM(app_exec) && size > 0; i++)
+    {
+      size_t n = wcsnlen (buf, size - 1);
+
+      TRACE (1, "AppX: %s: '%.*S'\n", app_exec[i], n * sizeof(wchar_t), buf);
+      if (i == 2)
+      {
+        app_len = (n + 1) * sizeof(wchar_t);
+        app_name = alloca (app_len);
+        wcscpy (app_name, buf);
+      }
+      buf  += n + 1;
+      size -= n + 1;
+    }
+
+    if (!app_name || result_size < app_len/2)
+       return (false);
+
+    was_special_link = true;
+    return wchar_to_mbchar (result, result_size, app_name);
+  }
   else
   {
-    tag = wsl_tag_name (rdata->ReparseTag);
+    tag = tag_name (rdata->ReparseTag);
     if (tag)
-       return reparse_err (1, "Unsupported reparse tag: %s == 0x%08lX%s\n",
-                           tag, rdata->ReparseTag,
-                           IsReparseTagNameSurrogate(rdata->ReparseTag) ? " (surrogate)" : "");
+    {
+      reparse_err (1, "Unsupported reparse tag: %s == 0x%08lX%s\n",
+                   tag, rdata->ReparseTag, IsReparseTagNameSurrogate(rdata->ReparseTag) ? " (surrogate)" : "");
+
+      hex_dump (2, "hex-dump tag", &rdata->GenericReparseBuffer.DataBuffer, rdata->ReparseDataLength);
+      return (false);
+    }
     return reparse_err (1, "Unknown reparse tag: 0x%08lX??\n", rdata->ReparseTag);
   }
 
@@ -4859,18 +4969,21 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
   TRACE (2, "  SubstitutionName: '%S'\n", sub_name);
   TRACE (2, "  PrintName:        '%S'\n", print_name);
 
-  if (opt.debug >= 3)
-  {
-    TRACE (3, "  hex-dump sub_name:\n");
-    hex_dump (sub_name, slen);
-
-    TRACE (3, "  hex-dump print_name:\n");
-    hex_dump (print_name, plen);
-  }
+  hex_dump (3, "hex-dump sub_name", sub_name, slen);
+  hex_dump (3, "hex-dump print_name", print_name, plen);
 
   if (result_size < plen)
      return (false);
   return wchar_to_mbchar (result, result_size, print_name);
+}
+
+/**
+ * Return true if the last call to `get_reparse_point()` returned a
+ * WSL or AppX type link.
+ */
+bool is_special_link (void)
+{
+  return (was_special_link);
 }
 
 /**

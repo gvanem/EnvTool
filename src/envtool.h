@@ -620,7 +620,7 @@ extern void        print_long_line (const char *line, size_t indent);
 extern void        print_long_line2 (const char *line, size_t indent, int break_at);
 extern char       *translate_shell_pattern (const char *pattern);
 extern void        test_shell_pattern (void);
-extern void        hex_dump (const void *data_p, size_t datalen);
+extern void        hex_dump (int dbg_level, const char *intro, const void *data_p, size_t datalen);
 extern const char *dump10 (const void *data_p, unsigned size);
 extern bool        get_module_filename_ex (HANDLE proc, char *filename);
 extern time_t      FILETIME_to_time_t (const FILETIME *ft);
@@ -645,6 +645,7 @@ extern bool is_directory_writable (const char *path);
  */
 extern const char *last_reparse_err;
 extern bool        get_reparse_point (const char *dir, char *result, size_t result_size);
+extern bool        is_special_link (void);
 
 /** \typedef struct ver_info
  *

@@ -183,7 +183,7 @@ static bool PrintCertificateInfo (const CERT_CONTEXT *cert_context, char **subje
   NEWLINE();
 #else
   NEWLINE();
-  hex_dump (&cert_context->pCertInfo->SerialNumber.pbData[data+1], data);
+  hex_dump (1, "SerialNumber", &cert_context->pCertInfo->SerialNumber.pbData[data+1], data);
 #endif
 
   /* Get Issuer name size

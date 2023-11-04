@@ -37,14 +37,15 @@ struct od2x_options {
      };
 
 struct dirent2 {
-       ino_t     d_ino;          /* a bit of a farce */
-       size_t    d_reclen;       /* more farce */
-       size_t    d_namlen;       /* length of d_name */
-       char     *d_name;         /* MALLOC()'ed fully qualified file-name */
-       char     *d_link;         /* MALLOC()'ed name of Repare-Point (Junction target) */
-       DWORD     d_attrib;       /* FILE_ATTRIBUTE_xx. Ref MSDN. */
+       ino_t     d_ino;           /* a bit of a farce */
+       size_t    d_reclen;        /* more farce */
+       size_t    d_namlen;        /* length of d_name */
+       char     *d_name;          /* MALLOC()'ed fully qualified file-name */
+       char     *d_link;          /* MALLOC()'ed name of Repare-Point (Junction target) */
+       int       d_special_link;  /* the above d_link is a "Windows System for Linux" or an AppX link */
+       DWORD     d_attrib;        /* FILE_ATTRIBUTE_xx. Ref MSDN. */
        FILETIME  d_time_create;
-       FILETIME  d_time_access;  /* always midnight local time */
+       FILETIME  d_time_access;   /* always midnight local time */
        FILETIME  d_time_write;
        DWORD64   d_fsize;
      };

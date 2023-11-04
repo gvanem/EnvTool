@@ -671,7 +671,8 @@ static int print_it (const char  *file,
                      const char  *prefix,
                      const struct od2x_options *opts,
                      bool         show_size,
-                     bool         show_owner)
+                     bool         show_owner,
+                     bool         is_special_link)
 {
   const char *f;
   int         slash;
@@ -686,6 +687,9 @@ static int print_it (const char  *file,
     f = file;
     slash = '\\';
   }
+
+  if (is_special_link) /* No trailing slash in WSL / AppX links */
+     slash = '  ';
 
   if (prefix)
      C_puts (prefix);
@@ -732,20 +736,20 @@ static void print_dirent2 (const struct dirent2 *de, int idx, const struct od2x_
      C_putc (' ');
   C_printf ("~4%-7s~6", is_junction ? "<LINK>" : is_dir ? "<DIR>" : "");
 
-  /* Junctions need special handling.
+  /* Junctions and WSL-links need special handling.
    */
   if (is_junction)
   {
     static char prefix[] = " \n                -> ~3";
 
-    prefix[0] = (char) print_it (de->d_name, 0ULL, NULL, opts, false, false);
-    slash = print_it (de->d_link ? de->d_link : "??", 0ULL, prefix, opts, false, false);
-    if (de->d_link)
+    prefix[0] = (char) print_it (de->d_name, 0ULL, NULL, opts, false, false, de->d_special_link);
+    slash = print_it (de->d_link ? de->d_link : "??", 0ULL, prefix, opts, false, false, false);
+    if (de->d_link && !de->d_special_link)
        C_putc (slash);
   }
   else
   {
-    slash = print_it (de->d_name, de->d_fsize, NULL, opts, opt.show_size && !is_dir, opt.show_owner);
+    slash = print_it (de->d_name, de->d_fsize, NULL, opts, opt.show_size && !is_dir, opt.show_owner, false);
     if (is_dir)
        C_putc (slash);
   }
@@ -888,7 +892,10 @@ void do_scandir2 (const char *dir, const struct od2x_options *opts)
         bool rc = get_reparse_point (de->d_name, result, sizeof(result));
 
         if (rc)
-           namelist[i]->d_link = _get_actual_filename (result);
+        {
+          namelist[i]->d_special_link = is_special_link();
+          namelist[i]->d_link         = _get_actual_filename (result);
+        }
       }
 
       if (fnmatch(opts->pattern, basename(de->d_name), fnmatch_case(FNM_FLAG_PATHNAME)) == FNM_MATCH)
@@ -942,7 +949,10 @@ static void do_dirent2 (const char *dir, const struct od2x_options *opts)
       bool rc = get_reparse_point (de->d_name, result, sizeof(result));
 
       if (rc)
-         de->d_link = _get_actual_filename (result);
+      {
+        de->d_special_link = is_special_link();
+        de->d_link         = _get_actual_filename (result);
+      }
     }
     print_dirent2 (de, i++, opts);
 
