@@ -806,7 +806,7 @@ else
     $(LINK) -out:$(strip $(1)) @link.args > link.tmp
     @cat link.tmp >> $(1:.exe=.map)
     @rm -f $(1:.exe=.lib) $(1:.exe=.exp)
-    @$(PYTHON) check-for-unused-libs.py link.tmp
+    @export PYTHONINSPECT= ; $(PYTHON) check-for-unused-libs.py link.tmp
   endef
 endif
 
