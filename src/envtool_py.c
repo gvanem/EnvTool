@@ -192,7 +192,7 @@ typedef struct python_info {
   HANDLE dll_hnd;
 
   /** The index of this Python in the `py_programs` smartlist.
-   * I.e. in the cache-file "python_in_pathX = ...", `py_index == X`.
+   *  I.e. in the cache-file "python_in_pathX = ...", `py_index == X`.
    */
   int py_index;
 
@@ -241,7 +241,6 @@ static int longest_py_version = 0;  /** set in py_init() */
 static int global_indent = 0;
 static int warn_on_py_fail = 1;
 
-
 /**
  * Variables used in the generic callback helper function popen_append_out().
  */
@@ -252,10 +251,6 @@ static bool   popen_py_crash = false;
 
 static int  get_python_version (const char *exe_name);
 static bool py_add_module (struct python_info *pi, const struct python_module *m);
-
-#if defined(__GNUC__) && (__GNUC__ >= 7)
-#pragma GCC diagnostic ignored "-Wformat-truncation"
-#endif
 
 /**
  * The list of Pythons from the `"%PATH"` and from the
@@ -271,22 +266,22 @@ static smartlist_t *py_programs;
  *   \param is_opt  `== true` if the function is optional.
  *   \param f       the name of the function (without any `"`).
  */
-#define LOAD_FUNC(pi, is_opt, f)  do {                                               \
-                                    f = GETPROCADDRESS (func_##f, pi->dll_hnd, #f);  \
-                                    if (!f && !is_opt) {                             \
-                                      WARN ("Failed to find \"%s()\" in %s.\n",      \
-                                            #f, pi->dll_name);                       \
-                                      goto failed;                                   \
-                                    }                                                \
-                                    TRACE (3, "Function %s(): %*s 0x%p.\n",          \
-                                           #f, 23-(int)strlen(#f), "", f);           \
+#define LOAD_FUNC(pi, is_opt, f)  do {                                              \
+                                    f = GETPROCADDRESS (func_##f, pi->dll_hnd, #f); \
+                                    if (!f && !is_opt) {                            \
+                                      WARN ("Failed to find \"%s()\" in %s.\n",     \
+                                            #f, pi->dll_name);                      \
+                                      goto failed;                                  \
+                                    }                                               \
+                                    TRACE (3, "Function %s(): %*s 0x%p.\n",         \
+                                           #f, 23-(int)strlen(#f), "", f);          \
                                   } while (0)
 
 /**
  * \def LOAD_INT_PTR(pi, ptr)
  *   A `GetProcAddress()` helper for setting an int-pointer.
  *   \param pi   the `struct python_info` to work on.
- *   \param ptr  the name of the variable (without any `"`).
+ *   \param ptr  the int-pointer (and name) to import.
  */
 #define LOAD_INT_PTR(pi, ptr)  do {                                                        \
                                  ptr = GETPROCADDRESS (int*, pi->dll_hnd, #ptr);           \
@@ -1127,7 +1122,7 @@ static char *call_python_func (struct python_info *pi, const char *prog, unsigne
 
 /**
  * As above, but with the Python code given as a NULL-terminated array.
- * Each element should be EOL-terminated (`"\n"`).
+ * Each element should NOT have newlines. These are done here.
  */
 static char *call_python_array (struct python_info *pi, const char **array, unsigned line)
 {
@@ -1136,13 +1131,17 @@ static char *call_python_array (struct python_info *pi, const char **array, unsi
   size_t      i = 0, size = 1;
 
   for (a = array[0]; a; a = array[++i])
-     size += strlen (a);
+  {
+    size += strlen (a) + 1;
+    ASSERT (strchr(a, '\n') == NULL);
+  }
 
   prog = p = alloca (size);
   for (a = array[0]; a; a = array[++i])
   {
     strcpy (p, a);
     p += strlen (a);
+    *p++ = '\n';
   }
   return call_python_func (pi, prog, line);
 }
@@ -1201,13 +1200,6 @@ static char *fcheck_open_mem (struct python_module *m, const char *file, size_t 
 
     snprintf (fqfn, sizeof(fqfn), "%s%c%s", pkg_dir, DIR_SEP, file);
     FREE (pkg_dir);
-
-    /* Hack to avoid this stupid 'gcc 12+ warning':
-     *   envtool_py.c:1142:13: warning: dangling pointer 'file' to 'fqfn' may be used [-Wdangling-pointer=]
-     *    1142 |      return fopen_mem (file, f_size);
-     *         |             ^~~~~~~~~~~~~~~~~~~~~~~~
-     *
-     */
     file = strdupa (fqfn);
   }
   else
@@ -1255,7 +1247,7 @@ static void py_get_meta_details (struct python_module *m)
         if (p && q > p)
         {
           email = m->author_email;
-          m->author_email = str_ndup (p+1, q-p);
+          m->author_email = str_ndup (p+1, q - p);
           FREE (email);
         }
         if (m->author && p)
@@ -1317,10 +1309,10 @@ static void py_get_meta_details (struct python_module *m)
  */
 static bool test_python_funcs (struct python_info *pi, bool reinit)
 {
-  static const char *prog[] = { "import sys\n",
-                                "print (sys.version_info)\n",
-                                "for i in range(3):\n",
-                                "  print (\"  Hello world\")\n",
+  static const char *prog[] = { "import sys",
+                                "print (sys.version_info)",
+                                "for i in range(3):",
+                                "  print (\"  Hello world\")",
                                 NULL
                               };
   const char *name = py_variant_name (pi->variant);
@@ -1570,7 +1562,7 @@ static int py_print_modinfo (const char *spec, bool get_details)
     }
   }
 
-  if (match_all /* && !get_details */)
+  if (match_all && !get_details)
      C_printf ("~6Found %d modules~0 (%d are ZIP/EGG files).\n", found, zips_found);
   return (found);
 }
@@ -1621,73 +1613,73 @@ static int py_print_modinfo (const char *spec, bool get_details)
  * modules and packages at runtime.
  */
 static const char *py_list_modules2[] = {
-      "from __future__ import print_function\n",
-      "import os, sys, pip, imp\n",
-      "\n",
-      "types = { imp.PY_SOURCE:     'source file',      # = 1\n",
-      "          imp.PY_COMPILED:   'object file',\n",
-      "          imp.C_EXTENSION:   'shared library',   # = 3\n",
-      "          imp.PKG_DIRECTORY: 'package directory',\n",
-      "          imp.C_BUILTIN:     'built-in module',  # = 6\n",
-      "          imp.PY_FROZEN:     'frozen module'\n",
-      "        }\n",
-      "mod_paths    = {}\n",
-      "mod_builtins = {}\n",
-      "prev_pathname = ''\n",
-      "prev_modtype  = None\n",
-      "\n",
-      "def get_module_path (mod, mod_type, mod_path):\n",
-      "  next_scope = mod.index ('.') + 1\n",
-      "  last_scope = mod.rindex ('.') + 1\n",
-      "\n",
-      "  fname = mod_path + '\\\\' + mod[next_scope:].replace('.','\\\\\') + '.py'\n",
-      "  if os.path.exists(fname):\n",
-      "     return fname\n",
-      "\n",
-      "  init = mod_path + '\\\\' + mod[last_scope:] + '\\\\__init__.py'\n",
-      "  if os.path.exists(init):\n",
-      "     return init\n",
-      "\n",
-      "  try:\n",
-      "    if mod_builtins[mod[last_scope:]] == 1:\n",
-      "      return '__builtin__ ' + mod[last_scope:]\n",
-      "  except KeyError:\n",
-      "    pass\n",
-      "\n",
-      "  try:\n",
-      "    return mod_paths [mod[last_scope:]] + ' !'\n",
-      "  except KeyError:\n",
-      "    pass\n",
-      "\n",
-      "  try:\n",
-      "    _x, pathname, _y = imp.find_module (mod, mod_path)\n",
-      "    return pathname\n",
-      "  except ImportError:\n",
-      "    return '<unknown>'\n",
-      "  except RuntimeError:\n",
-      "    mod_builtins [mod] = 1\n",
-      "    return '__builtin__ ' + mod[last_scope:]\n",
-      "\n",
-      "for s in sorted(sys.modules):\n",
-      "  print ('%s' % s, end='')\n",
-      "  if '.' in s:\n",
-      "    print (',%s' % get_module_path(s,prev_modtype,prev_pathname))\n",
-      "    continue\n",
-      "\n",
-      "  try:\n",
-      "    _, pathname, descr = imp.find_module (s)\n",
-      "    t = types [descr[2]]\n",
-      "    prev_modtype = t\n",
-      "    print (',%s,' % t, end='')\n",
-      "    if pathname and '\\\\' in pathname:\n",
-      "      print ('%s' % pathname)\n",
-      "      prev_pathname = pathname\n",
-      "      prev_modtype  = t\n",
-      "      mod_paths [s] = pathname\n",
-      "    else:\n",
-      "      mod_builtins [s] = 1\n",
-      "  except ImportError:\n",
-      "    print (',<unknown>')\n",
+      "from __future__ import print_function",
+      "import os, sys, pip, imp",
+      "",
+      "types = { imp.PY_SOURCE:     'source file',      # = 1",
+      "          imp.PY_COMPILED:   'object file',",
+      "          imp.C_EXTENSION:   'shared library',   # = 3",
+      "          imp.PKG_DIRECTORY: 'package directory',",
+      "          imp.C_BUILTIN:     'built-in module',  # = 6",
+      "          imp.PY_FROZEN:     'frozen module'",
+      "        }",
+      "mod_paths    = {}",
+      "mod_builtins = {}",
+      "prev_pathname = ''",
+      "prev_modtype  = None",
+      "",
+      "def get_module_path (mod, mod_type, mod_path):",
+      "  next_scope = mod.index ('.') + 1",
+      "  last_scope = mod.rindex ('.') + 1",
+      "",
+      "  fname = mod_path + '\\\\' + mod[next_scope:].replace('.','\\\\\') + '.py'",
+      "  if os.path.exists(fname):",
+      "     return fname",
+      "",
+      "  init = mod_path + '\\\\' + mod[last_scope:] + '\\\\__init__.py'",
+      "  if os.path.exists(init):",
+      "     return init",
+      "",
+      "  try:",
+      "    if mod_builtins[mod[last_scope:]] == 1:",
+      "      return '__builtin__ ' + mod[last_scope:]",
+      "  except KeyError:",
+      "    pass",
+      "",
+      "  try:",
+      "    return mod_paths [mod[last_scope:]] + ' !'",
+      "  except KeyError:",
+      "    pass",
+      "",
+      "  try:",
+      "    _x, pathname, _y = imp.find_module (mod, mod_path)",
+      "    return pathname",
+      "  except ImportError:",
+      "    return '<unknown>'",
+      "  except RuntimeError:",
+      "    mod_builtins [mod] = 1",
+      "    return '__builtin__ ' + mod[last_scope:]",
+      "",
+      "for s in sorted(sys.modules):",
+      "  print ('%s' % s, end='')",
+      "  if '.' in s:",
+      "    print (',%s' % get_module_path(s,prev_modtype,prev_pathname))",
+      "    continue",
+      "",
+      "  try:",
+      "    _, pathname, descr = imp.find_module (s)",
+      "    t = types [descr[2]]",
+      "    prev_modtype = t",
+      "    print (',%s,' % t, end='')",
+      "    if pathname and '\\\\' in pathname:",
+      "      print ('%s' % pathname)",
+      "      prev_pathname = pathname",
+      "      prev_modtype  = t",
+      "      mod_paths [s] = pathname",
+      "    else:",
+      "      mod_builtins [s] = 1",
+      "  except ImportError:",
+      "    print (',<unknown>')",
       NULL
     };
 
@@ -3291,7 +3283,7 @@ static char *py_exec_internal (struct python_info *pi, const char **py_argv, boo
   const char *prog0, *fmt = NULL;
   char       *str, *prog;
   size_t      size;
-  arg_vector  av = { 0, NULL, NULL };   /* Fill in to shutup warnings from gcc */
+  arg_vector  av = { 0, NULL, NULL };
 
   C_printf ("Executing ~6%s~0 using ~6%s~0: ", py_argv[0], pi->dll_name);
 
