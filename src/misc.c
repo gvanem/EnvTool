@@ -4830,7 +4830,7 @@ bool mbchar_to_wchar (wchar_t *result, size_t result_size, const char *a_buf)
  * So it is a good idea to call `get_disk_type(dir[0])` and verify
  * that it returns `DRIVE_FIXED` first.
  *
- * \ref https://github.com/mirror/newlib-cygwin/blob/fe2545e9faaf4bf9586f61a7b83d5cb5af501194/winsup/cygwin/path.cc#L2533
+ * \ref https://github.com/mirror/newlib-cygwin/blob/master/winsup/cygwin/path.cc
  */
 bool get_reparse_point (const char *dir, char *result, size_t result_size)
 {
@@ -4899,7 +4899,7 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
     const REPARSE_LX_SYMLINK_BUFFER *lx = (const REPARSE_LX_SYMLINK_BUFFER*) rdata;
     size_t sz = lx->ReparseDataLength - sizeof(lx->LxSymlinkReparseBuffer.FileType);
 
-    TRACE (1, "WSL-symlink: '%.*s'\n", sz, lx->LxSymlinkReparseBuffer.PathBuffer);
+    TRACE (1, "WSL-symlink: '%.*s'\n", (int)sz, lx->LxSymlinkReparseBuffer.PathBuffer);
     if (result_size < sz)
        return (false);
     _strlcpy (result, lx->LxSymlinkReparseBuffer.PathBuffer, sz);
@@ -4927,7 +4927,7 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
     {
       size_t n = wcsnlen (buf, size - 1);
 
-      TRACE (1, "AppX: %s: '%.*S'\n", app_exec[i], n * sizeof(wchar_t), buf);
+      TRACE (1, "AppX: %s: '%.*ws'\n", app_exec[i], (int)(n * sizeof(wchar_t)), buf);
       if (i == 2)
       {
         app_len = (n + 1) * sizeof(wchar_t);
