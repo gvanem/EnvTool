@@ -22,32 +22,32 @@ void        *smartlist_get  (const smartlist_t *sl, int idx);
 unsigned     smartlist_getu (const smartlist_t *sl, int idx);
 void         smartlist_set  (smartlist_t *sl, int idx, void *val);
 
-void     smartlist_free (smartlist_t *sl);
-void     smartlist_free_all (smartlist_t *sl);
-void   **smartlist_ensure_capacity (smartlist_t *sl, size_t num);
-void    *smartlist_add (smartlist_t *sl, void *element);
-unsigned smartlist_addu (smartlist_t *sl, unsigned element);
-char    *smartlist_add_strdup (smartlist_t *sl, const char *str);
-void     smartlist_del (smartlist_t *sl, int idx);
-void     smartlist_del_keeporder (smartlist_t *sl, int idx);
-size_t   smartlist_append (smartlist_t *sl1, const smartlist_t *sl2);
-void     smartlist_insert (smartlist_t *sl, int idx, void *val);
-void     smartlist_swap (smartlist_t *sl, int idx1, int idx2);
-int      smartlist_pos (const smartlist_t *sl, const void *element);
+void         smartlist_free (smartlist_t *sl);
+void         smartlist_free_all (smartlist_t *sl);
+void       **smartlist_ensure_capacity (smartlist_t *sl, size_t num);
+void        *smartlist_add (smartlist_t *sl, void *element);
+unsigned     smartlist_addu (smartlist_t *sl, unsigned element);
+char        *smartlist_add_strdup (smartlist_t *sl, const char *str);
+void         smartlist_del (smartlist_t *sl, int idx);
+void         smartlist_del_keeporder (smartlist_t *sl, int idx);
+size_t       smartlist_append (smartlist_t *sl1, const smartlist_t *sl2);
+void         smartlist_insert (smartlist_t *sl, int idx, void *val);
+void         smartlist_swap (smartlist_t *sl, int idx1, int idx2);
+int          smartlist_pos (const smartlist_t *sl, const void *element);
 
-void     smartlist_clear (smartlist_t *sl);
-void     smartlist_wipe (smartlist_t *sl, smartlist_free_func free_fn);
+void         smartlist_clear (smartlist_t *sl);
+void         smartlist_wipe (smartlist_t *sl, smartlist_free_func free_fn);
 
-int      smartlist_duplicates (smartlist_t *sl, smartlist_sort_func compare);
-int      smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, smartlist_free_func free_fn);
+int          smartlist_duplicates (smartlist_t *sl, smartlist_sort_func compare);
+int          smartlist_make_uniq (smartlist_t *sl, smartlist_sort_func compare, smartlist_free_func free_fn);
 
-void     smartlist_sort (smartlist_t *sl, smartlist_sort_func compare);
+void         smartlist_sort (smartlist_t *sl, smartlist_sort_func compare);
 
-int      smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
-                                smartlist_compare_func compare, bool *found_out);
+int          smartlist_bsearch_idx (const smartlist_t *sl, const void *key,
+                                    smartlist_compare_func compare, bool *found_out);
 
-void    *smartlist_bsearch (const smartlist_t *sl, const void *key,
-                            smartlist_compare_func compare);
+void        *smartlist_bsearch (const smartlist_t *sl, const void *key,
+                                smartlist_compare_func compare);
 
 smartlist_t *smartlist_read_file (smartlist_parse_func parse, const char *file_fmt, ...);
 int          smartlist_write_file (smartlist_t *sl, const char *file_fmt, ...);
