@@ -564,8 +564,17 @@ void smartlist_sort (smartlist_t *sl, smartlist_sort_func compare)
 {
   if (sl->num_used > 0)
   {
+#if defined(USE_UBSAN)
+   /*
+    * Avoid this issue with USE_UBSAN:
+    *  runtime error: call to function compare_on_section_key1 through pointer to incorrect function type
+    *  'int (*)(const void *, const void *)'
+    */
+    qsort (sl->list, sl->num_used, sizeof(void*), (_CoreCrtNonSecureSearchSortCompareFunction) compare);
+#else
     user_compare = (UserCmpFunc) compare;
     qsort (sl->list, sl->num_used, sizeof(void*), local_compare);
+#endif
     user_compare = NULL;
   }
 }
