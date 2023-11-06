@@ -414,13 +414,13 @@ ifeq ($(USE_UBSAN),1)
     $(info Detected '$(CLANG_ROOT)' for 'USE_ASAN=$(USE_ASAN)' and 'USE_UBSAN=$(USE_UBSAN)'.)
 
     #
-    # The default for 'x86 / Release' is 'clang_rt.asan_dynamic_runtime_thunk-i386.lib'
-    # (and clang_rt.asan_dbg_dynamic_runtime_thunk-i386.lib for 'x86 / Debug')
+    # Select the UBSAN libraries explicitly.
     #
-    # Let the linker select the ASAN libraries.
-    #
-    LDFLAGS += -inferasanlibs \
-               -libpath:$(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows
+    ifeq ($(CPU),x64)
+      LDFLAGS += $(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows/clang_rt.ubsan_standalone-x86_64.lib
+    else
+      LDFLAGS += $(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows/clang_rt.ubsan_standalone-i386.lib
+    endif
   endif
 endif
 
