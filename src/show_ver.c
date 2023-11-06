@@ -151,13 +151,13 @@ static const char *show_file_flags (DWORD dwFileFlags)
 {
   #define ADD_VALUE(v)  { v, S_##v }
 
-  static const struct search_list flags[] = {
-                      ADD_VALUE (VS_FF_DEBUG),
-                      ADD_VALUE (VS_FF_PRERELEASE),
-                      ADD_VALUE (VS_FF_PATCHED),
-                      ADD_VALUE (VS_FF_PRIVATEBUILD),
-                      ADD_VALUE (VS_FF_INFOINFERRED),
-                      ADD_VALUE (VS_FF_SPECIALBUILD)
+  static const search_list flags[] = {
+               ADD_VALUE (VS_FF_DEBUG),
+               ADD_VALUE (VS_FF_PRERELEASE),
+               ADD_VALUE (VS_FF_PATCHED),
+               ADD_VALUE (VS_FF_PRIVATEBUILD),
+               ADD_VALUE (VS_FF_INFOINFERRED),
+               ADD_VALUE (VS_FF_SPECIALBUILD)
                    };
 
   return flags_decode (dwFileFlags, flags, DIM(flags));

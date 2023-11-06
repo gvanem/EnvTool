@@ -25,36 +25,36 @@
 
 #define ADD_VALUE(v)  { (unsigned)(v), #v }
 
-static const struct search_list assoc_values[] = {
-                    ADD_VALUE (ASSOCSTR_COMMAND),
-                    ADD_VALUE (ASSOCSTR_EXECUTABLE),
-                    ADD_VALUE (ASSOCSTR_FRIENDLYDOCNAME),
-                    ADD_VALUE (ASSOCSTR_FRIENDLYAPPNAME),
-                    ADD_VALUE (ASSOCSTR_NOOPEN),
-                    ADD_VALUE (ASSOCSTR_SHELLNEWVALUE),
-                    ADD_VALUE (ASSOCSTR_DDECOMMAND),
-                    ADD_VALUE (ASSOCSTR_DDEIFEXEC),
-                    ADD_VALUE (ASSOCSTR_DDEAPPLICATION),
-                    ADD_VALUE (ASSOCSTR_DDETOPIC),
-                    ADD_VALUE (ASSOCSTR_INFOTIP),
+static const search_list assoc_values[] = {
+             ADD_VALUE (ASSOCSTR_COMMAND),
+             ADD_VALUE (ASSOCSTR_EXECUTABLE),
+             ADD_VALUE (ASSOCSTR_FRIENDLYDOCNAME),
+             ADD_VALUE (ASSOCSTR_FRIENDLYAPPNAME),
+             ADD_VALUE (ASSOCSTR_NOOPEN),
+             ADD_VALUE (ASSOCSTR_SHELLNEWVALUE),
+             ADD_VALUE (ASSOCSTR_DDECOMMAND),
+             ADD_VALUE (ASSOCSTR_DDEIFEXEC),
+             ADD_VALUE (ASSOCSTR_DDEAPPLICATION),
+             ADD_VALUE (ASSOCSTR_DDETOPIC),
+             ADD_VALUE (ASSOCSTR_INFOTIP),
 #if defined(_WIN32_IE) && (_WIN32_IE >= _WIN32_IE_IE60)
-                    ADD_VALUE (ASSOCSTR_QUICKTIP),
-                    ADD_VALUE (ASSOCSTR_TILEINFO),
-                    ADD_VALUE (ASSOCSTR_CONTENTTYPE),
-                    ADD_VALUE (ASSOCSTR_DEFAULTICON),
-                    ADD_VALUE (ASSOCSTR_SHELLEXTENSION),
+             ADD_VALUE (ASSOCSTR_QUICKTIP),
+             ADD_VALUE (ASSOCSTR_TILEINFO),
+             ADD_VALUE (ASSOCSTR_CONTENTTYPE),
+             ADD_VALUE (ASSOCSTR_DEFAULTICON),
+             ADD_VALUE (ASSOCSTR_SHELLEXTENSION),
 #endif
 #if defined(_WIN32_IE) && (_WIN32_IE >= _WIN32_IE_IE80)
-                    ADD_VALUE (ASSOCSTR_DROPTARGET),
-                    ADD_VALUE (ASSOCSTR_DELEGATEEXECUTE),
+             ADD_VALUE (ASSOCSTR_DROPTARGET),
+             ADD_VALUE (ASSOCSTR_DELEGATEEXECUTE),
 #endif
 #if defined(_MSC_VER) && (_WIN32_WINNT >= 0x0A00)
-                    ADD_VALUE (ASSOCSTR_PROGID),
-                    ADD_VALUE (ASSOCSTR_APPID),
-                    ADD_VALUE (ASSOCSTR_APPPUBLISHER),
-                    ADD_VALUE (ASSOCSTR_APPICONREFERENCE),
+             ADD_VALUE (ASSOCSTR_PROGID),
+             ADD_VALUE (ASSOCSTR_APPID),
+             ADD_VALUE (ASSOCSTR_APPPUBLISHER),
+             ADD_VALUE (ASSOCSTR_APPICONREFERENCE),
 #endif
-                  };
+           };
 
 static char last_err [300];
 

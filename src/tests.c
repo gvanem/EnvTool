@@ -38,7 +38,7 @@ static void test_split_env (const char *env)
   max   = list ? smartlist_len (list) : 0;
   for (i = 0; i < max; i++)
   {
-    const struct directory_array *arr = smartlist_get (list, i);
+    const directory_array *arr = smartlist_get (list, i);
     char  buf [_MAX_PATH];
     char *dir = arr->dir;
 
@@ -355,35 +355,35 @@ static void test_SHGetFolderPath (void)
   #define CSIDL_PROGRAM_FILESX86  0x002a
   #endif
 
-  static const struct search_list sh_folders[] = {
-                      ADD_VALUE (CSIDL_ADMINTOOLS),
-                      ADD_VALUE (CSIDL_ALTSTARTUP),
-                      ADD_VALUE (CSIDL_APPDATA),      /* Use this as HOME-dir ("~/") */
-                      ADD_VALUE (CSIDL_BITBUCKET),    /* Recycle Bin */
-                      ADD_VALUE (CSIDL_COMMON_ALTSTARTUP),
-                      ADD_VALUE (CSIDL_COMMON_FAVORITES),
-                      ADD_VALUE (CSIDL_COMMON_STARTMENU),
-                      ADD_VALUE (CSIDL_COMMON_PROGRAMS),
-                      ADD_VALUE (CSIDL_COMMON_STARTUP),
-                      ADD_VALUE (CSIDL_COMMON_DESKTOPDIRECTORY),
-                      ADD_VALUE (CSIDL_COOKIES),
-                      ADD_VALUE (CSIDL_DESKTOP),
-                      ADD_VALUE (CSIDL_COMMON_APPDATA),
-                      ADD_VALUE (CSIDL_LOCAL_APPDATA),
-                      ADD_VALUE (CSIDL_NETWORK),
-                      ADD_VALUE (CSIDL_NETHOOD),
-                      ADD_VALUE (CSIDL_PERSONAL),
-                      ADD_VALUE (CSIDL_PROFILE),
-                      ADD_VALUE (CSIDL_PROGRAM_FILES),
-                      ADD_VALUE (CSIDL_PROGRAM_FILESX86),
-                      ADD_VALUE (CSIDL_PROGRAM_FILES_COMMON),
-                      ADD_VALUE (CSIDL_PROGRAM_FILES_COMMONX86),
-                      ADD_VALUE (CSIDL_STARTUP),
-                      ADD_VALUE (CSIDL_SYSTEM),
-                      ADD_VALUE (CSIDL_SYSTEMX86),
-                      ADD_VALUE (CSIDL_TEMPLATES),
-                      ADD_VALUE (CSIDL_WINDOWS)
-                    };
+  static const search_list sh_folders[] = {
+               ADD_VALUE (CSIDL_ADMINTOOLS),
+               ADD_VALUE (CSIDL_ALTSTARTUP),
+               ADD_VALUE (CSIDL_APPDATA),      /* Use this as HOME-dir ("~/") */
+               ADD_VALUE (CSIDL_BITBUCKET),    /* Recycle Bin */
+               ADD_VALUE (CSIDL_COMMON_ALTSTARTUP),
+               ADD_VALUE (CSIDL_COMMON_FAVORITES),
+               ADD_VALUE (CSIDL_COMMON_STARTMENU),
+               ADD_VALUE (CSIDL_COMMON_PROGRAMS),
+               ADD_VALUE (CSIDL_COMMON_STARTUP),
+               ADD_VALUE (CSIDL_COMMON_DESKTOPDIRECTORY),
+               ADD_VALUE (CSIDL_COOKIES),
+               ADD_VALUE (CSIDL_DESKTOP),
+               ADD_VALUE (CSIDL_COMMON_APPDATA),
+               ADD_VALUE (CSIDL_LOCAL_APPDATA),
+               ADD_VALUE (CSIDL_NETWORK),
+               ADD_VALUE (CSIDL_NETHOOD),
+               ADD_VALUE (CSIDL_PERSONAL),
+               ADD_VALUE (CSIDL_PROFILE),
+               ADD_VALUE (CSIDL_PROGRAM_FILES),
+               ADD_VALUE (CSIDL_PROGRAM_FILESX86),
+               ADD_VALUE (CSIDL_PROGRAM_FILES_COMMON),
+               ADD_VALUE (CSIDL_PROGRAM_FILES_COMMONX86),
+               ADD_VALUE (CSIDL_STARTUP),
+               ADD_VALUE (CSIDL_SYSTEM),
+               ADD_VALUE (CSIDL_SYSTEMX86),
+               ADD_VALUE (CSIDL_TEMPLATES),
+               ADD_VALUE (CSIDL_WINDOWS)
+             };
 
   #if 0  /* The official values of the above */
     #define CSIDL_INTERNET                  0x0001        /* Internet Explorer (icon on desktop) */
@@ -449,11 +449,11 @@ static void test_SHGetFolderPath (void)
 
   for (i = 0; i < DIM(sh_folders); i++)
   {
-    char                      buf [_MAX_PATH];
-    const struct search_list *folder   = sh_folders + i;
-    const char               *flag_str = opt.verbose ? "SHGFP_TYPE_CURRENT" : "SHGFP_TYPE_DEFAULT";
-    DWORD                     flag     = opt.verbose ?  SHGFP_TYPE_CURRENT  :  SHGFP_TYPE_DEFAULT;
-    HRESULT                   rc       = SHGetFolderPath (NULL, folder->value, NULL, flag, buf);
+    char               buf [_MAX_PATH];
+    const search_list *folder   = sh_folders + i;
+    const char         *flag_str = opt.verbose ? "SHGFP_TYPE_CURRENT" : "SHGFP_TYPE_DEFAULT";
+    DWORD               flag     = opt.verbose ?  SHGFP_TYPE_CURRENT  :  SHGFP_TYPE_DEFAULT;
+    HRESULT             rc       = SHGetFolderPath (NULL, folder->value, NULL, flag, buf);
 
     if (rc == S_OK)
          slashify2 (buf, buf, opt.show_unix_paths ? '/' : '\\');

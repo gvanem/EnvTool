@@ -9,16 +9,16 @@
 
 #define ADD_VALUE(v)  { v, #v }
 
-static const struct search_list method_names[] = {
-                    ADD_VALUE (SORT_FILE_NAME),
-                    ADD_VALUE (SORT_FILE_EXTENSION),
-                    ADD_VALUE (SORT_FILE_DATE),
-                    ADD_VALUE (SORT_FILE_TIME),
-                    ADD_VALUE (SORT_FILE_SIZE),
-                    ADD_VALUE (SORT_PE_VERSION)
+static const search_list method_names[] = {
+             ADD_VALUE (SORT_FILE_NAME),
+             ADD_VALUE (SORT_FILE_EXTENSION),
+             ADD_VALUE (SORT_FILE_DATE),
+             ADD_VALUE (SORT_FILE_TIME),
+             ADD_VALUE (SORT_FILE_SIZE),
+             ADD_VALUE (SORT_PE_VERSION)
                   };
 
-static const struct search_list short_methods[] = {
+static const search_list short_methods[] = {
            { SORT_FILE_NAME,      "n" },
            { SORT_FILE_EXTENSION, "e"  },
            { SORT_FILE_DATE,      "d" },
@@ -27,7 +27,7 @@ static const struct search_list short_methods[] = {
            { SORT_PE_VERSION,     "v" }
          };
 
-static const struct search_list long_methods[] = {
+static const search_list long_methods[] = {
            { SORT_FILE_NAME,      "name"    },
            { SORT_FILE_EXTENSION, "ext"     },
            { SORT_FILE_DATE,      "date"    },
@@ -37,7 +37,7 @@ static const struct search_list long_methods[] = {
          };
 
 /**
- * Internal: ensure the local `struct search_list` are large enough
+ * Internal: ensure the local `search_list` are large enough
  * and of the same sized (use since a `_STATIC_ASSERT()` did not work).
  */
 static void check_sizes (void)
@@ -57,7 +57,7 @@ static void check_sizes (void)
  *
  * \retval the length of `buf` that was filled.
  */
-static size_t get_methods (char *buf, size_t left, const struct search_list *l, size_t num)
+static size_t get_methods (char *buf, size_t left, const search_list *l, size_t num)
 {
   size_t i, sz, sz_total = 0;
 

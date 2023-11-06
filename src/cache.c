@@ -46,17 +46,17 @@
 /**
  * The fixed cache sections we handle here.
  */
-static const struct search_list sections[] = {
-                  { SECTION_FIRST,     "[First-sec]" },
-                  { SECTION_CMAKE,     "[Cmake]"     },
-                  { SECTION_COMPILER,  "[Compiler]"  },
-                  { SECTION_ENV_DIR,   "[EnvDir]"    },
-                  { SECTION_LUA,       "[Lua]"       },
-                  { SECTION_PKGCONFIG, "[Pkgconfig]" },
-                  { SECTION_PYTHON,    "[Python]"    },
-                  { SECTION_VCPKG,     "[VCPKG]"     },
-                  { SECTION_TEST,      "[Test]"      }
-                };
+static const search_list sections[] = {
+           { SECTION_FIRST,     "[First-sec]" },
+           { SECTION_CMAKE,     "[Cmake]"     },
+           { SECTION_COMPILER,  "[Compiler]"  },
+           { SECTION_ENV_DIR,   "[EnvDir]"    },
+           { SECTION_LUA,       "[Lua]"       },
+           { SECTION_PKGCONFIG, "[Pkgconfig]" },
+           { SECTION_PYTHON,    "[Python]"    },
+           { SECTION_VCPKG,     "[VCPKG]"     },
+           { SECTION_TEST,      "[Test]"      }
+         };
 
 /**
  * \typedef cache_node
@@ -76,10 +76,10 @@ typedef struct cache_node {
  * Each call to `cache_vgetf()` uses this state-information.
  */
 typedef struct vgetf_state {
-        char **vec   [CACHE_MAX_ARGS];   /**< Where to store `"%d"` and `"%s"` values. */
+        char **vec   [CACHE_MAX_ARGS];   /**< where to store `"%d"` and `"%s"` values. */
         int    d_val [CACHE_MAX_ARGS];   /**< decimal values for a `%d` parameter are stored here */
         char  *s_val [CACHE_MAX_ARGS];   /**< string values for a `%s` parameter are stored here */
-        char  *value;                    /**< A string-value returned from `cache_vgetf()` */
+        char  *value;                    /**< a string-value returned from `cache_vgetf()` */
       } vgetf_state;
 
 /**
@@ -98,7 +98,7 @@ typedef struct CACHE {
         DWORD        inserted;               /**< Number of calls to `cache_insert()`. */
         DWORD        deleted;                /**< Number of calls to `cache_del()`. */
         DWORD        changed;                /**< Number of calls to `cache_putf()` with another value. */
-        bool         testing;                /**< For testing with `-DUSE_ASAN`. Do not write `cache.filename` at exit. */
+        int          testing;                /**< For testing; do not write `cache.filename` at exit. */
         vgetf_state  state [CACHE_STATES];   /**< State values for `cache_vgetf()`. */
       } CACHE;
 
@@ -1115,26 +1115,18 @@ static size_t cache_test_getf (void)
 
 /**
  * A simple test for all of the above.
- *
- * Should only be called from 'tests.c' if 'USE_ASAN' is defined.
- * Otherwise let that be 'FATAL()'
  */
 void cache_test (void)
 {
   int save = opt.debug;
 
-#if !defined(USE_ASAN)
-  FATAL ("'cache_test()' needs '-DUSE_ASAN' to be called.\n");
-#endif
-
-  C_puts ("~3cache_test()~0 with ~6-DUSE_ASAN~0:\n");
+  C_puts ("~3cache_test()~0:\n");
   cache_test_init();
   opt.debug = 3;
 
   cache_test_getf();   /* Now, read them back */
   cache_test_dump();   /* and dump the entries in SECTION_TEST */
 
-#if 0
   /*
    * Test overflow of 'CACHE_MAX_ARGS == 12':
    *
@@ -1175,6 +1167,6 @@ void cache_test (void)
            str[8], str[9], str[10], str[11],
            str[12]);
   }
-#endif
+
   opt.debug = save;
 }

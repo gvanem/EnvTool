@@ -616,10 +616,10 @@ static const char *glob_flags_str (unsigned flag)
 {
   #define ADD_VALUE(v)  { v, #v }
 
-  static const struct search_list flags[] = {
-                      ADD_VALUE (GLOB_MARK),
-                      ADD_VALUE (GLOB_NOSORT)
-                   };
+  static const search_list flags[] = {
+               ADD_VALUE (GLOB_MARK),
+               ADD_VALUE (GLOB_NOSORT)
+            };
   return flags_decode (flag, flags, DIM(flags));
 }
 

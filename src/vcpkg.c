@@ -246,22 +246,22 @@ static struct ver_info vcpkg_ver;
 /**
  * The platforms we support when parsing in `CONTROL_add_dependency_platform()`.
  */
-static const struct search_list platforms [] = {
-                              { VCPKG_plat_WINDOWS, "windows" },
-                              { VCPKG_plat_LINUX,   "linux"   },
-                              { VCPKG_plat_UWP,     "uwp"     },
-                              { VCPKG_plat_ARM,     "arm"     },
-                              { VCPKG_plat_ANDROID, "android" },
-                              { VCPKG_plat_OSX,     "osx"     },
-                              { VCPKG_plat_x86,     "x86"     },
-                              { VCPKG_plat_x64,     "x64"     },
+static const search_list platforms [] = {
+                       { VCPKG_plat_WINDOWS, "windows" },
+                       { VCPKG_plat_LINUX,   "linux"   },
+                       { VCPKG_plat_UWP,     "uwp"     },
+                       { VCPKG_plat_ARM,     "arm"     },
+                       { VCPKG_plat_ANDROID, "android" },
+                       { VCPKG_plat_OSX,     "osx"     },
+                       { VCPKG_plat_x86,     "x86"     },
+                       { VCPKG_plat_x64,     "x64"     },
 
-                              /**
-                               * static build assumed unless "!static" given in
-                               * `CONTROL` or `vcpkg.json` file
-                               */
-                              { VCPKG_plat_STATIC,  "static"  }
-                            };
+                       /**
+                        * static build assumed unless "!static" given in
+                        * `CONTROL` or `vcpkg.json` file
+                        */
+                       { VCPKG_plat_STATIC,  "static"  }
+                     };
 
 static bool        get_control_node (int *index_p, const port_node **node_p, const char *package_spec);
 static const char *get_platform_name (const VCPKG_plat_list p);

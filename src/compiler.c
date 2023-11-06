@@ -354,7 +354,7 @@ static int put_inc_dirs_to_cache (const compiler_info *cc)
 
   for (i = 0; i < max; i++)
   {
-    const struct directory_array *d = smartlist_get (dir_array, i);
+    const directory_array *d = smartlist_get (dir_array, i);
 
     if (!d->is_cwd)
        cache_putf (SECTION_COMPILER, "compiler_inc_%d_%d = %s", cc->type, i, d->dir);
@@ -373,7 +373,7 @@ static int put_lib_dirs_to_cache (const compiler_info *cc)
 
   for (i = 0; i < max; i++)
   {
-    const struct directory_array *d = smartlist_get (dir_array, i);
+    const directory_array *d = smartlist_get (dir_array, i);
 
     if (!d->is_cwd)
        cache_putf (SECTION_COMPILER, "compiler_lib_%d_%d = %s", cc->type, i, d->dir);
@@ -936,10 +936,10 @@ static int GCC_LLVM_find_library_path_cb (char *buf, int index)
  */
 static void GCC_add_gxx_path (void)
 {
-  struct directory_array *d;
-  smartlist_t *dir_array = dir_array_head();
-  int          i, j, max = smartlist_len (dir_array);
-  char         fqfn [_MAX_PATH];
+  directory_array *d;
+  smartlist_t     *dir_array = dir_array_head();
+  int  i, j, max = smartlist_len (dir_array);
+  char fqfn [_MAX_PATH];
 
   for (i = 0; i < max; i++)
   {
@@ -1133,7 +1133,7 @@ static int process_dirs (const compiler_info *cc, int *num_dirs)
 
   for (i = found = 0; i < max; i++)
   {
-    const struct directory_array *arr = smartlist_get (dir_array, i);
+    const directory_array *arr = smartlist_get (dir_array, i);
     char  dir [_MAX_PATH];
 
     TRACE (2, "dir: %s\n", arr->dir);
@@ -1158,13 +1158,13 @@ static int process_dirs (const compiler_info *cc, int *num_dirs)
  */
 static void GCC_print_internal_library_dirs (const char *env_name, const char *env_value)
 {
-  struct directory_array *arr;
-  smartlist_t            *dir_array = dir_array_head();
-  smartlist_t            *list;
-  char                  **copy;
-  char                    slash = (opt.show_unix_paths ? '/' : '\\');
-  int                     i, j, max;
-  bool                    done_remark = false;
+  directory_array *arr;
+  smartlist_t     *dir_array = dir_array_head();
+  smartlist_t     *list;
+  char           **copy;
+  char             slash = (opt.show_unix_paths ? '/' : '\\');
+  int              i, j, max;
+  bool             done_remark = false;
 
   max = smartlist_len (dir_array);
   if (max == 0)
@@ -1702,8 +1702,8 @@ struct compiler_info *compiler_lookup (compiler_type type)
  */
 static int dir_array_compare (const void **_a, const void **_b)
 {
-  struct directory_array *a = *(struct directory_array **) _a;
-  struct directory_array *b = *(struct directory_array **) _b;
+  directory_array *a = *(directory_array **) _a;
+  directory_array *b = *(directory_array **) _b;
 
   if (b->num_dup > 0 || !b->exist)  /* this will get removed */
   {
@@ -1724,7 +1724,7 @@ static int dir_array_dump (smartlist_t *dir_array, const char *where, const char
 
   for (i = 0; i < max; i++)
   {
-    const struct directory_array *dir = smartlist_get (dir_array, i);
+    const directory_array *dir = smartlist_get (dir_array, i);
 
     TRACE (2, "  dir_array[%d]: exist:%d, num_dup:%d, %s\n",
             (int)i, dir->exist, dir->num_dup, dir->dir);

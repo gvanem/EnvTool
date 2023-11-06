@@ -236,6 +236,10 @@
 #define _I64_MAX  9223372036854775807LL
 #endif
 
+#ifndef ALIGN_4
+#define ALIGN_4  __declspec (align (4))
+#endif
+
 /*
  * Format for printing an hex linear address.
  * E.g. printf (buf, "0x%"ADDR_FMT, ADDR_CAST(ptr));
@@ -438,41 +442,41 @@ extern void         print_raw (const char *file, const char *before, const char 
 extern smartlist_t *split_env_var (const char *env_name, const char *value);
 
 /**
- * \struct directory_array
+ * \typedef directory_array
  */
-struct directory_array {
-       char        *dir;         /**< FQFN of this entry */
-       char        *cyg_dir;     /**< the Cygwin POSIX form of the above */
-       int          exist;       /**< does it exist? */
-       int          is_native;   /**< and is it a native dir; like `%WinDir\sysnative` */
-       int          is_dir;      /**< and is it a dir; `_S_ISDIR()` */
-       int          is_cwd;      /**< and is it equal to `current_dir[]` */
-       int          exp_ok;      /**< `expand_env_var()` returned with no `%`? */
-       int          num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
-       bool         check_empty; /**< check if it contains at least 1 file? */
-       bool         done;        /**< alreay processed */
-    // char        *env_var;     /**< the env-var these directories came from (or NULL) */
-       smartlist_t *dirent2;     /**< List of `struct dirent2` for this directory; used in `check_shadow_files()` only */
-     };
+typedef struct directory_array {
+        char        *dir;         /**< FQFN of this entry */
+        char        *cyg_dir;     /**< the Cygwin POSIX form of the above */
+        int          exist;       /**< does it exist? */
+        int          is_native;   /**< and is it a native dir; like `%WinDir\sysnative` */
+        int          is_dir;      /**< and is it a dir; `_S_ISDIR()` */
+        int          is_cwd;      /**< and is it equal to `current_dir[]` */
+        int          exp_ok;      /**< `expand_env_var()` returned with no `%`? */
+        int          num_dup;     /**< is duplicated elsewhere in `%VAR%`? */
+        bool         check_empty; /**< check if it contains at least 1 file? */
+        bool         done;        /**< alreay processed */
+     // char        *env_var;     /**< the env-var these directories came from (or NULL) */
+        smartlist_t *dirent2;     /**< List of `struct dirent2` for this directory; used in `check_shadow_files()` only */
+      } directory_array;
 
 /**
- * \struct registry_array
+ * \typedef registry_array
  */
-struct registry_array {
-       char       *fname;        /**< basename of this entry. I.e. the name of the enumerated key. */
-       char       *real_fname;   /**< normally the same as above unless aliased. E.g. "winzip.exe -> "winzip32.exe" */
-       char       *path;         /**< path of this entry */
-       int         exist;        /**< does it exist? */
-       time_t      mtime;        /**< file modification time */
-       UINT64      fsize;        /**< file size */
-       HKEY        key;          /**< The `top_key` used in `RegOpenKeyEx()` */
-     };
+typedef struct registry_array {
+        char       *fname;        /**< basename of this entry. I.e. the name of the enumerated key. */
+        char       *real_fname;   /**< normally the same as above unless aliased. E.g. "winzip.exe -> "winzip32.exe" */
+        char       *path;         /**< path of this entry */
+        int         exist;        /**< does it exist? */
+        time_t      mtime;        /**< file modification time */
+        UINT64      fsize;        /**< file size */
+        HKEY        key;          /**< The `top_key` used in `RegOpenKeyEx()` */
+      } registry_array;
 
 /**
  * Interface functions for the `dir_array` and `reg_array` smartlists in envtool.c.
  */
-extern struct directory_array *dir_array_add (const char *dir, bool is_cwd);
-extern struct registry_array  *reg_array_add (HKEY key, const char *fname, const char *fqfn);
+extern directory_array *dir_array_add (const char *dir, bool is_cwd);
+extern registry_array  *reg_array_add (HKEY key, const char *fname, const char *fqfn);
 
 extern smartlist_t *dir_array_head (void);
 extern void         dir_array_free (void);
@@ -698,13 +702,13 @@ typedef struct ver_data {
         void      (*extras) (const struct ver_data *v, int pad_len);
       } ver_data;
 
-/** \struct search_list
+/** \typedef search_list
  *  A generic search-list type.
  */
-struct search_list {
-       unsigned    value;  /**< the value */
-       const char *name;   /**< the name of the associated value */
-     };
+typedef struct search_list {
+        unsigned    value;  /**< the value */
+        const char *name;   /**< the name of the associated value */
+      } search_list;
 
 /** \enum Bitness
  *  Used by check_if_PE() to retrieve the bitness of a PE-file.
@@ -716,9 +720,9 @@ enum Bitness {
      bit_64           /**< 64-bit PE-file. */
    };
 
-extern const char *list_lookup_name (unsigned value, const struct search_list *list, int num);
-extern unsigned    list_lookup_value (const char *name, const struct search_list *list, int num);
-extern const char *flags_decode (DWORD flags, const struct search_list *list, int num);
+extern const char *list_lookup_name (unsigned value, const search_list *list, int num);
+extern unsigned    list_lookup_value (const char *name, const search_list *list, int num);
+extern const char *flags_decode (DWORD flags, const search_list *list, int num);
 extern const char *get_file_size_str (UINT64 size);
 extern const char *get_time_str (time_t t);
 extern const char *get_time_str_FILETIME (const FILETIME *ft);

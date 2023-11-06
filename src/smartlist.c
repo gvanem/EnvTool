@@ -423,14 +423,14 @@ int smartlist_write_file (smartlist_t *sl, const char *file_fmt, ...)
  * ```
  *  void parse_cmake_packages (smartlist_t *sl, const char *key, const char *value)
  *  {
- *    struct registry_array *ra = ...  // compare key/value and process as needed
+ *    registry_array *ra = ...  // compare key/value and process as needed
  *    smartlist_add (sl, ra);
  *  }
  *
  *  smartlist_t *sl = smartlist_read_registry (parse_cmake_packages,
  *                                             "HKLM\\Software\\Kitware\\CMake\\%s",
  *                                             "Packages");
- *  struct registry_array *ra = sl ? smartlist_get (sl, 0) : NULL;
+ *  registry_array *ra = sl ? smartlist_get (sl, 0) : NULL;
  *  while (ra) {
  *    // process 'sl'
  *  }

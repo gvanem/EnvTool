@@ -97,7 +97,7 @@ static unsigned lua_count_files (const char *path, const char *lua_spec)
  * Parse one component from either `LUA_PATH` or `LUA_CPATH` and append
  * to `lua_dirs`.
  */
-static void lua_append_dir (const struct directory_array *dir, bool for_LUA_CPATH)
+static void lua_append_dir (const directory_array *dir, bool for_LUA_CPATH)
 {
   const char *env_var     = for_LUA_CPATH ? "LUA_CPATH" : "LUA_PATH";
   const char *lua_pattern = for_LUA_CPATH ? "?.dll"     : "?.lua";
@@ -197,7 +197,7 @@ static void lua_handle_var (const char *env_var, bool for_LUA_CPATH)
   max  = dirs ? smartlist_len (dirs) : 0;
   for (i = 0; i < max; i++)
   {
-    const struct directory_array *d = smartlist_get (dirs, i);
+    const directory_array *d = smartlist_get (dirs, i);
 
     if (!cfg_ignore_lookup("[Lua]", d->dir) &&
         !cfg_ignore_lookup("[Lua]", basename(d->dir)))

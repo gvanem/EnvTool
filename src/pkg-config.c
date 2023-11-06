@@ -16,22 +16,22 @@ static char           *pkgconfig_exe = NULL;
 /**
  *
  */
-struct pkgconfig_dir {
-       char  path [_MAX_PATH];
-       HKEY  top_key;
-       bool  exist;
-       bool  is_dir;
-       bool  exp_ok;
-       int   num_dup;
-     };
+typedef struct pkgconfig_dir {
+        char  path [_MAX_PATH];
+        HKEY  top_key;
+        bool  exist;
+        bool  is_dir;
+        bool  exp_ok;
+        int   num_dup;
+      } pkgconfig_dir;
 
-struct pkgconfig_node {
-       char name [30];
-       char description [200];
-     };
+typedef struct pkgconfig_node {
+        char name [30];
+        char description [200];
+      } pkgconfig_node;
 
-static smartlist_t *pkgconfig_dirs = NULL;  /* A smartlist_t of 'struct pkgconfig_dir' */
-static smartlist_t *pkgconfig_pkg  = NULL;  /* A smartlist_t of 'struct pkgconfig_node' */
+static smartlist_t *pkgconfig_dirs = NULL;  /* A smartlist_t of 'pkgconfig_dir' */
+static smartlist_t *pkgconfig_pkg  = NULL;  /* A smartlist_t of 'pkgconfig_node' */
 
 /**
  * \def ENV_NAME
@@ -50,7 +50,7 @@ static smartlist_t *pkgconfig_pkg  = NULL;  /* A smartlist_t of 'struct pkgconfi
 
 static void add_package (const char *name, char *description)
 {
-  struct pkgconfig_node *pkg;
+  pkgconfig_node *pkg;
 
   if (!name)
      return;
@@ -126,7 +126,7 @@ static void pkg_config_build_pkg (void)
   max = smartlist_len (pkgconfig_pkg);
   for (i = 0; i < max; i++)
   {
-    const struct pkgconfig_node *pkg = smartlist_get (pkgconfig_pkg, i);
+    const pkgconfig_node *pkg = smartlist_get (pkgconfig_pkg, i);
 
     TRACE (2, "%3d: %-30s  descr: %s.\n", i, pkg->name, pkg->description);
     cache_putf (SECTION_PKGCONFIG, "pkgconfig_node_%d = %s,\"%s\"", i, pkg->name, pkg->description);
@@ -157,7 +157,7 @@ unsigned pkg_config_list_installed (void)
   C_printf ("\n  Found %u ~3pkg-config~0 packages in ~3%d~0 directories:\n", max, num_dirs);
   for (i = 0; i < max; i++)
   {
-    const struct pkgconfig_node *pkg = smartlist_get (pkgconfig_pkg, i);
+    const pkgconfig_node *pkg = smartlist_get (pkgconfig_pkg, i);
 
     indent = C_printf ("    %-25s", pkg->name);
     C_puts_long_line (pkg->description, indent);
@@ -309,14 +309,14 @@ int pkg_config_get_details2 (struct report *r)
  */
 static void merge_directories (smartlist_t *dir, smartlist_t *reg)
 {
-  struct pkgconfig_dir *pkdir;
+  pkgconfig_dir *pkdir;
   int    i, j;
   int    dir_max = dir ? smartlist_len(dir) : 0;
   int    reg_max = reg ? smartlist_len(reg) : 0;
 
   for (i = 0; i < dir_max; i++)
   {
-    const struct directory_array *arr = smartlist_get (dir, i);
+    const directory_array *arr = smartlist_get (dir, i);
 
     pkdir = CALLOC (sizeof(*pkdir), 1);
     _strlcpy (pkdir->path, arr->dir, sizeof(pkdir->path));
@@ -332,8 +332,8 @@ static void merge_directories (smartlist_t *dir, smartlist_t *reg)
    */
   for (i = 0; i < reg_max; i++)
   {
-    const struct registry_array *arr1 = smartlist_get (reg, i);
-    const struct pkgconfig_dir  *arr2;
+    const registry_array *arr1 = smartlist_get (reg, i);
+    const pkgconfig_dir  *arr2;
     bool  add_it = true;
 
     for (j = 0; j < dir_max; j++)
@@ -369,7 +369,7 @@ void pkg_config_init (void)
   if (pkgconfig_pkg)
      return;
 
-  pkgconfig_pkg = smartlist_new();
+  pkgconfig_pkg  = smartlist_new();
   pkgconfig_dirs = smartlist_new();
 
   orig_e = getenv_expand (ENV_NAME);
@@ -420,8 +420,8 @@ int pkg_config_search (const char *search_spec)
   max = smartlist_len (pkgconfig_dirs);
   for (i = 0; i < max; i++)
   {
-    struct pkgconfig_dir *dir = smartlist_get (pkgconfig_dirs, i);
-    char   prefix [30];
+    pkgconfig_dir *dir = smartlist_get (pkgconfig_dirs, i);
+    char prefix [30];
 
     TRACE (2, "Checking in %s dir '%s'\n", dir->top_key ? "Registry" : "environment", dir->path);
 

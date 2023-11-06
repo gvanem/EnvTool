@@ -16,17 +16,17 @@
 /**
  * The list of sections we handle here.
  */
-static const struct search_list sections[] = {
-                              { 0, "[Compiler]" },
-                              { 1, "[Registry]" },
-                              { 2, "[Path]" },
-                              { 3, "[Python]" },
-                              { 4, "[PE-resources]" },
-                              { 5, "[EveryThing]" },
-                              { 6, "[LUA]" },     /* Only used in lua.c */
-                              { 7, "[Login]" },   /* Only used in auth.c */
-                              { 8, "[Shadow]" }   /* Use in 'envtool ---check -v' */
-                            };
+static const search_list sections[] = {
+                       { 0, "[Compiler]" },
+                       { 1, "[Registry]" },
+                       { 2, "[Path]" },
+                       { 3, "[Python]" },
+                       { 4, "[PE-resources]" },
+                       { 5, "[EveryThing]" },
+                       { 6, "[LUA]" },     /* Only used in lua.c */
+                       { 7, "[Login]" },   /* Only used in auth.c */
+                       { 8, "[Shadow]" }   /* Use in 'envtool ---check -v' */
+                     };
 
 /**\struct ignore_node
  */
@@ -89,23 +89,23 @@ bool cfg_ignore_handler (const char *section, const char *key, const char *value
  * \param[in] section  Look for the `value` in this `section`.
  * \param[in] value    The string-value to check.
  *
- * \retval 0 the `section` and `value` was not something to ignore.
- * \retval 1 the `section` and `value` was found in the `ignore_list`.
+ * \retval false the `section` and `value` was not found in the `ignore_list`.
+ * \retval true  the `section` and `value` was found in the `ignore_list`.
  */
-int cfg_ignore_lookup (const char *section, const char *value)
+bool cfg_ignore_lookup (const char *section, const char *value)
 {
   int i, max;
 
   if (section[0] != '[' || !ignore_list)
-     return (0);
+     return (false);
 
   max = smartlist_len (ignore_list);
   for (i = 0; i < max; i++)
   {
     const struct ignore_node *node = smartlist_get (ignore_list, i);
 
-     /* Not this section, try the next
-      */
+    /* Not this section, try the next
+     */
     if (stricmp(section, node->section))
        continue;
 
@@ -115,7 +115,7 @@ int cfg_ignore_lookup (const char *section, const char *value)
     if (str_equal(value, node->value))
     {
       TRACE (3, "Found '%s' in %s.\n", value, section);
-      return (1);
+      return (true);
     }
 
     /* A wildcard match.
@@ -124,10 +124,10 @@ int cfg_ignore_lookup (const char *section, const char *value)
     if (fnmatch(node->value, value, fnmatch_case(FNM_FLAG_NOESCAPE | FNM_FLAG_PATHNAME)) == FNM_MATCH)
     {
       TRACE (3, "Wildcard match for '%s' in %s.\n", value, section);
-      return (1);
+      return (true);
     }
   }
-  return (0);
+  return (false);
 }
 
 /**
@@ -185,8 +185,7 @@ const char *cfg_ignore_next (const char *section)
   for (i = next_idx; i < max; i++)
   {
     node = smartlist_get (ignore_list, i);
-    if (!stricmp(section, sections[curr_sec].name) &&
-        !stricmp(section, node->section))
+    if (!stricmp(section, sections[curr_sec].name) && !stricmp(section, node->section))
     {
       next_idx = i + 1;
       return (node->value);
@@ -205,7 +204,9 @@ void cfg_ignore_dump (void)
 
   for (i = 0; i < DIM(sections); i++)
   {
-    const char *ignored, *section = sections[i].name;
+    const char *section = sections[i].name;
+    const char *ignored;
+
     j = 0;
     for (ignored = cfg_ignore_first(section);
          ignored;

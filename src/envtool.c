@@ -72,12 +72,12 @@ bool have_sys_wow64_dir  = false;
 struct prog_options opt;
 
 /**
- * A list of 'struct directory_array'
+ * A list of 'directory_array'
  */
 static smartlist_t *dir_array;
 
 /**
- * A list of 'struct registry_array'
+ * A list of 'registry_array'
  */
 static smartlist_t *reg_array;
 
@@ -116,7 +116,7 @@ static int          evry_machine = -1;  /* EVERYTHING_IPC_TARGET_MACHINE_* */
 static void get_evry_bitness (HWND wnd);
 
 static void  usage (const char *fmt, ...) ATTR_PRINTF(1,2);
-static int   do_check (void);
+static void  do_check (void);
 
 /**
  * \todo Add support for *kpathsea*-like path searches (which some TeX programs uses). <br>
@@ -260,7 +260,7 @@ static void get_evry_bitness (HWND wnd)
 static ver_data *build_ver_data (void)
 {
   static ver_data data [VER_MAX];
-  char slash = (opt.show_unix_paths ? '/' : '\\');
+  char   slash = (opt.show_unix_paths ? '/' : '\\');
 
   memset (&data, '\0', sizeof(data));
 
@@ -295,8 +295,7 @@ static ver_data *build_ver_data (void)
 
 static void show_ext_versions (void)
 {
-  int       i;
-  int       pad_len = sizeof("  pkg-config 9.99 detected");
+  int       i, pad_len  = sizeof("  pkg-config 9.99 detected");
   ver_data *v, *v_start = build_ver_data();
 
   if (!stricmp(lua_get_exe(), "luajit.exe"))
@@ -626,10 +625,10 @@ smartlist_t *dir_array_head (void)
  * Since this function could be called with a `dir` from `expand_env_var()`,
  * we check here if it returned with no `%`.
  */
-static struct directory_array *dir_array_add_or_insert (const char *dir, bool is_cwd, bool insert_at0)
+static directory_array *dir_array_add_or_insert (const char *dir, bool is_cwd, bool insert_at0)
 {
-  struct directory_array *d = CALLOC (1, sizeof(*d));
-  struct stat st;
+  directory_array *d = CALLOC (1, sizeof(*d));
+  struct stat      st;
   int    max, i, exp_ok = (dir && *dir != '%');
   bool   exists = false;
   bool   is_dir = false;
@@ -686,7 +685,7 @@ static struct directory_array *dir_array_add_or_insert (const char *dir, bool is
   max = smartlist_len (dir_array);
   for (i = 0; i < max-1; i++)
   {
-    const struct directory_array *d2 = smartlist_get (dir_array, i);
+    const directory_array *d2 = smartlist_get (dir_array, i);
 
     if (str_equal(dir, d2->dir))
        d->num_dup++;
@@ -694,12 +693,12 @@ static struct directory_array *dir_array_add_or_insert (const char *dir, bool is
   return (d);
 }
 
-struct directory_array *dir_array_add (const char *dir, bool is_cwd)
+directory_array *dir_array_add (const char *dir, bool is_cwd)
 {
   return dir_array_add_or_insert (dir, is_cwd, false);
 }
 
-struct directory_array *dir_array_prepend (const char *dir, bool is_cwd)
+directory_array *dir_array_prepend (const char *dir, bool is_cwd)
 {
   return dir_array_add_or_insert (dir, is_cwd, true);
 }
@@ -711,7 +710,7 @@ struct directory_array *dir_array_prepend (const char *dir, bool is_cwd)
  */
 static void _reg_array_free (void *_r)
 {
-  struct registry_array *r = (struct registry_array*) _r;
+  registry_array *r = (registry_array*) _r;
 
   FREE (r->fname);
   FREE (r->real_fname);
@@ -726,8 +725,8 @@ static void _reg_array_free (void *_r)
  */
 void dir_array_wiper (void *_d)
 {
-  struct directory_array *d = (struct directory_array*) _d;
-  int    i, max = d->dirent2 ? smartlist_len (d->dirent2) : 0;
+  directory_array *d = (directory_array*) _d;
+  int i, max = d->dirent2 ? smartlist_len (d->dirent2) : 0;
 
   for (i = 0; i < max; i++)
   {
@@ -753,12 +752,12 @@ void dir_array_wiper (void *_d)
  * Note: `basename (fqfn)` may NOT be equal to `fname` (aliasing). That's the reason
  *       we store `real_fname` too.
  */
-struct registry_array  *reg_array_add (HKEY key, const char *fname, const char *fqfn)
+registry_array  *reg_array_add (HKEY key, const char *fname, const char *fqfn)
 {
-  struct registry_array *reg;
-  struct stat  st;
-  const  char *base;
-  int    rc;
+  registry_array *reg;
+  struct stat    st;
+  const  char   *base;
+  int            rc;
 
   base = basename (fqfn);
   if (base == fqfn)
@@ -787,8 +786,8 @@ struct registry_array  *reg_array_add (HKEY key, const char *fname, const char *
  */
 static int reg_array_compare (const void **_a, const void **_b)
 {
-  const struct registry_array *a = *_a;
-  const struct registry_array *b = *_b;
+  const registry_array *a = *_a;
+  const registry_array *b = *_b;
   char  fqfn_a [_MAX_PATH];
   char  fqfn_b [_MAX_PATH];
   char  slash = (opt.show_unix_paths ? '/' : '\\');
@@ -806,7 +805,7 @@ static int reg_array_compare (const void **_a, const void **_b)
 
 static void reg_array_print (const char *intro)
 {
-  const struct registry_array *reg;
+  const registry_array *reg;
   int   i, max, slash = (opt.show_unix_paths ? '/' : '\\');
 
   TRACE (3, intro);
@@ -873,7 +872,7 @@ static void check_component (const char *env_name, char *tok, int is_cwd)
 
 /**
  * Parses an environment string and returns all components as an array of
- * `struct directory_array` pointing into the global `dir_array` smartlist.
+ * `directory_array` pointing into the global `dir_array` smartlist.
  *
  * This works since we handle only one env-var at a time. The `dir_array`
  * gets cleared in `dir_array_free()` first (in case it was used already).
@@ -1362,7 +1361,7 @@ static int do_check_env2 (HKEY key, const char *env, const char *value)
 
   for (i = 0; i < max; i++)
   {
-    const struct directory_array *arr = smartlist_get (list, i);
+    const directory_array *arr = smartlist_get (list, i);
 
     found += process_dir (arr->dir, arr->num_dup, arr->exist, arr->check_empty,
                           arr->is_dir, arr->exp_ok, env, key);
@@ -1425,7 +1424,7 @@ static int report_registry (const char *reg_key)
 
   for (i = found = 0; i < max; i++)
   {
-    const struct registry_array *arr = smartlist_get (reg_array, i);
+    const registry_array *arr = smartlist_get (reg_array, i);
     char  fqfn [_MAX_PATH];
     int   match = FNM_NOMATCH;
 
@@ -1541,7 +1540,7 @@ int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
   char            fqfn  [_MAX_PATH];  /* Fully qualified file-name */
   char            _path [_MAX_PATH];  /* Copy of 'path' */
   int             found = 0;
-  int             ignore = 0;
+  bool            ignore = false;
   char           *end;
 
   /* We need to set these only once; `opt.file_spec` is constant throughout the program.
@@ -2173,7 +2172,7 @@ static int do_check_evry (void)
     UINT64 fsize = (UINT64) -1;  /* since a 0-byte file is valid */
     time_t mtime = 0;
     bool   is_shadow = false;
-    int    ignore;
+    bool   ignore;
 
     if (halt_flag > 0)
        break;
@@ -2308,7 +2307,7 @@ int do_check_env (const char *env_name)
   max  = smartlist_len (list);
   for (i = 0; i < max; i++)
   {
-    struct directory_array *arr = smartlist_get (list, i);
+    directory_array *arr = smartlist_get (list, i);
 
     if (check_empty && arr->exist && !arr->is_cwd)
        arr->check_empty = check_empty;
@@ -2350,11 +2349,11 @@ static int check_man_dir (const char *dir, const char *env_name)
  */
 static int do_check_manpath (void)
 {
-  struct directory_array *arr;
-  smartlist_t *list;
-  int          i, j, max, found = 0;
-  char        *orig_e;
-  bool         save1, save2, done_cwd = false;
+  directory_array  *arr;
+  smartlist_t      *list;
+  int               i, j, max, found = 0;
+  char             *orig_e;
+  bool              save1, save2, done_cwd = false;
   static const char env_name[] = "MANPATH";
 
   /* \todo
@@ -2643,11 +2642,11 @@ static void set_evry_options (const char *arg)
  */
 static void set_signed_options (const char *arg)
 {
-  static const struct search_list sign_status[] = {
-                    { SIGN_CHECK_ALL,      "SIGN_CHECK_ALL"      },
-                    { SIGN_CHECK_UNSIGNED, "SIGN_CHECK_UNSIGNED" },
-                    { SIGN_CHECK_SIGNED,   "SIGN_CHECK_SIGNED"   },
-                  };
+  static const search_list sign_status[] = {
+             { SIGN_CHECK_ALL,      "SIGN_CHECK_ALL"      },
+             { SIGN_CHECK_UNSIGNED, "SIGN_CHECK_UNSIGNED" },
+             { SIGN_CHECK_SIGNED,   "SIGN_CHECK_SIGNED"   },
+           };
 
   opt.signed_status = SIGN_CHECK_ALL;
 
@@ -3321,7 +3320,10 @@ int MS_CDECL main (int argc, const char **argv)
      lua_init();
 
   if (opt.do_check)
-     return do_check();
+  {
+    do_check();
+    return (0);
+  }
 
   if (opt.do_tests)
      return do_tests();
@@ -3681,9 +3683,9 @@ static void check_shadow_files (smartlist_t *this_de_list,
  */
 static void shadow_report (smartlist_t *dir_list, const char *file_spec)
 {
-  struct directory_array *arr_i, *arr_j;
-  smartlist_t            *shadows;
-  int                     i, j, max;
+  directory_array *arr_i, *arr_j;
+  smartlist_t     *shadows;
+  int              i, j, max;
 
   shadows = smartlist_new();
   max = smartlist_len (dir_list);
@@ -3761,7 +3763,7 @@ static void shadow_report (smartlist_t *dir_list, const char *file_spec)
 
 static void put_dirlist_to_cache (const char *env_var, smartlist_t *dirs)
 {
-  const struct directory_array *da;
+  const directory_array *da;
   int   i, max = smartlist_len (dirs);
 
   for (i = 0; i < max; i++)
@@ -3825,7 +3827,7 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
   smartlist_t *list = NULL;
   int          i, errors, ignored = 0, max = 0;
   char        *value;
-  const struct directory_array *arr;
+  const directory_array *arr;
 
   status[0] = '\0';
   *num = 0;
@@ -3932,7 +3934,7 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
 {
   int   i, errors = 0, max = 0;
   int   indent = sizeof("Checking");
-  const struct directory_array *arr;
+  const directory_array *arr;
 
   C_printf ("Checking ~3%s\\%s / ~6%s~0:\n", reg_top_key_name(HKEY_LOCAL_MACHINE),
             "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", env_name);
@@ -4016,7 +4018,7 @@ static void check_app_paths (HKEY key)
   max  = smartlist_len (reg_array);
   for (i = errors = 0; i < max; i++)
   {
-    const struct registry_array *arr = smartlist_get (reg_array, i);
+    const registry_array *arr = smartlist_get (reg_array, i);
     char  fqfn [_MAX_PATH+2];
     char  fbuf [_MAX_PATH];
 
@@ -4238,7 +4240,7 @@ static struct environ_fspec envs[] = {
             { NULL,      "FOO"                }   /* Check that non-existing env-vars are also checked */
           };
 
-static int do_check (void)
+static void do_check (void)
 {
   struct ver_info cmake_ver;
   char  *cmake_exe;
@@ -4328,5 +4330,4 @@ static int do_check (void)
   FREE (sys_env_path);
   FREE (sys_env_inc);
   FREE (sys_env_lib);
-  return (0);
 }

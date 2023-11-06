@@ -1114,16 +1114,16 @@ const char *reg_access_name (REGSAM acc)
 {
   #define ADD_VALUE(v)  { v, #v }
 
-  static const struct search_list access[] = {
-                                  ADD_VALUE (KEY_CREATE_LINK),
-                                  ADD_VALUE (KEY_CREATE_SUB_KEY),
-                                  ADD_VALUE (KEY_ENUMERATE_SUB_KEYS),
-                                  ADD_VALUE (KEY_NOTIFY),
-                                  ADD_VALUE (KEY_QUERY_VALUE),
-                                  ADD_VALUE (KEY_SET_VALUE),
-                                  ADD_VALUE (KEY_WOW64_32KEY),
-                                  ADD_VALUE (KEY_WOW64_64KEY)
-                                };
+  static const search_list access[] = {
+                           ADD_VALUE (KEY_CREATE_LINK),
+                           ADD_VALUE (KEY_CREATE_SUB_KEY),
+                           ADD_VALUE (KEY_ENUMERATE_SUB_KEYS),
+                           ADD_VALUE (KEY_NOTIFY),
+                           ADD_VALUE (KEY_QUERY_VALUE),
+                           ADD_VALUE (KEY_SET_VALUE),
+                           ADD_VALUE (KEY_WOW64_32KEY),
+                           ADD_VALUE (KEY_WOW64_64KEY)
+                         };
 
   acc &= ~STANDARD_RIGHTS_READ;  /* == STANDARD_RIGHTS_WRITE, STANDARD_RIGHTS_EXECUTE */
 
@@ -2363,15 +2363,15 @@ UINT64 get_directory_size (const char *dir)
  */
 UINT get_disk_type (int disk)
 {
-  static const struct search_list disk_types[] = {
-                                  ADD_VALUE (DRIVE_UNKNOWN),
-                                  ADD_VALUE (DRIVE_NO_ROOT_DIR),
-                                  ADD_VALUE (DRIVE_REMOVABLE),
-                                  ADD_VALUE (DRIVE_FIXED),
-                                  ADD_VALUE (DRIVE_REMOTE),
-                                  ADD_VALUE (DRIVE_CDROM),
-                                  ADD_VALUE (DRIVE_RAMDISK)
-                                };
+  static const search_list disk_types[] = {
+                           ADD_VALUE (DRIVE_UNKNOWN),
+                           ADD_VALUE (DRIVE_NO_ROOT_DIR),
+                           ADD_VALUE (DRIVE_REMOVABLE),
+                           ADD_VALUE (DRIVE_FIXED),
+                           ADD_VALUE (DRIVE_REMOTE),
+                           ADD_VALUE (DRIVE_CDROM),
+                           ADD_VALUE (DRIVE_RAMDISK)
+                         };
   char root[] = "?:\\";
   UINT type;
 
@@ -3788,7 +3788,7 @@ void create_console (void)
 /**
  * Search `list` for `value` and return it's name.
  */
-const char *list_lookup_name (unsigned value, const struct search_list *list, int num)
+const char *list_lookup_name (unsigned value, const search_list *list, int num)
 {
   static char buf[10];
 
@@ -3805,7 +3805,7 @@ const char *list_lookup_name (unsigned value, const struct search_list *list, in
 /**
  * Search `list` for `name` and return it's `value`.
  */
-unsigned list_lookup_value (const char *name, const struct search_list *list, int num)
+unsigned list_lookup_value (const char *name, const search_list *list, int num)
 {
   while (num > 0 && list->name)
   {
@@ -3829,7 +3829,7 @@ unsigned list_lookup_value (const char *name, const struct search_list *list, in
  * would return the string `0x4000 + KEY_CREATE_LINK+KEY_CREATE_SUB_KEY`
  * since `0x4000` is *not* a known flag in `reg_access_name()`.
  */
-const char *flags_decode (DWORD flags, const struct search_list *list, int num)
+const char *flags_decode (DWORD flags, const search_list *list, int num)
 {
   static char buf[300];
   char  *ret  = buf;
