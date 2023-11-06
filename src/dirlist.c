@@ -689,7 +689,7 @@ static int print_it (const char  *file,
   }
 
   if (is_special_link) /* No trailing slash in WSL / AppX links */
-     slash = '  ';
+     slash = ' ';
 
   if (prefix)
      C_puts (prefix);
@@ -787,7 +787,7 @@ static void final_report (void)
 {
   #define ADD_VALUE(v)  { v, #v }
 
-  static const struct search_list fs_flags[] = {
+  static const search_list fs_flags[] = {
                ADD_VALUE (FILE_FILE_COMPRESSION),
                ADD_VALUE (FILE_NAMED_STREAMS),
                ADD_VALUE (FILE_PERSISTENT_ACLS),
