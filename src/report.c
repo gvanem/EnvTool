@@ -873,6 +873,9 @@ void report_final (int found)
      snprintf (ignored, sizeof(ignored), " (%lu ignored)",
                (unsigned long)num_evry_ignored);
 
+  /* Print the total match result:
+   * E.g. '0 matches found for "winpdb*".'
+   */
   C_printf ("%s %s", str_dword((DWORD)found), str_plural(found, "match", "matches"));
   C_printf (" found for \"%s\"%s%s.", opt.file_spec, duplicates, ignored);
 
