@@ -1858,15 +1858,26 @@ static char cc_info_buf [100];
  * Since 'icx' + 'zig' also defines '__clang__', put this #if-test here.
  */
 #if defined(__INTEL_LLVM_COMPILER)
+  #include <mkl_version.h>
+
   const char *compiler_version (void)
   {
     const char *ver = __VERSION__;
     const char *comp = strstr (ver, " Compiler ");
+    char       *p = cc_info_buf;
+    size_t      left = sizeof(cc_info_buf);
     size_t      len = strlen (ver);
 
     if (comp)      /* Cut off version at " Compiler 202x" */
        len = comp - ver;
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "%.*s, %s", len, ver, DBG_REL);
+
+    p += snprintf (p, left, "%.*s", len, ver);
+
+  #ifdef __INTEL_MKL__
+    p += snprintf (p, left, ", MKL-ver: %d", __INTEL_MKL__);
+  #endif
+
+    p += snprintf (p, left, ", %s", DBG_REL);
     return (cc_info_buf);
   }
 
