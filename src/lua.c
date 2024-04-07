@@ -498,7 +498,7 @@ bool lua_get_info (char **exe, struct ver_info *ver)
 
   /* We have already done this
    */
-  if (lua_exe && (lua_ver.val_1 + lua_ver.val_2) > 0)
+  if (lua_exe && VALID_VER(lua_ver))
   {
     *exe = STRDUP (lua_exe);
     return (true);
@@ -540,9 +540,12 @@ bool lua_get_info (char **exe, struct ver_info *ver)
   cache_putf (SECTION_LUA, "lua_exe = %s", lua_exe);
   cache_putf (SECTION_LUA, "luajit.enable = %d", prefer_luajit);
 
-  if (lua_ver.val_1 + lua_ver.val_2 == 0)
+  if (!VALID_VER(lua_ver))
   {
     DWORD err_mode = SetErrorMode (SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+
+    SetEnvironmentVariable ("LUA_TRACE", NULL);
+    SetEnvironmentVariable ("LUAJIT_TRACE", NULL);
 
     rc = popen_run2 (lua_version_cb, lua_exe, "-v");
     TRACE (2, "popen_run2(): rc: %d.\n", rc);
@@ -566,6 +569,6 @@ bool lua_get_info (char **exe, struct ver_info *ver)
   *ver = lua_ver;
   TRACE (2, "%s: ver: %d.%d.%d.\n", lua_get_exe(), ver->val_1, ver->val_2, ver->val_3);
 
-  return (lua_exe && lua_ver.val_1 + lua_ver.val_2 > 0);
+  return (lua_exe && VALID_VER(lua_ver));
 }
 
