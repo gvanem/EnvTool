@@ -615,6 +615,7 @@ static bool   disk_usage_mode  = false;
 static bool   disk_usage_time  = false;
 static bool   disk_usage_tree  = false;
 static bool   disk_usage_alloc = false;
+static bool   disk_usage_count = false;
 static int    disk_usage_print = 'b';
 static UINT64 disk_usage_sum_raw   = 0ULL;
 static UINT64 disk_usage_sum_alloc = 0ULL;
@@ -625,6 +626,7 @@ void usage (void)
        puts ("Usage: du [-abkmHRtu] [dir\\spec*]\n"
              "        -a:  show disk allocated size.\n"
              "        -b:  show bytes count (default).\n"
+             "        -c:  show count of files/directories at exit.\n"
              "        -k:  show KiloBytes count.\n"
              "        -m:  show MegaBytes count.\n"
              "        -H:  show sizes in human readable format (e.g. 103 KB, 23 MB).\n"
@@ -996,6 +998,10 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
     int    is_junction = (de->d_attrib & FILE_ATTRIBUTE_REPARSE_POINT);
     UINT64 this_sum;
 
+    if (is_dir || is_junction)
+         num_directories++;
+    else num_files++;
+
     if (is_junction)
        continue;
 
@@ -1146,7 +1152,9 @@ static void do_getopt (int argc, char **argv, const char *options, struct od2x_o
             disk_usage_alloc = true;
             break;
        case 'c':
-            opts->sort |= OD2X_SORT_EXACT;
+            if (disk_usage_mode)
+                 disk_usage_count = true;
+            else opts->sort |= OD2X_SORT_EXACT;
             break;
        case 'd':
             opt.debug++;
@@ -1216,7 +1224,7 @@ int MS_CDECL main (int argc, char **argv)
     opts.recursive  = 1;  /* option '-R' reverts this */
     argc--;
     argv++;
-    do_getopt (argc, argv, "aubdjJmkHRtTh?", &opts);
+    do_getopt (argc, argv, "aubcdjJmkHRtTh?", &opts);
   }
   else
     do_getopt (argc, argv, "cdjJors:Suzh?", &opts);
@@ -1260,6 +1268,9 @@ int MS_CDECL main (int argc, char **argv)
       total_slack /= (double)disk_usage_sum_alloc;
       printf ("total disk_slack: %.2lf%%.\n", 100.0 * total_slack);
     }
+    if (disk_usage_count)
+       printf ("totals: %lu files, %lu directories.\n", num_files, num_directories);
+
     crtdbug_exit();
   }
   else
