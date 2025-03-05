@@ -4033,17 +4033,17 @@ int popen_run (popen_callback callback, const char *cmd, const char *arg, ...)
  *
  * and heavily modifed.
  */
-struct popen2_st {
-       HANDLE               child_stdout_read;
-       HANDLE               reader;
-       PROCESS_INFORMATION  pi;
-       char                 cmd_buf [1000];
-       char                 stdout_data [16*1024];
-       popen_callback       callback;
-       DWORD                callback_ret;
-       DWORD                exit_code;
-       int                  timeout; /* timeout in milliseconds or -1 for INIFINTE */
-     };
+typedef struct popen2_st {
+        HANDLE               child_stdout_read;
+        HANDLE               reader;
+        PROCESS_INFORMATION  pi;
+        char                 cmd_buf [1000];
+        char                 stdout_data [16*1024];
+        popen_callback       callback;
+        DWORD                callback_ret;
+        DWORD                exit_code;
+        int                  timeout; /* timeout in milliseconds or -1 for INIFINTE */
+      } popen2_st;
 
 static int peek_pipe (HANDLE pipe, char *data, int size)
 {
@@ -4076,14 +4076,14 @@ static int peek_pipe (HANDLE pipe, char *data, int size)
 
 static DWORD WINAPI threaded_pipe_read (void *arg)
 {
-  struct popen2_st *popen = (struct popen2_st*) arg;
-  ULONGLONG         start_t = GetTickCount64();
-  ULONGLONG         spent_t;
-  bool              got_newline;
-  char             *out       = popen->stdout_data;
-  int               out_bytes = sizeof(popen->stdout_data) - 1;
-  char             *p = out;
-  int               line = 0, rc = 0, read_stdout;
+  popen2_st *popen   = (popen2_st*) arg;
+  ULONGLONG  start_t = GetTickCount64();
+  ULONGLONG  spent_t;
+  bool       got_newline;
+  char      *out       = popen->stdout_data;
+  int        out_bytes = sizeof(popen->stdout_data) - 1;
+  char      *p = out;
+  int        line = 0, rc = 0, read_stdout;
 
   for (;;)
   {
@@ -4125,7 +4125,7 @@ static DWORD WINAPI threaded_pipe_read (void *arg)
   return (0);
 }
 
-static DWORD create_child_process (struct popen2_st *popen)
+static DWORD create_child_process (popen2_st *popen)
 {
   SECURITY_ATTRIBUTES sa = { 0 };
   STARTUPINFO         siStartInfo = { 0 };
@@ -4169,7 +4169,7 @@ static DWORD create_child_process (struct popen2_st *popen)
   return (rc ? ERROR_SUCCESS : err);
 }
 
-static DWORD popen_threaded (struct popen2_st *popen)
+static DWORD popen_threaded (popen2_st *popen)
 {
   DWORD rc;
 
@@ -4214,10 +4214,10 @@ static DWORD popen_threaded (struct popen2_st *popen)
  */
 DWORD popen_run2 (popen_callback callback, const char *cmd, const char *arg, ...)
 {
-  struct popen2_st popen;
-  size_t left = sizeof(popen.cmd_buf) - 1;
-  char  *p = popen.cmd_buf;
-  DWORD  rc;
+  popen2_st popen;
+  size_t    left = sizeof(popen.cmd_buf) - 1;
+  char     *p = popen.cmd_buf;
+  DWORD     rc;
 
   memset (&popen, '\0', sizeof(popen));
   popen.callback = callback;
