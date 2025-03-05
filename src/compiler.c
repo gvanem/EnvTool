@@ -651,7 +651,8 @@ static void compiler_add_borland (void)
   static const char *bcc[] = {
                     "bcc32.exe",
                  // "bcc32x.exe",
-                    "bcc32c.exe"
+                    "bcc32c.exe",
+                    "bcc64.exe"
                   };
   int i;
 
@@ -1220,7 +1221,7 @@ static void GCC_print_internal_library_dirs (const char *env_name, const char *e
  * Called during `envtool -VV` to print:
  * ```
  *  Compilers on PATH:
- *    gcc.exe                    -> f:\MingW32\TDM-gcc\bin\gcc.exe
+ *    gcc.exe                    -> f:\MinGW32\TDM-gcc\bin\gcc.exe
  *    ...
  * ```
  *
@@ -1334,7 +1335,7 @@ int compiler_check_libraries (compiler_type type)
 /**
  * Common stuff for Watcom.
  */
-static int Watcom_setup_dirs (const compiler_info *_cc, const char *dir0, const char *dir1, const char *dir2)
+static int watcom_setup_dirs (const compiler_info *_cc, const char *dir0, const char *dir1, const char *dir2)
 {
   int  i, found, ignored, max;
   bool dir2_found;
@@ -1401,7 +1402,7 @@ static void free_watcom_dirs (void)
 /**
  * Common stuff for Borland.
  *
- * Setup Borland directories for either a `%INC` or `%LIB` search.
+ * Setup Borland directories for either a `%INCLUDE` or `%LIB` search.
  */
 static bool setup_borland_dirs (const compiler_info *cc, smartlist_parse_func parser)
 {
@@ -1434,6 +1435,44 @@ static bool setup_borland_dirs (const compiler_info *cc, smartlist_parse_func pa
 }
 
 /**
+ * Common stuff for `bcc32_cfg_parse_inc()` and `bcc32_cfg_parse_lib()`
+ */
+static void bcc32_cfg_parse (const char *line, const char *prefix1,  const char *prefix2, const char *what)
+{
+  char   *copy = strdupa (line);
+  size_t  len1 = strlen (prefix1);
+  size_t  len2 = strlen (prefix2);
+
+  copy = str_strip_nl (str_trim(copy));
+  TRACE (2, "copy: %s.\n", copy);
+
+  if (!strnicmp(copy, prefix1, len1))
+  {
+    char dir [MAX_PATH];
+
+    snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, copy + len1);
+    TRACE (2, "dir: %s.\n", dir);
+    dir_array_add (dir, false);
+  }
+  else if (!strncmp(copy, prefix2, len2))
+  {
+    char            *dir;
+    smartlist_t     *dirs;
+    directory_array *d;
+    int              i, max;
+
+    dir  = str_ltrim (copy + len2);
+    dirs = split_env_var (what, dir);
+    max  = dirs ? smartlist_len (dirs) : 0;
+    for (i = 0; i < max; i++)
+    {
+      d = smartlist_get (dirs, i);
+      TRACE (1, "dir[%d]: '%s'\n", i, str_unquote(d->dir));
+    }
+  }
+}
+
+/**
  * Check in Borland's include-directories which are given by the format in
  * `<bcc_root>\bcc32c.cfg`:
  * ```
@@ -1441,31 +1480,15 @@ static bool setup_borland_dirs (const compiler_info *cc, smartlist_parse_func pa
  *  -isystem @\..\include\windows\crtl
  * ```
  *
- * Or the older format in `<bcc_root>\bcc32.cfg`:
+ * Or these formats for `<bcc_root>\bcc32.cfg` / `<bcc_root>\bcc64.cfg`:
  * ```
  *  -I<inc_path1>;<inc_path2>...
+ *  -I"<inc_path1>";"<inc_path2>"...
  * ```
  */
 static void bcc32_cfg_parse_inc (smartlist_t *sl, const char *line)
 {
-  const char *isystem = "-isystem @\\..\\";
-  char       *copy = strdupa (line);
-
-  copy = str_strip_nl (str_ltrim(copy));
-  TRACE (2, "copy: %s.\n", copy);
-
-  if (!strnicmp(copy, isystem, strlen(isystem)))
-  {
-    char dir [MAX_PATH];
-
-    snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, copy + strlen(isystem));
-    TRACE (2, "dir: %s.\n", dir);
-    dir_array_add (dir, false);
-  }
-  else if (!strncmp(copy, "-I", 2))
-  {
-    split_env_var ("Borland INC", str_ltrim(copy+2));
-  }
+  bcc32_cfg_parse (line, "-isystem @\\..\\", "-I", "Borland INC");
   ARGSUSED (sl);
 }
 
@@ -1477,31 +1500,15 @@ static void bcc32_cfg_parse_inc (smartlist_t *sl, const char *line)
  *   -L@\..\lib\win32c\release
  * ```
  *
- * Or the older format in `<bcc_root>\bcc32.cfg`:
+ * Or these formats for `<bcc_root>\bcc32.cfg` / `<bcc_root>\bcc64.cfg`:
  * ```
  *  -L<lib_path1>;<lib_path2>...
+ *  -L"<lib_path1>";"<lib_path2>"...
  * ```
  */
 static void bcc32_cfg_parse_lib (smartlist_t *sl, const char *line)
 {
-  const char *Ldir = "-L@\\..\\";
-  char       *copy = strdupa (line);
-
-  copy = str_strip_nl (str_ltrim(copy));
-  TRACE (2, "copy: %s.\n", copy);
-
-  if (!strnicmp(copy, Ldir, strlen(Ldir)))
-  {
-    char dir [MAX_PATH];
-
-    snprintf (dir, sizeof(dir), "%s\\%s", bcc_root, copy + strlen(Ldir));
-    TRACE (2, "dir: %s.\n", dir);
-    dir_array_add (dir, false);
-  }
-  else if (!strncmp(copy, "-L", 2))
-  {
-    split_env_var ("Borland LIB", str_ltrim(copy+2));
-  }
+  bcc32_cfg_parse (line, "-L@\\..\\", "-L", "Borland LIB");
   ARGSUSED (sl);
 }
 
@@ -1518,7 +1525,7 @@ static int other_setup_library_path (const struct compiler_info *cc)
   {
     if (cc->type == CC_WATCOM)
     {
-      found = Watcom_setup_dirs (cc, "%WATCOM%\\lib386", "%WATCOM%\\lib386\\nt", "%WATCOM%\\lib386\\dos");
+      found = watcom_setup_dirs (cc, "%WATCOM%\\lib386", "%WATCOM%\\lib386\\nt", "%WATCOM%\\lib386\\dos");
       free_watcom_dirs();
     }
     else if (cc->type == CC_BORLAND)
@@ -1551,7 +1558,7 @@ static int other_setup_include_path (const struct compiler_info *cc)
   {
     if (cc->type == CC_WATCOM)
     {
-      found = Watcom_setup_dirs (cc, "%WATCOM%\\h", "%WATCOM%\\h\\nt", "%WATCOM%\\lh");
+      found = watcom_setup_dirs (cc, "%WATCOM%\\h", "%WATCOM%\\h\\nt", "%WATCOM%\\lh");
       free_watcom_dirs();
     }
     else if (cc->type == CC_BORLAND)
