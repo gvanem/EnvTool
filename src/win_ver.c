@@ -26,8 +26,8 @@
 #define RRF_SUBKEY_WOW6464KEY  0x00010000
 #endif
 
-static char serv_pack[20] = { '\0' };
-static char build_str[20] = { '\0' };
+static char serv_pack [20] = { '\0' };
+static char build_str [20] = { '\0' };
 
 static bool is_server_os (const OSVERSIONINFOEXW *os)
 {
@@ -130,6 +130,46 @@ bool get_rtdll_version (OSVERSIONINFOEXW *os)
   return (rc);
 }
 
+/**
+ * Get the Windows Branding Information using "winbrand.dll".
+ * It's been around since Windows Vista.
+ *
+ * \ref https://dennisbabkin.com/blog/?t=how-to-tell-the-real-version-of-windows-your-app-is-running-on
+ */
+static const char *get_win_brand_name (void)
+{
+  typedef wchar_t *(WINAPI *func_BrandingFormatString) (const wchar_t *str);
+  func_BrandingFormatString p_BrandingFormatString = NULL;
+
+  static char  ret [100] = { '\0' };
+  HINSTANCE    hnd = LoadLibraryExA ("winbrand.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+  wchar_t     *brand;
+
+  if (hnd)
+     p_BrandingFormatString = GETPROCADDRESS (func_BrandingFormatString,
+                                              hnd, "BrandingFormatString");
+
+  if (p_BrandingFormatString &&
+      (brand = (*p_BrandingFormatString) (L"%WINDOWS_LONG%")) != NULL)
+  {
+    char buf [100] = { '\0' };
+
+    wchar_to_mbchar (buf, sizeof(buf), brand);
+    GlobalFree (brand);
+
+    if (str_startswith(buf, "Windows "))
+    {
+      strcpy (ret, "Win-"),
+      strcpy (ret + 4, buf + strlen("Windows "));
+    }
+    else
+      strcpy (ret, buf);
+  }
+  if (hnd)
+     FreeLibrary (hnd);
+  return (ret);
+}
+
 static const char *get_os_version (void)
 {
   OSVERSIONINFOEXW os, osw, *p_os;
@@ -137,8 +177,8 @@ static const char *get_os_version (void)
   bool             rc, equal;
   int              ofs = 0;
 
-  serv_pack[0] = '\0';
-  build_str[0] = '\0';
+  serv_pack [0] = '\0';
+  build_str [0] = '\0';
   memset (&os, '\0', sizeof(os));
   os.dwOSVersionInfoSize = sizeof(os);
 
@@ -229,8 +269,13 @@ static const char *get_os_version (void)
 
     if (os_ver == 0xA0000)
     {
+      const char *rc2 = get_win_brand_name();
+
+      if (*rc2)
+         return (rc2);
+
       if (p_os->dwBuildNumber >= 22000)
-          return ((p_os->wProductType == VER_NT_WORKSTATION) ? "Win-11" : "Win-11 Server");
+         return ((p_os->wProductType == VER_NT_WORKSTATION) ? "Win-11" : "Win-11 Server");
       return ((p_os->wProductType == VER_NT_WORKSTATION) ? "Win-10" : "Win-10 Server");
     }
 
@@ -264,7 +309,7 @@ static const char *get_os_version (void)
 
 const char *os_name (void)
 {
-  static char buf[100];
+  static char buf [100];
   char       *ptr = buf;
   size_t      left = sizeof(buf);
 
