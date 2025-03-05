@@ -1553,7 +1553,7 @@ int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
   if (end > _path && IS_SLASH(end[-1]))
      end[-1] = '\0';
 
-  if (!stricmp(prefix, "PATH"))
+  if (prefix && !stricmp(prefix, "PATH"))
      ignore = cfg_ignore_lookup("[Path]", _path);
 
   if (num_dup > 0)
@@ -2364,7 +2364,11 @@ static int do_check_manpath (void)
                                     "cat0", "cat1", "cat2", "cat3", "cat4",
                                     "cat5", "cat6", "cat7", "cat8", "cat9",
                                     "man0", "man1", "man2", "man3", "man4",
-                                    "man5", "man6", "man7", "man8", "man9", "mann"
+                                    "man5", "man6", "man7", "man8", "man9", "mann",
+
+                                    /* These are typical Linux man-page subdirectories:
+                                     */
+                                    "man2type", "man3const", "man3head", "man3type"
                                   };
 
   /* Do not implicit add current directory in searches.
@@ -3841,6 +3845,7 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
 
   for (i = errors = 0; i < max; i++)
   {
+    bool is_cygdrive = false;
     char fbuf [_MAX_PATH];
     const char *start, *end;
 
@@ -3859,13 +3864,22 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
        end--;
 
     if (str_equal_n("/cygdrive/", arr->dir, 10))
-         _strlcpy (fbuf, arr->dir, sizeof(fbuf));
-    else slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
+    {
+      _strlcpy (fbuf, arr->dir, sizeof(fbuf));
+      is_cygdrive = true;
+    }
+    else
+      slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
 
     if (!stricmp("PATH", env))
-       ignored = cfg_ignore_lookup("[Path]", arr->dir);
+       ignored = cfg_ignore_lookup ("[Path]", arr->dir);
 
-    if (start > arr->dir)
+    if (!is_cygdrive && !isalpha(arr->dir[0]))
+    {
+      snprintf (status, status_sz, "~5Missing drive~0: ~3\"%s\"~0", fbuf);
+      errors++;
+    }
+    else if (start > arr->dir)
     {
       snprintf (status, status_sz, "~5Leading white-space~0: ~3\"%s\"~0", fbuf);
       errors++;
@@ -4247,7 +4261,7 @@ static void do_check (void)
   char  *sys_env_path = NULL;
   char  *sys_env_inc  = NULL;
   char  *sys_env_lib  = NULL;
-  char   status [200+_MAX_PATH];
+  char   status [200 + _MAX_PATH];
   int    i, save, num;
   int    index = 0;
 
@@ -4299,8 +4313,6 @@ static void do_check (void)
     else C_printf ("         ~2OK~0, %d elements\n\n", num);
   }
 
-  opt.no_cwd = save;
-
   scan_reg_environment (HKEY_LOCAL_MACHINE,
                         "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
                         &sys_env_path, &sys_env_inc, &sys_env_lib);
@@ -4308,6 +4320,8 @@ static void do_check (void)
   check_env_val_reg (split_env_var(NULL, sys_env_path), "PATH");
   check_env_val_reg (split_env_var(NULL, sys_env_inc), "INCLUDE");
   check_env_val_reg (split_env_var(NULL, sys_env_lib), "LIB");
+
+  opt.no_cwd = save;
 
   /**
    * \todo
@@ -4331,3 +4345,30 @@ static void do_check (void)
   FREE (sys_env_inc);
   FREE (sys_env_lib);
 }
+
+#if 0
+/**
+ * \todo
+ * The handler for mode `"--check-dups"`.
+ * Requires a TCC shell
+ *
+ * This `dedupe` command searches recursively for symlink duplicated files.
+ * And printing the SHA256 signature of each file.
+ */
+static void do_check_dups (const char *dir)
+{
+  char *env = getenv ("COMSPEC");
+
+  if (env)
+  {
+    env = strlwr (basename(env));
+    if (strcmp(env, "tcc.exe"))
+    {
+      WARN ("dedupe needs a 'TCC' shell\n");
+      return;
+    }
+  }
+  popen_run2 (dedupe_cb, "dedupe", "/SV %s 2> %s", dir, DEV_NULL);
+}
+#endif
+

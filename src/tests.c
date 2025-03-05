@@ -451,9 +451,9 @@ static void test_SHGetFolderPath (void)
   {
     char               buf [_MAX_PATH];
     const search_list *folder   = sh_folders + i;
-    const char         *flag_str = opt.verbose ? "SHGFP_TYPE_CURRENT" : "SHGFP_TYPE_DEFAULT";
-    DWORD               flag     = opt.verbose ?  SHGFP_TYPE_CURRENT  :  SHGFP_TYPE_DEFAULT;
-    HRESULT             rc       = SHGetFolderPath (NULL, folder->value, NULL, flag, buf);
+    const char        *flag_str = opt.verbose ? "SHGFP_TYPE_CURRENT" : "SHGFP_TYPE_DEFAULT";
+    DWORD              flag     = opt.verbose ?  SHGFP_TYPE_CURRENT  :  SHGFP_TYPE_DEFAULT;
+    HRESULT            rc       = SHGetFolderPath (NULL, folder->value, NULL, flag, buf);
 
     if (rc == S_OK)
          slashify2 (buf, buf, opt.show_unix_paths ? '/' : '\\');
@@ -483,23 +483,41 @@ static void test_ReparsePoints (void)
                     "c:\\Program Files",
                     "c:\\Program Files (x86)",
                   };
-  int i;
+  const char *p;
+  char  result [_MAX_PATH];
+  bool  rc;
+  int   i;
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
   for (i = 0; i < DIM(points); i++)
   {
-    const char *p = points[i];
-    char  result [_MAX_PATH] = "?";
-    char  st_result [100] = "";
-    bool  rc = get_reparse_point (p, result, sizeof(result));
+    p = points[i];
+    result [0] = '?';
+    result [1] = '\0';
+    rc = get_reparse_point (p, result, sizeof(result));
 
     C_printf ("  %d: \"%s\" %*s->", i, p, (int)(26-strlen(p)), "");
 
     if (!rc)
-         C_printf (" ~5%s~0%s\n", last_reparse_err, st_result);
-    else C_printf (" \"%s\"%s\n", slashify2(result, result, opt.show_unix_paths ? '/' : '\\'), st_result);
+         C_printf (" ~5%s~0\n", last_reparse_err);
+    else C_printf (" \"%s\"\n", slashify2(result, result, opt.show_unix_paths ? '/' : '\\'));
   }
+
+#if defined(__INTEL_LLVM_COMPILER)
+  char advisor_dir [_MAX_PATH];
+
+  p = advisor_dir;
+  snprintf (advisor_dir, sizeof(advisor_dir), "%s\\advisor\\latest", getenv("ONEAPI_ROOT"));
+  rc = get_reparse_point (advisor_dir, result, sizeof(result));
+
+  C_printf ("  %d: \"%s\" %*s->", i, p, (int)(26-strlen(p)), "");
+
+  if (!rc)
+       C_printf (" ~5%s~0\n", last_reparse_err);
+  else C_printf (" \"%s\"\n", slashify2(result, result, opt.show_unix_paths ? '/' : '\\'));
+#endif
+
   C_putc ('\n');
 }
 

@@ -4,12 +4,16 @@
  *   Verifies the digital signature of a file.
  */
 
-/* Adapted from:
+/**
+ * Adapted from:
  *  https://msdn.microsoft.com/en-us/library/windows/desktop/aa382384(v=vs.85).aspx
  *
  * And extended with the help of:
  *  https://support.microsoft.com/en-us/kb/323809
  *  http://forum.sysinternals.com/howto-verify-the-digital-signature-of-a-file_topic19247.html
+ *
+ * \todo Take some ideas from:
+ *   https://github.com/DidierStevens/AnalyzePESig.git
  */
 #include <stdio.h>
 #include <windows.h>
@@ -35,7 +39,14 @@
   #define PRINTF0(str)      printf (str)
   #define PRINTF(fmt, ...)  printf (fmt, ##__VA_ARGS__)
   #define NEWLINE()         putchar ('\n')
-  #define ERROR(s)          printf ("%s() failed: %s\n", s, win_strerror(GetLastError()))
+
+  #define ERROR(s)                                       \
+          do {                                           \
+            if (opt.debug >= 1)                          \
+                printf ("%s(%u): ", __FILE__, __LINE__); \
+            printf ("%s() failed: %s\n",                 \
+                    s, win_strerror(GetLastError()));    \
+          } while (0);
 
 #else
   #define PRINTF0(str)      ((void)0)
@@ -129,6 +140,9 @@ DWORD wintrust_check (const char *pe_file, bool check_details, bool revoke_check
   {
     PRINTF ("\nDetails for crypt_check_file (\"%s\").\n", pe_file);
     crypt_check_file (pe_file);
+#if 0
+    crypt_get_signer (pe_file);  // rewritten from 'GetFileSigner()'
+#endif
   }
   return (rc);
 }
@@ -270,7 +284,6 @@ static bool GetProgAndPublisherInfo (__IN  const CMSG_SIGNER_INFO     *signer_in
 
     /* Decode and get SPC_SP_OPUS_INFO structure
      */
-    info_size = 0;
     res = CryptDecodeObject (ASN_ENCODING,
                              SPC_SP_OPUS_INFO_OBJID,
                              signer_info->AuthAttrs.rgAttr[n].rgValue[0].pbData,
