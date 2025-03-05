@@ -2257,6 +2257,35 @@ static int get_dll_name (python_info *pi, const char **libs)
 }
 
 /**
+ * The above failed. Try to find the .DLL by running a
+ * `print(sys.base_prefix)` command.
+ */
+static int get_dll_name_from_sys_prefix (python_info *pi)
+{
+  char *str;
+  int   found = 0;
+  int   save = warn_on_py_fail;
+
+  warn_on_py_fail = 0;
+  str = popen_run_py (pi, "import sys; print(sys.base_prefix, end=\"\")");
+  warn_on_py_fail = save;
+
+  if (str)
+  {
+    struct stat st;
+    char        dll_spec [_MAX_PATH];
+
+    snprintf (dll_spec, sizeof(dll_spec), "%s\\python3.dll", str);
+    found = (stat(dll_spec, &st) == 0);
+    TRACE (1, "found: %d: '%s'", found, dll_spec);
+    if (found)
+       pi->dll_name = STRDUP (dll_spec);
+  }
+  popen_append_clear();
+  return (found);
+}
+
+/**
  * Check the Python path directory `pp->dir` and `opt.file_spec` against
  * a matching `*.dist-info` or a `*.egg-info` sub-directory.
  *
@@ -2475,7 +2504,7 @@ static python_info *add_python (const python_info *pi, const char *exe)
     pi2->user_site_path = tmp_user_site[0] ? STRDUP(tmp_user_site) : NULL;
 
     libs = (const char**) pi->libraries;
-    if (get_dll_name(pi2, libs))
+    if (get_dll_name(pi2, libs) || get_dll_name_from_sys_prefix(pi2))
     {
      /** If embeddable, test the bitness of the .DLL to check
       *  if `LoadLibrary()` will succeed.
@@ -3094,6 +3123,7 @@ void enum_python_in_registry (const char *key_name)
 /**
  * Main initialiser function for this module:
  *  \li Clear the `PYTHONINSPECT` env-var (causes a .py-scripts to hang).
+ *  \li Set the `PYTHON_COLORS=0` env-var to aoid colours in error-messages.
  *  \li If `opt.use_cache == true` get previous information from file-cache.
  *  \li If nothing found from cache:
  *    \li Find the details of all supported Pythons in `all_py_programs`.
@@ -3113,6 +3143,7 @@ void py_init (void)
   int    i, max;
 
   SetEnvironmentVariable ("PYTHONINSPECT", NULL);
+  SetEnvironmentVariable ("PYTHON_COLORS", "0");
 
   py_programs = smartlist_new();
 
