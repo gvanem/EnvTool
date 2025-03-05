@@ -46,17 +46,22 @@ USE_UBSAN ?= 0
 #
 # Use '-Wall' with 'clang-cl', 'zig cc' or 'icx'.
 #
-USE_Wall ?= 1
+USE_Wall ?= 0
 
 #
 # Use '-MP' with cl.
 #
-USE_MP_COMPILE ?= 1
+USE_MP_COMPILE ?= 0
 
 #
 # For preprocessing .c-files.
 #
 USE_ASTYLE ?= 1
+
+#
+# Use Win-11 SDK; WindowsSdkVer >= 10.0.26100.0
+#
+USE_WIN11 ?= 0
 
 #
 # Warn on undefined variables.
@@ -334,10 +339,18 @@ ifeq ($(CC),zig)
   GENERATED += $(OBJ_DIR)/zig_version.h
 endif
 
-CFLAGS += -DWIN32_WINNT=0xA000       \
-          -DNTDDI_VERSION=0x0A000000 \
-          -D_WIN32_IE=0x800          \
-          -DWIN32_LEAN_AND_MEAN      \
+ifeq ($(USE_WIN11),1)
+  CFLAGS += -DWIN32_WINNT=0xA000       \
+            -DNTDDI_VERSION=0x0A000010 \
+            -D_WIN32_IE=0xA000
+
+else
+  CFLAGS += -DWIN32_WINNT=0xA000       \
+            -DNTDDI_VERSION=0x0A000000 \
+            -D_WIN32_IE=0x800
+endif
+
+CFLAGS += -DWIN32_LEAN_AND_MEAN      \
           -DEVERYTHINGUSERAPI=       \
           -DEVERYTHINGAPI=__cdecl    \
           -I./$(OBJ_DIR)
@@ -431,19 +444,33 @@ ifeq ($(CC),icx)
   endif
 endif
 
+ifeq ($(CC),cl)
+  USE_Wall := 0
+else
+  ifneq ($(CC),zig)
+    CFLAGS += -W3
+  endif
+
+  CFLAGS += -Wno-unused-function \
+            -Wno-unused-variable \
+            -Wno-format-security \
+            -Wno-varargs         \
+            -Wno-unused-but-set-variable
+endif
+
 #
 # Using '-Wall' with 'clang-cl' generates all kinds of strange warnings.
 # Turn many of them off.
 #
 ifeq ($(USE_Wall),1)
+  CFLAGS += -Wall
+
   ifeq ($(CC),clang-cl)
-    CFLAGS += -Wall                                  \
-              -Wno-varargs                           \
+    CFLAGS +=
               -Wno-language-extension-token          \
               -Wno-reserved-id-macro                 \
               -Wno-format-non-iso                    \
               -Wno-format-nonliteral                 \
-              -Wno-format-security                   \
               -Wno-format-pedantic                   \
               -Wno-switch-enum                       \
               -Wno-sign-conversion                   \
@@ -453,11 +480,8 @@ ifeq ($(USE_Wall),1)
               -Wno-comma                             \
               -Wno-invalid-utf8                      \
               -Wno-assign-enum                       \
-              -Wno-unused-function                   \
               -Wno-unused-macros                     \
               -Wno-unused-parameter                  \
-              -Wno-unused-variable                   \
-              -Wno-unused-but-set-variable           \
               -Wno-reserved-identifier               \
               -Wno-strict-prototypes                 \
               -Wno-missing-prototypes                \
@@ -479,21 +503,10 @@ ifeq ($(USE_Wall),1)
     endif
 
   else ifeq ($(CC),icx)
-    CFLAGS += -Wall                \
-              -Wno-varargs         \
-              -Wno-unused-function \
-              -Wno-unused-variable \
-              -Wno-format-security \
-              -Wno-unused-but-set-variable
+    CFLAGS +=
 
   else ifeq ($(CC),zig)
-    CFLAGS += -Wall                \
-              -Wno-unknown-pragmas \
-              -Wno-format-security \
-              -Wno-varargs         \
-              -Wno-unused-function \
-              -Wno-unused-variable \
-              -Wno-unused-but-set-variable
+    CFLAGS += -Wno-unknown-pragmas
   endif
 endif
 
@@ -602,37 +615,37 @@ win_trust.exe:                 OS_LIBS += advapi32.lib crypt32.lib imagehlp.lib 
 win_ver.exe:                   OS_LIBS += advapi32.lib imagehlp.lib
 es_cli.exe:                    OS_LIBS += shell32.lib
 
-envtool.exe: $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res | check-for-unused-libs.py
+envtool.exe: $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-description.exe: $(DESCRIPTION_OBJ) | check-for-unused-libs.py
+description.exe: $(DESCRIPTION_OBJ)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-dirlist.exe: $(DIRLIST_OBJ) | check-for-unused-libs.py
+dirlist.exe: $(DIRLIST_OBJ)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-du.exe: $(OBJ_DIR)/du.obj | check-for-unused-libs.py
+du.exe: $(OBJ_DIR)/du.obj
 	$(call link_EXE, $@, $<)
 
-win_glob.exe: $(WIN_GLOB_OBJ) | check-for-unused-libs.py
+win_glob.exe: $(WIN_GLOB_OBJ)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-win_trust.exe: $(WIN_TRUST_OBJ) | check-for-unused-libs.py
+win_trust.exe: $(WIN_TRUST_OBJ)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-win_ver.exe: $(WIN_VER_OBJ) | check-for-unused-libs.py
+win_ver.exe: $(WIN_VER_OBJ)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-get_file_assoc.exe: $(GET_FILE_ASSOC_OBJ) | check-for-unused-libs.py
+get_file_assoc.exe: $(GET_FILE_ASSOC_OBJ)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-find_remote_drive_letters.exe: $(FIND_REMOTE_DRIVE_LETTERS_OBJ) | check-for-unused-libs.py
+find_remote_drive_letters.exe: $(FIND_REMOTE_DRIVE_LETTERS_OBJ)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-simple-calc.exe: $(OBJ_DIR)/simple-calc.obj | check-for-unused-libs.py
+simple-calc.exe: $(OBJ_DIR)/simple-calc.obj
 	$(call link_EXE, $@, $<)
 
-es_cli.exe: $(OBJ_DIR)/es_cli.obj | check-for-unused-libs.py
+es_cli.exe: $(OBJ_DIR)/es_cli.obj
 	$(call link_EXE, $@, $< $(OS_LIBS))
 
 $(CC).args: $(THIS_FILE)
@@ -663,14 +676,11 @@ $(OBJ_DIR)/%.obj: %.c | $(CC).args
 $(OBJ_DIR)/%.res: %.rc
 	$(call create_res_file, $@, $<)
 
-%.i: %.c FORCE | cpp-filter.py $(CC).args
+%.i: %.c FORCE | $(OBJ_DIR)/cpp-filter.py $(CC).args
 	$(call C_preprocess, $@, $<)
 
-cpp-filter.py: $(THIS_FILE)
+$(OBJ_DIR)/cpp-filter.py: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_py,$@,$(CPP_FILTER_PY))
-
-check-for-unused-libs.py: $(THIS_FILE)
-	$(call generate_py,$@,$(CHECK_FOR_UNUSED_LIBS_PY))
 
 ifeq ($(CC)-$(USE_MP_COMPILE),cl-1)
   $(ENVTOOL_OBJ): $(ENVTOOL_SRC) | $(CC).args
@@ -700,7 +710,7 @@ analyze_cl:
 clean:
 	rm -fr $(OBJ_DIR)
 	rm -f $(GENERATED) cl.args clang-cl.args icx.args zig.args link.args \
-	      cpp-filter.py check-for-unused-libs.py vc1*.pdb $(PROGRAMS:.exe=.pdb)
+	      vc1*.pdb $(PROGRAMS:.exe=.pdb)
 
 vstudio_clean: clean
 	rm -fr Debug Release .vs
@@ -801,12 +811,14 @@ ifeq ($(CC),zig)
   endef
 else
   define link_EXE
+    $(file  > $(OBJ_DIR)/check-for-unused-libs.py,if 1:)
+    $(file >> $(OBJ_DIR)/check-for-unused-libs.py,$(CHECK_FOR_UNUSED_LIBS_PY))
     $(call green_msg, Linking $(1).)
     $(call create_resp_file, link.args, $(LDFLAGS) $(2))
     $(LINK) -out:$(strip $(1)) @link.args > link.tmp
     @cat link.tmp >> $(1:.exe=.map)
     @rm -f $(1:.exe=.lib) $(1:.exe=.exp)
-    @export PYTHONINSPECT= ; $(PYTHON) check-for-unused-libs.py link.tmp
+    @$(PYTHON) $(OBJ_DIR)/check-for-unused-libs.py link.tmp
   endef
 endif
 
@@ -857,7 +869,7 @@ define preprocess_common
   @$(foreach f, $(call filter_D_args_first, $(CFLAGS)), $(file >> $(1), * $(f)))
   $(file >> $(1), *------------------------------------------------------------)
   $(file >> $(1), */)
-  $(CC) -E @$(CC).args $(2) | $(PYTHON) cpp-filter.py $(3) >> $(1)
+  $(CC) -E @$(CC).args $(2) | $(PYTHON) $(OBJ_DIR)/cpp-filter.py $(3) >> $(1)
   @echo
 endef
 
