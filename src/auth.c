@@ -24,19 +24,19 @@ typedef enum login_source {
         LOGIN_ENVTOOL_CFG,
       } login_source;
 
-/**\struct login_info
+/**\typedef login_info
  * Data for each parsed entry from one of the files in `enum login_source`.
  */
-struct login_info {
-       bool         is_default;  /**< This is the `default` user/password entry for non-matching lookups */
-       login_source src;         /**< Which file this entry came from */
-       char        *host;        /**< The hostname of the entry */
-       char        *user;        /**< The username of the entry */
-       char        *passw;       /**< The password of the entry */
-       int          port;        /**< The network port of the entry. Only if from `~/.authinfo` or `~/envtool.cfg` */
-     };
+typedef struct login_info {
+        bool         is_default;  /**< This is the `default` user/password entry for non-matching lookups */
+        login_source src;         /**< Which file this entry came from */
+        char        *host;        /**< The hostname of the entry */
+        char        *user;        /**< The username of the entry */
+        char        *passw;       /**< The password of the entry */
+        int          port;        /**< The network port of the entry. Only if from `~/.authinfo` or `~/envtool.cfg` */
+      } login_info;
 
-/** The smartlists of "struct login_info" entries.
+/** The smartlists of "login_info" entries.
  */
 static smartlist_t *login_list [LOGIN_ENVTOOL_CFG+1];
 
@@ -89,7 +89,7 @@ static void common_exit (enum login_source src)
 
   for (i = 0; i < max; i++)
   {
-    struct login_info *li = smartlist_get (login_list[src], i);
+    login_info *li = smartlist_get (login_list[src], i);
 
     TRACE (2, "i: %2d, %s.\n", i, login_src_name(li->src));
 
@@ -105,14 +105,14 @@ static void common_exit (enum login_source src)
 /**
  * Search the `login_list [src]` smartlist for `host`. <br>
  */
-static const struct login_info *common_lookup (const char *host, enum login_source src)
+static const login_info *common_lookup (const char *host, enum login_source src)
 {
-  const struct login_info *def_li = NULL;
+  const login_info *def_li = NULL;
   int   i, save, max = login_list[src] ? smartlist_len (login_list[src]) : 0;
 
   for (i = 0; i < max; i++)
   {
-    const struct login_info *li = smartlist_get (login_list[src], i);
+    const login_info *li = smartlist_get (login_list[src], i);
     char  buf [300];
 
     if (li->is_default)
@@ -147,7 +147,7 @@ static const struct login_info *common_lookup (const char *host, enum login_sour
  */
 static void netrc_parse (smartlist_t *sl, const char *line)
 {
-  struct login_info *li = NULL;
+  login_info *li = NULL;
   char   host [256];
   char   user [50];
   char   passw[50];
@@ -182,7 +182,7 @@ static void netrc_parse (smartlist_t *sl, const char *line)
  */
 static void authinfo_parse (smartlist_t *sl, const char *line)
 {
-  struct login_info *li = NULL;
+  login_info *li = NULL;
   char   host [256];
   char   user [50];
   char   passw[50];
@@ -230,7 +230,7 @@ bool auth_envtool_handler (const char *section, const char *key, const char *val
 
   if (num >= 2)
   {
-    struct login_info *li = CALLOC (1, sizeof(*li));
+    login_info *li = CALLOC (1, sizeof(*li));
 
     if (!login_list[LOGIN_ENVTOOL_CFG])
        login_list [LOGIN_ENVTOOL_CFG] = smartlist_new();
@@ -295,7 +295,7 @@ void envtool_cfg_exit (void)
   common_exit (LOGIN_ENVTOOL_CFG);
 }
 
-static int return_login (const struct login_info *li, const char **user, const char **passw, int *port)
+static int return_login (const login_info *li, const char **user, const char **passw, int *port)
 {
   if (!li)
      return (0);
@@ -315,7 +315,7 @@ static int return_login (const struct login_info *li, const char **user, const c
  */
 int netrc_lookup (const char *host, const char **user, const char **passw)
 {
-  const struct login_info *li;
+  const login_info *li;
 
   if (!netrc_init())
      return (0);
@@ -330,7 +330,7 @@ int netrc_lookup (const char *host, const char **user, const char **passw)
  */
 int authinfo_lookup (const char *host, const char **user, const char **passw, int *port)
 {
-  const struct login_info *li;
+  const login_info *li;
 
   if (!authinfo_init())
      return (0);
@@ -345,9 +345,7 @@ int authinfo_lookup (const char *host, const char **user, const char **passw, in
  */
 int envtool_cfg_lookup (const char *host, const char **user, const char **passw, int *port)
 {
-  const struct login_info *li;
-
-  li = common_lookup (host, LOGIN_ENVTOOL_CFG);
+  const login_info *li = common_lookup (host, LOGIN_ENVTOOL_CFG);
 
   /* Since a `~/envtool.cfg` does not have a default login entry,
    */
