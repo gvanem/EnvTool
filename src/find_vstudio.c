@@ -48,6 +48,7 @@ static CLSID CLSID_SetupConfiguration;
 static GUID  IID_ISetupConfiguration;
 static GUID  IID_ISetupConfiguration2;
 static IID  *g_iid = NULL;
+static char *g_crashinfo;
 
 static void print_and_compare_guid_str (const GUID *guid, const char *ascii_in)
 {
@@ -418,6 +419,39 @@ error:
 }
 
 /*
+ * HANDLE runtime exceptions inside `Microsoft.VisualStudio.Setup.Configuration.Native.dll`
+ */
+static LONG WINAPI handle_exception (EXCEPTION_POINTERS *_exc)
+{
+  EXCEPTION_RECORD *exc = _exc->ExceptionRecord;
+  char   err [1024], *p = err;
+  size_t left = sizeof(err);
+  int    len;
+
+  len = snprintf (p, left,
+                  "ExceptionCode:    0x%lX\n"
+                  "ExceptionAddress: 0x%p",
+                  exc->ExceptionCode, exc->ExceptionAddress);
+  p    += len;
+  left -= len;
+
+  if (exc->ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
+      exc->NumberParameters >= 2)
+  {
+    snprintf (p, left, "\nAccess violation: %s operation at address 0x%p",
+              exc->ExceptionInformation[0] ? "write" : "read",
+              (void*)exc->ExceptionInformation[1]);
+  }
+
+  TRACE (0, "%s\n", err);
+  g_crashinfo = STRDUP (err);
+
+  if (IsDebuggerPresent())
+     return (EXCEPTION_CONTINUE_SEARCH);
+  return (EXCEPTION_EXECUTE_HANDLER);
+}
+
+/*
  * Finds all installed versions of Visual Studio.
  *
  * This function will initialize COM temporarily.
@@ -464,8 +498,16 @@ bool find_vstudio_init (void)
     else TRACE (1, "hr: %s\n", win_strerror(hr));
   }
   else
+  {
+    SetUnhandledExceptionFilter (handle_exception);
     rc = find_all_instances (This);
-
+    SetUnhandledExceptionFilter (NULL);
+    if (g_crashinfo)
+    {
+      FREE (g_crashinfo);
+      rc = false;
+    }
+  }
   TRACE_NL (1);
 
 error:
