@@ -653,7 +653,7 @@ const char *os_KUSER_SHARED_DATA (void)
 
 #if defined(WIN_VER_TEST)
 
-struct prog_options opt;
+prog_options opt;
 
 int MS_CDECL main (int argc, char **argv)
 {

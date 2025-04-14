@@ -421,7 +421,7 @@ static int lua_search_internal (const char *search_spec, bool is_CPATH)
 
       if (match == FNM_MATCH)
       {
-        struct report r;
+        report r;
 
         memset (&r, '\0', sizeof(r));
         r.file    = de->d_name;

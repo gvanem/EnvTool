@@ -1230,8 +1230,8 @@ bool wintrust_dump_pkcs7_cert (void)
 
 #if defined(WIN_TRUST_TEST)
 
-char  *program_name = "win_trust.exe";
-struct prog_options opt;
+prog_options opt;
+char *program_name = "win_trust.exe";
 
 static const char *usage_fmt = "Usage: %s <-hcdr> PE-file\n"
                                "    -h: show this help.\n"

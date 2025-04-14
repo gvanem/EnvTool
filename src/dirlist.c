@@ -593,7 +593,7 @@ static void set_sort_funcs (enum od2x_sorting sort, QsortCmpFunc *qsort_func, Sc
 
 #if defined(DIRLIST_TEST)
 
-struct prog_options opt;
+prog_options opt;
 char  *program_name = "dirlist";
 
 static DWORD  recursion_level;

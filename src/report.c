@@ -234,7 +234,7 @@ static int found_access_denied = 0;
  */
 static bool get_wintrust_info (const char *file, char *dest, size_t dest_size);
 static int  get_trailing_indent (const char *file);
-static bool get_PE_file_brief (const struct report *r, char *dest, size_t dest_size);
+static bool get_PE_file_brief (const report *r, char *dest, size_t dest_size);
 static void print_PE_file_details (const char *filler);
 
 /**
@@ -252,11 +252,11 @@ void incr_total_size (UINT64 size)
  * PE-information like resource version or trust information
  * and file-owner.
  *
- * \param[in] r  The `struct report *` of the file or directory to report.
+ * \param[in] r  The `report *` of the file or directory to report.
  *
  * \note The `r` structure can be modified by a `r->pre_action` or `r->post_action` function.
  */
-int report_file (struct report *r)
+int report_file (report *r)
 {
   const char *note = NULL;
   const char *link = NULL;
@@ -577,7 +577,7 @@ int report_file (struct report *r)
   return (1);
 }
 
-int report_file2 (struct report *r)
+int report_file2 (report *r)
 {
   FMT_buf     fmt_buf_file_info;
   FMT_buf     fmt_buf_time_size;
@@ -698,7 +698,7 @@ static void print_PE_file_details (const char *filler)
  * If so, save the checksum, version-info, signing-status for later when
  * `report_file()` is ready to print this info.
  */
-static bool get_PE_file_brief (const struct report *r, char *dest, size_t dest_size)
+static bool get_PE_file_brief (const report *r, char *dest, size_t dest_size)
 {
   struct ver_info ver;
   enum Bitness    bits;

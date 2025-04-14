@@ -689,8 +689,8 @@ void globfree (glob_t *_pglob)
 
 #if defined(WIN_GLOB_TEST)
 
-struct prog_options opt;
-char  *program_name = "win_glob";
+prog_options opt;
+char *program_name = "win_glob";
 
 void usage (void)
 {

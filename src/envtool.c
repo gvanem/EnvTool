@@ -69,7 +69,7 @@ bool have_sys_wow64_dir  = false;
 /**
  * All program options are kept here.
  */
-struct prog_options opt;
+prog_options opt;
 
 /**
  * A list of 'directory_array'
@@ -147,6 +147,16 @@ static void  do_check (void);
  *       Also check their Wintrust signature status and version information.
  */
 
+static void print_fs_type (int drive)
+{
+  char dir [4];
+  char type [_MAX_PATH] = "?";
+
+  snprintf (dir, sizeof(dir), "%c:\\", 'A' + drive);
+  GetVolumeInformation (dir, NULL, 0, NULL, NULL, NULL, type, sizeof(type));
+//printf ("  Drive %c is %s\n", drive + 'A', type);
+}
+
 /**
  * Show some version details for the EveryThing program.
  * Called on `FindWindow (EVERYTHING_IPC_WNDCLASS)` success.
@@ -155,8 +165,10 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
 {
   #define MAX_INDEXED  ('Z' - 'A' + 1)
 
-  char buf [3*MAX_INDEXED+2], *p = buf, *bits = "";
-  int  d, num;
+  char  buf [3*MAX_INDEXED+2];
+  char *p = buf, *bits = "";
+  int   d, num = 0;
+  DWORD indexed = 0;
 
   if (evry_bitness == bit_unknown)
      get_evry_bitness (wnd);
@@ -181,20 +193,29 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
             " David Carpenter; ~6https://www.voidtools.com/~0\n",
             ver->val_1, ver->val_2, ver->val_3, ver->val_4, bits);
 
-
-  *p = '\0';
-  for (d = num = 0; d < MAX_INDEXED; d++)
+  if (Everything_IsDBBusy())
+     strcpy (buf, "busy indexing");
+  else
   {
-    if (SendMessage(wnd, WM_USER, EVERYTHING_IPC_IS_NTFS_DRIVE_INDEXED, d))
+    *p = '\0';
+    for (d = num = 0; d < MAX_INDEXED; d++)
     {
-      p += sprintf (p, "%c: ", d+'A');
-      num++;
+      if (SendMessage(wnd, WM_USER, EVERYTHING_IPC_IS_NTFS_DRIVE_INDEXED, d))
+      {
+        p += sprintf (p, "%c: ", d + 'A');
+        indexed |= (1 << d);
+        num++;
+      }
     }
+    if (num == 0)
+       strcpy (buf, "<none>!");
   }
 
-  if (num == 0)
-     strcpy (buf, "<none> (busy indexing?)");
   C_printf ("  These drives are indexed: ~3%s~0\n", buf);
+
+  for (d = 0; d < MAX_INDEXED; d++)
+      if (indexed & (1 << d))
+         print_fs_type (d);
 }
 
 /**
@@ -556,6 +577,7 @@ static int show_help (void)
           "        envtool ~6--evry~0 ~3*.cpp~0 soundex:deamon               - find all *.cpp files that ~3Soundex~0 matches ~3deamon~0, ~3daemon~0 or even ~3domain~0.\n"
           "        envtool ~6--evry~0 ~3Makefile.am~0 content:pod2man        - find all ~3Makefile.am~0 containing ~3pod2man~0.\n"
           "        envtool ~6--evry~0 ~3M*.mp3~0 artist:Madonna \"year:<2002\" - find all Madonna ~3M*.mp3~0 titles issued prior to 2002.\n"
+          "        envtool ~6--evry~0 ~3-Ds .vs~0                            - find the size occupied in all ~3.vs~0 directories.\n"
           "\n"
           "      Ref: https://www.voidtools.com/support/everything/recent_changes/\n"
           "           https://www.voidtools.com/support/everything/searching/#functions\n"
@@ -1443,7 +1465,7 @@ static int report_registry (const char *reg_key)
       match = fnmatch (opt.file_spec, arr->fname, fnmatch_case(0));
       if (match == FNM_MATCH)
       {
-        struct report r;
+        report r;
 
         snprintf (fqfn, sizeof(fqfn), "%s%c%s", arr->path, DIR_SEP, arr->real_fname);
         memset (&r, '\0', sizeof(r));
@@ -1640,7 +1662,7 @@ int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
     {
       if (regex_match(fqfn) && safe_stat(fqfn, &st, NULL) == 0)
       {
-        struct report r;
+        report r;
 
         r.file        = fqfn;
         r.content     = opt.grep.content;
@@ -1711,7 +1733,7 @@ int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
 
     if (match == FNM_MATCH && safe_stat(file, &st, NULL) == 0)
     {
-      struct report r;
+      report r;
 
       r.file        = file;
       r.content     = opt.grep.content;
@@ -1846,8 +1868,8 @@ static const char *get_sysnative_file (const char *file, struct stat *st)
  */
 static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, bool *is_shadow)
 {
-  struct stat   st;
-  struct report r;
+  struct stat st;
+  report      r;
   bool        is_dir = false;
   const char *file2;
   size_t      len = strlen (file);

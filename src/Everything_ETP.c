@@ -348,7 +348,7 @@ static void report_file_ept (struct state_CTX *ctx, const char *name, bool is_di
        ETP_num_evry_dups++;
     else
     {
-      struct report r;
+      report r;
 
       memset (&r, '\0', sizeof(r));
       r.file   = full_name;

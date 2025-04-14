@@ -203,7 +203,7 @@ bool get_actual_filename (char **file_p, bool allocated)
 
 
 #if defined(GET_FILE_ASSOC_TEST)
-struct prog_options opt;
+prog_options opt;
 
 char *searchpath (const char *file, const char *env_var)
 {

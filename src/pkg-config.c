@@ -292,7 +292,7 @@ int pkg_config_get_details (const char *pc_file, const char *filler)
   return (1);
 }
 
-int pkg_config_get_details2 (struct report *r)
+int pkg_config_get_details2 (report *r)
 {
   return pkg_config_get_details (r->file, r->filler);
 }

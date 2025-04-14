@@ -1812,13 +1812,13 @@ static bool check_bitness (python_info *pi, char **needed_bits)
  */
 static int report_zip_file (const char *zip_file, char *output)
 {
-  struct tm     tm;
-  struct report r;
-  const  char *space, *p, *file_within_zip;
-  char   *q, report [1024];
-  int    num;
-  time_t mtime;
-  long   fsize;
+  struct tm   tm;
+  report      r;
+  const char *space, *p, *file_within_zip;
+  char       *q, report [1024];
+  int         num;
+  time_t      mtime;
+  long        fsize;
 
   space = strrchr (output, ' ');
   if (!space)

@@ -351,7 +351,7 @@ const char *file_descr_get (const char *file_dir)
 }
 
 #if defined(DESCRIPTION_TEST) || defined(__DOXYGEN__)
-struct prog_options opt;
+prog_options opt;
 
 static void test_init (int argc, char **argv)
 {
