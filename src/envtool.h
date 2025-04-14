@@ -342,83 +342,83 @@ typedef struct grep_info {
         int     only;          /**< Show file(s) that only matches 'content' (not yet). */
       } grep_info;
 
-/** struct prog_options
+/**\typedef prog_options
  *
  * All vital program options are set here.
  *
  * Set by `parse_cmdline()` the handlers `set_short_option()` and `set_short_option()`.<br>
  * The handler(s) in `cfg_init()` also sets these program-options.
  */
-struct prog_options {
-       int             debug;
-       int             verbose;
-       int             quiet;
-       int             fatal_flag;
-       int             quotes_warn;
-       int             no_cwd;
-       int             show_unix_paths;
-       int             show_owner;
-       smartlist_t    *owners;
-       int             show_descr;
-       int             decimal_timestamp;
-       int             no_sys_env;
-       int             no_usr_env;
-       int             no_app_path;
-       int             no_colours;
-       int             no_ansi;
-       int             use_cache;
-       int             use_regex;
-       int             use_buffered_io;
-       int             use_nonblock_io;
-       int             dir_mode;
-       int             lua_mode;
-       int             man_mode;
-       int             PE_check;
-       SignStatus      signed_status;
-       int             show_size;
-       int             only_32bit;
-       int             only_64bit;
-       int             gcc_no_prefixed;
-       int             no_gcc;
-       int             no_gpp;
-       int             no_watcom;
-       int             no_borland;
-       int             no_clang;
-       int             no_intel;
-       int             no_msvc;
-       int             do_tests;
-       int             do_evry;
-       int             do_version;
-       int             do_path;
-       int             do_lib;
-       int             do_include;
-       int             do_python;
-       int             do_man;
-       int             do_cmake;
-       int             do_lua;
-       int             do_pkg;
-       int             do_vcpkg;
-       int             do_check;
-       int             do_help;
-       int             case_sensitive;
-       int             keep_temp;          /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
-       bool            under_conemu;       /**< true if running under ConEmu console-emulator */
-       bool            under_winterm;      /**< true if running under WindowsTerminal */
-       bool            under_appveyor;     /**< true if running under AppVeyor */
-       bool            under_github;       /**< true if running under Github Actions */
-       enum SortMethod sort_methods [10];  /**< the specified sort methods */
-       bool            evry_raw;           /**< use raw non-regex searches */
-       UINT            evry_busy_wait;     /**< max number of seconds to wait for a busy EveryThing */
-       smartlist_t    *evry_host;
-       char           *file_spec;
-       beep_info       beep;
-       command_line    cmd_line;
-       void           *cfg_file;           /**< The config-file structure returned by `cfg_init()`. */
-       ULONGLONG       shadow_dtime;       /**< The files delta-time to ignore in `is_shadow_candidate()`. */
-       grep_info       grep;
-     };
+typedef struct prog_options {
+        int             debug;
+        int             verbose;
+        int             quiet;
+        int             fatal_flag;
+        int             quotes_warn;
+        int             no_cwd;
+        int             show_unix_paths;
+        int             show_owner;
+        smartlist_t    *owners;
+        int             show_descr;
+        int             decimal_timestamp;
+        int             no_sys_env;
+        int             no_usr_env;
+        int             no_app_path;
+        int             no_colours;
+        int             no_ansi;
+        int             use_cache;
+        int             use_regex;
+        int             use_buffered_io;
+        int             use_nonblock_io;
+        int             dir_mode;
+        int             lua_mode;
+        int             man_mode;
+        int             PE_check;
+        SignStatus      signed_status;
+        int             show_size;
+        int             only_32bit;
+        int             only_64bit;
+        int             gcc_no_prefixed;
+        int             no_gcc;
+        int             no_gpp;
+        int             no_watcom;
+        int             no_borland;
+        int             no_clang;
+        int             no_intel;
+        int             no_msvc;
+        int             do_tests;
+        int             do_evry;
+        int             do_version;
+        int             do_path;
+        int             do_lib;
+        int             do_include;
+        int             do_python;
+        int             do_man;
+        int             do_cmake;
+        int             do_lua;
+        int             do_pkg;
+        int             do_vcpkg;
+        int             do_check;
+        int             do_help;
+        int             case_sensitive;
+        int             keep_temp;          /**< cmd-line `-k`; do not delete any temporary files from `popen_run_py()` */
+        bool            under_conemu;       /**< true if running under ConEmu console-emulator */
+        bool            under_winterm;      /**< true if running under WindowsTerminal */
+        bool            under_appveyor;     /**< true if running under AppVeyor */
+        bool            under_github;       /**< true if running under Github Actions */
+        enum SortMethod sort_methods [10];  /**< the specified sort methods */
+        bool            evry_raw;           /**< use raw non-regex searches */
+        UINT            evry_busy_wait;     /**< max number of seconds to wait for a busy EveryThing */
+        smartlist_t    *evry_host;
+        char           *file_spec;
+        beep_info       beep;
+        command_line    cmd_line;
+        void           *cfg_file;           /**< The config-file structure returned by `cfg_init()`. */
+        ULONGLONG       shadow_dtime;       /**< The files delta-time to ignore in `is_shadow_candidate()`. */
+        grep_info       grep;
+      } prog_options;
 
-extern struct prog_options opt;
+extern prog_options opt;
 extern char  *program_name;       /* used by getopt_long.c */
 
 extern bool have_sys_native_dir, have_sys_wow64_dir;
@@ -433,7 +433,7 @@ extern int  path_separator;
 
 extern void incr_total_size (UINT64 size);
 
-extern int report_file (struct report *r);
+extern int report_file (report *r);
 
 extern int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
                         bool is_dir, bool exp_ok, const char *prefix, HKEY key);
@@ -782,7 +782,7 @@ typedef struct FMT_buf {
 #define BUF_INIT(fmt_buf, size, use_heap) do {                    \
         DWORD   *_marker;                                         \
         FMT_buf *_buf = fmt_buf;                                  \
-        size_t    _sz = size + 2*sizeof(DWORD);                   \
+        size_t   _sz = size + 2*sizeof(DWORD);                    \
                                                                   \
         _buf->on_heap = use_heap;                                 \
         _buf->buffer  = use_heap ? MALLOC (_sz) : alloca (_sz);   \
@@ -790,11 +790,11 @@ typedef struct FMT_buf {
         *_marker = FMT_BUF_MARKER;                                \
         _marker  = (DWORD*) (_buf->buffer + _sz - sizeof(DWORD)); \
         *_marker = FMT_BUF_MARKER;                                \
-        _buf->buffer_start  = _buf->buffer + sizeof(DWORD);       \
-        _buf->buffer_pos    = _buf->buffer_start;                 \
-        _buf->buffer_size   = size;                               \
-        _buf->buffer_left   = size;                               \
-        _buf->buffer_pos[0] = '\0';                               \
+        _buf->buffer_start   = _buf->buffer + sizeof(DWORD);      \
+        _buf->buffer_pos     = _buf->buffer_start;                \
+        _buf->buffer_size    = size;                              \
+        _buf->buffer_left    = size;                              \
+        _buf->buffer_pos [0] = '\0';                              \
       } while (0)
 
 #define BUF_FREE(fmt_buf) do {   \
