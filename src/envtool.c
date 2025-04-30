@@ -441,6 +441,10 @@ static int show_version (void)
     C_printf ("  ConEmu:     %sdetected.\n", opt.under_conemu ? "" : "not ");
     if (clang)
        C_printf ("  clang-ver:  %s.\n", clang);
+
+    C_puts   ("  CET-Info:   ");
+    print_user_cet_info();
+
     C_puts   ("  CPU-Info:   ");
     print_core_temp_info();
 

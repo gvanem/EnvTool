@@ -615,6 +615,7 @@ extern bool        is_user_admin (void);
 extern bool        is_user_admin2 (void);
 extern int         is_cygwin_tty (int fd);
 extern bool        print_core_temp_info (void);
+extern bool        print_user_cet_info (void);
 extern void        spinner_start (void);
 extern void        spinner_stop (void);
 extern void        spinner_pause (bool on_off);

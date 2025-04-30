@@ -2646,7 +2646,7 @@ const char *get_user_name (void)
 
   typedef BOOL (WINAPI *func_GetUserNameEx) (int format, char *user, ULONG *user_len);
   func_GetUserNameEx  p_GetUserNameEx;
-  static char         user[100] = { "?" };
+  static char         user [100] = { "?" };
   ULONG               ulen = sizeof(user);
   HMODULE             secur32;
 
@@ -2670,6 +2670,71 @@ const char *get_user_name (void)
      GetUserName (user, &ulen);
 
   return (user);
+}
+
+#ifndef USER_CET_ENVIRONMENT_WIN32_PROCESS
+#define USER_CET_ENVIRONMENT_WIN32_PROCESS  0x00000000UL
+#endif
+
+#ifndef USER_CET_ENVIRONMENT_SGX2_ENCLAVE
+#define USER_CET_ENVIRONMENT_SGX2_ENCLAVE  0x00000002UL
+#endif
+
+#ifndef USER_CET_ENVIRONMENT_VBS_ENCLAVE
+#define USER_CET_ENVIRONMENT_VBS_ENCLAVE  0x00000010UL
+#endif
+
+#ifndef USER_CET_ENVIRONMENT_VBS_BASIC_ENCLAVE
+#define USER_CET_ENVIRONMENT_VBS_BASIC_ENCLAVE  0x00000011UL
+#endif
+
+/**
+ * Check and print info on:
+ * "user-mode Hardware-enforced Stack Protection is available for the specified environment."
+ * CET == Control-flow Enforcement Technology
+ *
+ * \ref
+ *   https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-isusercetavailableinenvironment
+ *   https://learn.microsoft.com/en-us/cpp/build/reference/cetcompat?view=msvc-170
+ */
+bool print_user_cet_info (void)
+{
+  typedef BOOL (WINAPI *func_IsUserCetAvailableInEnvironment) (DWORD);
+  func_IsUserCetAvailableInEnvironment p_IsUserCetAvailableInEnvironment;
+
+  HMODULE kernel32 = LoadLibrary ("kernel32.dll");
+  size_t  i;
+  static const search_list cet_values[] = {
+               ADD_VALUE (USER_CET_ENVIRONMENT_WIN32_PROCESS),
+               ADD_VALUE (USER_CET_ENVIRONMENT_SGX2_ENCLAVE),
+               ADD_VALUE (USER_CET_ENVIRONMENT_VBS_ENCLAVE),
+               ADD_VALUE (USER_CET_ENVIRONMENT_VBS_BASIC_ENCLAVE)
+             };
+
+  if (!kernel32)
+  {
+    C_puts ("Fail to load `kernel32.dll`!");
+    return (false);
+  }
+
+  p_IsUserCetAvailableInEnvironment = GETPROCADDRESS (func_IsUserCetAvailableInEnvironment,
+                                                      kernel32, "IsUserCetAvailableInEnvironment");
+  if (!p_IsUserCetAvailableInEnvironment)
+  {
+    C_puts ("Funtion `kernel32!IsUserCetAvailableInEnvironment()` not present\n");
+    FreeLibrary (kernel32);
+    return (false);
+  }
+
+  for (i = 0; i < DIM(cet_values); i++)
+  {
+    BOOL rc = (*p_IsUserCetAvailableInEnvironment) (cet_values[i].value);
+
+    C_printf ("%s~6%-38s~0 -> %d.\n",
+              i > 0 ? "              " : "", cet_values[i].name, rc);
+  }
+  FreeLibrary (kernel32);
+  return (true);
 }
 
 /**
