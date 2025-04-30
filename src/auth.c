@@ -148,19 +148,19 @@ static const login_info *common_lookup (const char *host, enum login_source src)
 static void netrc_parse (smartlist_t *sl, const char *line)
 {
   login_info *li = NULL;
-  char   host [256];
-  char   user [50];
-  char   passw[50];
+  char        host [256];
+  char        user [50];
+  char        passw [50];
   const char *fmt1 = "machine %256s login %50s password %50s";
   const char *fmt2 = "default login %50s password %50s";
 
   if (sscanf(line, fmt1, host, user, passw) == 3)
   {
     li = CALLOC (1, sizeof(*li));
-    li->host     = STRDUP (host);
-    li->user     = STRDUP (user);
-    li->passw    = STRDUP (passw);
-    li->src      = LOGIN_NETRC;
+    li->host  = STRDUP (host);
+    li->user  = STRDUP (user);
+    li->passw = STRDUP (passw);
+    li->src   = LOGIN_NETRC;
   }
   else if (sscanf(line, fmt2, user, passw) == 2)
   {
@@ -183,10 +183,10 @@ static void netrc_parse (smartlist_t *sl, const char *line)
 static void authinfo_parse (smartlist_t *sl, const char *line)
 {
   login_info *li = NULL;
-  char   host [256];
-  char   user [50];
-  char   passw[50];
-  int    port = 0;
+  char        host [256];
+  char        user [50];
+  char        passw [50];
+  int         port = 0;
   const char *fmt1 = "machine %256s port %d login %50s password %50s";
   const char *fmt2 = "default port %d login %50s password %50s";
 
@@ -224,7 +224,7 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
 bool auth_envtool_handler (const char *section, const char *key, const char *value)
 {
   char user [256];
-  char passw[256];
+  char passw [256];
   int  port = 0;
   int  num = sscanf (value, "%255[^ /] / %255[^ /] / port %d", user, passw, &port);
 
@@ -235,11 +235,11 @@ bool auth_envtool_handler (const char *section, const char *key, const char *val
     if (!login_list[LOGIN_ENVTOOL_CFG])
        login_list [LOGIN_ENVTOOL_CFG] = smartlist_new();
 
-    li->host     = STRDUP (key);
-    li->user     = STRDUP (user);
-    li->passw    = STRDUP (passw);
-    li->port     = port;
-    li->src      = LOGIN_ENVTOOL_CFG;
+    li->host  = STRDUP (key);
+    li->user  = STRDUP (user);
+    li->passw = STRDUP (passw);
+    li->port  = port;
+    li->src   = LOGIN_ENVTOOL_CFG;
     TRACE (2, "num: %d, host: '%s', user: '%s', passwd: '%s', port: %d.\n", num, li->host, li->user, li->passw, li->port);
     smartlist_add (login_list[LOGIN_ENVTOOL_CFG], li);
   }
