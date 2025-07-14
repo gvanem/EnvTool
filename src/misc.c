@@ -247,6 +247,7 @@ void init_misc (void)
     p_ExpandEnvironmentStringsForUserA = GETPROCADDRESS (func_ExpandEnvironmentStringsForUserA,
                                                          userenv_hnd,
                                                          "ExpandEnvironmentStringsForUserA");
+
     p_CreateEnvironmentBlock = GETPROCADDRESS (func_CreateEnvironmentBlock,
                                                userenv_hnd,
                                                "CreateEnvironmentBlock");
@@ -2696,6 +2697,7 @@ const char *get_user_name (void)
  * \ref
  *   https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-isusercetavailableinenvironment
  *   https://learn.microsoft.com/en-us/cpp/build/reference/cetcompat?view=msvc-170
+ *   https://github.com/474172261/windows-CET
  */
 bool print_user_cet_info (void)
 {
@@ -2726,12 +2728,17 @@ bool print_user_cet_info (void)
     return (false);
   }
 
+  DWORD64 mask [2] = { 0, 0 };
+
+  if (!GetProcessMitigationPolicy(GetCurrentProcess(), ProcessMitigationOptionsMask, mask, sizeof(mask)))
+       C_printf ("~6GetProcessMitigationPolicy():~0 %s\n", win_strerror (GetLastError()));
+  else C_printf ("~6GetProcessMitigationPolicy():~0 0x%016llX, 0x%016llX\n", mask[0], mask[1]);
+
   for (i = 0; i < DIM(cet_values); i++)
   {
     BOOL rc = (*p_IsUserCetAvailableInEnvironment) (cet_values[i].value);
 
-    C_printf ("%s~6%-38s~0 -> %d.\n",
-              i > 0 ? "              " : "", cet_values[i].name, rc);
+    C_printf ("              ~6%-38s~0 -> %d.\n", cet_values[i].name, rc);
   }
   FreeLibrary (kernel32);
   return (true);
@@ -4424,7 +4431,7 @@ bool getenv_system (smartlist_t **sl)
 {
   void          *env_blk;
   smartlist_t   *list;
-  const wchar_t *e;
+  const wchar_t *env;
 
   init_misc();
 
@@ -4433,33 +4440,39 @@ bool getenv_system (smartlist_t **sl)
 
   if (!p_CreateEnvironmentBlock || !p_DestroyEnvironmentBlock)
   {
-    TRACE (1, "p_CreateEnvironmentBlock and/or p_DestroyEnvironmentBlock not available.\n");
+    TRACE (1, "'CreateEnvironmentBlock()' and/or 'DestroyEnvironmentBlock()' not available.\n");
     return (false);
   }
 
   if (!(*p_CreateEnvironmentBlock)(&env_blk, NULL, FALSE) || !env_blk)
   {
-    TRACE (1, "CreateEnvironmentBlock() failed: %s.\n", win_strerror(GetLastError()));
+    TRACE (1, "'CreateEnvironmentBlock()' failed: %s.\n", win_strerror(GetLastError()));
     return (false);
   }
 
   list = smartlist_new();
-  e = env_blk;
+  env = env_blk;
 
+  /* Loop over `env_blk`.
+   * The block ends with two nulls (\0\0).
+   */
   while (1)
   {
-    size_t len = 1 + wcslen (e);
-    char  *str = MALLOC (len);
+    size_t len = 1 + wcslen (env);
+    char  *str = MALLOC (2*len);
 
-    TRACE (2, "e: '%" WIDESTR_FMT "'.\n", e);
-    if (!wchar_to_mbchar(str, len, e))
+    if (!wchar_to_mbchar(str, 2*len, env))
     {
       FREE (str);
       break;
     }
+
+    str [len-1] = '\0';
     smartlist_add (list, str);
-    e += 1 + wcslen (e);
-    if (!e[0])
+    TRACE (2, "str: '%s'.\n", str);
+
+    env += 1 + wcslen (env);
+    if (!env[0])
        break;
   }
 
