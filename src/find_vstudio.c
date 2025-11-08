@@ -42,6 +42,11 @@
  *   https://msdn.microsoft.com/en-us/library/windows/desktop/dd387925%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396
  *
  * for an example of 'ActiveX-Components in plain C'.
+ *
+ * Look at
+ *   https://stackoverflow.com/questions/2187425/how-do-i-use-a-com-dll-with-loadlibrary-in-c
+ *
+ * for an example on using `DllGetClassObject()` directly.
  */
 
 static CLSID CLSID_SetupConfiguration;
@@ -80,6 +85,15 @@ static void build_GUIDs (void)
    *   HKEY_CLASSES_ROOT\CLSID\{D84C3A54-4501-436D-B4F9-750E5F727802}
    *
    * HKEY_CLASSES_ROOT\CLSID\{177F0C4A-1CD3-4DE7-A32C-71DBBB9FA36D}\InprocServer32 ->
+   *   c:\ProgramData\Microsoft\VisualStudio\Setup\x64\Microsoft.VisualStudio.Setup.Configuration.Native.dll
+   *
+   * HKEY_CLASSES_ROOT\WOW6432Node\CLSID\{177F0C4A-1CD3-4DE7-A32C-71DBBB9FA36D}\InprocServer32 ->
+   *   c:\ProgramData\Microsoft\VisualStudio\Setup\x86\Microsoft.VisualStudio.Setup.Configuration.Native.dll
+   *
+   * HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{177F0C4A-1CD3-4DE7-A32C-71DBBB9FA36D}\InprocServer32 ->
+   *   c:\ProgramData\Microsoft\VisualStudio\Setup\x64\Microsoft.VisualStudio.Setup.Configuration.Native.dll
+   *
+   * HKEY_LOCAL_MACHINE\SOFTWARE\Classes\WOW6432Node\CLSID\{177F0C4A-1CD3-4DE7-A32C-71DBBB9FA36D}\InprocServer32 ->
    *   c:\ProgramData\Microsoft\VisualStudio\Setup\x86\Microsoft.VisualStudio.Setup.Configuration.Native.dll
    */
   SET_GUID ("{177F0C4A-1CD3-4DE7-A32C-71DBBB9FA36D}");
@@ -419,7 +433,7 @@ error:
 }
 
 /*
- * HANDLE runtime exceptions inside `Microsoft.VisualStudio.Setup.Configuration.Native.dll`
+ * Handle runtime exceptions inside `Microsoft.VisualStudio.Setup.Configuration.Native.dll`
  */
 static LONG WINAPI handle_exception (EXCEPTION_POINTERS *_exc)
 {
@@ -491,7 +505,8 @@ bool find_vstudio_init (void)
                          CLSCTX_INPROC_SERVER,
                          g_iid,
                          &This);
-  if (FAILED(hr))
+
+  if (FAILED(hr) || !This)
   {
     if (hr == REGDB_E_CLASSNOTREG)
          TRACE (1, "hr: REGDB_E_CLASSNOTREG\n");
@@ -501,12 +516,11 @@ bool find_vstudio_init (void)
   {
     SetUnhandledExceptionFilter (handle_exception);
     rc = find_all_instances (This);
-    SetUnhandledExceptionFilter (NULL);
     if (g_crashinfo)
-    {
-      FREE (g_crashinfo);
-      rc = false;
-    }
+       rc = false;
+
+    FREE (g_crashinfo);
+    SetUnhandledExceptionFilter (NULL);
   }
   TRACE_NL (1);
 
