@@ -30,11 +30,12 @@ static void free_args (char **args)
 
 int main (int argc, char **argv)
 {
-  char  my_dir  [_MAX_PATH] = "?";
-  char  dirlist [_MAX_PATH + 100];
-  char *end, *args [5];
-  int   i, j, rc;
-  int   debug = (getenv("DU_DEBUG") != NULL);
+  char     my_dir  [_MAX_PATH] = "?";
+  char     dirlist [_MAX_PATH + 100];
+  char    *end, *args [5];
+  int      i, j;
+  intptr_t rc;
+  int      debug = (getenv("DU_DEBUG") != NULL);
 
   GetModuleFileName (NULL, my_dir, sizeof(my_dir));
   end = strrchr (my_dir, '\\');
@@ -56,7 +57,7 @@ int main (int argc, char **argv)
   {
     if (i == DIM(args)-1)
     {
-      fprintf (stderr, "Too many args. Max: %u.\n", DIM(args)-1);
+      fprintf (stderr, "Too many args. Max: %d.\n", DIM(args)-1);
       break;
     }
     args[i] = check_long_name (argv[j]);
@@ -65,6 +66,6 @@ int main (int argc, char **argv)
   }
   rc = _spawnvp (_P_WAIT, dirlist, (char const *const *) args);
   free_args (args + 1);
-  return (rc);
+  return (int) rc;
 }
 

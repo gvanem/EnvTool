@@ -127,10 +127,10 @@ static int pfx_next_idx = -1;
  * The second parameter could be `" -m32"` or `" -m64"` for a dual-mode GCC program.
  * The other parameters are always for `"NUL"` or `"/dev/null"`.
  */
-#define INC_DUMP_FMT_GCC          "%s%s -o %s -v -dM -xc -c - < %s 2>&1"            /**< For `gcc.exe` or `g++.exe`*/
-#define INC_DUMP_FMT_CLANG        "%s%s -o %s -v -dM -xc -c - < %s 2>&1"            /**< For `clang.exe` */
-#define INC_DUMP_FMT_INTEL_DPCPP  "%s%s -o %s -v -dM -xc++ -c -Tc - < %s 2>&1"      /**< For `dpcpp.exe` */
-#define INC_DUMP_FMT_INTEL_ICX    "%s%s -o %s -v -dM -xc   -c -Tc - < %s 2>&1"      /**< For `icx.exe` */
+#define INC_DUMP_FMT_GCC          "%s%s -o %s -v -dM -xc -c - < NUL 2>&1"          /**< For `gcc.exe` or `g++.exe`*/
+#define INC_DUMP_FMT_CLANG        "%s%s -o %s -v -dM -xc -c - < NUL 2>&1"          /**< For `clang.exe` */
+#define INC_DUMP_FMT_INTEL_DPCPP  "%s%s -o %s -v -dM -xc++ -c -Tc - < NUL 2>&1"    /**< For `dpcpp.exe` */
+#define INC_DUMP_FMT_INTEL_ICX    "%s%s -o %s -v -dM -xc   -c -Tc - < NUL 2>&1"    /**< For `icx.exe` */
 
 /**
  * Formats for dumping built-in library paths in GCC and LLVM based compilers.
@@ -1016,7 +1016,7 @@ static int GCC_LLVM_setup_include_path (const compiler_info *cc)
     }
 
     found = popen_run (GCC_LLVM_find_include_path_cb, cc->full_name, cc->setup_include_fmt,
-                       save_temps, "", DEV_NULL, DEV_NULL);
+                       save_temps, "");
 
     if (cc->type == CC_INTEL)
     {
@@ -1850,7 +1850,20 @@ static const char *gcc_version (void)
 const char *compiler_clang_version (void)
 {
 #if defined(__clang_version__)
-  return (__clang_version__);
+  static char buf [100];
+  char * p;
+
+  strncpy (buf, __clang_version__, sizeof(buf)-1);
+  p = strchr (buf, ' ');
+  /*
+   * Could be:
+   *  __clang_version__ "20.1.2 (https://github.com/ziglang/zig-bootstrap 773262ed5104b4a5d585b6804562b3a6f395e6a1)"
+   *
+   * Or some other trailing space. Hence remove that.
+   */
+  if (p)
+     *p = '\0';
+  return (buf);
 #else
   return (NULL);
 #endif
@@ -1982,13 +1995,10 @@ static char cc_info_buf [100];
 /**
  * Print the CFLAGS and LDFLAGS we were built with.
  * Called in `show_version()` when `envtool -VV` was used.
- *
- * On a `make depend` (`DOING_MAKE_DEPEND` is defined), do not
- * add the above generated files to the dependency output.
  */
 void compiler_print_build_cflags (void)
 {
-#if defined(CFLAGS) && !defined(DOING_MAKE_DEPEND)
+#if defined(CFLAGS)
   #include CFLAGS
   C_puts ("\n    ");
   C_puts_long_line (cflags, 4);
@@ -1999,7 +2009,7 @@ void compiler_print_build_cflags (void)
 
 void compiler_print_build_ldflags (void)
 {
-#if defined(LDFLAGS) && !defined(DOING_MAKE_DEPEND)
+#if defined(LDFLAGS)
   #include LDFLAGS
   C_puts ("\n    ");
   C_puts_long_line (ldflags, 4);

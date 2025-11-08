@@ -166,19 +166,19 @@ static void file_descr_parse (smartlist_t *sl, const char *buf)
   char  file [_MAX_PATH]  = "?";
   char  descr [MAX_DESCR] = "?";
   const char *p = buf;
-  int   i;
+  size_t      i;
 
   if (*p == '"')
   {
     p++;
-    for (i = 0; i < sizeof(file)-2 && *p && *p != '"'; p++)
-        file[i++] = *p;
+    for (i = 0; i < sizeof(file) - 2 && *p && *p != '"'; p++)
+        file [i++] = *p;
     p++;
   }
   else
   {
-    for (i = 0 ; i < sizeof(file)-1 && *p && !isspace((int)*p); p++)
-        file[i++] = *p;
+    for (i = 0 ; i < sizeof(file) - 1 && *p && !isspace((int)*p); p++)
+        file [i++] = *p;
   }
   file[i] = '\0';
 
@@ -189,9 +189,9 @@ static void file_descr_parse (smartlist_t *sl, const char *buf)
   {
     if (*p == '\0' || *p == '\r' || *p == '\n')
        break;
-    descr[i++] = *p;
+    descr [i++] = *p;
   }
-  descr[i] = '\0';
+  descr [i] = '\0';
 
   /* Do not add an entry for a `DESCRIPT.ION` file.
    */
@@ -232,10 +232,6 @@ static const char *file_descr_lookup (const smartlist_t *sl, const char *file_di
   }
   return (NULL);
 }
-
-#if defined(__GNUC__) && (__GNUC__ >= 7)
-// #pragma GCC diagnostic ignored "-Wformat-truncation"
-#endif
 
 /**
  * Allocate a new smartlist `struct descr_dir` element for this directory.

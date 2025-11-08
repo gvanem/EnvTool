@@ -48,7 +48,7 @@ extern int C_use_fwrite;
 #endif
 
 extern int C_printf (_Printf_format_string_ const char *fmt, ...)
-  #if defined(__GNUC__) || defined(__clang__)
+  #if defined(__clang__)
     __attribute__ ((format(printf,1,2)))
   #endif
    ;

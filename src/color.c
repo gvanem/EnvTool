@@ -33,32 +33,8 @@
 #include <io.h>
 #include <windows.h>
 
-/**
- * \note
- *   We do not depend on other local .h-files other than "color.h".
- *   Thus it's easy to use this module in other projects.
- */
+#include "envtool.h"
 #include "color.h"
-
-#if defined(_MSC_VER) && (_MSC_VER <= 1800)
-  #define snprintf  _snprintf
-#endif
-
-#if defined(_MSC_VER) && defined(_DEBUG)
-  #include <crtdbg.h>
-
-  /* Use this in `FATAL()` to` avoid huge report of leaks from CrtDbg.
-   */
-  #define CRTDBG_CHECK_OFF()                                  \
-          do {                                                \
-            int state = _CrtSetDbgFlag (_CRTDBG_REPORT_FLAG); \
-            state &= ~_CRTDBG_LEAK_CHECK_DF;                  \
-            _CrtSetDbgFlag (state);                           \
-          } while (0)
-#else
-  #define CRTDBG_CHECK_OFF()
-#endif
-
 
 /** From Windows-Kit's <ctype.h> comment:
  *   The C Standard specifies valid input to a ctype function ranges from -1 to 255.
@@ -67,17 +43,6 @@
 
 #define loBYTE(w)     (BYTE)(w)
 #define hiBYTE(w)     (BYTE)((WORD)(w) >> 8)
-#define DIM(x)        (int) (sizeof(x) / sizeof((x)[0]))
-
-#define FATAL(fmt, ...)  do {                                        \
-                           fprintf (stderr, "\nFATAL: %s(%u): " fmt, \
-                                    __FILE__, __LINE__,              \
-                                    ## __VA_ARGS__);                 \
-                           CRTDBG_CHECK_OFF();                       \
-                           if (IsDebuggerPresent())                  \
-                                abort();                             \
-                           else ExitProcess (GetCurrentProcessId()); \
-                         } while (0)
 
 static int c_trace = -1;
 extern int is_cygwin_tty (int fd);
@@ -341,6 +306,7 @@ int C_setbin (int bin)
  */
 void C_exit (void)
 {
+  TRACE (1, "%s() called.\n", __FUNCTION__);
   C_reset();
 
   if (c_out)
@@ -654,6 +620,7 @@ int C_putc (int ch)
   static bool get_color = false;
   int    i, rc = 0;
 
+  assert (c_out); // && c_out->_Placeholder);
   assert (c_head);
   assert (c_tail);
   assert (c_head >= c_buf);
@@ -671,10 +638,10 @@ int C_putc (int ch)
 
       i = ch - '0';
       if (i >= 0 && i < DIM(colour_map))
-        color = colour_map [i];
+         color = colour_map [i];
       else
-        FATAL ("Illegal color index %d ('%c'/0x%02X) in c_buf: '%.*s'\n",
-               i, ch, ch, (int)(c_head - c_buf), c_buf);
+         FATAL ("Illegal color index %d ('%c'/0x%02X) in c_buf: '%.*s'\n",
+                i, ch, (unsigned int)ch, (int)(c_head - c_buf), c_buf);
 
       C_flush();
       C_set_colour (color);
