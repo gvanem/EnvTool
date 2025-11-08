@@ -83,7 +83,7 @@ exit /b 1
   .\envtool --vcpkg=all azure-u*
 
   @call :green_msg Testing ETP-searches (should fail):
-  .\envtool -d --test --evry:ftp.github.com:21
+  .\envtool -d --evry:ftp.github.com:21 abc*
 
   @call :green_msg Testing verbose check output:
   .\envtool --check --verbose
@@ -102,7 +102,7 @@ exit /b 1
 :: Create a '<root>\.netrc' and '<root>\.authinfo' files for testing of 'src/auth.c' functions
 ::
 :create_auth_files
-  @call :green_msg Creating '%APPDATA%/.netrc'.
+  @call :green_msg Creating %APPDATA%/.netrc:
   echo #                                                                     > .netrc
   echo # This .netrc file was generated from "appveyor-script.bat".         >> .netrc
   echo #                                                                    >> .netrc
@@ -110,7 +110,7 @@ exit /b 1
   echo machine host2  login user2     password password2                    >> .netrc
   echo default        login anonymous password your@email.address           >> .netrc
 
-  @call :green_msg Creating '%APPDATA%/.authinfo'.
+  @call :green_msg Creating %APPDATA%/.authinfo:
   echo #                                                                     > .authinfo
   echo # This .authinfo file was generated from "appveyor-script.bat".      >> .authinfo
   echo #                                                                    >> .authinfo
