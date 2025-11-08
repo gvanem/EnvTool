@@ -53,9 +53,7 @@
 #include "compiler.h"
 
 #ifdef USE_EVERYTHING3
-  #include "Everything3.h"
-#else
-  #define EVERYTHING3_CLIENT void
+#include "Everything3.h"
 #endif
 
 /**
@@ -116,7 +114,9 @@ static enum Bitness evry_bitness = bit_unknown;
 static LRESULT      evry_service = -1;
 static LRESULT      evry_machine = -1;  /* EVERYTHING_IPC_TARGET_MACHINE_* */
 
-static EVERYTHING3_CLIENT *client3 = NULL;
+#ifdef USE_EVERYTHING3
+static EVERYTHING3_CLIENT *g_client3 = NULL;
+#endif
 
 static void get_evry_bitness (HWND wnd);
 
@@ -2103,8 +2103,8 @@ static int do_check_evry3 (void)
   EVERYTHING3_SEARCH_STATE *search = NULL;
   EVERYTHING3_RESULT_LIST  *result = NULL;
 
-  client3 = Everything3_Connect (NULL);
-  if (!client3)
+  g_client3 = Everything3_Connect (NULL);
+  if (!g_client3)
   {
     err = Everything3_GetLastError();
     WARN ("Failed to connect to Everything3: %s\n", evry_strerror(err));
@@ -2126,7 +2126,7 @@ static int do_check_evry3 (void)
   err = Everything3_GetLastError();
   TRACE (2, "query: '%s', error: %s\n", query, evry_strerror(err));
 
-  result = Everything3_Search (client3, search);
+  result = Everything3_Search (g_client3, search);
   err = Everything3_GetLastError();
   TRACE (2, "error: %s\n", evry_strerror(err));
 
@@ -2202,10 +2202,10 @@ quit:
   if (search)
      Everything3_DestroySearchState (search);
 
-  if (client3)
-     Everything3_DestroyClient (client3);
+  if (g_client3)
+     Everything3_DestroyClient (g_client3);
 
-  client3 = NULL;
+  g_client3 = NULL;
   return (found);
 }
 #endif  /* USE_EVERYTHING3 */
@@ -2475,12 +2475,14 @@ static int do_check_evry (void)
   if (opt.use_evry3)
   {
 #if defined(USE_EVERYTHING3)
+    TRACE (1, "Using 'do_check_evry3()'\n");
     return do_check_evry3();
 #else
     WARN ("envtool.exe was not built with '-DUSE_EVERYTHING3'.\n");
     return (0);
 #endif
   }
+  TRACE (1, "Using 'do_check_evry2()'\n");
   return do_check_evry2();
 }
 
@@ -3160,9 +3162,9 @@ static void MS_CDECL cleanup (void)
   Everything_CleanUp();
 
 #if defined(USE_EVERYTHING3)
-  if (client3)
-     Everything3_DestroyClient (client3);
-  client3 = NULL;
+  if (g_client3)
+     Everything3_DestroyClient (g_client3);
+  g_client3 = NULL;
 #endif
 
   spinner_stop();
@@ -3243,10 +3245,10 @@ static void MS_CDECL halt (int sig)
       Everything_hthread = NULL;
     }
 #if defined(USE_EVERYTHING3)
-    if (client3)
+    if (g_client3)
     {
-      Everything3_DestroyClient (client3);
-      client3 = NULL;
+      Everything3_DestroyClient (g_client3);
+      g_client3 = NULL;
     }
 #endif
   }
