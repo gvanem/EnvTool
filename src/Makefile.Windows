@@ -23,7 +23,7 @@ USE_CRT_STATIC ?= 1
 USE_SQLITE3 ?= 1
 
 #
-# Use wsock_trace library (MSVC/clang-cl/icx only).
+# Use wsock_trace library. Not for 'CC = zig'.
 #
 USE_WSOCK_TRACE ?= 0
 
@@ -36,6 +36,15 @@ USE_FANCY_BAR ?= 0
 # Use 'Address Sanitizer':
 #
 USE_ASAN ?= 0
+
+#
+# Use EveryThing version 3 API in addition to
+# 'EveryThing.c' which is version 2.
+#
+# Refs: https://github.com/voidtools/everything_sdk3
+#       https://www.voidtools.com/forum/viewtopic.php?t=15853
+#
+USE_EVERYTHING3 ?= 0
 
 #
 # Use "Undefined Behavior Sanitizer (UBSan)"?
@@ -86,9 +95,13 @@ else
 endif
 
 ifeq ($(CPU),x64)
-  BITS = 64
+  BITS   = 64
+  SUFFIX = x86_64
+
 else ifeq ($(CPU),x86)
-  BITS = 32
+  BITS   = 32
+  SUFFIX = i386
+
 else
   $(error CPU must be 'x86' or 'x64')
 endif
@@ -143,7 +156,7 @@ INSTALL_BIN = $(realpath $(VSINSTALLDIR))/bin
 
 define Usage
 
-  Usage: "make -f $(THIS_FILE) <CPU=x86|x64> CC=[ cl | clang-cl | icx | zig ] [all | clean | realclean | depend | install | docs]"
+  Usage: "make -f $(THIS_FILE) <CPU=x86|x64> CC=[ cl | clang-cl | icx | zig ] [all | clean | realclean | install | docs]"
   Specify CC=cl       - use MSVC
   Specify CC=clang-cl - use clang-cl
   Specify CC=icx      - use Intel DPC++ compiler (x64 only)
@@ -152,6 +165,11 @@ endef
 
 c_to_obj = $(addprefix $(OBJ_DIR)/$(strip $(2)), \
              $(notdir $(1:.c=.obj)))
+
+#
+# Extra libraries for ASAN and/or UBSAN:
+#
+ASAN_LIBS =
 
 default: all
 
@@ -222,7 +240,9 @@ ifeq ($(CC),zig)
 
   #
   # Without this '-fno-sanitize=undefined' flag, 'zig cc' will generate Illegal instructions in
-  # lots of places. Ref: https://ruoyusun.com/2022/02/27/zig-cc.html
+  # lots of places.
+  #
+  # Ref: https://ruoyusun.com/2022/02/27/zig-cc.html
   #
   CFLAGS += -fno-sanitize=undefined
   LDFLAGS =
@@ -232,12 +252,17 @@ else
   #
   # CFLAGS, LDFLAGS and RCFLAGS for MSVC + clang-cl + icx:
   #
+  # 'link /cetcompat' marks "image as compatible with Control-flow Enforcement Technology (CET) Shadow Stack".
+  #
+  # Ref: https://learn.microsoft.com/en-us/cpp/build/reference/cetcompat?view=msvc-170
+  #
   CFLAGS  = -nologo -Oy- -Zi -Oi -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE
   LDFLAGS = -nologo -subsystem:console -incremental:no -machine:$(CPU) -debug -nodefaultlib:uuid.lib
   RCFLAGS = -nologo -DBITNESS=$(BITS) -DWIN$(BITS)
 
   ifeq ($(CC),clang-cl)
     RCFLAGS += -D__clang__
+    LDFLAGS += -cetcompat
 
   else ifeq ($(CC),icx)
     #
@@ -250,8 +275,11 @@ else
 
     RCFLAGS += -D__INTEL_LLVM_COMPILER
 
+    export IGNORE_LIBS=libircmt.lib svml_dispmd.lib
+
   else
     RCFLAGS += -D_MSC_VER
+    LDFLAGS += -cetcompat
   endif
 
   #
@@ -290,7 +318,10 @@ else
   endif
 
   ifeq ($(CC),cl)
-    CFLAGS += -diagnostics:caret -wd4127 -wd4201 -wd4244 -wd4702
+    CFLAGS += -diagnostics:caret                      \
+              -wd4061 -wd4127 -wd4191 -wd4201 -wd4244 \
+              -wd4255 -wd4668 -wd4702 -wd4774 -wd4820 \
+              -wd4115 -wd5045
   endif
 
   #
@@ -305,20 +336,20 @@ endif   # ifeq ($(CC),zig)
 
 ifeq ($(CC),cl)
   CFLAGS   += -W4
-  LDFLAGS  += -map -verbose
+  LDFLAGS  += -verbose
   OBJ_DIR   = objects/MSVC
   CHECKS    = $(call check_cl)
   _CC       = $(CL_CC)
 
 else ifeq ($(CC),clang-cl)
   CFLAGS  += -ferror-limit=5 -fms-compatibility -m$(BITS)
-  LDFLAGS += -map -verbose
+  LDFLAGS += -verbose
   OBJ_DIR   = objects/clang
   CHECKS    = $(call check_clang)
   _CC       = $(CLANG_CL)
 
 else ifeq ($(CC),icx)
-  LDFLAGS += -map -verbose
+  LDFLAGS += -verbose
   OBJ_DIR   = objects/icx
   CHECKS    = $(call check_icx) $(call check_xilink)
   _CC       = icx.exe
@@ -350,10 +381,11 @@ else
             -D_WIN32_IE=0x800
 endif
 
-CFLAGS += -DWIN32_LEAN_AND_MEAN      \
-          -DEVERYTHINGUSERAPI=       \
-          -DEVERYTHINGAPI=__cdecl    \
-          -I./$(OBJ_DIR)
+CFLAGS += -DWIN32_LEAN_AND_MEAN   \
+          -DEVERYTHINGUSERAPI=    \
+          -DEVERYTHINGAPI=__cdecl \
+          -I./$(OBJ_DIR)          \
+          -Fd./$(OBJ_DIR)/vc14x.pdb
 
 ifeq ($(USE_WSOCK_TRACE),1)
   WS2_32_LIB = wsock_trace-$(CPU).lib
@@ -408,7 +440,11 @@ ifeq ($(USE_ASAN),1)
               -fsanitize-recover=address \
               -Od
 
-    LDFLAGS += -inferasanlibs
+    #
+    # Select the ASAN libraries explicitly.
+    #
+    ASAN_LIBS += $(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows/clang_rt.asan_dynamic-$(SUFFIX).lib \
+                 $(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows/clang_rt.asan_dynamic_runtime_thunk-$(SUFFIX).lib
 
   else ifeq ($(CC),icx)
     CFLAGS += -fsanitize=address \
@@ -429,11 +465,8 @@ ifeq ($(USE_UBSAN),1)
     #
     # Select the UBSAN libraries explicitly.
     #
-    ifeq ($(CPU),x64)
-      LDFLAGS += $(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows/clang_rt.ubsan_standalone-x86_64.lib
-    else
-      LDFLAGS += $(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows/clang_rt.ubsan_standalone-i386.lib
-    endif
+    ASAN_LIBS += $(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows/clang_rt.ubsan_standalone-$(SUFFIX).lib \
+                 $(CLANG_ROOT)/lib/clang/$(CLANG_MAJOR_VER)/lib/windows/clang_rt.asan_dynamic-$(SUFFIX).lib
   endif
 endif
 
@@ -444,18 +477,21 @@ ifeq ($(CC),icx)
   endif
 endif
 
-ifeq ($(CC),cl)
-  USE_Wall := 0
-else
+ifneq ($(CC),cl)
   ifneq ($(CC),zig)
     CFLAGS += -W3
   endif
 
-  CFLAGS += -Wno-unused-function \
-            -Wno-unused-variable \
-            -Wno-format-security \
-            -Wno-varargs         \
-            -Wno-unused-but-set-variable
+  CFLAGS += -Wno-unused-function         \
+            -Wno-unused-variable         \
+            -Wno-format-security         \
+            -Wno-fortify-source          \
+            -Wno-visibility              \
+            -Wno-varargs                 \
+            -Wno-unused-but-set-variable \
+            -Wno-switch-default          \
+            -Wno-covered-switch-default  \
+            -Wno-declaration-after-statement
 endif
 
 #
@@ -466,8 +502,7 @@ ifeq ($(USE_Wall),1)
   CFLAGS += -Wall
 
   ifeq ($(CC),clang-cl)
-    CFLAGS +=
-              -Wno-language-extension-token          \
+    CFLAGS += -Wno-language-extension-token          \
               -Wno-reserved-id-macro                 \
               -Wno-format-non-iso                    \
               -Wno-format-nonliteral                 \
@@ -550,6 +585,13 @@ ifeq ($(USE_SQLITE3),1)
   endif
 endif
 
+ifeq ($(USE_EVERYTHING3),1)
+  CFLAGS += -DUSE_EVERYTHING3 \
+            -DEVERYTHING3_BOOL=bool
+
+  ENVTOOL_SRC += Everything3.c
+endif
+
 DESCRIPTION_SRC    = description.c dirlist.c color.c misc.c searchpath.c smartlist.c
 DIRLIST_SRC        = dirlist.c color.c getopt_long.c misc.c searchpath.c smartlist.c get_file_assoc.c
 GET_FILE_ASSOC_SRC = get_file_assoc.c color.c dirlist.c misc.c smartlist.c
@@ -580,14 +622,14 @@ PROGRAMS = envtool.exe        \
            simple-calc.exe    \
            find_remote_drive_letters.exe
 
-all: $(CHECKS) $(OBJ_DIR) $(GENERATED) $(PROGRAMS) epilogue
+all: $(CHECKS) $(GENERATED) $(PROGRAMS) epilogue
 
 epilogue:
 	$(call green_msg, Welcome to envtool $(BRIGHT_WHITE)(CC=$(CC), $(BITS)-bits).)
 	$(call green_msg, Do a $(BRIGHT_WHITE)make CC=$(CC) -f $(THIS_FILE) install $(BRIGHT_GREEN)at own risk.)
 
 $(OBJ_DIR):
-	- mkdir --parents $@
+	mkdir --parents $@
 
 install: all
 	cp --update envtool.{exe,pdb} $(INSTALL_BIN)
@@ -615,65 +657,65 @@ win_trust.exe:                 OS_LIBS += advapi32.lib crypt32.lib imagehlp.lib 
 win_ver.exe:                   OS_LIBS += advapi32.lib imagehlp.lib
 es_cli.exe:                    OS_LIBS += shell32.lib
 
-envtool.exe: $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res
+envtool.exe: $(ENVTOOL_OBJ) $(OBJ_DIR)/envtool.res $(ASAN_LIBS)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-description.exe: $(DESCRIPTION_OBJ)
+description.exe: $(DESCRIPTION_OBJ) $(ASAN_LIBS)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-dirlist.exe: $(DIRLIST_OBJ)
+dirlist.exe: $(DIRLIST_OBJ) $(ASAN_LIBS)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-du.exe: $(OBJ_DIR)/du.obj
-	$(call link_EXE, $@, $<)
+du.exe: $(OBJ_DIR)/du.obj $(ASAN_LIBS)
+	$(call link_EXE, $@, $^)
 
-win_glob.exe: $(WIN_GLOB_OBJ)
+win_glob.exe: $(WIN_GLOB_OBJ) $(ASAN_LIBS)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-win_trust.exe: $(WIN_TRUST_OBJ)
+win_trust.exe: $(WIN_TRUST_OBJ) $(ASAN_LIBS)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-win_ver.exe: $(WIN_VER_OBJ)
+win_ver.exe: $(WIN_VER_OBJ) $(ASAN_LIBS)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-get_file_assoc.exe: $(GET_FILE_ASSOC_OBJ)
+get_file_assoc.exe: $(GET_FILE_ASSOC_OBJ) $(ASAN_LIBS)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-find_remote_drive_letters.exe: $(FIND_REMOTE_DRIVE_LETTERS_OBJ)
+find_remote_drive_letters.exe: $(FIND_REMOTE_DRIVE_LETTERS_OBJ) $(ASAN_LIBS)
 	$(call link_EXE, $@, $^ $(OS_LIBS))
 
-simple-calc.exe: $(OBJ_DIR)/simple-calc.obj
-	$(call link_EXE, $@, $<)
+simple-calc.exe: $(OBJ_DIR)/simple-calc.obj $(ASAN_LIBS)
+	$(call link_EXE, $@, $^)
 
-es_cli.exe: $(OBJ_DIR)/es_cli.obj
-	$(call link_EXE, $@, $< $(OS_LIBS))
+es_cli.exe: $(OBJ_DIR)/es_cli.obj $(ASAN_LIBS)
+	$(call link_EXE, $@, $^ $(OS_LIBS))
 
 $(CC).args: $(THIS_FILE)
-	$(call green_msg, All common CFLAGS are in $@.)
+	$(call green_msg, All common CFLAGS are in $(BRIGHT_WHITE)$@)
 	$(call create_resp_file, $@, -c $(call filter_D_args_first, $(CFLAGS)))
 
-$(OBJ_DIR)/dl_%.obj: %.c | $(CC).args
-	$(call Compile, $@, -DDIRLIST_TEST $<)
+$(OBJ_DIR)/dl_%.obj: %.c | $(CC).args $(OBJ_DIR)
+	$(call C_compile, $@, -DDIRLIST_TEST $<)
 
-$(OBJ_DIR)/gfa_%.obj: %.c | $(CC).args
-	$(call Compile, $@, -DGET_FILE_ASSOC_TEST $<)
+$(OBJ_DIR)/gfa_%.obj: %.c | $(CC).args $(OBJ_DIR)
+	$(call C_compile, $@, -DGET_FILE_ASSOC_TEST $<)
 
-$(OBJ_DIR)/descr_%.obj: %.c | $(CC).args
-	$(call Compile, $@, -DDESCRIPTION_TEST $<)
+$(OBJ_DIR)/descr_%.obj: %.c | $(CC).args $(OBJ_DIR)
+	$(call C_compile, $@, -DDESCRIPTION_TEST $<)
 
-$(OBJ_DIR)/wg_%.obj: %.c | $(CC).args
-	$(call Compile, $@, -DWIN_GLOB_TEST $<)
+$(OBJ_DIR)/wg_%.obj: %.c | $(CC).args $(OBJ_DIR)
+	$(call C_compile, $@, -DWIN_GLOB_TEST $<)
 
-$(OBJ_DIR)/wt_%.obj: %.c | $(CC).args
-	$(call Compile, $@, -DWIN_TRUST_TEST $<)
+$(OBJ_DIR)/wt_%.obj: %.c | $(CC).args $(OBJ_DIR)
+	$(call C_compile, $@, -DWIN_TRUST_TEST $<)
 
-$(OBJ_DIR)/wv_%.obj: %.c | $(CC).args
-	$(call Compile, $@, -DWIN_VER_TEST $<)
+$(OBJ_DIR)/wv_%.obj: %.c | $(CC).args $(OBJ_DIR)
+	$(call C_compile, $@, -DWIN_VER_TEST $<)
 
-$(OBJ_DIR)/%.obj: %.c | $(CC).args
-	$(call Compile, $@, $<)
+$(OBJ_DIR)/%.obj: %.c | $(CC).args $(OBJ_DIR)
+	$(call C_compile, $@, $<)
 
-$(OBJ_DIR)/%.res: %.rc
+$(OBJ_DIR)/%.res: %.rc | $(OBJ_DIR)
 	$(call create_res_file, $@, $<)
 
 %.i: %.c FORCE | $(OBJ_DIR)/cpp-filter.py $(CC).args
@@ -683,8 +725,8 @@ $(OBJ_DIR)/cpp-filter.py: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_py,$@,$(CPP_FILTER_PY))
 
 ifeq ($(CC)-$(USE_MP_COMPILE),cl-1)
-  $(ENVTOOL_OBJ): $(ENVTOOL_SRC) | $(CC).args
-	$(call Compile, $(OBJ_DIR)\\, -MP $(ENVTOOL_SRC))
+  $(ENVTOOL_OBJ): $(ENVTOOL_SRC) | $(CC).args $(OBJ_DIR)
+	$(call C_compile, $(OBJ_DIR)\\, -MP $(ENVTOOL_SRC))
 endif
 
 FORCE:
@@ -709,14 +751,14 @@ analyze_cl:
 
 clean:
 	rm -fr $(OBJ_DIR)
-	rm -f $(GENERATED) cl.args clang-cl.args icx.args zig.args link.args \
-	      vc1*.pdb $(PROGRAMS:.exe=.pdb)
+	rm -f $(GENERATED) cl.args clang-cl.args icx.args zig.args link.args link.tmp vc14*.pdb \
+	      $(PROGRAMS:.exe=.pdb)
 
 vstudio_clean: clean
 	rm -fr Debug Release .vs
 
-realclean vclean: clean
-	rm -f $(PROGRAMS) $(PROGRAMS:.exe=.map) .depend.Windows
+realclean vclean: clean vstudio_clean
+	rm -f $(PROGRAMS)
 	rm -f envtool.res envtool.iobj envtool.ipdb envtool.VC.db
 
 #---'$(OBJ_DIR)/cflags_*.h': ----------------------
@@ -725,19 +767,19 @@ realclean vclean: clean
 cflags:  $(OBJ_DIR)/cflags_cl.h  $(OBJ_DIR)/cflags_clang-cl.h  $(OBJ_DIR)/cflags_icx.h  $(OBJ_DIR)/cflags_zig.h  FORCE
 ldflags: $(OBJ_DIR)/ldflags_cl.h $(OBJ_DIR)/ldflags_clang-cl.h $(OBJ_DIR)/ldflags_icx.h $(OBJ_DIR)/ldflags_zig.h FORCE
 
-$(OBJ_DIR)/cflags_cl.h: $(THIS_FILE)
+$(OBJ_DIR)/cflags_cl.h: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_cflags_h, $@, $(_CC) $(CFLAGS))
 
-$(OBJ_DIR)/cflags_clang-cl.h: $(THIS_FILE)
+$(OBJ_DIR)/cflags_clang-cl.h: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_cflags_h, $@, $(_CC) $(CFLAGS))
 
-$(OBJ_DIR)/cflags_icx.h: $(THIS_FILE)
+$(OBJ_DIR)/cflags_icx.h: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_cflags_h, $@, $(_CC) $(CFLAGS))
 
-$(OBJ_DIR)/cflags_zig.h:: $(THIS_FILE)
+$(OBJ_DIR)/cflags_zig.h:: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate_cflags_h, $@, $(_CC) $(CFLAGS))
 
-$(OBJ_DIR)/zig_version.h:: $(THIS_FILE)
+$(OBJ_DIR)/zig_version.h:: $(THIS_FILE) | $(OBJ_DIR)
 	$(call generate, $@, //)
 	$(file >> $@, const char *zig_version = "$(shell zig version)";)
 
@@ -761,19 +803,6 @@ $(OBJ_DIR)/ldflags_zig.h: $(THIS_FILE) | $(OBJ_DIR)
 
 $(OBJ_DIR)/compiler.obj: $(GENERATED)
 
-DEP_CFLAGS  = -MM $(filter -D% -I%, $(CFLAGS)) -DDOING_MAKE_DEPEND
-DEP_REPLACE = -e 's@\(.*\)\.o: @\n$$(OBJ_DIR)\/\1.obj: @' \
-              -e 's@$(OBJ_DIR)@$$(OBJ_DIR)@'
-
-depend: $(OBJ_DIR) $(GENERATED)
-	$(call green_msg, Generating dependencies. Please wait...)
-	$(file > .depend.Windows, #)
-	$(file >>.depend.Windows, # This file is generated at $(DATE) from)
-	$(file >>.depend.Windows, # $(realpath $(THIS_FILE)).)
-	$(file >>.depend.Windows, # DO NOT EDIT!.)
-	$(file >>.depend.Windows, #)
-	gcc $(DEP_CFLAGS) $(ENVTOOL_SRC) | sed $(DEP_REPLACE) >> .depend.Windows
-
 #
 # GNU-make macros.
 #
@@ -794,7 +823,7 @@ else
   ARGS = -Fo./$(strip $(1))
 endif
 
-define Compile
+define C_compile
   $(_CC) @$(CC).args $(call ARGS, $(1) $(2))
   @echo
 endef
@@ -803,20 +832,31 @@ endef
 # No '-verbose' link mode with 'zig cc'.
 #
 ifeq ($(CC),zig)
-  define link_EXE
-    $(call green_msg, Linking $(1).)
+  _libs = $(foreach l, $(filter %.lib,$(1)), $(WK_ROOT)/Lib/$(WindowsSdkVer)/um/$(CPU)/$(l) )
+
+  link_EXE = $(call link_EXE_2, $(1), $(2))
+
+  define link_EXE_1
+    $(call green_msg, Linking $(BRIGHT_WHITE)$(strip $(1)))
     $(call create_resp_file, link.args, $(LDFLAGS) $(2))
     $(LINK) -o $(1) @link.args
     @echo
   endef
+
+  define link_EXE_2
+    $(call green_msg, Linking $(BRIGHT_WHITE)$(strip $(1)))
+    $(call create_resp_file, link.args, $(LDFLAGS) $(filter-out %.lib, $(2)) $(call _libs, $(2)))
+    $(LINK) -v -o $(1) $(LDFLAGS) $(2)
+    @echo
+  endef
+
 else
   define link_EXE
     $(file  > $(OBJ_DIR)/check-for-unused-libs.py,if 1:)
     $(file >> $(OBJ_DIR)/check-for-unused-libs.py,$(CHECK_FOR_UNUSED_LIBS_PY))
-    $(call green_msg, Linking $(1).)
+    $(call green_msg, Linking $(BRIGHT_WHITE)$(strip $(1)))
     $(call create_resp_file, link.args, $(LDFLAGS) $(2))
     $(LINK) -out:$(strip $(1)) @link.args > link.tmp
-    @cat link.tmp >> $(1:.exe=.map)
     @rm -f $(1:.exe=.lib) $(1:.exe=.exp)
     @$(PYTHON) $(OBJ_DIR)/check-for-unused-libs.py link.tmp
   endef
@@ -833,7 +873,7 @@ define create_resp_file
 endef
 
 define generate
-  $(call green_msg, Generating $(1))
+  $(call green_msg, Generating $(BRIGHT_WHITE)$(strip $(1)))
   $(file  > $(1),$(2))
   $(file >> $(1),$(2) This file is generated at $(DATE) from)
   $(file >> $(1),$(2) $(realpath $(THIS_FILE)).)
@@ -929,7 +969,7 @@ endef
 define CHECK_FOR_UNUSED_LIBS_PY
   import os, sys
 
-  map_file = sys.argv[1]
+  map_file    = sys.argv[1]
   ignore_libs = [ "oldnames.lib" ]
 
   class State():
@@ -953,13 +993,13 @@ define CHECK_FOR_UNUSED_LIBS_PY
 
   extra_ignore = os.getenv ("IGNORE_LIBS")
   if extra_ignore:
-     cprint (Colour.WHITE, "IGNORE_LIBS: %s" % extra_ignore)
-     ignore_libs.append (extra_ignore)
+     for ignore in extra_ignore.split():
+         ignore_libs.append (ignore)
 
   def report (unused):
     num = len(unused)
     if num > 0:
-       cprint (Colour.RED, "%d unused %s in %s:" % (num, ["library", "libraries"][num > 1], map_file))
+       cprint (Colour.RED, "%d unused librari%s in %s:" % (num, ["y", "ies"][num > 1], map_file))
        for u in unused:
            print ("  " + u)
     cprint (Colour.WHITE, "Done.\n")
@@ -972,21 +1012,16 @@ define CHECK_FOR_UNUSED_LIBS_PY
 
     for l in lines:
         l = l.strip()
+        if l == "":
+           break
         if l == "Unused libraries:":
            state = State.UNUSED
            continue
-        if state == State.UNUSED:
-           if l == "":
-              break
-           if os.path.basename (l).lower() not in ignore_libs:
-              unused_libs.append (l)
+        if state == State.UNUSED and os.path.basename (l).lower() not in ignore_libs:
+           unused_libs.append (l)
     return unused_libs
 
   report (process_map (State.IDLE))
 endef
 
-#
-# The dependency section:
-#
--include .depend.Windows
 

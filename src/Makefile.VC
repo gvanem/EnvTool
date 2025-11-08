@@ -10,9 +10,9 @@ CFLAGS  = -nologo -W3 -Zi -Zo -Gy -Gs \
           -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE \
           -DWIN32_LEAN_AND_MEAN -DEVERYTHINGUSERAPI= -D_WIN32_IE=0x500 \
           -DEVERYTHINGAPI=__cdecl -D_WIN32_WINNT=0x0602 -DUSE_SQLITE3 \
-          -DHAVE_WINSQLITE3_H -I./objects/MSVC
+          -DUSE_EVERYTHING3 -DHAVE_WINSQLITE3_H -I./objects/MSVC
 
-LDFLAGS = -nologo -incremental:no -debug -map
+LDFLAGS = -nologo -incremental:no -debug
 
 #
 # Enable a x86 .EXEs to run on Win-XP SP3 (5.1) or
@@ -78,6 +78,7 @@ OBJECTS = $(OBJ_DIR)\auth.obj           \
           $(OBJ_DIR)\description.obj    \
           $(OBJ_DIR)\dirlist.obj        \
           $(OBJ_DIR)\Everything.obj     \
+          $(OBJ_DIR)\Everything3.obj    \
           $(OBJ_DIR)\Everything_ETP.obj \
           $(OBJ_DIR)\find_vstudio.obj   \
           $(OBJ_DIR)\get_file_assoc.obj \
@@ -110,8 +111,7 @@ $(OBJ_DIR):
 
 envtool.exe: $(OBJECTS) $(OBJ_DIR)\envtool.res
 	link $(LDFLAGS) -verbose -out:$@ $** $(OS_LIBS) ole32.lib oleaut32.lib > link.tmp
-	type link.tmp >> envtool.map
-	-del /q link.tmp
+	@echo
 
 $(OBJ_DIR)\envtool.res: envtool.rc
 	rc $(RCFLAGS) -fo $@ envtool.rc
@@ -219,9 +219,8 @@ $(OBJ_DIR)\ldflags_cl.h: Makefile.VC
 clean vclean:
 	-rd /Q /S objects
 	-del /q *.sbr vc1*.idb vc*.pdb link.tmp \
-	        envtool.map description.exe dirlist.exe du.exe win_glob.exe win_trust.exe win_ver.exe \
-	        envtool.exe description.map dirlist.map du.map win_glob.map win_trust.map win_ver.map \
-	        envtool.pdb description.pdb dirlist.pdb du.pdb win_glob.pdb win_trust.pdb win_ver.pdb
+	        description.exe dirlist.exe du.exe envtool.exe win_glob.exe win_trust.exe win_ver.exe \
+	        description.pdb dirlist.pdb du.pdb envtool.pdb win_glob.pdb win_trust.pdb win_ver.pdb
 
 msbuild:
 	$(MSBUILD) envtool.sln
@@ -241,6 +240,7 @@ $(OBJ_DIR)\envtool.obj:        envtool.c getopt_long.h Everything.h Everything_I
                                sort.h $(OBJ_DIR)\cflags_cl.h $(OBJ_DIR)\ldflags_cl.h lua.h
 $(OBJ_DIR)\envtool_py.obj:     envtool_py.c envtool.h envtool_py.h color.h dirlist.h smartlist.h
 $(OBJ_DIR)\Everything.obj:     Everything.c Everything.h Everything_IPC.h
+$(OBJ_DIR)\Everything3.obj:    Everything3.c Everything3.h
 $(OBJ_DIR)\Everything_ETP.obj: Everything_ETP.c color.h envtool.h auth.h Everything_ETP.h
 $(OBJ_DIR)\getopt_long.obj:    getopt_long.c getopt_long.h
 $(OBJ_DIR)\color.obj:          color.c color.h

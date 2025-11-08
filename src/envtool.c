@@ -52,14 +52,17 @@
 #include "description.h"
 #include "compiler.h"
 
+#ifdef USE_EVERYTHING3
+  #include "Everything3.h"
+#else
+  #define EVERYTHING3_CLIENT void
+#endif
+
 /**
  * <!-- \includedoc README.md ->
  * \image html  envtool-help.png "List of modes" width=10cm
  * \image latex envtool-help.png "List of modes" width=10cm
  */
-#if defined(__GNUC__) && (__GNUC__ >= 7)
-//#pragma GCC diagnostic ignored "-Wformat-truncation"
-#endif
 
 char *program_name = NULL;   /**< For getopt_long.c */
 
@@ -110,8 +113,10 @@ volatile int halt_flag;
 /** Get the bitness (32/64-bit) of the EveryThing program.
  */
 static enum Bitness evry_bitness = bit_unknown;
-static int          evry_service = -1;
-static int          evry_machine = -1;  /* EVERYTHING_IPC_TARGET_MACHINE_* */
+static LRESULT      evry_service = -1;
+static LRESULT      evry_machine = -1;  /* EVERYTHING_IPC_TARGET_MACHINE_* */
+
+static EVERYTHING3_CLIENT *client3 = NULL;
 
 static void get_evry_bitness (HWND wnd);
 
@@ -181,12 +186,12 @@ static void show_evry_version (HWND wnd, const struct ver_info *ver)
   if (evry_service == -1)
   {
     evry_service = SendMessage (wnd, EVERYTHING_WM_IPC, EVERYTHING_IPC_IS_SERVICE, 0);
-    TRACE (1, "evry_service: %d.\n", evry_service);
+    TRACE (1, "evry_service: %zd.\n", (size_t)evry_service);
   }
   if (evry_machine == -1)
   {
     evry_machine = SendMessage (wnd, EVERYTHING_WM_IPC, EVERYTHING_IPC_GET_TARGET_MACHINE, 0);
-    TRACE (1, "evry_machine: %d.\n", evry_machine);
+    TRACE (1, "evry_machine: %zd.\n", (size_t)evry_machine);
   }
 
   C_printf ("  Everything search engine ver. %u.%u.%u.%u%s (c)"
@@ -291,11 +296,11 @@ static ver_data *build_ver_data (void)
   data [VER_VCPKG]     .slash = slash;
   data [VER_LUA]       .slash = slash;
 
-  data [VER_CMAKE]     .found_fmt  = "  Cmake %u.%u.%u detected";
-  data [VER_PYTHON]    .found_fmt  = "  Python %u.%u.%u detected";
-  data [VER_PKG_CONFIG].found_fmt  = "  pkg-config %u.%u detected";
-  data [VER_VCPKG]     .found_fmt  = "  vcpkg %u.%u.%u detected";
-  data [VER_LUA]       .found_fmt  = "  Lua %u.%u.%u detected";
+  data [VER_CMAKE]     .found_fmt = "  Cmake %u.%u.%u detected";
+  data [VER_PYTHON]    .found_fmt = "  Python %u.%u.%u detected";
+  data [VER_PKG_CONFIG].found_fmt = "  pkg-config %u.%u detected";
+  data [VER_VCPKG]     .found_fmt = "  vcpkg %u.%u.%u detected";
+  data [VER_LUA]       .found_fmt = "  Lua %u.%u.%u detected";
 
   data [VER_CMAKE]     .not_found = "Cmake ~5not~0 found";
   data [VER_PYTHON]    .not_found = "Python ~5not~0 found";
@@ -442,8 +447,10 @@ static int show_version (void)
     if (clang)
        C_printf ("  clang-ver:  %s.\n", clang);
 
+#if 0
     C_puts   ("  CET-Info:   ");
     print_user_cet_info();
+#endif
 
     C_puts   ("  CPU-Info:   ");
     print_core_temp_info();
@@ -1653,7 +1660,7 @@ int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
        continue;
 
     len = snprintf (fqfn, sizeof(fqfn), "%s%c", _path, DIR_SEP);
-    if (len < 0 || len >= sizeof(fqfn))  /* 'fqfn[]' too small! Or some other error? */
+    if (len < 0 || len >= (int)sizeof(fqfn))  /* 'fqfn[]' too small! Or some other error? */
        continue;
 
     base = fqfn + len;
@@ -1757,7 +1764,7 @@ int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
 
 static const char *evry_strerror (DWORD err)
 {
-  static char buf[30];
+  static char buf [30];
 
   switch (err)
   {
@@ -1781,8 +1788,44 @@ static const char *evry_strerror (DWORD err)
          return ("Invalid request data");
     case EVERYTHING_ERROR_INVALIDPARAMETER:
          return ("Bad parameter");
+#if defined(USE_EVERYTHING3)
+    case EVERYTHING3_ERROR_OUT_OF_MEMORY:
+         return ("Out of memory");
+    case EVERYTHING3_ERROR_IPC_PIPE_NOT_FOUND:
+         return ("IPC pipe server not found");
+    case EVERYTHING3_ERROR_DISCONNECTED:
+         return ("Disconnected from pipe server");
+    case EVERYTHING3_ERROR_INVALID_PARAMETER:
+         return ("Invalid parameter");
+    case EVERYTHING3_ERROR_BAD_REQUEST:
+         return ("Bad request");
+    case EVERYTHING3_ERROR_CANCELLED:
+         return ("User cancelled");
+    case EVERYTHING3_ERROR_PROPERTY_NOT_FOUND:
+         return ("Property not found");
+    case EVERYTHING3_ERROR_SERVER:
+         return ("Server error");
+    case EVERYTHING3_ERROR_INVALID_COMMAND:
+         return ("Invalid command");
+    case EVERYTHING3_ERROR_BAD_RESPONSE:
+         return ("Bad server response");
+    case EVERYTHING3_ERROR_INSUFFICIENT_BUFFER:
+         return ("No room for response data");
+    case EVERYTHING3_ERROR_SHUTDOWN:
+         return ("Shutdown initiated");
+    case EVERYTHING3_ERROR_INVALID_PROPERTY_VALUE_TYPE:
+         return ("Invalid property value");
+#endif
+    default:
+         break;
   }
-  snprintf (buf, sizeof(buf), "Unknown error %lu", (u_long)err);
+
+  /* EveryThing3 uses these large error-values.
+   * Print as hex
+   */
+  if (err >= 0xE0000000)
+       snprintf (buf, sizeof(buf), "Unknown error 0x%08lx", (u_long)err);
+  else snprintf (buf, sizeof(buf), "Unknown error %lu", (u_long)err);
   return (buf);
 }
 
@@ -1939,7 +1982,7 @@ static int report_evry_file (const char *file, time_t mtime, UINT64 fsize, bool 
 }
 
 /**
- * Check if EveryThing database is loaded.
+ * Check if EveryThing 2/3 database is loaded.
  */
 static bool evry_is_db_loaded (HWND wnd)
 {
@@ -1949,9 +1992,6 @@ static bool evry_is_db_loaded (HWND wnd)
   return (bool) loaded;
 }
 
-/**
- * Check if EveryThing is busy indexing it's database.
- */
 static bool evry_is_busy (HWND wnd)
 {
   BOOL busy = Everything_IsDBBusy();
@@ -1983,41 +2023,17 @@ static bool evry_busy_wait (HWND wnd, UINT sec)
 }
 
 /**
- * The handler for option `--evry`. Search the EveryThing database.
+ * Setup the query. Common to EveryThing 2 and 3.
  */
-static int do_check_evry (void)
+static char *evry_common_init (void)
 {
-  DWORD  i, err, num, request_flags, response_flags, version = 0;
-  DWORD  start_time, end_time;
-  char   query_buf [_MAX_PATH+8];
+  static char query_buf [_MAX_PATH+8];
   char  *query = query_buf;
   char  *dir   = NULL;
   char  *base  = NULL;
-  int    found = 0;
   size_t len;
-  HWND   wnd;
-  struct ver_info evry_ver = { 0, 0, 0, 0 };
-
-  wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
-  if (!wnd)
-  {
-    C_printf ("~5Everything search engine not found.~0\n");
-    return (0);
-  }
 
   num_evry_dups = 0;
-
-  if (evry_bitness == bit_unknown)
-     get_evry_bitness (wnd);
-
-  if (get_evry_version(wnd, &evry_ver))
-     version = (evry_ver.val_1 << 16) + (evry_ver.val_2 << 8) + evry_ver.val_3;
-
-  TRACE (1, "version %u.%u.%u, build: %u\n",
-          evry_ver.val_1,
-          evry_ver.val_2,
-          evry_ver.val_3,
-          evry_ver.val_4);
 
   if (opt.evry_raw)
   {
@@ -2071,9 +2087,159 @@ static int do_check_evry (void)
       TRACE (1, "opt.grep.content: '%s'\n", opt.grep.content);
    // snprintf (query_buf+len, sizeof(query_buf)-len, "content: %s", opt.grep.content);
     }
-
-    FREE (dir);
   }
+  FREE (dir);
+  return (query_buf);
+}
+
+#if defined(USE_EVERYTHING3)
+static int do_check_evry3 (void)
+{
+  DWORD  err;
+  int    i, num, found = 0;
+  size_t len;
+  char  *query;
+
+  EVERYTHING3_SEARCH_STATE *search = NULL;
+  EVERYTHING3_RESULT_LIST  *result = NULL;
+
+  client3 = Everything3_Connect (NULL);
+  if (!client3)
+  {
+    err = Everything3_GetLastError();
+    WARN ("Failed to connect to Everything3: %s\n", evry_strerror(err));
+    goto quit;
+  }
+
+  search = Everything3_CreateSearchState();
+  if (!search)
+  {
+    err = Everything3_GetLastError();
+    WARN ("Failed to create Everything3 search-state: %s\n", evry_strerror(err));
+    goto quit;
+  }
+
+  query = evry_common_init();
+
+  Everything3_SetSearchText (search, query);
+
+  err = Everything3_GetLastError();
+  TRACE (2, "query: '%s', error: %s\n", query, evry_strerror(err));
+
+  result = Everything3_Search (client3, search);
+  err = Everything3_GetLastError();
+  TRACE (2, "error: %s\n", evry_strerror(err));
+
+  num = Everything3_GetResultListCount (result);
+  err = Everything3_GetLastError();
+  TRACE (2, "num: %d, error: %s\n", num, evry_strerror(err));
+
+  for (i = 0; i < num; i++)
+  {
+    char   prev [_MAX_PATH];
+    char   file [_MAX_PATH] = { '\0' };
+    UINT64 fsize = (UINT64) -1;  /* since a 0-byte file is valid */
+    time_t mtime = 0;
+    bool   is_shadow = false;
+    bool   ignore;
+    struct stat st;
+
+    if (halt_flag > 0)
+       break;
+
+    if (i == 0)
+       prev[0] = '\0';
+
+    Everything3_GetResultFullPathName (result, i, file, sizeof(file));
+    err = Everything3_GetLastError();
+    len = strlen (file);
+    if (len == 0 || err != EVERYTHING3_OK)
+    {
+      TRACE (2, "Everything3_GetResultFullPathName(), err: %s\n", evry_strerror(err));
+      len = 0;
+      break;
+    }
+
+    /* Handle unquoted files with spaces specially.
+     */
+    if (*file != '"' && strchr(file, ' '))
+    {
+      char quoted_file [_MAX_PATH];
+      snprintf (quoted_file, sizeof(quoted_file), "\"%s\"", file);
+      ignore = cfg_ignore_lookup ("[EveryThing]", quoted_file);
+    }
+    else
+      ignore = cfg_ignore_lookup ("[EveryThing]", file);
+
+    TRACE (2, "cfg_ignore_lookup(\"[EveryThing]\", \"%s\") -> %d\n", file, ignore);
+
+    if (ignore)
+    {
+      num_evry_ignored++;
+      continue;
+    }
+
+    if (safe_stat(file, &st, NULL) == 0)
+    {
+      mtime = st.st_mtime;
+      if (opt.show_size)
+         fsize = st.st_size;
+    }
+
+    if (!opt.dir_mode && prev[0] && !strcmp(prev, file))
+       num_evry_dups++;
+    else if (report_evry_file(file, mtime, fsize, &is_shadow))
+       found++;
+    if (!is_shadow)
+       _strlcpy (prev, file, sizeof(prev));
+  }
+
+quit:
+
+  if (result)
+     Everything3_DestroyResultList (result);
+
+  if (search)
+     Everything3_DestroySearchState (search);
+
+  if (client3)
+     Everything3_DestroyClient (client3);
+
+  client3 = NULL;
+  return (found);
+}
+#endif  /* USE_EVERYTHING3 */
+
+static int do_check_evry2 (void)
+{
+  DWORD  i, err, num, request_flags, response_flags, version = 0;
+  DWORD  start_time, end_time;
+  char  *query;
+  int    found = 0;
+  size_t len;
+  HWND   wnd;
+  struct ver_info evry_ver = { 0, 0, 0, 0 };
+
+  wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
+  if (!wnd)
+  {
+    C_printf ("~5Everything search engine not found.~0\n");
+    return (0);
+  }
+
+  if (evry_bitness == bit_unknown)
+     get_evry_bitness (wnd);
+
+  if (get_evry_version(wnd, &evry_ver))
+     version = (evry_ver.val_1 << 16) + (evry_ver.val_2 << 8) + evry_ver.val_3;
+
+  TRACE (1, "version %u.%u.%u, build: %u\n",
+          evry_ver.val_1,
+          evry_ver.val_2,
+          evry_ver.val_3,
+          evry_ver.val_4);
+
+  query = evry_common_init();
 
   Everything_SetMatchCase (opt.case_sensitive);
 
@@ -2106,16 +2272,12 @@ static int do_check_evry (void)
    * But do not request the file size/time since that could be "old information" when
    * files are frequently updated.
    */
-#if 1
   if (version >= 0x010401)
   {
     request_flags |= EVERYTHING_REQUEST_SIZE | EVERYTHING_REQUEST_DATE_MODIFIED;
     Everything_SetRequestFlags (request_flags);
     request_flags = Everything_GetRequestFlags();  /* should be the same as set above */
   }
-#else
-  ARGSUSED (version);
-#endif
 
   start_time = GetTickCount();
 
@@ -2303,6 +2465,23 @@ static int do_check_evry (void)
     }
   }
   return (found);
+}
+
+/**
+ * The handler for option `--evry`. Search the EveryThing 2/3 database.
+ */
+static int do_check_evry (void)
+{
+  if (opt.use_evry3)
+  {
+#if defined(USE_EVERYTHING3)
+    return do_check_evry3();
+#else
+    WARN ("envtool.exe was not built with '-DUSE_EVERYTHING3'.\n");
+    return (0);
+#endif
+  }
+  return do_check_evry2();
 }
 
 /**
@@ -2656,10 +2835,29 @@ static void set_vcpkg_options (const char *arg)
 /**
  * `getopt_long()` handler for option `-H arg`, `--host arg` or `--evry:arg`
  * used by remote ETP queries.
+ *
+ * A `--evry:2` is accepted to force use of SDK ver. 2.
+ * In which case this overrides the [Everything:use_sdk3=1] `envtool.cfg` setting.
+ *
+ * A `--evry:3` is accepted to force use of SDK ver. 3.
+ * In which case this overrides the [Everything:use_sdk3=0] `envtool.cfg` setting.
  */
-static void set_evry_options (const char *arg)
+static void set_evry_options (const char *arg, bool could_force)
 {
-  if (arg)
+  if (arg && could_force)
+  {
+    if (*arg == '2')
+    {
+      opt.use_evry3  = false;
+      opt.force_evry = true;
+    }
+    else if (*arg == '3')
+    {
+      opt.use_evry3  = true;
+      opt.force_evry = true;
+    }
+  }
+  else if (arg)
   {
     if (!opt.evry_host)
        opt.evry_host = smartlist_new();
@@ -2728,7 +2926,7 @@ static void set_short_option (int o, const char *arg)
          opt.do_help = 1;
          break;
     case 'H':
-         set_evry_options (arg);
+         set_evry_options (arg, false);
          break;
     case 'V':
          opt.do_version++;
@@ -2804,7 +3002,7 @@ static void set_long_option (int o, const char *arg)
 
   if (!strcmp("evry", long_options[o].name))
   {
-    set_evry_options (arg);
+    set_evry_options (arg, true);
     opt.do_evry = 1;
     return;
   }
@@ -2855,7 +3053,7 @@ static void set_long_option (int o, const char *arg)
       opt.debug = atoi (arg);
 
     else if (!strcmp("host", long_options[o].name))
-      set_evry_options (arg);
+      set_evry_options (arg, false);
   }
   else
   {
@@ -2896,9 +3094,10 @@ static void parse_cmdline (void)
     opt.evry_raw  = true;
   }
 
-  TRACE (2, "c->argc0:      %d\n", c->argc0);
-  TRACE (2, "opt.file_spec: '%s'\n", opt.file_spec);
-  TRACE (2, "opt.evry_raw:  %d\n", opt.evry_raw);
+  TRACE (2, "c->argc0:       %d\n", c->argc0);
+  TRACE (2, "opt.file_spec:  '%s'\n", opt.file_spec);
+  TRACE (2, "opt.evry_raw:   %d\n", opt.evry_raw);
+  TRACE (2, "opt.force_evry: %d\n", opt.force_evry);
 }
 
 /**
@@ -2959,6 +3158,13 @@ static void MS_CDECL cleanup (void)
      py_exit();
 
   Everything_CleanUp();
+
+#if defined(USE_EVERYTHING3)
+  if (client3)
+     Everything3_DestroyClient (client3);
+  client3 = NULL;
+#endif
+
   spinner_stop();
 
   dir_array_free();
@@ -3028,11 +3234,21 @@ static void MS_CDECL halt (int sig)
    * Since 'Everything_KillThread()' uses a critical section,
    * kill the thread directly.
    */
-  if (opt.do_evry && Everything_hthread)
+  if (opt.do_evry)
   {
-    TerminateThread (Everything_hthread, 1);
-    CloseHandle (Everything_hthread);
-    Everything_hthread = NULL;
+    if (Everything_hthread)
+    {
+      TerminateThread (Everything_hthread, 1);
+      CloseHandle (Everything_hthread);
+      Everything_hthread = NULL;
+    }
+#if defined(USE_EVERYTHING3)
+    if (client3)
+    {
+      Everything3_DestroyClient (client3);
+      client3 = NULL;
+    }
+#endif
   }
 
 #ifdef SIGTRAP
@@ -3268,6 +3484,13 @@ static bool evry_cfg_handler (const char *section, const char *key, const char *
   if (!stricmp(key, "busy_wait"))
   {
     opt.evry_busy_wait = atoi (value);
+    return (true);
+  }
+
+  if (!stricmp(key, "use_evry3"))
+  {
+    if (!opt.force_evry)
+       opt.use_evry3 = atoi (value);
     return (true);
   }
   return (false);
@@ -3661,13 +3884,16 @@ static bool is_shadow_candidate (const struct dirent2 *this_de,
  * if an older file is found in `prev_dir->dir` (which is ahead of `this_dir->dir`
  * in the path for this env-var).
  *
- * \eg. with a `PATH=f:\\ProgramFiler\\Python27;f:\\CygWin32\\bin` and these files:
+ * \eg. with a `PATH=f:\\ProgramFiler\\Python31;f:\\CygWin32\\bin` and these files:
  * ```
- *   f:\ProgramFiler\Python27\python2.7.exe   24.06.2011  12:38   (oldest)
- *   f:\CygWin32\bin\python2.7.exe            20.03.2019  18:32
+ *   f:\ProgramFiler\Python31\python3.1.exe   24.06.2024  12:38   (9 months older)
+ *   f:\CygWin32\bin\python3.1.exe            24.03.2025  18:32
  * ```
  *
- * then the oldest `python2.7.exe` shadows the newest `python2.7.exe`.
+ * then the oldest `python3.1.exe` shadows the newest `python3.1.exe`.
+ *
+ * But the "time-slack" is controlled by `opt.shadow_dtime` (in seconds).
+ * E.g. if opt.shadow_dtime == 23668200  (== 9 months), the shadow-state is ignored.
  */
 static void check_shadow_files (smartlist_t *this_de_list,
                                 smartlist_t *prev_de_list,
@@ -3798,8 +4024,12 @@ static void put_dirlist_to_cache (const char *env_var, smartlist_t *dirs)
 
   for (i = 0; i < max; i++)
   {
+    char result [_MAX_PATH+1];
+
     da = smartlist_get (dirs, i);
-    cache_putf (SECTION_ENV_DIR, "env_dir_%s_%d = %s", env_var, i, da->dir);
+
+    _fix_path (da->dir, result);
+    cache_putf (SECTION_ENV_DIR, "env_dir_%s_%d = %s", env_var, i, result);
   }
 }
 
@@ -4002,8 +4232,12 @@ static void check_env_val_reg (const smartlist_t *list, const char *env_name)
           get_disk_type(arr->dir[0]) != DRIVE_REMOTE &&
           get_reparse_point (arr->dir, link, sizeof(link)))
       {
-        C_puts ("\n      -> ");
-        print_raw (slashify2(link, link, opt.show_unix_paths ? '/' : '\\'), "~4", NULL);
+        char link2 [_MAX_PATH+100];
+
+        C_puts ("\n      -> ~4");
+        C_setraw (1);
+        C_puts (slashify2(link2, link, opt.show_unix_paths ? '/' : '\\'));
+        C_setraw (0);
       }
       C_puts ("~0\n");
     }
@@ -4146,7 +4380,7 @@ static void compare_user_sys_env (const char *env_var, const char *sys_value, in
 {
   const char *sys_end;
   const char *user_value = getenv (env_var);
-  char       *sys_val = getenv_expand_sys (sys_value);
+  char       *sys_val    = getenv_expand_sys (sys_value);
   int         i;
   bool        equal = false;
   size_t      sys_len, indent2;
@@ -4385,16 +4619,16 @@ static void do_check_dups (const char *dir)
 {
   char *env = getenv ("COMSPEC");
 
-  if (env)
+  if (!env)
+     return;
+
+  env = strlwr (basename(env));
+  if (strcmp(env, "tcc.exe"))
   {
-    env = strlwr (basename(env));
-    if (strcmp(env, "tcc.exe"))
-    {
-      WARN ("dedupe needs a 'TCC' shell\n");
-      return;
-    }
+    WARN ("dedupe needs a 'TCC' shell\n");
+    return;
   }
-  popen_run2 (dedupe_cb, "dedupe", "/SV %s 2> %s", dir, DEV_NULL);
+  popen_run2 (dedupe_cb, "dedupe", "/SV %s 2> NUL", dir);
 }
 #endif
 
