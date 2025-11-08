@@ -10,8 +10,8 @@
 /**
  * The global data for 'cmake.exe' found on `PATH`.
  */
-static struct ver_info cmake_ver;
-static char           *cmake_exe = NULL;
+static ver_info cmake_ver;
+static char    *cmake_exe = NULL;
 
 /**
  * Get the value and data for a Kitware sub-key. <br>
@@ -151,12 +151,12 @@ static smartlist_t *cmake_cache_info_registry (void)
  */
 static int cmake_version_cb (char *buf, int index)
 {
-  static char     prefix[] = "cmake version ";
-  struct ver_info ver = { 0,0,0,0 };
-  char           *p = buf + sizeof(prefix) - 1;
+  static char prefix[] = "cmake version ";
+  ver_info    ver = { 0,0,0,0 };
+  char       *p = buf + sizeof(prefix) - 1;
 
   if (str_startswith(buf, prefix) &&
-      sscanf(p, "%d.%d.%d", &ver.val_1, &ver.val_2, &ver.val_3) >= 2)
+      sscanf(p, "%u.%u.%u", &ver.val_1, &ver.val_2, &ver.val_3) >= 2)
   {
     memcpy (&cmake_ver, &ver, sizeof(cmake_ver));
     return (1);
@@ -168,7 +168,7 @@ static int cmake_version_cb (char *buf, int index)
 /**
  * Return the full path and version-information of `cmake.exe`.
  */
-bool cmake_get_info (char **exe, struct ver_info *ver)
+bool cmake_get_info (char **exe, ver_info *ver)
 {
   *ver = cmake_ver;
   *exe = NULL;
@@ -181,10 +181,10 @@ bool cmake_get_info (char **exe, struct ver_info *ver)
     return (true);
   }
 
-  TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+  TRACE (2, "ver: %u.%u.%u.\n", ver->val_1, ver->val_2, ver->val_3);
 
   cache_getf (SECTION_CMAKE, "cmake_exe = %s", &cmake_exe);
-  cache_getf (SECTION_CMAKE, "cmake_version = %d,%d,%d", &cmake_ver.val_1, &cmake_ver.val_2, &cmake_ver.val_3);
+  cache_getf (SECTION_CMAKE, "cmake_version = %u,%u,%u", &cmake_ver.val_1, &cmake_ver.val_2, &cmake_ver.val_3);
 
   if (cmake_exe && !FILE_EXISTS(cmake_exe))
   {
@@ -205,10 +205,10 @@ bool cmake_get_info (char **exe, struct ver_info *ver)
   *exe = STRDUP (cmake_exe);
 
   if (!VALID_VER(cmake_ver) && popen_run(cmake_version_cb, cmake_exe, "-version") > 0)
-     cache_putf (SECTION_CMAKE, "cmake_version = %d,%d,%d", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
+     cache_putf (SECTION_CMAKE, "cmake_version = %u,%u,%u", cmake_ver.val_1, cmake_ver.val_2, cmake_ver.val_3);
 
   *ver = cmake_ver;
-  TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+  TRACE (2, "ver: %u.%u.%u.\n", ver->val_1, ver->val_2, ver->val_3);
 
   return (cmake_exe && VALID_VER(cmake_ver));
 }
@@ -223,12 +223,12 @@ bool cmake_get_info (char **exe, struct ver_info *ver)
  */
 int cmake_search (void)
 {
-  struct ver_info ver;
-  char            modules_dir [_MAX_PATH];
-  char           *bin, *root, *dir;
-  const char     *env_name = "CMAKE_MODULE_PATH";
-  int             found, i, max;
-  smartlist_t    *sl;
+  ver_info     ver;
+  char         modules_dir [_MAX_PATH];
+  char        *bin, *root, *dir;
+  const char  *env_name = "CMAKE_MODULE_PATH";
+  int          found, i, max;
+  smartlist_t *sl;
 
   if (!cmake_get_info(&bin, &ver))
   {
@@ -249,7 +249,7 @@ int cmake_search (void)
   snprintf (modules_dir, sizeof(modules_dir), "%s\\..\\share\\cmake-%d.%d\\Modules", root, ver.val_1, ver.val_2);
   _fix_path (modules_dir, modules_dir);
 
-  TRACE (1, "found Cmake version %d.%d.%d. Module-dir -> '%s'\n",
+  TRACE (1, "found Cmake version %u.%u.%u. Module-dir -> '%s'\n",
           ver.val_1, ver.val_2, ver.val_3, modules_dir);
 
   report_header_set ("Matches in built-in Cmake modules:\n");

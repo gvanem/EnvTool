@@ -1,11 +1,9 @@
 /** \file cfg_file.h
  *  \ingroup Misc
  */
-#ifndef _CFG_FILE_H
-#define _CFG_FILE_H
+#pragma once
 
 #include <stdbool.h>
-#include <windows.h>
 
 /**
  * \typedef struct CFG_FILE
@@ -26,6 +24,3 @@ extern CFG_FILE *cfg_init (const char *fname,
                         /* cfg_handler parser */ ...);
 
 extern void cfg_exit (CFG_FILE *cf);
-
-#endif
-
