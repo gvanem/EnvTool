@@ -570,12 +570,12 @@ static int show_help (void)
 
   C_puts ("    ~6--evry~0 remote FTP options:\n"
           "      ~6-H~0, ~6--host~0    hostname/IPv4-address. Can be used multiple times.\n"
-          "                    alternative syntax is ~6--evry=<host>~0.\n");
+          "                    alternative syntax is ~6--evry:<host>~0.\n");
 
   C_puts ("\n"
           "  ~2[1]~0 The ~6--evry~0 option requires that the Everything search engine is installed.\n"
           "      Ref. ~3https://www.voidtools.com/support/everything/~0\n"
-          "      For remote FTP search(es) (~6--evry=[host-name|IP-address]~0), a user/password\n"
+          "      For remote FTP search(es) (~6--evry:[host-name|IP-address]~0), a user/password\n"
           "      should be specified in your ~6%APPDATA%/.netrc~0 or ~6%APPDATA%/.authinfo~0 files or\n"
           "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
           "      ~0Soundex~0 matches requires ver. 1.5.0.1340a or later.\n"
@@ -2852,14 +2852,17 @@ static void set_evry_options (const char *arg, bool could_force)
     {
       opt.use_evry3  = false;
       opt.force_evry = true;
+      return;
     }
-    else if (*arg == '3')
+    if (*arg == '3')
     {
       opt.use_evry3  = true;
       opt.force_evry = true;
+      return;
     }
   }
-  else if (arg)
+
+  if (arg)
   {
     if (!opt.evry_host)
        opt.evry_host = smartlist_new();
@@ -2920,7 +2923,7 @@ static void set_short_option (int o, const char *arg)
 {
   char *err_opt;
 
-  TRACE (2, "got short option '%c' (%d).\n", o, o);
+  TRACE (2, "got short option '%c' (%d), arg: %s\n", o, o, arg);
 
   switch (o)
   {
@@ -3288,9 +3291,10 @@ static void init_all (const char *argv0)
 
   tzset();
 
-  /* https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setlocale-wsetlocale?view=msvc-170#utf-8-support
+  /* Set console code page to UTF-8
    */
-  setlocale (LC_ALL, ".UTF8");
+  SetConsoleOutputCP (CP_UTF8);
+  SetConsoleCP (CP_UTF8);
 
   memset (&opt, 0, sizeof(opt));
   opt.under_conemu   = C_conemu_detected();
@@ -3741,6 +3745,8 @@ int MS_CDECL main (int argc, const char **argv)
       report_header_set ("Matches from %s:\n", host);
       found += do_check_evry_ept (host);
     }
+    /* If no remote host(s) was queried, query locally.
+     */
     if (max  == 0)
     {
       report_header_set ("Matches from EveryThing:\n");
