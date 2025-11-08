@@ -214,7 +214,7 @@ $(OBJ_DIR)\cflags_cl.h: Makefile.VC
 	@echo const char *cflags = "$(CC) $(CFLAGS)"; > $@
 
 $(OBJ_DIR)\ldflags_cl.h: Makefile.VC
-	@echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe $(OBJECTS:\=/) $(OBJ_DIR)/envtool.res $(OS_LIBS) ole32.lib oleaut32.lib"; > $@
+	@echo const char *ldflags = "link $(LDFLAGS) -verbose -out:envtool.exe $(OBJECTS:\=/) $(OBJ_DIR:\=/)/envtool.res $(OS_LIBS) ole32.lib oleaut32.lib"; > $@
 
 clean vclean:
 	-rd /Q /S objects
