@@ -1,4 +1,4 @@
-# EnvTool v1.4:
+# EnvTool v1.5:
 
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/gvanem/envtool?branch=master&svg=true&pendingText=MSVC%20build%20-%20Pending&passingText=MSVC%20build%20-%20OK)](https://ci.appveyor.com/project/gvanem/envtool)
 

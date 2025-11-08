@@ -3,9 +3,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "1.4"
+#define VER_STRING  "1.5"
 #define MAJOR_VER   1
-#define MINOR_VER   4
+#define MINOR_VER   5
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 #define GITHUB_STR    "https://github.com/gvanem/EnvTool"
@@ -73,8 +73,8 @@
 #include <windows.h>
 #include <conio.h>
 #include <direct.h>
+
 #define  stat     _stati64
-#define  DEV_NULL "NUL"
 
 #undef  _MAX_PATH
 #define _MAX_PATH 512
@@ -113,19 +113,10 @@
 #endif
 
 /*
- * '_Pragma()' stuff for 'gcc' and 'clang'.
- */
-#if defined(__GNUC__)
-  #define GCC_VERSION  (10000 * __GNUC__ + 100 * __GNUC_MINOR__ + __GNUC_PATCHLEVEL__)
-#else
-  #define GCC_VERSION  0
-#endif
-
-/*
- * Define a '_PRAGMA()' for gcc >= 4.6 and clang.
+ * Define a '_PRAGMA()' for clang.
  * This includes the Intel LLVM-based compliers too (since '__clang__' is a built-in).
  */
-#if defined(__clang__) || (GCC_VERSION >= 40600)
+#if defined(__clang__)
   #define _PRAGMA(x) _Pragma (#x)
 #else
   #define _PRAGMA(x)
@@ -215,7 +206,7 @@
 #define FILE_EXISTS(f)       _file_exists (f)
 #define IS_SLASH(c)          ((c) == '\\' || (c) == '/')
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__clang__)
   #define ATTR_PRINTF(_1,_2) __attribute__((format(printf,_1,_2)))
   #define ATTR_UNUSED()      __attribute__((unused))
   #define WIDESTR_FMT        "S"
@@ -407,6 +398,8 @@ typedef struct prog_options {
         bool            under_appveyor;     /**< true if running under AppVeyor */
         bool            under_github;       /**< true if running under Github Actions */
         enum SortMethod sort_methods [10];  /**< the specified sort methods */
+        bool            force_evry;         /**< force a specific Everything SDK */
+        bool            use_evry3;          /**< use Everything SDK 3 functions */
         bool            evry_raw;           /**< use raw non-regex searches */
         UINT            evry_busy_wait;     /**< max number of seconds to wait for a busy EveryThing */
         smartlist_t    *evry_host;
@@ -523,7 +516,7 @@ int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1
  */
 #define MAX_ENV_VAR  32767
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__clang__)
   #define strdupa(s)  (__extension__ ({ \
                        const char *s_in = (s);                \
                        size_t      s_len = strlen (s_in) + 1; \
@@ -733,9 +726,11 @@ extern const char *check_if_shebang (const char *fname);
 extern bool        check_if_zip (const char *fname);
 extern bool        check_if_gzip (const char *fname);
 extern bool        check_if_cwd_in_search_path (const char *program);
+extern bool        check_if_shell_link (const char *fname);
 extern const char *get_gzip_link (const char *file);
 extern const char *get_man_link (const char *file);
 extern const char *get_sym_link (const char *file);
+extern const char *get_shell_link (const char *file);
 extern bool        check_if_PE (const char *fname, enum Bitness *bits);
 extern bool        verify_PE_checksum (const char *fname);
 extern bool        is_wow64_active (void);
@@ -936,7 +931,7 @@ extern char *fnmatch_res  (int rc);
 
 #define TRACE(level, ...)  do {                                    \
                              if (opt.debug >= level) {             \
-                                debug_printf ("%s(%u): ",          \
+                                debug_printf ("%s(%d): ",          \
                                               __FILE(), __LINE__); \
                                 debug_printf (__VA_ARGS__);        \
                              }                                     \
@@ -971,7 +966,7 @@ extern char *fnmatch_res  (int rc);
 #define FATAL(...)          do {                                        \
                               CRTDBG_CHECK_OFF();                       \
                               fflush (stdout);                          \
-                              fprintf (stderr, "\nFatal: %s(%u): ",     \
+                              fprintf (stderr, "\nFatal: %s(%d): ",     \
                                        __FILE(), __LINE__);             \
                               fprintf (stderr, ##__VA_ARGS__);          \
                               opt.fatal_flag = 1;                       \
