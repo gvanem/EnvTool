@@ -78,6 +78,12 @@
 #pragma clang diagnostic ignored "-Wcast-function-type"
 #endif
 
+#ifdef USE_UBSAN
+  #define UNALIGNED_DWORD_STORE(dst, src)    memcpy (&dst, src, sizeof(dst))
+#else
+  #define UNALIGNED_DWORD_STORE(dst, src)    dst = *(DWORD*)(src)
+#endif
+
 /*
  * From 'gcc -m64':
  *   Everything.c:33:26: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
@@ -591,12 +597,17 @@ static LRESULT WINAPI _Everything_window_proc(HWND hwnd,UINT msg,WPARAM wParam,L
 
                         return TRUE;
                     }
+                    break;
 
+                default:
                     break;
             }
 
             break;
         }
+
+        default:
+           break;
     }
 
     return DefWindowProc(hwnd,msg,wParam,lParam);
@@ -2370,7 +2381,7 @@ static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType)
             return p;
         }
 
-        len = *(DWORD *)p;
+        UNALIGNED_DWORD_STORE (len, p);
         p += sizeof(DWORD);
 
         if (_Everything_IsUnicodeQuery)
@@ -2392,7 +2403,7 @@ static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType)
             return p;
         }
 
-        len = *(DWORD *)p;
+        UNALIGNED_DWORD_STORE (len, p);
         p += sizeof(DWORD);
 
         if (_Everything_IsUnicodeQuery)
@@ -2414,7 +2425,7 @@ static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType)
             return p;
         }
 
-        len = *(DWORD *)p;
+        UNALIGNED_DWORD_STORE (len, p);
         p += sizeof(DWORD);
 
         if (_Everything_IsUnicodeQuery)
@@ -2436,7 +2447,7 @@ static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType)
             return p;
         }
 
-        len = *(DWORD *)p;
+        UNALIGNED_DWORD_STORE (len, p);
         p += sizeof(DWORD);
 
         if (_Everything_IsUnicodeQuery)
@@ -2508,7 +2519,7 @@ static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType)
             return p;
         }
 
-        len = *(DWORD *)p;
+        UNALIGNED_DWORD_STORE (len, p);
         p += sizeof(DWORD);
 
         if (_Everything_IsUnicodeQuery)
@@ -2560,7 +2571,7 @@ static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType)
             return p;
         }
 
-        len = *(DWORD *)p;
+        UNALIGNED_DWORD_STORE (len, p);
         p += sizeof(DWORD);
 
         if (_Everything_IsUnicodeQuery)
@@ -2582,7 +2593,7 @@ static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType)
             return p;
         }
 
-        len = *(DWORD *)p;
+        UNALIGNED_DWORD_STORE (len, p);
         p += sizeof(DWORD);
 
         if (_Everything_IsUnicodeQuery)
@@ -2604,7 +2615,7 @@ static void *_Everything_GetRequestData(DWORD dwIndex,DWORD dwRequestType)
             return p;
         }
 
-        len = *(DWORD *)p;
+        UNALIGNED_DWORD_STORE (len, p);
         p += sizeof(DWORD);
 
         if (_Everything_IsUnicodeQuery)
