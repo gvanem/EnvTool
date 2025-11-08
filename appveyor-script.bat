@@ -28,7 +28,6 @@ exit /b 1
 
 :build
   cd %APPVEYOR_BUILD_FOLDER%\src
-  set WK_VER=8.1
   call nmake -nologo -f Makefile.VC all
   exit /b
 
