@@ -1149,6 +1149,7 @@ const char *reg_top_key_name (HKEY key)
 
 const char *reg_access_name (REGSAM acc)
 {
+  #undef  ADD_VALUE
   #define ADD_VALUE(v)  { v, #v }
 
   static const search_list access[] = {
@@ -3181,6 +3182,111 @@ char *ws2_strerror (int err)
   }
 
   snprintf (buf, sizeof(buf), "%d?", err);
+  return (buf);
+}
+
+/**
+ * For the most common English Winsock2 errors.
+ */
+typedef struct ws_search_list {
+        DWORD       err;
+        const char *short_name;
+        const char *full_name;
+      } ws_search_list;
+
+#undef  ADD_VALUE
+#define ADD_VALUE(err, str) { err, #err, str }
+
+static const ws_search_list ws_err_list[] = {
+  ADD_VALUE (WSAEINTR,           "Call interrupted"),
+  ADD_VALUE (WSAEBADF,           "Bad file"),
+  ADD_VALUE (WSAEACCES,          "Bad access"),
+  ADD_VALUE (WSAEFAULT,          "Bad argument"),
+  ADD_VALUE (WSAEINVAL,          "Invalid arguments"),
+  ADD_VALUE (WSAEMFILE,          "Out of file descriptors"),
+  ADD_VALUE (WSAEWOULDBLOCK,     "Call would block"),
+  ADD_VALUE (WSAEINPROGRESS,     "Blocking call in progress"),
+  ADD_VALUE (WSAEALREADY,        "Blocking call in progress"),
+  ADD_VALUE (WSAENOTSOCK,        "Descriptor is not a socket"),
+  ADD_VALUE (WSAEDESTADDRREQ,    "Need destination address"),
+  ADD_VALUE (WSAEMSGSIZE,        "Bad message size"),
+  ADD_VALUE (WSAEPROTOTYPE,      "Bad protocol"),
+  ADD_VALUE (WSAENOPROTOOPT,     "Protocol option is unsupported"),
+  ADD_VALUE (WSAEPROTONOSUPPORT, "Protocol is unsupported"),
+  ADD_VALUE (WSAESOCKTNOSUPPORT, "Socket is unsupported"),
+  ADD_VALUE (WSAEOPNOTSUPP,      "Operation not supported"),
+  ADD_VALUE (WSAEPFNOSUPPORT,    "Protocol family not supported"),
+  ADD_VALUE (WSAEAFNOSUPPORT,    "Address family not supported"),
+  ADD_VALUE (WSAEADDRINUSE,      "Address already in use"),
+  ADD_VALUE (WSAEADDRNOTAVAIL,   "Address not available"),
+  ADD_VALUE (WSAENETDOWN,        "Network down"),
+  ADD_VALUE (WSAENETUNREACH,     "Network unreachable"),
+  ADD_VALUE (WSAENETRESET,       "Network has been reset"),
+  ADD_VALUE (WSAECONNABORTED,    "Connection was aborted"),
+  ADD_VALUE (WSAECONNRESET,      "Connection was reset"),
+  ADD_VALUE (WSAENOBUFS,         "No buffer space"),
+  ADD_VALUE (WSAEISCONN,         "Socket is already connected"),
+  ADD_VALUE (WSAENOTCONN,        "Socket is not connected"),
+  ADD_VALUE (WSAESHUTDOWN,       "Socket has been shut down"),
+  ADD_VALUE (WSAETOOMANYREFS,    "Too many references"),
+  ADD_VALUE (WSAETIMEDOUT,       "Timed out"),
+  ADD_VALUE (WSAECONNREFUSED,    "Connection refused"),
+  ADD_VALUE (WSAELOOP,           "Loop??"),
+  ADD_VALUE (WSAENAMETOOLONG,    "Name too long"),
+  ADD_VALUE (WSAEHOSTDOWN,       "Host down"),
+  ADD_VALUE (WSAEHOSTUNREACH,    "Host unreachable"),
+  ADD_VALUE (WSAENOTEMPTY,       "Not empty"),
+  ADD_VALUE (WSAEPROCLIM,        "Process limit reached"),
+  ADD_VALUE (WSAEUSERS,          "Too many users"),
+  ADD_VALUE (WSAEDQUOT,          "Bad quota"),
+  ADD_VALUE (WSAESTALE,          "Something is stale"),
+  ADD_VALUE (WSAEREMOTE,         "Remote error"),
+  ADD_VALUE (WSAEDISCON,         "Disconnected"),
+  ADD_VALUE (WSASYSNOTREADY,     "Winsock library is not ready"),
+  ADD_VALUE (WSAVERNOTSUPPORTED, "Winsock version not supported"),
+  ADD_VALUE (WSANOTINITIALISED,  "Winsock library not initialised"),
+  ADD_VALUE (WSAHOST_NOT_FOUND,  "Host not found"),
+  ADD_VALUE (WSATRY_AGAIN,       "Host not found, try again"),
+  ADD_VALUE (WSANO_RECOVERY,     "Unrecoverable error in call to nameserver"),
+  ADD_VALUE (WSANO_DATA,         "No data record of requested type"),
+
+  /* WinSock2 specific error codes */
+  ADD_VALUE (WSAENOMORE,             "No more results can be returned by WSALookupServiceNext"),
+  ADD_VALUE (WSAECANCELLED,          "A call to WSALookupServiceEnd was made while this call was still processing. The call has been canceled"),
+  ADD_VALUE (WSAEINVALIDPROCTABLE,   "The procedure call table is invalid"),
+  ADD_VALUE (WSAEINVALIDPROVIDER,    "The requested service provider is invalid"),
+  ADD_VALUE (WSAEPROVIDERFAILEDINIT, "The requested service provider could not be loaded or initialized"),
+  ADD_VALUE (WSASYSCALLFAILURE,      "A system call that should never fail has failed"),
+  ADD_VALUE (WSASERVICE_NOT_FOUND,   "No such service is known"),
+  ADD_VALUE (WSATYPE_NOT_FOUND,      "The specified class was not found"),
+  ADD_VALUE (WSA_E_NO_MORE,          "No more results can be returned by WSALookupServiceNext"),
+  ADD_VALUE (WSA_E_CANCELLED,        "A call to WSALookupServiceEnd was made while this call was still processing"),
+  ADD_VALUE (WSAEREFUSED,            "A database query failed because it was actively refused"),
+};
+
+/**
+ * Returns an English string for Winsock error-code.
+ * \param[in] wsa_err  the Winsock2 error-code.
+ */
+char *ws_strerror (DWORD wsa_err)
+{
+  static char buf [100];
+  const ws_search_list *el = ws_err_list;
+  size_t i;
+
+  if (wsa_err == 0)
+     return ("No error");
+
+  if (wsa_err > 0 && wsa_err < WSABASEERR)
+     return ws2_strerror (wsa_err);
+
+  for (i = 0; i < DIM(ws_err_list); i++, el++)
+      if (wsa_err == el->err)
+      {
+        snprintf (buf, sizeof(buf), "%s: %s", el->short_name, el->full_name);
+        return (buf);
+      }
+  snprintf (buf, sizeof(buf), "Unknown error: %lu", wsa_err);
   return (buf);
 }
 

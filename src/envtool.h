@@ -572,6 +572,7 @@ extern char *slashify       (const char *path, char use);
 extern char *slashify2      (char *buf, const char *path, char use);
 extern char *win_strerror   (unsigned long err);
 extern char *ws2_strerror   (int err);
+extern char *ws_strerror    (DWORD wsa_err);
 extern bool  mbchar_to_wchar(wchar_t *result, size_t result_size, const char    *a_buf);
 extern bool  wchar_to_mbchar(char    *result, size_t result_size, const wchar_t *w_buf);
 extern char *fopen_mem      (const char *file, size_t *_f_size);

@@ -464,7 +464,7 @@ static bool state_PATH (struct state_CTX *ctx)
   if (strncmp(rx, "200 End", 7) != 0)
   {
     ETP_tracef (ctx, "results_got: %u", ctx->results_got);
-    WARN ("Unexpected response: \"%s\", err: %s\n", rx, ws2_strerror(ctx->ws_err));
+    WARN ("Unexpected response: \"%s\", err: %s\n", rx, ws_strerror(ctx->ws_err));
   }
 
   ctx->state = state_closing;
@@ -1092,7 +1092,7 @@ static bool state_init (struct state_CTX *ctx)
   if (WSAStartup(MAKEWORD(1,1), &wsadata))
   {
     ctx->ws_err = WSAGetLastError();
-    WARN ("Failed to start Winsock: %s.\n", ws2_strerror(ctx->ws_err));
+    WARN ("Failed to start Winsock: %s.\n", ws_strerror(ctx->ws_err));
     ctx->state = state_exit;
     return (true);
   }
@@ -1103,7 +1103,7 @@ static bool state_init (struct state_CTX *ctx)
     char buf [500];
 
     ctx->ws_err = WSAGetLastError();
-    snprintf (buf, sizeof(buf), "Failed to create socket: %s.\n", ws2_strerror(ctx->ws_err));
+    snprintf (buf, sizeof(buf), "Failed to create socket: %s.\n", ws_strerror(ctx->ws_err));
     WARN (buf);
     ETP_tracef (ctx, buf);
     ctx->state = state_exit;
@@ -1211,7 +1211,7 @@ static void connect_common_final (struct state_CTX *ctx, int err)
     char buf [500];
 
     ctx->ws_err = err;
-    snprintf (buf, sizeof(buf), "Failed to connect: %s.\n", ws2_strerror(ctx->ws_err));
+    snprintf (buf, sizeof(buf), "Failed to connect: %s.\n", ws_strerror(ctx->ws_err));
     WARN (buf);
     ETP_tracef (ctx, buf);
     ctx->state = state_closing;
