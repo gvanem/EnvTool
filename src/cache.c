@@ -11,6 +11,16 @@
 #include "color.h"
 #include "cache.h"
 
+#ifdef USE_UBSAN
+  #include <sanitizer/ubsan_interface.h>
+
+  #ifdef _WIN64
+    #define UNALIGNED_STORE_INT(dst, val)  __sanitizer_unaligned_store64 (dst, val)
+  #else
+    #define UNALIGNED_STORE_INT(dst, val)  __sanitizer_unaligned_store32 (dst, val)
+  #endif
+#endif
+
 /** \def CACHE_HEADER
  * Cache-file header.
  */
@@ -77,7 +87,7 @@ typedef struct cache_node {
  */
 typedef struct vgetf_state {
         char **vec   [CACHE_MAX_ARGS];   /**< where to store `"%d"` and `"%s"` values. */
-        int    d_val [CACHE_MAX_ARGS];   /**< decimal values for a `%d` parameter are stored here */
+        int    d_val [CACHE_MAX_ARGS];   /**< decimal values for a `%d` / `%u` parameters are stored here */
         char  *s_val [CACHE_MAX_ARGS];   /**< string values for a `%s` parameter are stored here */
         char  *value;                    /**< a string-value returned from `cache_vgetf()` */
       } vgetf_state;
@@ -227,7 +237,7 @@ static bool cache_parse (FILE *f)
       found_ver = true;
       p = buf + sizeof(CACHE_HEADER_VER) - 1;
       cache_ver = atoi (p);
-      TRACE (1, "Current cache version: %u, got version: %u.\n", CACHE_VERSION_NUM, cache_ver);
+      TRACE (1, "Current cache version: %d, got version: %u.\n", CACHE_VERSION_NUM, cache_ver);
     }
 
     if (buf[0] == '#')   /* A '# comment' line */
@@ -601,7 +611,7 @@ void cache_putf (CacheSections section, _Printf_format_string_ const char *fmt, 
 
   va_start (args, fmt);
   len = vsnprintf (key_val, sizeof(key_val), fmt, args);
-  if (len >= sizeof(key_val))
+  if (len >= (int)sizeof(key_val))
      FATAL ("'key_val' too small. Need %d bytes.\n", len+1);
 
   if (len < 0)
@@ -733,7 +743,7 @@ static int get_next_value (char **start, char *end)
  * Similar to `vsscanf()` but arguments for `%s` MUST be `char **`.
  *
  * A `"\"%s\""` format is legal in `cache_putf()`, but here only
- * `"%d"` and `"%s"` formats are allowed.
+ * `"%d"`, `"%u"` and `"%s"` formats are allowed.
  *
  * It is called with a state; `state->vec[]`, `state->s_val[]` and `state->d_val[]` arrays
  * are used in round-robin (`idx = [0 ... CACHE_STATES-1]`) to be able to call this
@@ -776,7 +786,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
        this_fmt && i < DIM(state->vec);
        pp = va_arg(args, char**), this_fmt = _strtok_r(NULL, ",", &tok_end), i++)
   {
-    state->vec[i]   = pp; /* the address to store a "%d" or "%s" value into */
+    state->vec[i]   = pp;   /* the address to store a "%d", "%u" or "%s" value into */
     state->d_val[i] = 0;
     state->s_val[i] = NULL;
     TRACE (4, "vec[%d]: 0x%p, this_fmt: '%s'.\n", i, state->vec[i], this_fmt);
@@ -825,7 +835,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
     if (i >= i_max)
        FATAL ("too many fields (%d) in 'fmt: \"%s\"'.\n", i+1, fmt);
 
-    if (!strcmp(v, "%d"))
+    if (!strcmp(v, "%d") || !strcmp(v, "%u"))
     {
       state->d_val[i] = strtoul (state->s_val[i], &v_end, 10);
 
@@ -834,7 +844,11 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
       else
       {
         TRACE (3, "d_val[%d]: %d.\n", i, state->d_val[i]);
+#ifdef USE_UBSAN
+        UNALIGNED_STORE_INT (&state->vec[i], state->d_val[i]);
+#else
         *(int*) state->vec[i] = state->d_val[i];
+#endif
       }
       i++;
     }
@@ -1109,7 +1123,7 @@ static size_t cache_test_getf (void)
 
   if (num_ok == i)
        C_printf ("  All tests ran ~2OKAY~0.\n\n");
-  else C_printf ("  %zu out of %u tests ~5FAILED~0.\n\n", i - num_ok, DIM(tests));
+  else C_printf ("  %zu out of %d tests ~5FAILED~0.\n\n", i - num_ok, DIM(tests));
   return (num_ok);
 }
 
