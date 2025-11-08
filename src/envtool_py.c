@@ -1840,7 +1840,7 @@ static int report_zip_file (const char *zip_file, char *output)
 
   p++;
   memset (&tm, 0, sizeof(tm));
-  num = sscanf (output, "%ld %4u%2u%2u.%2u%2u%2u",
+  num = sscanf (output, "%ld %4d%2d%2d.%2d%2d%2d",
                 &fsize, &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
                         &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
   if (num != 7)
@@ -1856,7 +1856,7 @@ static int report_zip_file (const char *zip_file, char *output)
   if (mtime == -1)
   {
     WARN (" (4) Unexpected timestamp: \"%.*s\".\n", (int)(space-p), p);
-    TRACE (1, "parsed tm: %04u%02u%02u.%02u%02u%02u. num: %d\n",
+    TRACE (1, "parsed tm: %04d%02d%02d.%02d%02d%02d. num: %d\n",
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec, num);
     return (0);
@@ -3194,7 +3194,7 @@ void py_init (void)
     else
       num_mod = "<N/A>";
 
-    TRACE (1, "%u: %-*s -> \"%s\".  ver: %s\n"
+    TRACE (1, "%d: %-*s -> \"%s\".  ver: %s\n"
               "%*sDLL:         -> \"%s\"\n"
               "%*suser_site:   -> %s\n"
               "%*sVariant:     -> %s%s\n"
