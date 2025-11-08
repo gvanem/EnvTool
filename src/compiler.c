@@ -127,10 +127,10 @@ static int pfx_next_idx = -1;
  * The second parameter could be `" -m32"` or `" -m64"` for a dual-mode GCC program.
  * The other parameters are always for `"NUL"` or `"/dev/null"`.
  */
-#define INC_DUMP_FMT_GCC          "%s%s -o %s -v -dM -xc -c - < NUL 2>&1"          /**< For `gcc.exe` or `g++.exe`*/
-#define INC_DUMP_FMT_CLANG        "%s%s -o %s -v -dM -xc -c - < NUL 2>&1"          /**< For `clang.exe` */
-#define INC_DUMP_FMT_INTEL_DPCPP  "%s%s -o %s -v -dM -xc++ -c -Tc - < NUL 2>&1"    /**< For `dpcpp.exe` */
-#define INC_DUMP_FMT_INTEL_ICX    "%s%s -o %s -v -dM -xc   -c -Tc - < NUL 2>&1"    /**< For `icx.exe` */
+#define INC_DUMP_FMT_GCC          "%s%s -o NUL -v -dM -xc -c - < NUL 2>&1"          /**< For `gcc.exe` or `g++.exe`*/
+#define INC_DUMP_FMT_CLANG        "%s%s -o NUL -v -dM -xc -c - < NUL 2>&1"          /**< For `clang.exe` */
+#define INC_DUMP_FMT_INTEL_DPCPP  "%s%s -o NUL -v -dM -xc++ -c -Tc - < NUL 2>&1"    /**< For `dpcpp.exe` */
+#define INC_DUMP_FMT_INTEL_ICX    "%s%s -o NUL -v -dM -xc   -c -Tc - < NUL 2>&1"    /**< For `icx.exe` */
 
 /**
  * Formats for dumping built-in library paths in GCC and LLVM based compilers.
