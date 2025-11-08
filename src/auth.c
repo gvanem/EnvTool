@@ -33,7 +33,7 @@ typedef struct login_info {
         char        *host;        /**< The hostname of the entry */
         char        *user;        /**< The username of the entry */
         char        *passw;       /**< The password of the entry */
-        int          port;        /**< The network port of the entry. Only if from `~/.authinfo` or `~/envtool.cfg` */
+        uint16_t     port;        /**< The network port of the entry. Only if from `~/.authinfo` or `~/envtool.cfg` */
       } login_info;
 
 /** The smartlists of "login_info" entries.
@@ -118,7 +118,7 @@ static const login_info *common_lookup (const char *host, enum login_source src)
     if (li->is_default)
        def_li = li;
 
-    snprintf (buf, sizeof(buf), "%-12s host: '%s', user: '%s', passw: '%s', port: %d\n",
+    snprintf (buf, sizeof(buf), "%-12s host: '%s', user: '%s', passw: '%s', port: %u\n",
               login_src_name(li->src), li->is_default ? "*default*" : li->host,
               li->user, li->passw, li->port);
 
@@ -151,10 +151,8 @@ static void netrc_parse (smartlist_t *sl, const char *line)
   char        host [256];
   char        user [50];
   char        passw [50];
-  const char *fmt1 = "machine %256s login %50s password %50s";
-  const char *fmt2 = "default login %50s password %50s";
 
-  if (sscanf(line, fmt1, host, user, passw) == 3)
+  if (sscanf(line, "machine %256s login %50s password %50s", host, user, passw) == 3)
   {
     li = CALLOC (1, sizeof(*li));
     li->host  = STRDUP (host);
@@ -162,7 +160,7 @@ static void netrc_parse (smartlist_t *sl, const char *line)
     li->passw = STRDUP (passw);
     li->src   = LOGIN_NETRC;
   }
-  else if (sscanf(line, fmt2, user, passw) == 2)
+  else if (sscanf(line, "default login %50s password %50s", user, passw) == 2)
   {
     li = CALLOC (1, sizeof(*li));
     li->user       = STRDUP (user);
@@ -186,11 +184,9 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
   char        host [256];
   char        user [50];
   char        passw [50];
-  int         port = 0;
-  const char *fmt1 = "machine %256s port %d login %50s password %50s";
-  const char *fmt2 = "default port %d login %50s password %50s";
+  uint16_t    port = 0;
 
-  if (sscanf(line, fmt1, host, &port, user, passw) == 4 && port > 0 && port < USHRT_MAX)
+  if (sscanf(line, "machine %256s port %hu login %50s password %50s", host, &port, user, passw) == 4 && port > 0 && port < USHRT_MAX)
   {
     li = CALLOC (1, sizeof(*li));
     li->host     = STRDUP (host);
@@ -199,7 +195,7 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
     li->port     = port;
     li->src      = LOGIN_AUTHINFO;
   }
-  else if (sscanf(line, fmt2, &port, user, passw) == 3 && port > 0 && port < USHRT_MAX)
+  else if (sscanf(line, "default port %hu login %50s password %50s", &port, user, passw) == 3 && port > 0 && port < USHRT_MAX)
   {
     li = CALLOC (1, sizeof(*li));
     li->user       = STRDUP (user);
@@ -223,10 +219,10 @@ static void authinfo_parse (smartlist_t *sl, const char *line)
  */
 bool auth_envtool_handler (const char *section, const char *key, const char *value)
 {
-  char user [256];
-  char passw [256];
-  int  port = 0;
-  int  num = sscanf (value, "%255[^ /] / %255[^ /] / port %d", user, passw, &port);
+  char     user [256];
+  char     passw [256];
+  uint16_t port = 0;
+  int      num = sscanf (value, "%255[^ /] / %255[^ /] / port %hu", user, passw, &port);
 
   if (num >= 2)
   {
@@ -240,7 +236,7 @@ bool auth_envtool_handler (const char *section, const char *key, const char *val
     li->passw = STRDUP (passw);
     li->port  = port;
     li->src   = LOGIN_ENVTOOL_CFG;
-    TRACE (2, "num: %d, host: '%s', user: '%s', passwd: '%s', port: %d.\n", num, li->host, li->user, li->passw, li->port);
+    TRACE (2, "num: %d, host: '%s', user: '%s', passwd: '%s', port: %u.\n", num, li->host, li->user, li->passw, li->port);
     smartlist_add (login_list[LOGIN_ENVTOOL_CFG], li);
   }
   ARGSUSED (section);
@@ -295,7 +291,7 @@ void envtool_cfg_exit (void)
   common_exit (LOGIN_ENVTOOL_CFG);
 }
 
-static int return_login (const login_info *li, const char **user, const char **passw, int *port)
+static int return_login (const login_info *li, const char **user, const char **passw, uint16_t *port)
 {
   if (!li)
      return (0);
@@ -328,7 +324,7 @@ int netrc_lookup (const char *host, const char **user, const char **passw)
  * Use this externally like:
  * `authinfo_lookup (NULL, NULL, NULL, NULL)` can be used for test/debug.
  */
-int authinfo_lookup (const char *host, const char **user, const char **passw, int *port)
+int authinfo_lookup (const char *host, const char **user, const char **passw, uint16_t *port)
 {
   const login_info *li;
 
@@ -343,7 +339,7 @@ int authinfo_lookup (const char *host, const char **user, const char **passw, in
  * Use this externally like:
  * `envtool_cfg_lookup (NULL, NULL, NULL, NULL)` can be used for test/debug.
  */
-int envtool_cfg_lookup (const char *host, const char **user, const char **passw, int *port)
+int envtool_cfg_lookup (const char *host, const char **user, const char **passw, uint16_t *port)
 {
   const login_info *li = common_lookup (host, LOGIN_ENVTOOL_CFG);
 
