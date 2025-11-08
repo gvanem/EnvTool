@@ -4971,6 +4971,7 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
      return reparse_err (1, "Could not open dir '%s'; %s", dir, win_strerror(GetLastError()));
 
   rdata = alloca (MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+  ret_len = 0;
   rc = DeviceIoControl (hnd, FSCTL_GET_REPARSE_POINT, NULL, 0,
                         rdata, MAXIMUM_REPARSE_DATA_BUFFER_SIZE,
                         &ret_len, NULL);
@@ -4981,8 +4982,8 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
   CloseHandle (hnd);
 
   if (!rc)
-     return reparse_err (1, "DeviceIoControl(): ret_len: %lu, %s",
-                         ret_len, win_strerror(GetLastError()));
+     return reparse_err (1, "DeviceIoControl(): %s",
+                         win_strerror(GetLastError()));
 
   if (!IsReparseTagMicrosoft(rdata->ReparseTag))
      return reparse_err (1, "Not a Microsoft-reparse point - could not query data!");
