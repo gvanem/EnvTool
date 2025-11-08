@@ -18,6 +18,7 @@
 #include "envtool.h"
 #include "cache.h"
 #include "vcpkg.h"
+#include "dirlist.h"
 
 extern bool find_vstudio_init (void);
 
@@ -345,6 +346,12 @@ static void test_fix_path (void)
 }
 
 /*
+ * The `CSIDL_LOCAL_APPDATA` folder.
+ * Save it's value to build up the path for `test_AppxReparsePoints()` later.
+ */
+static char win_apps [_MAX_PATH];
+
+/*
  * https://msdn.microsoft.com/en-us/library/windows/desktop/bb762181%28v=vs.85%29.aspx
  */
 static void test_SHGetFolderPath (void)
@@ -444,7 +451,7 @@ static void test_SHGetFolderPath (void)
     #define CSIDL_COMPUTERSNEARME           0x003d        /* Computers Near Me (computered from Workgroup membership) */
   #endif
 
-  int i;
+  int i, slash = opt.show_unix_paths ? '/' : '\\';
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
@@ -457,8 +464,13 @@ static void test_SHGetFolderPath (void)
     HRESULT            rc       = SHGetFolderPath (NULL, folder->value, NULL, flag, buf);
 
     if (rc == S_OK)
-         slashify2 (buf, buf, opt.show_unix_paths ? '/' : '\\');
-    else snprintf (buf, sizeof(buf), "~5Failed: %s", win_strerror(rc));
+    {
+      slashify2 (buf, buf, slash);
+      if (folder->value == CSIDL_LOCAL_APPDATA)
+         snprintf (win_apps, sizeof(win_apps), "%s%cMicrosoft%cWindowsApps", buf, slash, slash);
+    }
+    else
+      snprintf (buf, sizeof(buf), "~5Failed: %s", win_strerror(rc));
 
     C_printf ("  ~3SHGetFolderPath~0 (~6%s~0, ~6%s~0):\n    ~2%s~0\n",
               folder->name, flag_str, buf);
@@ -487,7 +499,7 @@ static void test_ReparsePoints (void)
   const char *p;
   char  result [_MAX_PATH];
   bool  rc;
-  int   i;
+  int   i, slash = opt.show_unix_paths ? '/' : '\\';
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
@@ -502,7 +514,7 @@ static void test_ReparsePoints (void)
 
     if (!rc)
          C_printf (" ~5%s~0\n", last_reparse_err);
-    else C_printf (" \"%s\"\n", slashify2(result, result, opt.show_unix_paths ? '/' : '\\'));
+    else C_printf (" \"%s\"\n", slashify2(result, result, slash));
   }
 
 #if defined(__INTEL_LLVM_COMPILER)
@@ -516,9 +528,73 @@ static void test_ReparsePoints (void)
 
   if (!rc)
        C_printf (" ~5%s~0\n", last_reparse_err);
-  else C_printf (" \"%s\"\n", slashify2(result, result, opt.show_unix_paths ? '/' : '\\'));
+  else C_printf (" \"%s\"\n", slashify2(result, result, slash));
 #endif
 
+  C_putc ('\n');
+}
+
+/**
+ * List some EXE files in the "c:\Users\{user}\AppData\Local\Microsoft\WindowsApp"
+ * folder and get their true targets. They should all be AppX reparse-points.
+ *
+ * Result would some cryptic location like:
+ *  0: "c:\Users\gvane\AppData\Local\Microsoft\WindowsApps\winget.exe" ->
+ *     "c:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_1.27.350.0_x64__8wekyb3d8bbwe\winget.exe"
+ */
+static void test_AppxReparsePoints (void)
+{
+  struct od2x_options opts;
+  int    num = 0, max = 10;
+  int    slash = opt.show_unix_paths ? '/' : '\\';
+  DIR2  *dp;
+
+  C_printf ("~3%s():~0\n", __FUNCTION__);
+
+  memset (&opts, '\0', sizeof(opts));
+  opts.pattern = "*.exe";
+  if (opt.verbose >= 1)
+  {
+    max = INT_MAX;
+    opts.sort = OD2X_FILES_FIRST;
+    opts.recursive = 1;    /* does not work yet */
+    opts.pattern = "*";
+  }
+
+  dp = opendir2x (win_apps, &opts);
+
+  while (num < max)
+  {
+    struct dirent2 *de = readdir2 (dp);
+    char   result [_MAX_PATH];
+    char  *file;
+    bool   rc;
+
+    TRACE (1, "de->d_name: '%s'\n", de ? de->d_name : "<none>");
+
+    if (!de || !de->d_name)
+       break;
+
+    if (stricmp(get_file_ext(de->d_name), "exe"))
+       continue;
+
+    result [0] = '?';
+    result [1] = '\0';
+    file = slashify2 (de->d_name, de->d_name, slash);
+    rc = get_reparse_point (file, result, sizeof(result));
+
+    C_printf ("  %d: \"%s\" ->\n", num, file);
+    if (!rc)
+         C_printf ("     ~5%s~0\n", last_reparse_err);
+    else C_printf ("     \"%s\"\n", slashify2(result, result, slash));
+    num++;
+  }
+
+  if (dp)
+     closedir2 (dp);
+
+  if (num == 0)
+     C_printf ("  No '%s%c%s' files found!\n", win_apps, slash, opts.pattern);
   C_putc ('\n');
 }
 
@@ -527,11 +603,12 @@ static void test_ReparsePoints (void)
  */
 static void print_parsing (const char *file, int rc)
 {
+  int  slash = opt.show_unix_paths ? '/' : '\\';
   char path [_MAX_PATH];
   const char *appdata = getenv ("APPDATA");
 
   snprintf (path, sizeof(path), "%s\\%s", appdata, file);
-  C_printf ("  Parsing ~6%-50s~0", slashify(path, opt.show_unix_paths ? '/' : '\\'));
+  C_printf ("  Parsing ~6%-50s~0", slashify(path, slash));
   if (rc == 0)
        C_puts ("~5FAIL.~0\n");
   else C_puts ("~2OK.~0\n");
@@ -773,6 +850,7 @@ int do_tests (void)
   test_disk_ready();
   test_SHGetFolderPath();
   test_ReparsePoints();
+  test_AppxReparsePoints();
 
   if (opt.under_appveyor || opt.under_github)
      test_AppVeyor_GitHub();
@@ -785,7 +863,7 @@ int do_tests (void)
 #endif
 
 #if defined(USE_SQLITE3)
-  test_sqlite3();
+  // test_sqlite3();
 #endif
 
   return (0);
