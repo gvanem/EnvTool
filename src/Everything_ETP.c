@@ -111,6 +111,7 @@
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif
+
 #include <winsock2.h>
 #include <windows.h>
 
@@ -180,7 +181,7 @@ struct state_CTX {
        ETP_state          state;            /**< Current state function */
        struct sockaddr_in sa;               /**< Used in state_resolve(), state_blocking_connect() and state_non_blocking_connect() */
        SOCKET             sock;             /**< Set in state_blocking_connect() and state_non_blocking_connect() */
-       int                port;             /**< The server destination port to use */
+       uint16_t           port;             /**< The server destination port to use */
        char              *raw_url;          /**< URL on raw form given in do_check_evry_ept() */
        char               hostname [200];   /**< Name of host to connect to */
        char               username [30];    /**< Name of user */
@@ -211,7 +212,7 @@ static void        connect_common_init  (struct state_CTX *ctx, const char *whic
 static void        connect_common_final (struct state_CTX *ctx, int err);
 static void        set_nonblock         (SOCKET sock, DWORD non_block);
 static int         rbuf_read_char  (struct state_CTX *ctx, char *store);
-static const char *ETP_tracef      (struct state_CTX *ctx, const char *fmt, ...);
+static const char *ETP_tracef      (struct state_CTX *ctx, _Printf_format_string_ const char *fmt, ...) ATTR_PRINTF(2, 3);
 static const char *ETP_state_name  (ETP_state f);
 
 static bool state_init                 (struct state_CTX *ctx);
@@ -289,7 +290,7 @@ static char *recv_line (struct state_CTX *ctx, char *out_buf, size_t out_len)
   ETP_tracef (ctx, "Rx: \"%s\", len: %d\n", start, num);
 
   if (opt.use_buffered_io && opt.debug >= 3)
-     ETP_tracef (ctx, "recv.buffer_left: %u: recv.buffer_pos: %u, recv.buffer_read: %d, ws_err: %d\n",
+     ETP_tracef (ctx, "recv.buffer_left: %zu: recv.buffer_pos: %zd, recv.buffer_read: %d, ws_err: %d\n",
                  ctx->recv.buffer_left, ctx->recv.buffer_pos - ctx->recv.buffer,
                  ctx->recv.buffer_read, ctx->ws_err);
   return (start);
@@ -311,10 +312,10 @@ static int send_cmd (struct state_CTX *ctx, const char *fmt, ...)
   va_start (args, fmt);
 
   len = vsnprintf (tx_buf, sizeof(tx_buf)-3, fmt, args);
-  if (len > 0 && len < sizeof(tx_buf)-3)
+  if (len > 0 && len < (int)sizeof(tx_buf) - 3)
   {
-    tx_buf[len] = '\r';
-    tx_buf[len+1] = '\n';
+    tx_buf [len] = '\r';
+    tx_buf [len+1] = '\n';
     rc = send (ctx->sock, tx_buf, len+2, 0);
   }
   else
@@ -462,7 +463,7 @@ static bool state_PATH (struct state_CTX *ctx)
 
   if (strncmp(rx, "200 End", 7) != 0)
   {
-    ETP_tracef (ctx, "results_got: %lu", ctx->results_got);
+    ETP_tracef (ctx, "results_got: %u", ctx->results_got);
     WARN ("Unexpected response: \"%s\", err: %s\n", rx, ws2_strerror(ctx->ws_err));
   }
 
@@ -529,8 +530,7 @@ static bool state_200 (struct state_CTX *ctx)
  */
 static bool state_closing (struct state_CTX *ctx)
 {
-  ETP_tracef (ctx, "closesocket(%d)", ctx->sock);
-
+  ETP_tracef (ctx, "closesocket (%zd)", ctx->sock);
   closesocket (ctx->sock);
 
   if (ctx->results_expected > 0 && ctx->results_got < ctx->results_expected)
@@ -957,7 +957,7 @@ static bool state_authinfo_lookup (struct state_CTX *ctx)
 {
   const char *user  = NULL;
   const char *passw = NULL;
-  int         port = 0;
+  uint16_t    port = 0;
   bool        okay = authinfo_lookup (ctx->hostname, &user, &passw, &port);
 
   if (!okay)
@@ -1031,7 +1031,7 @@ static bool state_parse_url (struct state_CTX *ctx)
 
   /** Check simple case of "host_or_IP-address<:port>" first.
    */
-  n = parse_host_spec (ctx, "%200[^:]:%d", ctx->hostname, &ctx->port);
+  n = parse_host_spec (ctx, "%200[^:]:%u", ctx->hostname, &ctx->port);
 
   if ((n == 1 || n == 2) && !strchr(ctx->raw_url,'@'))
      ctx->use_netrc = ctx->use_authinfo = true;
@@ -1039,14 +1039,14 @@ static bool state_parse_url (struct state_CTX *ctx)
   {
     /** Check for "user:passwd@host_or_IP-address<:port>".
      */
-    n = parse_host_spec (ctx, "%30[^:@]:%30[^:@]@%200[^:]:%d", ctx->username, ctx->password, ctx->hostname, &ctx->port);
+    n = parse_host_spec (ctx, "%30[^:@]:%30[^:@]@%200[^:]:%u", ctx->username, ctx->password, ctx->hostname, &ctx->port);
     if (n == 3 || n == 4)
        ctx->use_netrc = ctx->use_authinfo = false;
     else
     {
       /** Check for "user@host_or_IP-address<:port>".
        */
-      n = parse_host_spec (ctx, "%30[^:@]@%200[^:@]:%d", ctx->username, ctx->hostname, &ctx->port);
+      n = parse_host_spec (ctx, "%30[^:@]@%200[^:@]:%u", ctx->username, ctx->hostname, &ctx->port);
       if (n == 2 || n == 3)
          ctx->use_netrc = ctx->use_authinfo = false;
     }
@@ -1186,7 +1186,7 @@ static void connect_common_init (struct state_CTX *ctx, const char *which_state)
   else rx_size = MAX_RECV_BUF;  /* 16 kByte. Should currently be the same for both cases. */
 
   ctx->sa.sin_family = AF_INET;
-  ctx->sa.sin_port   = htons ((WORD)ctx->port);
+  ctx->sa.sin_port   = htons (ctx->port);
   setsockopt (ctx->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&ctx->timeout, sizeof(ctx->timeout));
   setsockopt (ctx->sock, SOL_SOCKET, SO_RCVBUF, (const char*)&rx_size, sizeof(rx_size));
 
@@ -1341,7 +1341,7 @@ static int parse_host_spec (struct state_CTX *ctx, const char *pattern, ...)
 
   ETP_tracef (ctx,
               "pattern: '%s'\n"
-              "      n: %d, username: '%s', password: '%s', hostname: '%s', port: %d\n",
+              "      n: %d, username: '%s', password: '%s', hostname: '%s', port: %u\n",
               pattern, n, ctx->username, ctx->password, ctx->hostname, ctx->port);
   return (n);
 }
