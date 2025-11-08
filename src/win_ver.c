@@ -646,7 +646,7 @@ const char *os_KUSER_SHARED_DATA (void)
 
   TRACE (1, "NativeProcessorArchitecture: %d\n", data->NativeProcessorArchitecture);
 
-  snprintf (buf, sizeof(buf), "version: %d.%d.%d\n",
+  snprintf (buf, sizeof(buf), "version: %lu.%lu.%lu\n",
             data->NtMajorVersion, data->NtMinorVersion, data->NtBuildNumber);
   return (buf);
 }

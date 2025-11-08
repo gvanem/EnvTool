@@ -27,10 +27,10 @@ typedef struct lua_dir {
 /**
  * The global data for 'lua.exe' (or `luajit.exe`) found on `PATH`.
  */
-static char           *lua_exe;
-static struct ver_info lua_ver;
-static int    prefer_luajit = 0;
-static int    check_mode    = 0;
+static char    *lua_exe;
+static ver_info lua_ver;
+static int      prefer_luajit = 0;
+static int      check_mode    = 0;
 
 /** A `smartlist_t` of 'lua_dir'
  */
@@ -232,8 +232,8 @@ static void lua_dump_dirs (void)
  */
 void lua_init (void)
 {
-  struct ver_info ver;
-  char           *exe = NULL;
+  ver_info ver;
+  char    *exe = NULL;
 
   if (lua_dirs)
      return;
@@ -472,7 +472,7 @@ const char *lua_get_exe (void)
 
 static int lua_version_cb (char *buf, int index)
 {
-  struct ver_info ver = { 0,0,0,0 };
+  ver_info    ver = { 0,0,0,0 };
   const char *fmt = prefer_luajit ? "LuaJIT %d.%d.%d" : "Lua %d.%d.%d";
   int   rc = 0;
 
@@ -488,7 +488,7 @@ static int lua_version_cb (char *buf, int index)
 /**
  * Find the location and version for `lua.exe` (or `luajit.exe`) on `PATH`.
  */
-bool lua_get_info (char **exe, struct ver_info *ver)
+bool lua_get_info (char **exe, ver_info *ver)
 {
   static char exe_copy [_MAX_PATH];
   int    rc, _prefer_luajit = 0;
@@ -516,7 +516,7 @@ bool lua_get_info (char **exe, struct ver_info *ver)
     cache_getf (SECTION_LUA, "lua_version = %d,%d,%d", &lua_ver.val_1, &lua_ver.val_2, &lua_ver.val_3);
   }
 
-  TRACE (2, "lua_exe: %s, ver: %d.%d.%d. _prefer_luajit: %d\n",
+  TRACE (2, "lua_exe: %s, ver: %u.%u.%u. _prefer_luajit: %d\n",
          lua_exe, lua_ver.val_1, lua_ver.val_2, lua_ver.val_3, _prefer_luajit);
 
   if (lua_exe && !FILE_EXISTS(lua_exe))
@@ -552,7 +552,7 @@ bool lua_get_info (char **exe, struct ver_info *ver)
     SetErrorMode (err_mode);
 
     if (rc > 0)
-       cache_putf (SECTION_LUA, "lua_version = %d,%d,%d", lua_ver.val_1, lua_ver.val_2, lua_ver.val_3);
+       cache_putf (SECTION_LUA, "lua_version = %u,%u,%u", lua_ver.val_1, lua_ver.val_2, lua_ver.val_3);
 
     /* The hopeless case were 'lua_exe' was found but failed to run a
      * simple "lua.exe -v". Hence just don't do this again.
@@ -567,7 +567,7 @@ bool lua_get_info (char **exe, struct ver_info *ver)
   }
 
   *ver = lua_ver;
-  TRACE (2, "%s: ver: %d.%d.%d.\n", lua_get_exe(), ver->val_1, ver->val_2, ver->val_3);
+  TRACE (2, "%s: ver: %u.%u.%u.\n", lua_get_exe(), ver->val_1, ver->val_2, ver->val_3);
 
   return (lua_exe && VALID_VER(lua_ver));
 }

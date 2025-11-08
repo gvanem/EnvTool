@@ -287,7 +287,7 @@ int report_file (report *r)
 
   r->filler = "      ";
 
-#if defined(__clang__) || defined(__GNUC__) || (defined(_MSC_VER) && _MSC_VER >= 1900)
+#if defined(__clang__) || (defined(_MSC_VER) && _MSC_VER >= 1900)
   if (r->key == HKEY_PKG_CONFIG_FILE && 0)
   {
     r->pre_action = r->post_action = NULL;
@@ -405,7 +405,7 @@ int report_file (report *r)
   else if (opt.show_size)
   {
     snprintf (size, sizeof(size), " - %s", get_file_size_str(r->fsize));
-    if (r->fsize < (__int64)-1)
+    if ((__int64)r->fsize < (__int64)-1)
     {
       if (r->key == HKEY_EVERYTHING_ETP)
            incr_total_size (r->fsize);

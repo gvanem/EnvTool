@@ -196,7 +196,7 @@ static void test_fnmatch (void)
 
     C_printf (" fnmatch (\"%s\",%*s\"%s\",%*s0x%02X): %s\n",
               t->pattern, (int)(13-len1), "", t->fname, (int)(15-len2), "",
-              flags, fnmatch_res(rc));
+              (UINT)flags, fnmatch_res(rc));
   }
   C_putc ('\n');
 }
@@ -311,7 +311,8 @@ static void test_fix_path (void)
     "f:\\CygWin64\\bin\\../lib/gcc/x86_64-w64-mingw32/6.4.0/include",              /* exists here */
     "f:\\CygWin64\\bin\\../lib/gcc/x86_64-w64-mingw32/6.4.0/include\\ssp\\ssp.h",  /* exists here */
     "f:\\CygWin64\\lib/gcc/i686-pc-mingw32/4.7.3/../../../perl5",                  /* exists here */
-    "/usr/libexec/../include/w32api"                                               /* CygWin64 output, exists here */
+    "/usr/libexec/../include/w32api",                                              /* CygWin64 output, exists here */
+    "c:\\\\Windows\\\\system32/drivers/etc\\\\hosts"                               /* fix doubled '\', exists here */
   };
   const char *f;
   char *rc1;
@@ -726,7 +727,7 @@ static int test_python_funcs (void)
 
       if (i == DIM(py_argv)-1)
       {
-        WARN ("Too many Python args. Max: %u.\n", DIM(py_argv)-1);
+        WARN ("Too many Python args. Max: %d.\n", DIM(py_argv)-1);
         break;
       }
       py_argv [i] = c->argv[j];

@@ -298,6 +298,8 @@ static const char *show_file_subtype (DWORD dwFileType, DWORD dwFileSubtype)
                 return S_VFT2_DRV_COMM;
            case VFT2_DRV_INPUTMETHOD:
                 return S_VFT2_DRV_INPUTMETHOD;
+           default:
+                break;
          }
          break;
 
@@ -310,7 +312,12 @@ static const char *show_file_subtype (DWORD dwFileType, DWORD dwFileSubtype)
                 return S_VFT2_FONT_VECTOR;
            case VFT2_FONT_TRUETYPE:
                 return S_VFT2_FONT_TRUETYPE;
+           default:
+                break;
          }
+         break;
+
+    default:
          break;
   }
 

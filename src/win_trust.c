@@ -43,10 +43,10 @@
   #define ERROR(s)                                       \
           do {                                           \
             if (opt.debug >= 1)                          \
-                printf ("%s(%u): ", __FILE__, __LINE__); \
+                printf ("%s(%d): ", __FILE__, __LINE__); \
             printf ("%s() failed: %s\n",                 \
                     s, win_strerror(GetLastError()));    \
-          } while (0);
+          } while (0)
 
 #else
   #define PRINTF0(str)      ((void)0)
@@ -584,7 +584,7 @@ static wchar_t *char_to_wchar (const char *text)
      return (NULL);
 
   wsize = MultiByteToWideChar (CP_ACP, 0, text, (int)strlen(text)+1, NULL, 0);
-  if (wsize == 0 || wsize > (ULONG_MAX/sizeof(wchar_t)))
+  if (wsize == 0 || wsize > (int)(INT_MAX / sizeof(wchar_t)))
   {
     if (wsize == 0)
        ERROR ("MultiByteToWideChar");

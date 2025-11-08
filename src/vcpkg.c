@@ -241,7 +241,7 @@ static UINT64 total_size = 0;
 /**
  * The VCPKG version information.
  */
-static struct ver_info vcpkg_ver;
+static ver_info vcpkg_ver;
 
 /**
  * The platforms we support when parsing in `CONTROL_add_dependency_platform()`.
@@ -657,7 +657,7 @@ static int print_top_dependencies (FMT_buf *fmt_buf, const port_node *node, int 
       if (!supported)
            BUF_PRINTF (fmt_buf, "!(%s)", name);
       else BUF_PRINTF (fmt_buf, "%s", name);
-      BUF_PRINTF (fmt_buf, " (0x%04X)\n", package->platforms[0]);
+      BUF_PRINTF (fmt_buf, " (0x%04X)\n", (UINT)package->platforms[0]);
     }
   }
   return (max);
@@ -1950,16 +1950,16 @@ static int vcpkg_parse_status_file (void)
 
 static int vcpkg_version_cb (char *buf, int index)
 {
-  struct ver_info ver = { 0,0,0,0 };
+  ver_info ver = { 0,0,0,0 };
 
   ARGSUSED (index);
-  if (sscanf(buf, "Vcpkg package management program version %d.%d.%d",
+  if (sscanf(buf, "Vcpkg package management program version %u.%u.%u",
              &ver.val_1, &ver.val_2, &ver.val_3) >= 2)
   {
     memcpy (&vcpkg_ver, &ver, sizeof(vcpkg_ver));
     return (1);
   }
-  if (sscanf(buf, "Vcpkg package management program version %d-%d-%d",
+  if (sscanf(buf, "Vcpkg package management program version %u-%u-%u",
              &ver.val_1, &ver.val_2, &ver.val_3) >= 2)
   {
     memcpy (&vcpkg_ver, &ver, sizeof(vcpkg_ver));
@@ -2097,10 +2097,10 @@ bool vcpkg_get_info (char **exe, struct ver_info *ver)
     return (true);
   }
 
-  TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+  TRACE (2, "ver: %u.%u.%u.\n", ver->val_1, ver->val_2, ver->val_3);
 
   cache_getf (SECTION_VCPKG, "vcpkg_exe = %s", &vcpkg_exe);
-  cache_getf (SECTION_VCPKG, "vcpkg_version = %d,%d,%d", &vcpkg_ver.val_1, &vcpkg_ver.val_2, &vcpkg_ver.val_3);
+  cache_getf (SECTION_VCPKG, "vcpkg_version = %u,%u,%u", &vcpkg_ver.val_1, &vcpkg_ver.val_2, &vcpkg_ver.val_3);
   if (vcpkg_exe && !FILE_EXISTS(vcpkg_exe))
   {
     cache_del (SECTION_VCPKG, "vcpkg_exe");
@@ -2123,10 +2123,10 @@ bool vcpkg_get_info (char **exe, struct ver_info *ver)
 
   if (vcpkg_ver.val_1 + vcpkg_ver.val_2 == 0 &&
       popen_run(vcpkg_version_cb, vcpkg_exe, "version") > 0)
-     cache_putf (SECTION_VCPKG, "vcpkg_version = %d,%d,%d", vcpkg_ver.val_1, vcpkg_ver.val_2, vcpkg_ver.val_3);
+     cache_putf (SECTION_VCPKG, "vcpkg_version = %u,%u,%u", vcpkg_ver.val_1, vcpkg_ver.val_2, vcpkg_ver.val_3);
 
   *ver = vcpkg_ver;
-  TRACE (2, "ver: %d.%d.%d.\n", ver->val_1, ver->val_2, ver->val_3);
+  TRACE (2, "ver: %u.%u.%u.\n", ver->val_1, ver->val_2, ver->val_3);
 
   return (vcpkg_exe && vcpkg_ver.val_1 + vcpkg_ver.val_2 > 0);
 }
@@ -2385,7 +2385,7 @@ void vcpkg_init (void)
       else homepage = "?";
 
       TRACE (1, "package: %-20s  %-50s  platform: 0x%04X (%s).\n",
-              package->package, homepage, package->platforms[0],
+              package->package, homepage, (UINT)package->platforms[0],
               flags_decode(package->platforms[0], platforms, DIM(platforms)));
     }
   }
@@ -2843,14 +2843,14 @@ unsigned vcpkg_list_installed (bool detailed)
 
     if (!get_installed_dir(package))
     {
-      TRACE (1, "%d: Failed 'get_installed_dir()' for '%s': %s\n", i, package->package, last_err_str);
+      TRACE (1, "%u: Failed 'get_installed_dir()' for '%s': %s\n", i, package->package, last_err_str);
       num_ignored++;
       continue;
     }
 
     if (!package->install_info)
     {
-      TRACE (1, "%d: No install_info for '%s'; arch: '%s'\n", i, package->package, package->arch);
+      TRACE (1, "%u: No install_info for '%s'; arch: '%s'\n", i, package->package, package->arch);
       num_ignored++;
       continue;
     }
@@ -3069,7 +3069,7 @@ static bool print_install_info (FMT_buf *fmt_buf, const char *package_name, int 
        BUF_PRINTF (fmt_buf, "  %*s%s~0", indent1, "", yes_no);
 
     if (package->install_info)
-       BUF_PRINTF (fmt_buf, "%s, %u files", package->arch, smartlist_len(package->install_info));
+       BUF_PRINTF (fmt_buf, "%s, %d files", package->arch, smartlist_len(package->install_info));
 
     if (opt.show_size)
        BUF_PRINTF (fmt_buf, " %s", get_package_files_size(package, NULL));
@@ -3389,15 +3389,15 @@ static bool json_make_supports (port_node *node, const char *buf, int i, bool re
 
   if (val != UINT_MAX)
   {
-    TRACE (1, "platform: '%s', platforms[%d]: 0x%04X, Not: %d, recurse: %d\n",
+    TRACE (1, "platform: '%s', platforms[%d]: 0x%04X, Not: %u, recurse: %d\n",
             platform0, i, val, Not, recurse);
     node->platforms [i] = val | Not;
     Not = 0;
     return (true);
   }
 
-  TRACE (1, "platform: '%s', platforms[%d]: 0x%04X, Not: %d, recurse: %d\n",
-          platform0, i, node->platforms[i], Not, recurse);
+  TRACE (1, "platform: '%s', platforms[%d]: 0x%04X, Not: %u, recurse: %d\n",
+          platform0, i, (UINT)node->platforms[i], Not, recurse);
 
   ARGSUSED (next_or);
   ARGSUSED (next_and);
@@ -3542,7 +3542,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
     {
       str = buf + t[i].start;
       len = t[i].end - t[i].start;
-      TRACE (2, "Unhandled key/value (type %s, size: %u): '%.*s'\n",
+      TRACE (2, "Unhandled key/value (type %s, size: %d): '%.*s'\n",
              JSON_typestr(t[i].type), t[i].size, (int)len, str);
       i += t[i+1].size + 1;
       if (i < 0)
@@ -3578,7 +3578,7 @@ static int json_parse_status_buf (smartlist_t *packages, const char *file, char 
   {
     str = buf + t[i].start;
     len = t[i].end - t[i].start;
-    TRACE (1, "key/value (type %s, size: %u): '%.*s'\n",
+    TRACE (1, "key/value (type %s, size: %d): '%.*s'\n",
            JSON_typestr(t[i].type), t[i].size, (int)len, str);
     i += t[i+1].size + 1;
   }

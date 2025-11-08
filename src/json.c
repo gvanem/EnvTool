@@ -73,6 +73,8 @@ int JSON_parse_primitive (JSON_parser *parser, const char *js, size_t len, JSON_
       case ']':
       case '}':
            goto found;
+      default:
+           break;
     }
     if (js[parser->pos] < 32 || js[parser->pos] >= 127)
     {

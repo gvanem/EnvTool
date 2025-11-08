@@ -187,10 +187,10 @@ static void init_syntax_once (void)
 #define MAX(a, b)     ((a) > (b) ? (a) : (b))
 #define MIN(a, b)     ((a) < (b) ? (a) : (b))
 
-static int re_match_2_internal (struct re_pattern_buffer *bufp,
-                                const char *string1, int size1,
-                                const char *string2, int size2,
-                                int pos, struct re_registers *regs, int stop);
+static intptr_t re_match_2_internal (struct re_pattern_buffer *bufp,
+                                     const char *string1, int size1,
+                                     const char *string2, int size2,
+                                     int pos, struct re_registers *regs, int stop);
 
 /* These are the command codes that appear in compiled regular
  * expressions.  Some opcodes are followed by argument bytes.  A
@@ -331,10 +331,10 @@ typedef enum {
 
 /* Store NUMBER in two contiguous bytes starting at DESTINATION.
  */
-#define STORE_NUMBER(destination, number)    \
-        do {                                 \
-          (destination)[0] = (number) & 255; \
-          (destination)[1] = (number) >> 8;  \
+#define STORE_NUMBER(destination, number)         \
+        do {                                      \
+          (destination)[0] = ((int)number) & 255; \
+          (destination)[1] = ((int)number) >> 8;  \
         } while (0)
 
 /* Same as STORE_NUMBER, except increment DESTINATION to
@@ -508,11 +508,11 @@ typedef struct {
  * Return 1 if was able to do so and 0 if ran out of memory allocating
  * space to do so.
  */
-#define PUSH_PATTERN_OP(POINTER, FAIL_STACK)                            \
-        ((FAIL_STACK_FULL()                                             \
-          && !DOUBLE_FAIL_STACK (FAIL_STACK))                           \
-         ? 0                                                            \
-         : ((FAIL_STACK).stack[(FAIL_STACK).avail++].pointer = POINTER, \
+#define PUSH_PATTERN_OP(POINTER, FAIL_STACK)                             \
+        ((FAIL_STACK_FULL()                                              \
+          && !DOUBLE_FAIL_STACK (FAIL_STACK))                            \
+         ? 0                                                             \
+         : ((FAIL_STACK).stack [(FAIL_STACK).avail++].pointer = POINTER, \
             1))
 
 /* Push a pointer value onto the failure stack.
@@ -520,28 +520,28 @@ typedef struct {
  * be called from within `PUSH_FAILURE_POINT'.
  */
 #define PUSH_FAILURE_POINTER(item) \
-        fail_stack.stack[fail_stack.avail++].pointer = (unsigned char *) (item)
+        fail_stack.stack [fail_stack.avail++].pointer = (unsigned char *) (item)
 
 /* This pushes an integer-valued item onto the failure stack.
  * Assumes the variable `fail_stack'.  Probably should only
  * be called from within `PUSH_FAILURE_POINT'.
  */
 #define PUSH_FAILURE_INT(item) \
-        fail_stack.stack[fail_stack.avail++].integer = (item)
+        fail_stack.stack [fail_stack.avail++].integer = (item)
 
 /* Push a fail_stack_elt_t value onto the failure stack.
  * Assumes the variable `fail_stack'.  Probably should only
  * be called from within `PUSH_FAILURE_POINT'.
  */
 #define PUSH_FAILURE_ELT(item) \
-        fail_stack.stack[fail_stack.avail++] =  (item)
+        fail_stack.stack [fail_stack.avail++] = (item)
 
 /* These three POP... operations complement the three PUSH... operations.
  * All assume that `fail_stack' is nonempty.
  */
-#define POP_FAILURE_POINTER() fail_stack.stack[--fail_stack.avail].pointer
-#define POP_FAILURE_INT()     fail_stack.stack[--fail_stack.avail].integer
-#define POP_FAILURE_ELT()     fail_stack.stack[--fail_stack.avail]
+#define POP_FAILURE_POINTER() fail_stack.stack [--fail_stack.avail].pointer
+#define POP_FAILURE_INT()     fail_stack.stack [--fail_stack.avail].integer
+#define POP_FAILURE_ELT()     fail_stack.stack [--fail_stack.avail]
 
 /* Push the information about the state we will need
  * if we ever fail back to it.
@@ -884,7 +884,7 @@ typedef unsigned regnum_t;
  * Since offsets can go either forwards or backwards, this type needs to
  * be able to hold values from -(MAX_BUF_SIZE - 1) to MAX_BUF_SIZE - 1.
  */
-typedef long pattern_offset_t;
+typedef intptr_t pattern_offset_t;
 
 typedef struct {
         pattern_offset_t  begalt_offset;
@@ -1858,7 +1858,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
                          * so that if we fail during matching, we'll
                          * reinitialize the bounds.
                          */
-                        insert_op2 (set_number_at, laststart, b - laststart, upper_bound - 1, b);
+                        insert_op2 (set_number_at, laststart, (int)(b - laststart), upper_bound - 1, b);
                         b += 5;
                       }
                     }
@@ -2024,7 +2024,7 @@ static reg_errcode_t regex_compile (const char *pattern, size_t size,
 
   /* We have succeeded; set the length of the buffer.
    */
-  bufp->used = b - bufp->buffer;
+  bufp->used = (unsigned long int) (b - bufp->buffer);
 
 #ifndef MATCH_MAY_ALLOCATE
   /*
@@ -2431,7 +2431,6 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
            p += 2;
            continue;
 
-
       default:
            abort();             /* We have listed all the cases. */
     }                           /* switch *p++ */
@@ -2455,7 +2454,7 @@ int re_compile_fastmap (struct re_pattern_buffer *bufp)
 done:
   RESET_FAIL_STACK();
   (void) destination;
-  return 0;
+  return (0);
 }
 
 /* Set REGS to hold NUM_REGS registers, storing them in STARTS and
@@ -2526,8 +2525,8 @@ int re_search_2 (struct re_pattern_buffer *bufp,
                  int startpos, int range,
                  struct re_registers *regs, int stop)
 {
-  int val;
-  char *fastmap = bufp->fastmap;
+  intptr_t val;
+  char    *fastmap = bufp->fastmap;
   RE_TRANSLATE_TYPE translate = bufp->translate;
   int total_size = size1 + size2;
   int endpos = startpos + range;
@@ -2542,9 +2541,9 @@ int re_search_2 (struct re_pattern_buffer *bufp,
    * Make sure we won't move STARTPOS below 0 or above TOTAL_SIZE.
    */
   if (endpos < 0)
-    range = 0 - startpos;
+     range = 0 - startpos;
   else if (endpos > total_size)
-    range = total_size - startpos;
+     range = total_size - startpos;
 
   /* If the search isn't to be a backwards one, don't waste time in a
    * search for a pattern that must be anchored.
@@ -2587,11 +2586,11 @@ int re_search_2 (struct re_pattern_buffer *bufp,
          * inside the loop.
          */
         if (translate)
-          while (range > lim && !fastmap[(unsigned char) translate[(unsigned char) *d++]])
-            range--;
+           while (range > lim && !fastmap[(unsigned char) translate[(unsigned char) *d++]])
+              range--;
         else
-          while (range > lim && !fastmap[(unsigned char) *d++])
-            range--;
+           while (range > lim && !fastmap[(unsigned char) *d++])
+              range--;
 
         startpos += irange - range;
       }
@@ -2607,7 +2606,7 @@ int re_search_2 (struct re_pattern_buffer *bufp,
     /* If can't match the null string, and that's all we have left, fail.
      */
     if (range >= 0 && startpos == total_size && fastmap && !bufp->can_be_null)
-      return (-1);
+       return (-1);
 
     val = re_match_2_internal (bufp, string1, size1, string2, size2, startpos, regs, stop);
     if (val >= 0)
@@ -2619,7 +2618,7 @@ int re_search_2 (struct re_pattern_buffer *bufp,
   advance:
     if (!range)
        break;
-    else if (range > 0)
+    if (range > 0)
     {
       range--;
       startpos++;
@@ -2716,14 +2715,13 @@ int re_search_2 (struct re_pattern_buffer *bufp,
 int re_match (struct re_pattern_buffer *bufp, const char *string,
               int size, int pos, struct re_registers *regs)
 {
-  return re_match_2_internal (bufp, NULL, 0, string, size,
-                              pos, regs, size);
+  return (int) re_match_2_internal (bufp, NULL, 0, string, size, pos, regs, size);
 }
 
 static bool group_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info);
 static bool alt_match_null_string_p (unsigned char *p, unsigned char *end, register_info_type *reg_info);
 static bool common_op_match_null_string_p (unsigned char **p, unsigned char *end, register_info_type *reg_info);
-static int  bcmp_translate (const char *s1, const char *s2, int len, char *translate);
+static int  bcmp_translate (const char *s1, const char *s2, intptr_t len, char *translate);
 
 /* re_match_2 matches the compiled pattern in BUFP against the
  * the (virtual) concatenation of STRING1 and STRING2 (of length SIZE1
@@ -2743,20 +2741,19 @@ int re_match_2 (struct re_pattern_buffer *bufp,
                 const char *string2, int size2,
                 int pos, struct re_registers *regs, int stop)
 {
-  return re_match_2_internal (bufp, string1, size1, string2, size2,
-                              pos, regs, stop);
+  return (int) re_match_2_internal (bufp, string1, size1, string2, size2, pos, regs, stop);
 }
 
 /* This is a separate function so that we can force an alloca() cleanup
  * afterwards.
  */
-static int re_match_2_internal (struct re_pattern_buffer *bufp,
-                                const char *string1, int size1,
-                                const char *string2, int size2,
-                                int pos, struct re_registers *regs, int stop)
+static intptr_t re_match_2_internal (struct re_pattern_buffer *bufp,
+                                     const char *string1, int size1,
+                                     const char *string2, int size2,
+                                     int pos, struct re_registers *regs, int stop)
 {
   /* General temporaries. */
-  int            mcnt;
+  intptr_t       mcnt;
   unsigned char *p1;
 
   /* Just past the end of the corresponding string. */
@@ -2926,7 +2923,7 @@ static int re_match_2_internal (struct re_pattern_buffer *bufp,
    */
   for (mcnt = 1; (unsigned)mcnt < num_regs; mcnt++)
   {
-    regstart[mcnt] = regend[mcnt] = old_regstart[mcnt] = old_regend[mcnt] = REG_UNSET_VALUE;
+    regstart [mcnt] = regend[mcnt] = old_regstart[mcnt] = old_regend[mcnt] = REG_UNSET_VALUE;
 
     REG_MATCH_NULL_STRING_P (reg_info[mcnt]) = MATCH_NULL_UNSET_VALUE;
     IS_ACTIVE (reg_info[mcnt]) = 0;
@@ -4051,7 +4048,6 @@ static bool group_match_null_string_p (unsigned char **p, unsigned char *end,
               return (false);
     }
   }                             /* while p1 < end */
-
   return (false);
 }
 
@@ -4130,9 +4126,8 @@ static bool common_op_match_null_string_p (unsigned char **p, unsigned char *end
     case jump:
          EXTRACT_NUMBER_AND_INCR (mcnt, p1);
          if (mcnt >= 0)
-           p1 += mcnt;
-         else
-           return (false);
+              p1 += mcnt;
+         else return (false);
          break;
 
     case succeed_n:
@@ -4171,14 +4166,14 @@ static bool common_op_match_null_string_p (unsigned char **p, unsigned char *end
 /* Return zero if TRANSLATE[S1] and TRANSLATE[S2] are identical for LEN
  * bytes; nonzero otherwise.
  */
-static int bcmp_translate (const char *s1, const char *s2, int len, RE_TRANSLATE_TYPE translate)
+static int bcmp_translate (const char *s1, const char *s2, intptr_t len, RE_TRANSLATE_TYPE translate)
 {
-  const unsigned char *p1 = (const unsigned char *) s1;
-  const unsigned char *p2 = (const unsigned char *) s2;
+  const unsigned char *p1 = (const unsigned char*) s1;
+  const unsigned char *p2 = (const unsigned char*) s2;
 
   while (len)
   {
-    if (translate[*p1++] != translate[*p2++])
+    if (translate [*p1++] != translate[*p2++])
        return (1);
     len--;
   }

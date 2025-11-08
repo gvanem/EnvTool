@@ -10,8 +10,8 @@
 #include "cache.h"
 #include "pkg-config.h"
 
-static struct ver_info pkgconfig_ver;
-static char           *pkgconfig_exe = NULL;
+static ver_info pkgconfig_ver;
+static char    *pkgconfig_exe = NULL;
 
 /**
  *
@@ -63,10 +63,10 @@ static void add_package (const char *name, char *description)
 
 static int pkg_config_version_cb (char *buf, int index)
 {
-  struct ver_info ver = { 0,0,0,0 };
+  ver_info ver = { 0,0,0,0 };
 
   ARGSUSED (index);
-  if (sscanf(buf, "%d.%d", &ver.val_1, &ver.val_2) == 2)
+  if (sscanf(buf, "%u.%u", &ver.val_1, &ver.val_2) == 2)
   {
     memcpy (&pkgconfig_ver, &ver, sizeof(pkgconfig_ver));
     return (1);
@@ -120,7 +120,7 @@ static void pkg_config_build_pkg (void)
   {
     /* None found from cache. Try for real
      */
-    popen_run (pkg_config_list_all_cb, pkgconfig_exe, "--list-all 2> %s", DEV_NULL);
+    popen_run (pkg_config_list_all_cb, pkgconfig_exe, "--list-all 2> NUL");
   }
 
   max = smartlist_len (pkgconfig_pkg);
@@ -154,7 +154,7 @@ unsigned pkg_config_list_installed (void)
   int num_dirs = pkgconfig_dirs ? smartlist_len (pkgconfig_dirs) : 0;
   int indent;
 
-  C_printf ("\n  Found %u ~3pkg-config~0 packages in ~3%d~0 directories:\n", max, num_dirs);
+  C_printf ("\n  Found %d ~3pkg-config~0 packages in ~3%d~0 directories:\n", max, num_dirs);
   for (i = 0; i < max; i++)
   {
     const pkgconfig_node *pkg = smartlist_get (pkgconfig_pkg, i);
@@ -209,16 +209,16 @@ static bool pkg_config_get_info_internal (void)
    */
   if (!VALID_VER(pkgconfig_ver) &&
       popen_run(pkg_config_version_cb, pkgconfig_exe, "--version") > 0)
-     cache_putf (SECTION_PKGCONFIG, "pkgconfig_version = %d,%d", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
+     cache_putf (SECTION_PKGCONFIG, "pkgconfig_version = %u,%u", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
 
-  TRACE (2, "ver: %d.%d.\n", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
+  TRACE (2, "ver: %u.%u.\n", pkgconfig_ver.val_1, pkgconfig_ver.val_2);
   return (VALID_VER(pkgconfig_ver));
 }
 
 /**
  * Return pkg-config information to caller.
  */
-bool pkg_config_get_info (char **exe, struct ver_info *ver)
+bool pkg_config_get_info (char **exe, ver_info *ver)
 {
   pkg_config_init();
 

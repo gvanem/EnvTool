@@ -367,7 +367,7 @@ bool check_if_zip (const char *fname)
  * Open a `fname` and check if there's a `"GZIP"` or `"TAR.GZ"` signature in header.
  *
  * Gzip format:
- *   https://www.onicos.com/staff/iz/formats/gzip.html
+ *   https://commandlinefanatic.com/cgi-bin/showarticle.cgi?article=art053
  */
 bool check_if_gzip (const char *fname)
 {
@@ -412,7 +412,7 @@ static char gzip_link_name [_MAX_PATH];
 
 static int gzip_cb (char *buf, int index)
 {
-  if (index == 0 && strlen(buf) < sizeof(gzip_link_name)-3 &&
+  if (index == 0 && strlen(buf) < sizeof(gzip_link_name) - 3 &&
       sscanf(buf, ".so %s", gzip_link_name) == 1)
      return (1);
   return (-1);  /* causes `popen_run()` to quit */
@@ -429,7 +429,6 @@ const char *get_gzip_link (const char *file)
 {
   static char gzip_exe [_MAX_PATH];
   static bool done = false;
-  const char *f = file;
   const char *p;
 
   if (!done)
@@ -445,7 +444,7 @@ const char *get_gzip_link (const char *file)
 
   gzip_link_name[0] = '\0';
 
-  if (popen_run(gzip_cb, gzip_exe, "-cd %s 2> %s", f, DEV_NULL) > 0)
+  if (popen_run(gzip_cb, gzip_exe, "-cd %s 2> NUL", file) > 0)
   {
     TRACE (2, "gzip_link_name: \"%s\".\n", gzip_link_name);
     return slashify2 (gzip_link_name, gzip_link_name, opt.show_unix_paths ? '/' : '\\');
@@ -523,6 +522,43 @@ const char *get_sym_link (const char *file)
   }
 
   fclose (f);
+  return (NULL);
+}
+
+/**
+ * Open a `fname` and check for a Windows Shell-Link signature.
+ */
+bool check_if_shell_link (const char *fname)
+{
+  static const char header [4] = { 0x4C, 0, 0, 0 };
+  const char *ext;
+  char   buf [sizeof(header)];
+  FILE  *f;
+  bool   rc = false;
+
+  /** Return false if extension is not `.lnk`.
+   */
+  ext = get_file_ext (fname);
+  if (stricmp(ext, "lnk"))
+     return (false);
+
+  f = fopen (fname, "rb");
+  if (f)
+  {
+    rc = (fread(&buf, 1, sizeof(buf), f) == sizeof(buf) &&
+          !memcmp(&buf, &header, sizeof(buf)));
+    fclose (f);
+  }
+  TRACE (2, "\"%s\" is %sa LNK-file.\n", fname, rc ? "" : "not ");
+  return (rc);
+}
+
+/**
+ * \todo Use the IShellLink component
+ */
+const char *get_shell_link (const char *file)
+{
+  (void) file;
   return (NULL);
 }
 
@@ -640,7 +676,7 @@ bool verify_PE_checksum (const char *fname)
   else
     return (false);
 
-  TRACE (1, "last_bitness: %u, Opt magic: 0x%04X, file_sum: 0x%08lX\n",
+  TRACE (1, "last_bitness: %d, Opt magic: 0x%04X, file_sum: 0x%08lX\n",
          last_bitness, nt->OptionalHeader.Magic, (u_long)file_sum);
 
   rc = MapFileAndCheckSum ((PTSTR)fname, &header_sum, &calc_chk_sum);
@@ -1751,11 +1787,6 @@ char *basename (const char *fname)
 /**
  * Return the malloc'ed directory part of a filename.
  */
-#if defined(__GNUC__) && (__GNUC__ >= 7)
-  _PRAGMA (GCC diagnostic push)
-  _PRAGMA (GCC diagnostic ignored "-Wstringop-truncation")
-#endif
-
 char *dirname (const char *fname)
 {
   const char *p = fname;
@@ -2379,7 +2410,7 @@ UINT get_disk_type (int disk)
   root[0] = (char) disk;
   type = GetDriveType (root);
 
-  TRACE (2, "GetDriveType (\"%s\"): type: %s (%d).\n",
+  TRACE (2, "GetDriveType (\"%s\"): type: %s (%u).\n",
          root, list_lookup_name(type, disk_types, DIM(disk_types)), type);
   return (type);
 }
@@ -2490,7 +2521,7 @@ bool chk_disk_ready (int disk)
      return (true);
 
   i = disk - 'A';
-  ASSERT (i >= 0 && i < sizeof(checked));
+  ASSERT (i >= 0 && i < (int)sizeof(checked));
 
   if (!checked[i])
   {
@@ -2715,7 +2746,7 @@ bool print_user_cet_info (void)
 
   if (!kernel32)
   {
-    C_puts ("Fail to load `kernel32.dll`!");
+    C_puts ("Fail to load `kernel32.dll`!\n");
     return (false);
   }
 
@@ -2740,6 +2771,7 @@ bool print_user_cet_info (void)
 
     C_printf ("              ~6%-38s~0 -> %d.\n", cet_values[i].name, rc);
   }
+  C_putc ('\n');
   FreeLibrary (kernel32);
   return (true);
 }
@@ -4114,7 +4146,7 @@ typedef struct popen2_st {
         popen_callback       callback;
         DWORD                callback_ret;
         DWORD                exit_code;
-        int                  timeout; /* timeout in milliseconds or -1 for INIFINTE */
+        int                  timeout;    /* timeout in milliseconds or -1 for INIFINTE */
       } popen2_st;
 
 static int peek_pipe (HANDLE pipe, char *data, int size)
@@ -4166,7 +4198,7 @@ static DWORD WINAPI threaded_pipe_read (void *arg)
     if (popen->timeout > 0)
     {
       spent_t = GetTickCount64() - start_t;
-      if (spent_t > popen->timeout)    /* read-timeout on pipe */
+      if (spent_t > (ULONGLONG) popen->timeout)    /* read-timeout on pipe */
          break;
     }
     if (read_stdout > 0)
@@ -4451,7 +4483,7 @@ bool getenv_system (smartlist_t **sl)
   }
 
   list = smartlist_new();
-  env = env_blk;
+  env  = env_blk;
 
   /* Loop over `env_blk`.
    * The block ends with two nulls (\0\0).
@@ -4459,7 +4491,7 @@ bool getenv_system (smartlist_t **sl)
   while (1)
   {
     size_t len = 1 + wcslen (env);
-    char  *str = MALLOC (2*len);
+    char  *str = CALLOC (2*len, 1);
 
     if (!wchar_to_mbchar(str, 2*len, env))
     {
@@ -4819,7 +4851,7 @@ static bool reparse_err (int dbg_level, const char *fmt, ...)
   static char err_buf [1000];
   va_list args;
 
-  err_buf[0] = '\0';
+  err_buf [0] = '\0';
   if (!fmt)
      return (true);
 
@@ -4862,13 +4894,15 @@ static bool reparse_err (int dbg_level, const char *fmt, ...)
 
 bool wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
 {
-  int   size_needed, rc;
-  DWORD cp = CP_ACP;
-  const char *def_char = "?";
+  int    size_needed, rc;
+  size_t w_size;
+  DWORD  cp = CP_ACP;
+  const  char *def_char = "?";
 
   /* Figure out the size needed for the conversion.
    */
-  size_needed = WideCharToMultiByte (cp, 0, w_buf, (int)wcslen(w_buf), NULL, 0, def_char, NULL);
+  w_size = wcslen (w_buf);
+  size_needed = WideCharToMultiByte (cp, 0, w_buf, (int)w_size, NULL, 0, def_char, NULL);
   if (size_needed == 0)
      return WIDECHAR_ERR (1, "1: WideCharToMultiByte(): %s", win_strerror(GetLastError()));
 
@@ -4880,7 +4914,8 @@ bool wchar_to_mbchar (char *result, size_t result_size, const wchar_t *w_buf)
   if (rc <= 0)
      return WIDECHAR_ERR (1, "2: WideCharToMultiByte(): %s", win_strerror(GetLastError()));
 
-  WIDECHAR_ERR (0, NULL); /* clear any previous error */
+  result [rc] = '\0';    /* 0-terminate result and clear any previous error */
+  WIDECHAR_ERR (0, NULL);
 
   TRACE (2, "rc: %d, result: '%s'\n", rc, result);
   return (true);
@@ -4940,10 +4975,14 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
                         rdata, MAXIMUM_REPARSE_DATA_BUFFER_SIZE,
                         &ret_len, NULL);
 
+  if (ret_len < MAXIMUM_REPARSE_DATA_BUFFER_SIZE)
+     *((BYTE*)rdata + ret_len) = '\0';
+
   CloseHandle (hnd);
 
   if (!rc)
-     return reparse_err (1, "DeviceIoControl(): %s", win_strerror(GetLastError()));
+     return reparse_err (1, "DeviceIoControl(): ret_len: %lu, %s",
+                         ret_len, win_strerror(GetLastError()));
 
   if (!IsReparseTagMicrosoft(rdata->ReparseTag))
      return reparse_err (1, "Not a Microsoft-reparse point - could not query data!");
@@ -4980,6 +5019,7 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
     TRACE (1, "WSL-symlink: '%.*s'\n", (int)sz, lx->LxSymlinkReparseBuffer.PathBuffer);
     if (result_size < sz)
        return (false);
+
     _strlcpy (result, lx->LxSymlinkReparseBuffer.PathBuffer, sz);
     was_special_link = true;
     return (true);
@@ -5041,7 +5081,7 @@ bool get_reparse_point (const char *dir, char *result, size_t result_size)
   slen++;
   plen++;
 
-  sub_name [slen/2] = L'\0';
+  sub_name [slen/2]   = L'\0';
   print_name [plen/2] = L'\0';
 
   TRACE (2, "  SubstitutionName: '%S'\n", sub_name);
@@ -5216,18 +5256,7 @@ typedef struct CORE_TEMP_SHARED_DATA {
       } CORE_TEMP_SHARED_DATA;
 
 typedef struct CORE_TEMP_SHARED_DATA_EX {
-        unsigned int   uiLoad [256];
-        unsigned int   uiTjMax [128];
-        unsigned int   uiCoreCnt;
-        unsigned int   uiCPUCnt;
-        float          fTemp [256];
-        float          fVID;
-        float          fCPUSpeed;
-        float          fFSBSpeed;
-        float          fMultipier;
-        char           sCPUName [100];
-        unsigned char  ucFahrenheit;
-        unsigned char  ucDeltaToTjMax;
+        CORE_TEMP_SHARED_DATA ver1;
 
         // Added for Ver. 2 of the protocol.
         unsigned char ucTdpSupported;
@@ -5287,12 +5316,12 @@ static bool get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
             ct_data->sCPUName, indent,
             (double)ct_data->fCPUSpeed, (double)ct_data->fFSBSpeed, (double)ct_data->fMultipier);
 
-  C_printf ("%s~6CPU VID~0:   %.4fv, physical CPUs: ~6%d~0, cores per CPU: ~6%d~0\n",
+  C_printf ("%s~6CPU VID~0:   %.4fv, physical CPUs: ~6%u~0, cores per CPU: ~6%u~0\n",
             indent, (double)ct_data->fVID, ct_data->uiCPUCnt, ct_data->uiCoreCnt);
 
   for (i = 0; i < ct_data->uiCPUCnt; i++)
   {
-    C_printf ("%s~6CPU #%d~0, Tj.max: ~6%d%c~0:\n", indent, i, ct_data->uiTjMax[i], temp_type);
+    C_printf ("%s~6CPU #%u~0, Tj.max: ~6%u%c~0:\n", indent, i, ct_data->uiTjMax[i], temp_type);
     for (j = 0; j < ct_data->uiCoreCnt; j++)
     {
       const char *indent2 = "";
@@ -5302,9 +5331,9 @@ static bool get_core_temp_info (CORE_TEMP_SHARED_DATA *ct_data, const char *inde
 
       index = j + (i * ct_data->uiCoreCnt);
       if (ct_data->ucDeltaToTjMax)
-           C_printf ("%s  ~6Core #%s%lu~0: %.2f%c to Tj.max, %2d%% load\n",
+           C_printf ("%s  ~6Core #%s%lu~0: %.2f%c to Tj.max, %2u%% load\n",
                      indent, indent2, index, (double)ct_data->fTemp[index], temp_type, ct_data->uiLoad[index]);
-      else C_printf ("%s  ~6Core #%s%lu~0: %.2f%c, %2d%% load\n",
+      else C_printf ("%s  ~6Core #%s%lu~0: %.2f%c, %2u%% load\n",
                      indent, indent2, index, (double)ct_data->fTemp[index], temp_type, ct_data->uiLoad[index]);
     }
   }
