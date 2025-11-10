@@ -2027,67 +2027,63 @@ static bool evry_busy_wait (HWND wnd, UINT sec)
  */
 static char *evry_common_init (void)
 {
-  static char query_buf [_MAX_PATH+8];
+  static char query_buf [_MAX_PATH+100];
   char  *query = query_buf;
+  char  *end   = query + sizeof(query_buf);
   char  *dir   = NULL;
   char  *base  = NULL;
-  size_t len;
 
   num_evry_dups = 0;
 
   if (opt.evry_raw)
+     return evry_raw_query();
+
+  /* EveryThing seems not to support `\\`. Must split the `opt.file_spec`
+   * into a `dir` and `base` part.
+   */
+  if (strpbrk(opt.file_spec, "/\\"))
   {
-    query = evry_raw_query();
-    len = strlen (query);
+    dir  = dirname (opt.file_spec);   /* Allocates memory */
+    base = basename (opt.file_spec);
+  }
+
+  /* With option `-D/--dir`, match only folders.
+   */
+  if (opt.dir_mode && !opt.use_regex)
+  {
+    query += snprintf (query, query - end, "regex:\"^.*\\\\%s$\" folder:",
+                       translate_shell_pattern(opt.file_spec));
+    TRACE (1, "Simple directory mode: '%s', opt.file_spec: '%s'.\n",
+           query_buf, opt.file_spec);
   }
   else
   {
-    /* EveryThing seems not to support `\\`. Must split the `opt.file_spec`
-     * into a `dir` and `base` part.
-     */
-    if (strpbrk(opt.file_spec, "/\\"))
+    if (opt.use_regex)
     {
-      dir  = dirname (opt.file_spec);   /* Allocates memory */
-      base = basename (opt.file_spec);
+      query += snprintf (query, end - query, "regex:\"%s\"", opt.file_spec);
+      if (opt.dir_mode)
+         query += snprintf (query, end - query, " folder:");
     }
-
-    /* With option `-D/--dir`, match only folders.
-     */
-    if (opt.dir_mode && !opt.use_regex)
+    else if (dir)
     {
-      len = snprintf (query_buf, sizeof(query_buf), "regex:\"^.*\\\\%s$\" folder:",
-                      translate_shell_pattern(opt.file_spec));
-      TRACE (1, "Simple directory mode: '%s', opt.file_spec: '%s'.\n",
-             query_buf, opt.file_spec);
+      /* If user didn't use the `-r/--regex` option, we must convert
+       * `opt.file_spec` into a RegExp compatible format.
+       * E.g. "ez_*.py" -> "^ez_.*\.py$"
+       */
+      query += snprintf (query, end - query, "regex:%s\\\\%s", dir, base);
     }
     else
-    {
-      if (opt.use_regex)
-      {
-        len = snprintf (query_buf, sizeof(query_buf), "regex:\"%s\"", opt.file_spec);
-        if (opt.dir_mode)
-           len += snprintf (query_buf+len, sizeof(query_buf)-len, " folder:");
-      }
-      else if (dir)
-      {
-        /* If user didn't use the `-r/--regex` option, we must convert
-         * `opt.file_spec` into a RegExp compatible format.
-         * E.g. "ez_*.py" -> "^ez_.*\.py$"
-         */
-        len = snprintf (query_buf, sizeof(query_buf), "regex:%s\\\\%s", dir, base);
-      }
-      else
-        len = snprintf (query_buf, sizeof(query_buf), "regex:^%s$", translate_shell_pattern(opt.file_spec));
-    }
-
-    /* Query contents with "--grep content"
-     */
-    if (opt.grep.content && len > 0)
-    {
-      TRACE (1, "opt.grep.content: '%s'\n", opt.grep.content);
-   // snprintf (query_buf+len, sizeof(query_buf)-len, "content: %s", opt.grep.content);
-    }
+      query += snprintf (query, end - query, "regex:^%s$", translate_shell_pattern(opt.file_spec));
   }
+
+  /* Query contents with "--grep content"
+   */
+  if (opt.grep.content && query > query_buf)
+  {
+    TRACE (1, "opt.grep.content: '%s'\n", opt.grep.content);
+ // snprintf (query, end - query, "content: %s", opt.grep.content);
+  }
+
   FREE (dir);
   return (query_buf);
 }
