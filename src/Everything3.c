@@ -838,8 +838,7 @@ static BOOL _everything3_wchar_buf_get_pipe_name (_everything3_wchar_buf_t *wcbu
 //
 EVERYTHING3_CLIENT *Everything3_ConnectUTF8 (const EVERYTHING3_UTF8 *instance_name)
 {
-  EVERYTHING3_CLIENT *ret;
-  ret = NULL;
+  EVERYTHING3_CLIENT *ret = NULL;
 
   if (instance_name)
   {
@@ -847,7 +846,7 @@ EVERYTHING3_CLIENT *Everything3_ConnectUTF8 (const EVERYTHING3_UTF8 *instance_na
     _everything3_wchar_buf_init (&wcbuf);
 
     if (_everything3_wchar_buf_copy_utf8_string_n (&wcbuf, instance_name, _everything3_utf8_string_get_length_in_bytes (instance_name)))
-      ret = Everything3_ConnectW (wcbuf.buf);
+       ret = Everything3_ConnectW (wcbuf.buf);
 
     _everything3_wchar_buf_kill (&wcbuf);
   }
@@ -1003,7 +1002,6 @@ static BOOL _everything3_wchar_buf_copy_utf8_string_n (_everything3_wchar_buf_t 
     out_wcbuf->length_in_wchars = _everything3_safe_wchar_string_copy_utf8_string_n (out_wcbuf->buf, out_wcbuf->size_in_wchars, s, slen);
     return TRUE;
   }
-
   return FALSE;
 }
 
@@ -1277,7 +1275,6 @@ static BOOL _everything3_wchar_buf_grow_size (_everything3_wchar_buf_t *wcbuf, S
     wcbuf->size_in_wchars = size_in_wchars;
     return TRUE;
   }
-
   return FALSE;
 }
 
@@ -1296,7 +1293,6 @@ static BOOL _everything3_wchar_buf_grow_length (_everything3_wchar_buf_t *wcbuf,
     wcbuf->length_in_wchars = length_in_wchars;
     return TRUE;
   }
-
   return FALSE;
 }
 
@@ -1331,82 +1327,67 @@ static BOOL _everything3_write_pipe (_everything3_client_t *client, const void *
         // continue..
         continue;
       }
-      else
+      // EOF
+      SetLastError (EVERYTHING3_ERROR_DISCONNECTED);
+      return FALSE;
+    }
+
+    DWORD last_error = GetLastError();
+
+    if (last_error == ERROR_IO_INCOMPLETE || last_error == ERROR_IO_PENDING)
+    {
+      HANDLE wait_handles[2];
+      DWORD wait_ret;
+      wait_handles[0] = client->shutdown_event;
+      wait_handles[1] = client->send_event;
+      wait_ret = WaitForMultipleObjects (2, wait_handles, FALSE, INFINITE);
+
+      if (wait_ret == WAIT_OBJECT_0)
       {
+        SetLastError (EVERYTHING3_ERROR_SHUTDOWN);
+
+        // cancel pending IO
+        CancelIo (client->pipe_handle);
+
+        // wait for pending IO to cancel.
+        GetOverlappedResult (client->pipe_handle, &client->send_overlapped, &numwritten, TRUE);
+        return FALSE;
+      }
+
+      if (wait_ret != WAIT_OBJECT_0 + 1)
+      {
+        SetLastError (EVERYTHING3_ERROR_SERVER);
+
+        // cancel pending IO
+        CancelIo (client->pipe_handle);
+
+        // wait for pending IO to cancel.
+        GetOverlappedResult (client->pipe_handle, &client->send_overlapped, &numwritten, TRUE);
+        return FALSE;
+      }
+
+      // ASSUME client->send_event is set.
+      // wait for overlapped result.
+      if (GetOverlappedResult (client->pipe_handle, &client->send_overlapped, &numwritten, TRUE))
+      {
+        if (numwritten)
+        {
+          send_p += numwritten;
+          send_run -= numwritten;
+          continue;
+        }
         // EOF
         SetLastError (EVERYTHING3_ERROR_DISCONNECTED);
         return FALSE;
       }
+
+      // cannot be pending as we wait above.
+      SetLastError (EVERYTHING3_ERROR_DISCONNECTED);
+      return FALSE;
     }
-    else
-    {
-      DWORD last_error;
-      last_error = GetLastError();
-
-      if ( (last_error == ERROR_IO_INCOMPLETE) || (last_error == ERROR_IO_PENDING))
-      {
-        HANDLE wait_handles[2];
-        DWORD wait_ret;
-        wait_handles[0] = client->shutdown_event;
-        wait_handles[1] = client->send_event;
-        wait_ret = WaitForMultipleObjects (2, wait_handles, FALSE, INFINITE);
-
-        if (wait_ret == WAIT_OBJECT_0)
-        {
-          SetLastError (EVERYTHING3_ERROR_SHUTDOWN);
-
-          // cancel pending IO
-          CancelIo (client->pipe_handle);
-
-          // wait for pending IO to cancel.
-          GetOverlappedResult (client->pipe_handle, &client->send_overlapped, &numwritten, TRUE);
-          return FALSE;
-        }
-
-        if (wait_ret != WAIT_OBJECT_0 + 1)
-        {
-          SetLastError (EVERYTHING3_ERROR_SERVER);
-
-          // cancel pending IO
-          CancelIo (client->pipe_handle);
-
-          // wait for pending IO to cancel.
-          GetOverlappedResult (client->pipe_handle, &client->send_overlapped, &numwritten, TRUE);
-          return FALSE;
-        }
-
-        // ASSUME client->send_event is set.
-        // wait for overlapped result.
-        if (GetOverlappedResult (client->pipe_handle, &client->send_overlapped, &numwritten, TRUE))
-        {
-          if (numwritten)
-          {
-            send_p += numwritten;
-            send_run -= numwritten;
-            continue;
-          }
-          else
-          {
-            // EOF
-            SetLastError (EVERYTHING3_ERROR_DISCONNECTED);
-            return FALSE;
-          }
-        }
-        else
-        {
-          // cannot be pending as we wait above.
-          SetLastError (EVERYTHING3_ERROR_DISCONNECTED);
-          return FALSE;
-        }
-      }
-      else
-      {
-        SetLastError (EVERYTHING3_ERROR_DISCONNECTED);
-        return FALSE;
-      }
-    }
+    SetLastError (EVERYTHING3_ERROR_DISCONNECTED);
+    return FALSE;
   }
-
   return TRUE;
 }
 
@@ -1419,8 +1400,7 @@ static BOOL _everything3_write_pipe (_everything3_client_t *client, const void *
 //
 static BOOL _everything3_send (_everything3_client_t *client, DWORD code, const void *in_data, SIZE_T in_size)
 {
-  BOOL ret;
-  ret = FALSE;
+  BOOL ret = FALSE;
 
   // make sure the in_size is sane.
   if (in_size <= EVERYTHING3_DWORD_MAX)
@@ -1432,7 +1412,7 @@ static BOOL _everything3_send (_everything3_client_t *client, DWORD code, const 
     if (_everything3_write_pipe (client, &send_message, sizeof(_everything3_message_t)))
     {
       if (_everything3_write_pipe (client, in_data, (DWORD) in_size))
-        ret = TRUE;
+         ret = TRUE;
     }
   }
   else
@@ -1448,35 +1428,29 @@ static BOOL _everything3_send (_everything3_client_t *client, DWORD code, const 
 //
 static BOOL _everything3_recv_header (_everything3_client_t *client, _everything3_message_t *recv_header)
 {
-  BOOL ret;
-  ret = FALSE;
-
   if (_everything3_recv_data (client, recv_header, sizeof(_everything3_message_t)))
   {
-    if ( (recv_header->code == _EVERYTHING3_RESPONSE_OK) || (recv_header->code == _EVERYTHING3_RESPONSE_OK_MORE_DATA))
-      ret = TRUE;
-    else
+    if (recv_header->code == _EVERYTHING3_RESPONSE_OK || recv_header->code == _EVERYTHING3_RESPONSE_OK_MORE_DATA)
+       return (TRUE);
+
+    // skip data
+    if (_everything3_recv_skip (client, recv_header->size))
     {
-      // skip data
-      if (_everything3_recv_skip (client, recv_header->size))
-      {
-        if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_BAD_REQUEST)
-          SetLastError (EVERYTHING3_ERROR_BAD_REQUEST);
-        else if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_CANCELLED)
-          SetLastError (EVERYTHING3_ERROR_CANCELLED);
-        else if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_NOT_FOUND)
-          SetLastError (EVERYTHING3_ERROR_PROPERTY_NOT_FOUND);
-        else if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_OUT_OF_MEMORY)
-          SetLastError (EVERYTHING3_ERROR_SERVER);
-        else if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_INVALID_COMMAND)
-          SetLastError (EVERYTHING3_ERROR_INVALID_COMMAND);
-        else
-          SetLastError (EVERYTHING3_ERROR_BAD_RESPONSE);
-      }
+      if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_BAD_REQUEST)
+         SetLastError (EVERYTHING3_ERROR_BAD_REQUEST);
+      else if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_CANCELLED)
+         SetLastError (EVERYTHING3_ERROR_CANCELLED);
+      else if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_NOT_FOUND)
+         SetLastError (EVERYTHING3_ERROR_PROPERTY_NOT_FOUND);
+      else if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_OUT_OF_MEMORY)
+         SetLastError (EVERYTHING3_ERROR_SERVER);
+      else if (recv_header->code == _EVERYTHING3_RESPONSE_ERROR_INVALID_COMMAND)
+         SetLastError (EVERYTHING3_ERROR_INVALID_COMMAND);
+      else
+         SetLastError (EVERYTHING3_ERROR_BAD_RESPONSE);
     }
   }
-
-  return ret;
+  return (FALSE);
 }
 
 //
@@ -1489,11 +1463,11 @@ static BOOL _everything3_recv_header (_everything3_client_t *client, _everything
 //
 static BOOL _everything3_recv_data (_everything3_client_t *client, void *out_buf, SIZE_T buf_size)
 {
-  BOOL ret;
-  DWORD numread;
-  BYTE *recv_p;
+  BOOL   ret = FALSE;
+  DWORD  numread;
+  BYTE  *recv_p;
   SIZE_T recv_run;
-  ret = FALSE;
+
   recv_p = (BYTE *) out_buf;
   recv_run = buf_size;
 
@@ -1508,9 +1482,8 @@ static BOOL _everything3_recv_data (_everything3_client_t *client, void *out_buf
     }
 
     if (recv_run <= 65536)
-      chunk_size = (DWORD) recv_run;
-    else
-      chunk_size = 65536;
+         chunk_size = (DWORD) recv_run;
+    else chunk_size = 65536;
 
     _everything3_zero_memory (&client->recv_overlapped, sizeof(OVERLAPPED));
     client->recv_overlapped.hEvent = client->recv_event;
@@ -1533,15 +1506,15 @@ static BOOL _everything3_recv_data (_everything3_client_t *client, void *out_buf
     }
     else
     {
-      DWORD last_error;
-      last_error = GetLastError();
+      DWORD last_error = GetLastError();
 
-      if ( (last_error == ERROR_IO_INCOMPLETE) || (last_error == ERROR_IO_PENDING))
+      if (last_error == ERROR_IO_INCOMPLETE || last_error == ERROR_IO_PENDING)
       {
-        HANDLE wait_handles[2];
-        DWORD wait_ret;
-        wait_handles[0] = client->shutdown_event;
-        wait_handles[1] = client->recv_event;
+        HANDLE wait_handles [2];
+        DWORD  wait_ret;
+
+        wait_handles [0] = client->shutdown_event;
+        wait_handles [1] = client->recv_event;
         wait_ret = WaitForMultipleObjects (2, wait_handles, FALSE, INFINITE);
 
         if (wait_ret == WAIT_OBJECT_0)
@@ -1595,7 +1568,6 @@ static BOOL _everything3_recv_data (_everything3_client_t *client, void *out_buf
       }
     }
   }
-
   return ret;
 }
 
@@ -1606,11 +1578,9 @@ static BOOL _everything3_recv_data (_everything3_client_t *client, void *out_buf
 //
 static BOOL _everything3_recv_skip (_everything3_client_t *client, SIZE_T size)
 {
-  BOOL ret;
-  BYTE buf[256];
-  SIZE_T run;
-  ret = FALSE;
-  run = size;
+  BOOL   ret = FALSE;
+  SIZE_T run = size;
+  BYTE   buf[256];
 
   for (;;)
   {
@@ -1624,7 +1594,7 @@ static BOOL _everything3_recv_skip (_everything3_client_t *client, SIZE_T size)
 
     recv_size = run;
     if (recv_size > 256)
-      recv_size = 256;
+       recv_size = 256;
 
     if (!_everything3_recv_data (client, buf, recv_size))
        break;
@@ -1648,8 +1618,7 @@ static BOOL _everything3_ioctrl (
   SIZE_T                 out_size,
   SIZE_T                *out_numread)
 {
-  BOOL ret;
-  ret = FALSE;
+  BOOL ret = FALSE;
 
   if (client)
   {
@@ -1667,7 +1636,6 @@ static BOOL _everything3_ioctrl (
           {
             if (out_numread)
                *out_numread = recv_header.size;
-
             ret = TRUE;
           }
         }
@@ -1725,8 +1693,7 @@ static BOOL _everything3_ioctrl_get_string (
   SIZE_T                   in_size,
   _everything3_utf8_buf_t *cbuf)
 {
-  BOOL ret;
-  ret = FALSE;
+  BOOL ret = FALSE;
 
   if (client)
   {
@@ -1757,7 +1724,6 @@ static BOOL _everything3_ioctrl_get_string (
         }
       }
     }
-
     _everything3_Unlock (client);
   }
   else
@@ -1772,18 +1738,15 @@ static BOOL _everything3_ioctrl_get_string (
 //
 DWORD Everything3_GetIPCPipeVersion (_everything3_client_t *client)
 {
-  DWORD ret;
+  DWORD ret = 0;
   DWORD value;
-  ret = 0;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_IPC_PIPE_VERSION, NULL, 0, &value, sizeof(DWORD)))
   {
     ret = value;
-
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
-
   return ret;
 }
 
@@ -1794,18 +1757,15 @@ DWORD Everything3_GetIPCPipeVersion (_everything3_client_t *client)
 //
 DWORD Everything3_GetMajorVersion (EVERYTHING3_CLIENT *client)
 {
-  DWORD ret;
+  DWORD ret = 0;
   DWORD value;
-  ret = 0;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_MAJOR_VERSION, NULL, 0, &value, sizeof(DWORD)))
   {
     ret = value;
-
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
-
   return ret;
 }
 
@@ -1816,18 +1776,15 @@ DWORD Everything3_GetMajorVersion (EVERYTHING3_CLIENT *client)
 //
 DWORD Everything3_GetMinorVersion (EVERYTHING3_CLIENT *client)
 {
-  DWORD ret;
+  DWORD ret = 0;
   DWORD value;
-  ret = 0;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_MINOR_VERSION, NULL, 0, &value, sizeof(DWORD)))
   {
     ret = value;
-
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
-
   return ret;
 }
 
@@ -1838,18 +1795,15 @@ DWORD Everything3_GetMinorVersion (EVERYTHING3_CLIENT *client)
 //
 DWORD Everything3_GetRevision (EVERYTHING3_CLIENT *client)
 {
-  DWORD ret;
+  DWORD ret = 0;
   DWORD value;
-  ret = 0;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_REVISION, NULL, 0, &value, sizeof(DWORD)))
   {
     ret = value;
-
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
-
   return ret;
 }
 
@@ -1860,15 +1814,14 @@ DWORD Everything3_GetRevision (EVERYTHING3_CLIENT *client)
 //
 DWORD Everything3_GetBuildNumber (EVERYTHING3_CLIENT *client)
 {
-  DWORD ret;
+  DWORD ret = 0;
   DWORD value;
-  ret = 0;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_BUILD_NUMBER, NULL, 0, &value, sizeof(DWORD)))
   {
     ret = value;
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
   return ret;
 }
@@ -1880,15 +1833,14 @@ DWORD Everything3_GetBuildNumber (EVERYTHING3_CLIENT *client)
 //
 DWORD Everything3_GetTargetMachine (EVERYTHING3_CLIENT *client)
 {
-  DWORD ret;
   DWORD value;
-  ret = EVERYTHING3_TARGET_MACHINE_UNKNOWN;
+  DWORD ret = EVERYTHING3_TARGET_MACHINE_UNKNOWN;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_TARGET_MACHINE, NULL, 0, &value, sizeof(DWORD)))
   {
     ret = value;
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
   return ret;
 }
@@ -1899,15 +1851,14 @@ DWORD Everything3_GetTargetMachine (EVERYTHING3_CLIENT *client)
 //
 EVERYTHING3_BOOL Everything3_IsDBLoaded (EVERYTHING3_CLIENT *client)
 {
-  BOOL ret;
+  BOOL  ret = FALSE;
   DWORD value;
-  ret = FALSE;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_IS_DB_LOADED, NULL, 0, &value, sizeof(DWORD)))
   {
     ret = (BOOL) value;
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
   return ret;
 }
@@ -1921,15 +1872,14 @@ EVERYTHING3_BOOL Everything3_IsDBLoaded (EVERYTHING3_CLIENT *client)
 //
 EVERYTHING3_BOOL Everything3_IsPropertyIndexed (EVERYTHING3_CLIENT *client, DWORD property_id)
 {
-  BOOL ret;
+  BOOL  ret = FALSE;
   DWORD value;
-  ret = FALSE;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_IS_PROPERTY_INDEXED, &property_id, sizeof(DWORD), &value, sizeof(DWORD)))
   {
     ret = (BOOL) value;
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
   return ret;
 }
@@ -1942,18 +1892,15 @@ EVERYTHING3_BOOL Everything3_IsPropertyIndexed (EVERYTHING3_CLIENT *client, DWOR
 //
 EVERYTHING3_BOOL Everything3_IsPropertyFastSort (EVERYTHING3_CLIENT *client, DWORD property_id)
 {
-  BOOL ret;
+  BOOL  ret = FALSE;
   DWORD value;
-  ret = FALSE;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_IS_PROPERTY_FAST_SORT, &property_id, sizeof(DWORD), &value, sizeof(DWORD)))
   {
     ret = (BOOL) value;
-
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
-
   return ret;
 }
 
@@ -1985,21 +1932,20 @@ EVERYTHING3_SEARCH_STATE *Everything3_CreateSearchState (void)
 //
 EVERYTHING3_BOOL Everything3_DestroySearchState (EVERYTHING3_SEARCH_STATE *search_state)
 {
-  BOOL ret;
-  ret = FALSE;
+  BOOL ret = FALSE;
 
   if (search_state)
   {
     DeleteCriticalSection (&search_state->cs);
 
     if (search_state->sort_array)
-      _everything3_mem_free (search_state->sort_array);
+       _everything3_mem_free (search_state->sort_array);
 
     if (search_state->property_request_array)
-      _everything3_mem_free (search_state->property_request_array);
+       _everything3_mem_free (search_state->property_request_array);
 
     if (search_state->search_text)
-      _everything3_mem_free (search_state->search_text);
+       _everything3_mem_free (search_state->search_text);
 
     _everything3_mem_free (search_state);
     ret = TRUE;
@@ -2015,8 +1961,7 @@ EVERYTHING3_BOOL Everything3_DestroySearchState (EVERYTHING3_SEARCH_STATE *searc
 //
 static BOOL _everything3_change_search_flags (EVERYTHING3_SEARCH_STATE *search_state, DWORD remove_flags, DWORD add_flags)
 {
-  BOOL ret;
-  ret = FALSE;
+  BOOL ret = FALSE;
 
   if (search_state)
   {
@@ -2028,7 +1973,6 @@ static BOOL _everything3_change_search_flags (EVERYTHING3_SEARCH_STATE *search_s
   }
   else
     SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
-
   return ret;
 }
 
@@ -2046,8 +1990,7 @@ static BOOL _everything3_set_search_flag (EVERYTHING3_SEARCH_STATE *search_state
 //
 static DWORD _everything3_get_search_flags (EVERYTHING3_SEARCH_STATE *search_state)
 {
-  DWORD ret;
-  ret = 0;
+  DWORD ret = 0;
 
   if (search_state)
   {
@@ -2067,8 +2010,7 @@ static DWORD _everything3_get_search_flags (EVERYTHING3_SEARCH_STATE *search_sta
 //
 static BOOL _everything3_is_search_flag_set (EVERYTHING3_SEARCH_STATE *search_state, DWORD flag)
 {
-  DWORD search_flags;
-  search_flags = _everything3_get_search_flags (search_state);
+  DWORD search_flags = _everything3_get_search_flags (search_state);
   return (search_flags & flag) ? TRUE : FALSE;
 }
 
@@ -2169,50 +2111,51 @@ EVERYTHING3_BOOL Everything3_SetSearchFoldersFirst (EVERYTHING3_SEARCH_STATE *se
   switch (folders_first_type)
   {
     case EVERYTHING3_SEARCH_FOLDERS_FIRST_ASCENDING:
-      folders_first_flags = _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ASCENDING;
-      break;
+         folders_first_flags = _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ASCENDING;
+         break;
 
     case EVERYTHING3_SEARCH_FOLDERS_FIRST_ALWAYS:
-      folders_first_flags = _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ALWAYS;
-      break;
+         folders_first_flags = _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ALWAYS;
+         break;
 
     case EVERYTHING3_SEARCH_FOLDERS_FIRST_NEVER:
-      folders_first_flags = _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_NEVER;
-      break;
+         folders_first_flags = _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_NEVER;
+         break;
 
     case EVERYTHING3_SEARCH_FOLDERS_FIRST_DESCENDING:
-      folders_first_flags = _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_DESCENDING;
-      break;
+         folders_first_flags = _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_DESCENDING;
+         break;
 
     default:
-      SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
-      return FALSE;
+         SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
+         return FALSE;
   }
 
-  return _everything3_change_search_flags (search_state, _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ALWAYS | _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_NEVER,
-         folders_first_flags);
+  return _everything3_change_search_flags (search_state,
+           _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ALWAYS | _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_NEVER,
+           folders_first_flags);
 }
 
 DWORD Everything3_GetSearchFoldersFirst (EVERYTHING3_SEARCH_STATE *search_state)
 {
-  DWORD search_flags;
-  search_flags = _everything3_get_search_flags (search_state) & (_EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ALWAYS |
-                 _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_NEVER);
+  DWORD search_flags = _everything3_get_search_flags (search_state) &
+                         (_EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ALWAYS |
+                          _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_NEVER);
 
   switch (search_flags)
   {
     default:
     case _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ASCENDING:
-      return EVERYTHING3_SEARCH_FOLDERS_FIRST_ASCENDING;
+         return EVERYTHING3_SEARCH_FOLDERS_FIRST_ASCENDING;
 
     case _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_ALWAYS:
-      return EVERYTHING3_SEARCH_FOLDERS_FIRST_ALWAYS;
+         return EVERYTHING3_SEARCH_FOLDERS_FIRST_ALWAYS;
 
     case _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_NEVER:
-      return EVERYTHING3_SEARCH_FOLDERS_FIRST_NEVER;
+         return EVERYTHING3_SEARCH_FOLDERS_FIRST_NEVER;
 
     case _EVERYTHING3_SEARCH_FLAG_FOLDERS_FIRST_DESCENDING:
-      return EVERYTHING3_SEARCH_FOLDERS_FIRST_DESCENDING;
+         return EVERYTHING3_SEARCH_FOLDERS_FIRST_DESCENDING;
   }
 }
 
@@ -2256,31 +2199,26 @@ EVERYTHING3_BOOL Everything3_GetSearchSortMix (EVERYTHING3_SEARCH_STATE *search_
 //
 EVERYTHING3_BOOL Everything3_SetSearchTextUTF8 (EVERYTHING3_SEARCH_STATE *search_state, const EVERYTHING3_UTF8 *search)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
   if (search_state && search)
   {
-    SIZE_T new_search_len;
-    EVERYTHING3_UTF8 *new_search_text;
-
-    //TODO: avoid the alloc, we should prealloc some room in the search state.
-    new_search_len  = _everything3_utf8_string_get_length_in_bytes (search);
-    new_search_text = _everything3_mem_alloc (new_search_len);
+    // TODO: avoid the alloc, we should prealloc some room in the search state.
+    SIZE_T            new_search_len  = _everything3_utf8_string_get_length_in_bytes (search);
+    EVERYTHING3_UTF8 *new_search_text = _everything3_mem_alloc (new_search_len);
 
     if (new_search_text)
     {
       EVERYTHING3_UTF8 *old_search_text;
+
       _everything3_copy_memory (new_search_text, search, new_search_len);
       EnterCriticalSection (&search_state->cs);
       old_search_text = search_state->search_text;
       search_state->search_text = new_search_text;
       search_state->search_len = new_search_len;
       LeaveCriticalSection (&search_state->cs);
-
       if (old_search_text)
-        _everything3_mem_free (old_search_text);
-
+         _everything3_mem_free (old_search_text);
       ret = TRUE;
     }
   }
@@ -2292,14 +2230,13 @@ EVERYTHING3_BOOL Everything3_SetSearchTextUTF8 (EVERYTHING3_SEARCH_STATE *search
 
 EVERYTHING3_BOOL Everything3_SetSearchTextW (EVERYTHING3_SEARCH_STATE *search_state, const EVERYTHING3_WCHAR *search)
 {
-  EVERYTHING3_BOOL ret;
+  EVERYTHING3_BOOL ret = FALSE;
   _everything3_utf8_buf_t search_cbuf;
-  ret = FALSE;
+
   _everything3_utf8_buf_init (&search_cbuf);
 
   if (_everything3_utf8_buf_copy_wchar_string (&search_cbuf, search))
-    ret = Everything3_SetSearchTextUTF8 (search_state, search_cbuf.buf);
-
+     ret = Everything3_SetSearchTextUTF8 (search_state, search_cbuf.buf);
   _everything3_utf8_buf_kill (&search_cbuf);
   return ret;
 }
@@ -2312,8 +2249,7 @@ EVERYTHING3_BOOL Everything3_SetSearchTextA (EVERYTHING3_SEARCH_STATE *search_st
   _everything3_utf8_buf_init (&search_cbuf);
 
   if (_everything3_utf8_buf_copy_ansi_string (&search_cbuf, search))
-    ret = Everything3_SetSearchTextUTF8 (search_state, search_cbuf.buf);
-
+     ret = Everything3_SetSearchTextUTF8 (search_state, search_cbuf.buf);
   _everything3_utf8_buf_kill (&search_cbuf);
   return ret;
 }
@@ -2347,16 +2283,14 @@ SIZE_T Everything3_GetSearchTextA (EVERYTHING3_SEARCH_STATE *search_state, CHAR 
 //
 EVERYTHING3_BOOL Everything3_AddSearchSort (EVERYTHING3_SEARCH_STATE *search_state, DWORD property_id, EVERYTHING3_BOOL ascending)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
-  if ( (search_state) && (property_id != EVERYTHING3_INVALID_PROPERTY_ID))
+  if (search_state && property_id != EVERYTHING3_INVALID_PROPERTY_ID)
   {
-    DWORD sort_flags;
-    sort_flags = 0;
+    DWORD sort_flags = 0;
 
     if (!ascending)
-      sort_flags |= _EVERYTHING3_SEARCH_SORT_FLAG_DESCENDING;
+       sort_flags |= _EVERYTHING3_SEARCH_SORT_FLAG_DESCENDING;
 
     EnterCriticalSection (&search_state->cs);
 
@@ -2369,23 +2303,22 @@ EVERYTHING3_BOOL Everything3_AddSearchSort (EVERYTHING3_SEARCH_STATE *search_sta
     }
     else
     {
-      SIZE_T new_sort_allocated;
+      SIZE_T                      array_size;
+      SIZE_T                      new_sort_allocated;
       _everything3_search_sort_t *new_sort_array;
-      SIZE_T array_size;
+
       new_sort_allocated = _everything3_safe_size_add (search_state->sort_allocated, search_state->sort_allocated);
-
       if (!new_sort_allocated)
-        new_sort_allocated = _EVERYTHING3_MIN_SORT_COUNT;
+         new_sort_allocated = _EVERYTHING3_MIN_SORT_COUNT;
 
-      array_size = _everything3_safe_size_mul (new_sort_allocated, sizeof(_everything3_search_sort_t));
+      array_size     = _everything3_safe_size_mul (new_sort_allocated, sizeof(_everything3_search_sort_t));
       new_sort_array = _everything3_mem_alloc (array_size);
-
       if (new_sort_array)
       {
         _everything3_copy_memory (new_sort_array, search_state->sort_array, search_state->sort_count * sizeof(_everything3_search_sort_t));
 
         if (search_state->sort_array)
-          _everything3_mem_free (search_state->sort_array);
+           _everything3_mem_free (search_state->sort_array);
 
         new_sort_array[search_state->sort_count].property_id = property_id;
         new_sort_array[search_state->sort_count].flags = sort_flags;
@@ -2395,7 +2328,6 @@ EVERYTHING3_BOOL Everything3_AddSearchSort (EVERYTHING3_SEARCH_STATE *search_sta
         ret = TRUE;
       }
     }
-
     LeaveCriticalSection (&search_state->cs);
   }
   else
@@ -2411,19 +2343,16 @@ EVERYTHING3_BOOL Everything3_AddSearchSort (EVERYTHING3_SEARCH_STATE *search_sta
 //
 EVERYTHING3_BOOL Everything3_ClearSearchSorts (EVERYTHING3_SEARCH_STATE *search_state)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
   if (search_state)
   {
     EnterCriticalSection (&search_state->cs);
-
     if (search_state->sort_array)
     {
       _everything3_mem_free (search_state->sort_array);
       search_state->sort_array = NULL;
     }
-
     search_state->sort_count = 0;
     search_state->sort_allocated = 0;
     ret = TRUE;
@@ -2440,8 +2369,7 @@ EVERYTHING3_BOOL Everything3_ClearSearchSorts (EVERYTHING3_SEARCH_STATE *search_
 //
 SIZE_T Everything3_GetSearchSortCount (EVERYTHING3_SEARCH_STATE *search_state)
 {
-  SIZE_T ret;
-  ret = 0;
+  SIZE_T ret = 0;
 
   if (search_state)
   {
@@ -2461,18 +2389,14 @@ SIZE_T Everything3_GetSearchSortCount (EVERYTHING3_SEARCH_STATE *search_state)
 //
 DWORD Everything3_GetSearchSortPropertyId (EVERYTHING3_SEARCH_STATE *search_state, SIZE_T sort_index)
 {
-  DWORD ret;
-  ret = EVERYTHING3_INVALID_PROPERTY_ID;
+  DWORD ret = EVERYTHING3_INVALID_PROPERTY_ID;
 
   if (search_state)
   {
     EnterCriticalSection (&search_state->cs);
-
     if (sort_index < search_state->sort_count)
-      ret = search_state->sort_array[sort_index].property_id;
-    else
-      SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
-
+         ret = search_state->sort_array[sort_index].property_id;
+    else SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
     LeaveCriticalSection (&search_state->cs);
   }
   else
@@ -2486,23 +2410,19 @@ DWORD Everything3_GetSearchSortPropertyId (EVERYTHING3_SEARCH_STATE *search_stat
 //
 EVERYTHING3_BOOL Everything3_GetSearchSortAscending (EVERYTHING3_SEARCH_STATE *search_state, SIZE_T sort_index)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
   if (search_state)
   {
     EnterCriticalSection (&search_state->cs);
-
     if (sort_index < search_state->sort_count)
     {
-      if (! (search_state->sort_array[sort_index].flags & _EVERYTHING3_SEARCH_SORT_FLAG_DESCENDING))
-        ret = TRUE;
-
+      if (!(search_state->sort_array[sort_index].flags & _EVERYTHING3_SEARCH_SORT_FLAG_DESCENDING))
+         ret = TRUE;
       SetLastError (EVERYTHING3_OK);
     }
     else
       SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
-
     LeaveCriticalSection (&search_state->cs);
   }
   else
@@ -2517,19 +2437,17 @@ EVERYTHING3_BOOL Everything3_GetSearchSortAscending (EVERYTHING3_SEARCH_STATE *s
 //
 static BOOL _everything3_add_search_property_request (EVERYTHING3_SEARCH_STATE *search_state, DWORD property_id, BOOL format, BOOL highlight)
 {
-  BOOL ret;
-  ret = FALSE;
+  BOOL ret = FALSE;
 
-  if ( (search_state) && (property_id != EVERYTHING3_INVALID_PROPERTY_ID))
+  if (search_state && property_id != EVERYTHING3_INVALID_PROPERTY_ID)
   {
-    DWORD property_request_flags;
-    property_request_flags = 0;
+    DWORD property_request_flags = 0;
 
     if (highlight)
-      property_request_flags |= _EVERYTHING3_SEARCH_PROPERTY_REQUEST_FLAG_HIGHLIGHT;
+       property_request_flags |= _EVERYTHING3_SEARCH_PROPERTY_REQUEST_FLAG_HIGHLIGHT;
 
     if (format)
-      property_request_flags |= _EVERYTHING3_SEARCH_PROPERTY_REQUEST_FLAG_FORMAT;
+       property_request_flags |= _EVERYTHING3_SEARCH_PROPERTY_REQUEST_FLAG_FORMAT;
 
     EnterCriticalSection (&search_state->cs);
 
@@ -2542,24 +2460,23 @@ static BOOL _everything3_add_search_property_request (EVERYTHING3_SEARCH_STATE *
     }
     else
     {
-      SIZE_T new_property_request_allocated;
+      SIZE_T                                  array_size;
+      SIZE_T                                  new_property_request_allocated;
       _everything3_search_property_request_t *new_property_request_array;
-      SIZE_T array_size;
+
       new_property_request_allocated = _everything3_safe_size_add (search_state->property_request_allocated, search_state->property_request_allocated);
-
       if (!new_property_request_allocated)
-        new_property_request_allocated = _EVERYTHING3_MIN_PROPERTY_REQUEST_COUNT;
+         new_property_request_allocated = _EVERYTHING3_MIN_PROPERTY_REQUEST_COUNT;
 
-      array_size = _everything3_safe_size_mul (new_property_request_allocated, sizeof(_everything3_search_property_request_t));
+      array_size                 = _everything3_safe_size_mul (new_property_request_allocated, sizeof(_everything3_search_property_request_t));
       new_property_request_array = _everything3_mem_alloc (array_size);
-
       if (new_property_request_array)
       {
         _everything3_copy_memory (new_property_request_array, search_state->property_request_array,
                                   search_state->property_request_count * sizeof(_everything3_search_property_request_t));
 
         if (search_state->property_request_array)
-          _everything3_mem_free (search_state->property_request_array);
+           _everything3_mem_free (search_state->property_request_array);
 
         search_state->property_request_array = new_property_request_array;
         search_state->property_request_allocated = new_property_request_allocated;
@@ -2569,7 +2486,6 @@ static BOOL _everything3_add_search_property_request (EVERYTHING3_SEARCH_STATE *
         ret = TRUE;
       }
     }
-
     LeaveCriticalSection (&search_state->cs);
   }
   else
@@ -2610,19 +2526,16 @@ EVERYTHING3_BOOL Everything3_AddSearchPropertyRequestHighlighted (EVERYTHING3_SE
 //
 EVERYTHING3_BOOL Everything3_ClearSearchPropertyRequests (EVERYTHING3_SEARCH_STATE *search_state)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
   if (search_state)
   {
     EnterCriticalSection (&search_state->cs);
-
     if (search_state->property_request_array)
     {
       _everything3_mem_free (search_state->property_request_array);
       search_state->property_request_array = NULL;
     }
-
     search_state->property_request_count = 0;
     search_state->property_request_allocated = 0;
     ret = TRUE;
@@ -2640,8 +2553,7 @@ EVERYTHING3_BOOL Everything3_ClearSearchPropertyRequests (EVERYTHING3_SEARCH_STA
 //
 SIZE_T Everything3_GetSearchPropertyRequestCount (EVERYTHING3_SEARCH_STATE *search_state)
 {
-  SIZE_T ret;
-  ret = 0;
+  SIZE_T ret = 0;
 
   if (search_state)
   {
@@ -2662,18 +2574,14 @@ SIZE_T Everything3_GetSearchPropertyRequestCount (EVERYTHING3_SEARCH_STATE *sear
 //
 DWORD Everything3_GetSearchPropertyRequestPropertyId (EVERYTHING3_SEARCH_STATE *search_state, SIZE_T index)
 {
-  DWORD ret;
-  ret = EVERYTHING3_INVALID_PROPERTY_ID;
+  DWORD ret = EVERYTHING3_INVALID_PROPERTY_ID;
 
   if (search_state)
   {
     EnterCriticalSection (&search_state->cs);
-
     if (index < search_state->property_request_count)
-      ret = search_state->property_request_array[index].property_id;
-    else
-      SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
-
+         ret = search_state->property_request_array[index].property_id;
+    else SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
     LeaveCriticalSection (&search_state->cs);
   }
   else
@@ -2689,8 +2597,7 @@ DWORD Everything3_GetSearchPropertyRequestPropertyId (EVERYTHING3_SEARCH_STATE *
 //
 EVERYTHING3_BOOL Everything3_GetSearchPropertyRequestHighlight (EVERYTHING3_SEARCH_STATE *search_state, SIZE_T index)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
   if (search_state)
   {
@@ -2699,8 +2606,7 @@ EVERYTHING3_BOOL Everything3_GetSearchPropertyRequestHighlight (EVERYTHING3_SEAR
     if (index < search_state->property_request_count)
     {
       if (search_state->property_request_array[index].flags & _EVERYTHING3_SEARCH_PROPERTY_REQUEST_FLAG_HIGHLIGHT)
-        ret = 1;
-
+         ret = 1;
       SetLastError (EVERYTHING3_OK);
     }
     else
@@ -2721,18 +2627,15 @@ EVERYTHING3_BOOL Everything3_GetSearchPropertyRequestHighlight (EVERYTHING3_SEAR
 //
 EVERYTHING3_BOOL Everything3_GetSearchPropertyRequestFormat (EVERYTHING3_SEARCH_STATE *search_state, SIZE_T index)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
   if (search_state)
   {
     EnterCriticalSection (&search_state->cs);
-
     if (index < search_state->property_request_count)
     {
       if (search_state->property_request_array[index].flags & _EVERYTHING3_SEARCH_PROPERTY_REQUEST_FLAG_FORMAT)
-        ret = 1;
-
+         ret = 1;
       SetLastError (EVERYTHING3_OK);
     }
     else
@@ -2752,8 +2655,7 @@ EVERYTHING3_BOOL Everything3_GetSearchPropertyRequestFormat (EVERYTHING3_SEARCH_
 //
 EVERYTHING3_BOOL Everything3_SetSearchViewportOffset (EVERYTHING3_SEARCH_STATE *search_state, SIZE_T offset)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
   if (search_state)
   {
@@ -2769,8 +2671,7 @@ EVERYTHING3_BOOL Everything3_SetSearchViewportOffset (EVERYTHING3_SEARCH_STATE *
 
 SIZE_T Everything3_GetSearchViewportOffset (EVERYTHING3_SEARCH_STATE *search_state)
 {
-  SIZE_T ret;
-  ret = 0;
+  SIZE_T ret = 0;
 
   if (search_state)
   {
@@ -2792,8 +2693,7 @@ SIZE_T Everything3_GetSearchViewportOffset (EVERYTHING3_SEARCH_STATE *search_sta
 //
 EVERYTHING3_BOOL Everything3_SetSearchViewportCount (EVERYTHING3_SEARCH_STATE *search_state, SIZE_T count)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
   if (search_state)
   {
@@ -2809,8 +2709,7 @@ EVERYTHING3_BOOL Everything3_SetSearchViewportCount (EVERYTHING3_SEARCH_STATE *s
 
 SIZE_T Everything3_GetSearchViewportCount (EVERYTHING3_SEARCH_STATE *search_state)
 {
-  SIZE_T ret;
-  ret = 0;
+  SIZE_T ret = 0;
 
   if (search_state)
   {
@@ -2840,7 +2739,7 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
 
   if (client && search_state)
   {
-    BYTE *packet_data;
+    BYTE  *packet_data;
     SIZE_T packet_size;
 
     _everything3_Lock (client);
@@ -2870,8 +2769,7 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
 
     if (packet_data)
     {
-      BYTE *packet_d;
-      packet_d = packet_data;
+      BYTE *packet_d = packet_data;
 
       // search flags
       packet_d = _everything3_copy_dword (packet_d, search_state->search_flags);
@@ -2887,10 +2785,8 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
       // sort
       packet_d = _everything3_copy_len_vlq (packet_d, search_state->sort_count);
       {
-        _everything3_search_sort_t *sort_p;
-        SIZE_T sort_run;
-        sort_p   = search_state->sort_array;
-        sort_run = search_state->sort_count;
+        _everything3_search_sort_t *sort_p   = search_state->sort_array;
+        SIZE_T                      sort_run = search_state->sort_count;
 
         while (sort_run)
         {
@@ -2903,10 +2799,8 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
       // property requests
       packet_d = _everything3_copy_len_vlq (packet_d, search_state->property_request_count);
       {
-        _everything3_search_property_request_t *property_request_p;
-        SIZE_T property_request_run;
-        property_request_p = search_state->property_request_array;
-        property_request_run = search_state->property_request_count;
+        _everything3_search_property_request_t *property_request_p   = search_state->property_request_array;
+        SIZE_T                                  property_request_run = search_state->property_request_count;
 
         while (property_request_run)
         {
@@ -2921,14 +2815,14 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
 
       if (_everything3_send (client, command, packet_data, packet_size))
       {
-        EVERYTHING3_RESULT_LIST *result_list;
-        result_list = _everything3_mem_calloc (sizeof(EVERYTHING3_RESULT_LIST));
+        EVERYTHING3_RESULT_LIST *result_list = _everything3_mem_calloc (sizeof(EVERYTHING3_RESULT_LIST));
 
         if (result_list)
         {
           _everything3_stream_t stream;
-          SIZE_T item_total_property_size;
-          SIZE_T size_t_size;
+          SIZE_T                item_total_property_size;
+          SIZE_T                size_t_size;
+
           _everything3_stream_init (&stream, client);
           _everything3_pool_init (&result_list->pool);
           item_total_property_size = 1; // item_flags;
@@ -2948,7 +2842,7 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
 
           // total size.
           if (result_list->valid_flags & _EVERYTHING3_SEARCH_FLAG_TOTAL_SIZE)
-            result_list->total_result_size = _everything3_stream_read_uint64 (&stream);
+             result_list->total_result_size = _everything3_stream_read_uint64 (&stream);
 
           // viewport
           result_list->viewport_offset = _everything3_stream_read_size_t (&stream);
@@ -2956,11 +2850,9 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
 
           // sort
           result_list->sort_count = _everything3_stream_read_len_vlq (&stream);
-
           if (result_list->sort_count)
           {
-            SIZE_T sort_size;
-            sort_size = _everything3_safe_size_mul (result_list->sort_count, sizeof(_everything3_result_list_sort_t));
+            SIZE_T sort_size = _everything3_safe_size_mul (result_list->sort_count, sizeof(_everything3_result_list_sort_t));
             result_list->sort_array = _everything3_mem_alloc (sort_size);
 
             if (!result_list->sort_array)
@@ -2970,10 +2862,8 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
             }
 
             {
-              SIZE_T sort_run;
-              _everything3_result_list_sort_t *sort_d;
-              sort_run = result_list->sort_count;
-              sort_d = result_list->sort_array;
+              SIZE_T                           sort_run = result_list->sort_count;
+              _everything3_result_list_sort_t *sort_d   = result_list->sort_array;
 
               while (sort_run)
               {
@@ -2987,21 +2877,19 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
 
           // property requests
           result_list->property_request_count = _everything3_stream_read_len_vlq (&stream);
-
           if (result_list->property_request_count)
           {
-            SIZE_T property_request_size;
-            property_request_size = _everything3_safe_size_mul (sizeof(_everything3_result_list_property_request_t), result_list->property_request_count);
-            result_list->property_request_array = _everything3_mem_alloc (property_request_size);
+            SIZE_T property_request_size = _everything3_safe_size_mul (sizeof(_everything3_result_list_property_request_t), result_list->property_request_count);
 
+            result_list->property_request_array = _everything3_mem_alloc (property_request_size);
             if (!result_list->property_request_array)
             {
               SetLastError (EVERYTHING3_ERROR_OUT_OF_MEMORY);
               goto got_error;
             }
 
-            result_list->sorted_property_request_array = _everything3_mem_alloc (_everything3_safe_size_mul_size_of_pointer (
-                result_list->property_request_count));
+            result_list->sorted_property_request_array = _everything3_mem_alloc (
+              _everything3_safe_size_mul_size_of_pointer (result_list->property_request_count));
 
             if (!result_list->sorted_property_request_array)
             {
@@ -3010,19 +2898,18 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
             }
 
             {
-              SIZE_T property_request_run;
-              _everything3_result_list_property_request_t *property_request_d;
+              SIZE_T                                        property_request_run = result_list->property_request_count;
+              _everything3_result_list_property_request_t  *property_request_d = result_list->property_request_array;
               _everything3_result_list_property_request_t **sorted_property_request_d;
-              property_request_run = result_list->property_request_count;
-              property_request_d = result_list->property_request_array;
+
               sorted_property_request_d = result_list->sorted_property_request_array;
 
               while (property_request_run)
               {
-                property_request_d->offset = item_total_property_size;
+                property_request_d->offset      = item_total_property_size;
                 property_request_d->property_id = _everything3_stream_read_dword (&stream);
-                property_request_d->flags = _everything3_stream_read_dword (&stream);
-                property_request_d->value_type = _everything3_stream_read_byte (&stream);
+                property_request_d->flags       = _everything3_stream_read_dword (&stream);
+                property_request_d->value_type  = _everything3_stream_read_byte (&stream);
 
                 if (property_request_d->flags & (_EVERYTHING3_SEARCH_PROPERTY_REQUEST_FLAG_FORMAT | _EVERYTHING3_SEARCH_PROPERTY_REQUEST_FLAG_HIGHLIGHT))
                 {
@@ -3105,11 +2992,8 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
             }
 
             {
-              SIZE_T property_request_run;
-              _everything3_result_list_property_request_t **sorted_property_request_p;
-              property_request_run = result_list->property_request_count;
-              sorted_property_request_p = result_list->sorted_property_request_array;
-
+              SIZE_T                                        property_request_run      = result_list->property_request_count;
+              _everything3_result_list_property_request_t **sorted_property_request_p = result_list->sorted_property_request_array;
               while (property_request_run)
               {
                 sorted_property_request_p++;
@@ -3122,10 +3006,10 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
 
           if (result_list->viewport_count)
           {
-            SIZE_T item_array_size;
-            SIZE_T viewport_run;
             _everything3_result_list_item_t *item_d;
-            item_array_size = _everything3_safe_size_mul_size_of_pointer (result_list->viewport_count);
+            SIZE_T                           viewport_run;
+            SIZE_T                           item_array_size = _everything3_safe_size_mul_size_of_pointer (result_list->viewport_count);
+
             result_list->item_array = _everything3_mem_alloc (item_array_size);
             if (!result_list->item_array)
             {
@@ -3428,8 +3312,7 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
                             case EVERYTHING3_PROPERTY_VARIANT_TYPE_ARRAY_DOUBLE_DATE:
                             case EVERYTHING3_PROPERTY_VARIANT_TYPE_ARRAY_CLSID:
                               {
-                                SIZE_T array_count;
-                                array_count = _everything3_stream_read_len_vlq (&stream);
+                                SIZE_T array_count = _everything3_stream_read_len_vlq (&stream);
 
                                 if (array_count)
                                 {
@@ -3516,9 +3399,8 @@ static EVERYTHING3_RESULT_LIST *_everything3_search_with_extra_flags (
                             case EVERYTHING3_PROPERTY_VARIANT_TYPE_ARRAY_STRING_LPWSTR:
                             case EVERYTHING3_PROPERTY_VARIANT_TYPE_ARRAY_STRING_LPSTR:
                               {
-                                SIZE_T array_count;
                                 // an array of pstrings.
-                                array_count = _everything3_stream_read_len_vlq (&stream);
+                                SIZE_T array_count = _everything3_stream_read_len_vlq (&stream);
 
                                 if (array_count)
                                 {
@@ -3659,8 +3541,7 @@ EVERYTHING3_RESULT_LIST *Everything3_Sort (EVERYTHING3_CLIENT *client, EVERYTHIN
 //
 EVERYTHING3_BOOL Everything3_DestroyResultList (EVERYTHING3_RESULT_LIST *result_list)
 {
-  EVERYTHING3_BOOL ret;
-  ret = FALSE;
+  EVERYTHING3_BOOL ret = FALSE;
 
   // we don't need to lock
   if (result_list)
@@ -3697,19 +3578,16 @@ EVERYTHING3_BOOL Everything3_DestroyResultList (EVERYTHING3_RESULT_LIST *result_
 //
 EVERYTHING3_BOOL Everything3_IsResultListChange (EVERYTHING3_CLIENT *client)
 {
-  EVERYTHING3_BOOL ret;
+  EVERYTHING3_BOOL ret = FALSE;
   DWORD value;
-  ret = FALSE;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_IS_RESULT_CHANGE, NULL, 0, &value, sizeof(DWORD)))
   {
     if (value)
-      ret = TRUE;
-
+       ret = TRUE;
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
-
   return ret;
 }
 
@@ -3721,19 +3599,16 @@ EVERYTHING3_BOOL Everything3_IsResultListChange (EVERYTHING3_CLIENT *client)
 //
 EVERYTHING3_BOOL Everything3_WaitForResultListChange (EVERYTHING3_CLIENT *client)
 {
-  EVERYTHING3_BOOL ret;
+  EVERYTHING3_BOOL ret = FALSE;
   DWORD value;
-  ret = FALSE;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_WAIT_FOR_RESULT_CHANGE, NULL, 0, &value, sizeof(DWORD)))
   {
     if (value)
-      ret = TRUE;
-
+       ret = TRUE;
     if (!ret)
       SetLastError (EVERYTHING3_OK);
   }
-
   return ret;
 }
 
@@ -3742,19 +3617,16 @@ EVERYTHING3_BOOL Everything3_WaitForResultListChange (EVERYTHING3_CLIENT *client
 //
 static DWORD _everything3_find_property (EVERYTHING3_CLIENT *client, const EVERYTHING3_UTF8 *canonical_name, SIZE_T canonical_name_length_in_bytes)
 {
-  DWORD ret;
+  DWORD ret = EVERYTHING3_INVALID_PROPERTY_ID;
   DWORD value;
-  ret = EVERYTHING3_INVALID_PROPERTY_ID;
 
-  if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_FIND_PROPERTY_FROM_NAME, canonical_name, canonical_name_length_in_bytes, &value,
-      sizeof(DWORD)))
+  if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_FIND_PROPERTY_FROM_NAME, canonical_name,
+                                           canonical_name_length_in_bytes, &value, sizeof(DWORD)))
   {
     ret = value;
-
     if (ret == EVERYTHING3_INVALID_PROPERTY_ID)
-      SetLastError (EVERYTHING3_ERROR_PROPERTY_NOT_FOUND);
+       SetLastError (EVERYTHING3_ERROR_PROPERTY_NOT_FOUND);
   }
-
   return ret;
 }
 
@@ -3769,12 +3641,9 @@ static DWORD _everything3_find_property (EVERYTHING3_CLIENT *client, const EVERY
 DWORD Everything3_FindPropertyUTF8 (EVERYTHING3_CLIENT *client, const EVERYTHING3_UTF8 *canonical_name)
 {
   if (canonical_name)
-    return _everything3_find_property (client, canonical_name, _everything3_utf8_string_get_length_in_bytes (canonical_name));
-  else
-  {
-    SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
-    return EVERYTHING3_INVALID_PROPERTY_ID;
-  }
+     return _everything3_find_property (client, canonical_name, _everything3_utf8_string_get_length_in_bytes (canonical_name));
+  SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
+  return EVERYTHING3_INVALID_PROPERTY_ID;
 }
 
 //
@@ -3787,13 +3656,13 @@ DWORD Everything3_FindPropertyUTF8 (EVERYTHING3_CLIENT *client, const EVERYTHING
 //
 DWORD Everything3_FindPropertyW (EVERYTHING3_CLIENT *client, const EVERYTHING3_WCHAR *canonical_name)
 {
-  DWORD ret;
+  DWORD ret = EVERYTHING3_INVALID_PROPERTY_ID;
   _everything3_utf8_buf_t property_name_cbuf;
-  ret = EVERYTHING3_INVALID_PROPERTY_ID;
+
   _everything3_utf8_buf_init (&property_name_cbuf);
 
   if (_everything3_utf8_buf_copy_wchar_string (&property_name_cbuf, canonical_name))
-    ret = _everything3_find_property (client, property_name_cbuf.buf, property_name_cbuf.length_in_bytes);
+     ret = _everything3_find_property (client, property_name_cbuf.buf, property_name_cbuf.length_in_bytes);
 
   _everything3_utf8_buf_kill (&property_name_cbuf);
   return ret;
@@ -3809,13 +3678,13 @@ DWORD Everything3_FindPropertyW (EVERYTHING3_CLIENT *client, const EVERYTHING3_W
 //
 DWORD Everything3_FindPropertyA (EVERYTHING3_CLIENT *client, const EVERYTHING3_CHAR *canonical_name)
 {
-  DWORD ret;
+  DWORD ret = EVERYTHING3_INVALID_PROPERTY_ID;
   _everything3_utf8_buf_t property_name_cbuf;
-  ret = EVERYTHING3_INVALID_PROPERTY_ID;
+
   _everything3_utf8_buf_init (&property_name_cbuf);
 
   if (_everything3_utf8_buf_copy_ansi_string (&property_name_cbuf, canonical_name))
-    ret = _everything3_find_property (client, property_name_cbuf.buf, property_name_cbuf.length_in_bytes);
+     ret = _everything3_find_property (client, property_name_cbuf.buf, property_name_cbuf.length_in_bytes);
 
   _everything3_utf8_buf_kill (&property_name_cbuf);
   return ret;
@@ -3832,16 +3701,14 @@ static BOOL _everything3_get_property_name (EVERYTHING3_CLIENT *client, DWORD pr
 //
 // Get the localized property name from the specified property ID.
 //
-SIZE_T Everything3_GetPropertyNameUTF8 (EVERYTHING3_CLIENT *client, DWORD property_id, EVERYTHING3_UTF8 *out_buf,
-    EVERYTHING3_SIZE_T bufsize)
+SIZE_T Everything3_GetPropertyNameUTF8 (EVERYTHING3_CLIENT *client, DWORD property_id, EVERYTHING3_UTF8 *out_buf, EVERYTHING3_SIZE_T bufsize)
 {
-  EVERYTHING3_SIZE_T ret;
+  EVERYTHING3_SIZE_T ret = 0;
   _everything3_utf8_buf_t cbuf;
-  ret = 0;
-  _everything3_utf8_buf_init (&cbuf);
 
+  _everything3_utf8_buf_init (&cbuf);
   if (_everything3_get_property_name (client, property_id, &cbuf))
-    ret = _everything3_safe_utf8_string_copy_utf8_string_n (out_buf, bufsize, cbuf.buf, cbuf.length_in_bytes);
+     ret = _everything3_safe_utf8_string_copy_utf8_string_n (out_buf, bufsize, cbuf.buf, cbuf.length_in_bytes);
 
   _everything3_utf8_buf_kill (&cbuf);
   return ret;
@@ -3850,16 +3717,19 @@ SIZE_T Everything3_GetPropertyNameUTF8 (EVERYTHING3_CLIENT *client, DWORD proper
 //
 // Get the localized property name from the specified property ID.
 //
-EVERYTHING3_SIZE_T Everything3_GetPropertyNameW (EVERYTHING3_CLIENT *client, DWORD property_id,
-    EVERYTHING3_WCHAR *out_wbuf, EVERYTHING3_SIZE_T wbuf_size_in_wchars)
+EVERYTHING3_SIZE_T Everything3_GetPropertyNameW (
+  EVERYTHING3_CLIENT *client,
+  DWORD               property_id,
+  EVERYTHING3_WCHAR  *out_wbuf,
+  EVERYTHING3_SIZE_T  wbuf_size_in_wchars)
 {
-  EVERYTHING3_SIZE_T ret;
+  EVERYTHING3_SIZE_T ret = 0;
   _everything3_utf8_buf_t cbuf;
-  ret = 0;
+
   _everything3_utf8_buf_init (&cbuf);
 
   if (_everything3_get_property_name (client, property_id, &cbuf))
-    ret = _everything3_safe_wchar_string_copy_utf8_string_n (out_wbuf, wbuf_size_in_wchars, cbuf.buf, cbuf.length_in_bytes);
+     ret = _everything3_safe_wchar_string_copy_utf8_string_n (out_wbuf, wbuf_size_in_wchars, cbuf.buf, cbuf.length_in_bytes);
 
   _everything3_utf8_buf_kill (&cbuf);
   return ret;
@@ -3868,16 +3738,19 @@ EVERYTHING3_SIZE_T Everything3_GetPropertyNameW (EVERYTHING3_CLIENT *client, DWO
 //
 // Get the localized property name from the specified property ID.
 //
-EVERYTHING3_SIZE_T Everything3_GetPropertyNameA (EVERYTHING3_CLIENT *client, DWORD property_id,
-    EVERYTHING3_CHAR *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetPropertyNameA (
+  EVERYTHING3_CLIENT *client,
+  DWORD               property_id,
+  EVERYTHING3_CHAR   *out_buf,
+  EVERYTHING3_SIZE_T  bufsize)
 {
-  EVERYTHING3_SIZE_T ret;
+  EVERYTHING3_SIZE_T ret = 0;
   _everything3_utf8_buf_t cbuf;
-  ret = 0;
+
   _everything3_utf8_buf_init (&cbuf);
 
   if (_everything3_get_property_name (client, property_id, &cbuf))
-    ret = _everything3_safe_ansi_string_copy_utf8_string_n (out_buf, bufsize, cbuf.buf, cbuf.length_in_bytes);
+     ret = _everything3_safe_ansi_string_copy_utf8_string_n (out_buf, bufsize, cbuf.buf, cbuf.length_in_bytes);
 
   _everything3_utf8_buf_kill (&cbuf);
   return ret;
@@ -3895,16 +3768,19 @@ static BOOL _everything3_get_property_canonical_name (EVERYTHING3_CLIENT *client
 //
 // Get the canonical property name from the specified property ID.
 //
-SIZE_T Everything3_GetPropertyCanonicalNameUTF8 (EVERYTHING3_CLIENT *client, DWORD property_id,
-    EVERYTHING3_UTF8 *out_buf, EVERYTHING3_SIZE_T bufsize)
+SIZE_T Everything3_GetPropertyCanonicalNameUTF8 (
+  EVERYTHING3_CLIENT *client,
+  DWORD               property_id,
+  EVERYTHING3_UTF8   *out_buf,
+  EVERYTHING3_SIZE_T  bufsize)
 {
-  EVERYTHING3_SIZE_T ret;
+  EVERYTHING3_SIZE_T ret = 0;
   _everything3_utf8_buf_t cbuf;
-  ret = 0;
+
   _everything3_utf8_buf_init (&cbuf);
 
   if (_everything3_get_property_canonical_name (client, property_id, &cbuf))
-    ret = _everything3_safe_utf8_string_copy_utf8_string_n (out_buf, bufsize, cbuf.buf, cbuf.length_in_bytes);
+     ret = _everything3_safe_utf8_string_copy_utf8_string_n (out_buf, bufsize, cbuf.buf, cbuf.length_in_bytes);
 
   _everything3_utf8_buf_kill (&cbuf);
   return ret;
@@ -3913,16 +3789,19 @@ SIZE_T Everything3_GetPropertyCanonicalNameUTF8 (EVERYTHING3_CLIENT *client, DWO
 //
 // Get the canonical property name from the specified property ID.
 //
-EVERYTHING3_SIZE_T Everything3_GetPropertyCanonicalNameW (EVERYTHING3_CLIENT *client, DWORD property_id,
-    EVERYTHING3_WCHAR *out_wbuf, EVERYTHING3_SIZE_T wbuf_size_in_wchars)
+EVERYTHING3_SIZE_T Everything3_GetPropertyCanonicalNameW (
+  EVERYTHING3_CLIENT *client,
+  DWORD               property_id,
+  EVERYTHING3_WCHAR  *out_wbuf,
+  EVERYTHING3_SIZE_T  wbuf_size_in_wchars)
 {
-  EVERYTHING3_SIZE_T ret;
+  EVERYTHING3_SIZE_T ret = 0;
   _everything3_utf8_buf_t cbuf;
-  ret = 0;
+
   _everything3_utf8_buf_init (&cbuf);
 
   if (_everything3_get_property_canonical_name (client, property_id, &cbuf))
-    ret = _everything3_safe_wchar_string_copy_utf8_string_n (out_wbuf, wbuf_size_in_wchars, cbuf.buf, cbuf.length_in_bytes);
+     ret = _everything3_safe_wchar_string_copy_utf8_string_n (out_wbuf, wbuf_size_in_wchars, cbuf.buf, cbuf.length_in_bytes);
 
   _everything3_utf8_buf_kill (&cbuf);
   return ret;
@@ -3931,16 +3810,19 @@ EVERYTHING3_SIZE_T Everything3_GetPropertyCanonicalNameW (EVERYTHING3_CLIENT *cl
 //
 // Get the canonical property name from the specified property ID.
 //
-EVERYTHING3_SIZE_T Everything3_GetPropertyCanonicalNameA (EVERYTHING3_CLIENT *client, DWORD property_id,
-    EVERYTHING3_CHAR *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetPropertyCanonicalNameA (
+  EVERYTHING3_CLIENT *client,
+  DWORD               property_id,
+  EVERYTHING3_CHAR  *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
-  EVERYTHING3_SIZE_T ret;
+  EVERYTHING3_SIZE_T ret = 0;
   _everything3_utf8_buf_t cbuf;
-  ret = 0;
+
   _everything3_utf8_buf_init (&cbuf);
 
   if (_everything3_get_property_canonical_name (client, property_id, &cbuf))
-    ret = _everything3_safe_ansi_string_copy_utf8_string_n (out_buf, bufsize, cbuf.buf, cbuf.length_in_bytes);
+     ret = _everything3_safe_ansi_string_copy_utf8_string_n (out_buf, bufsize, cbuf.buf, cbuf.length_in_bytes);
 
   _everything3_utf8_buf_kill (&cbuf);
   return ret;
@@ -3951,18 +3833,15 @@ EVERYTHING3_SIZE_T Everything3_GetPropertyCanonicalNameA (EVERYTHING3_CLIENT *cl
 //
 DWORD Everything3_GetPropertyType (EVERYTHING3_CLIENT *client, DWORD property_id)
 {
-  DWORD ret;
+  DWORD ret = 0;
   DWORD value;
-  ret = 0;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_PROPERTY_TYPE, &property_id, sizeof(DWORD), &value, sizeof(DWORD)))
   {
     ret = value;
-
     if (!ret)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
-
   return ret;
 }
 
@@ -3983,7 +3862,7 @@ static void _everything3_utf8_buf_init (_everything3_utf8_buf_t *cbuf)
 static void _everything3_utf8_buf_kill (_everything3_utf8_buf_t *cbuf)
 {
   if (cbuf->buf != cbuf->stack_buf)
-    _everything3_mem_free (cbuf->buf);
+     _everything3_mem_free (cbuf->buf);
 }
 
 //
@@ -4005,19 +3884,17 @@ static BOOL _everything3_utf8_buf_grow_size (_everything3_utf8_buf_t *cbuf, SIZE
   BYTE *new_buf;
 
   if (size_in_bytes <= cbuf->size_in_bytes)
-    return TRUE;
+     return TRUE;
 
   _everything3_utf8_buf_kill (cbuf);
   _everything3_utf8_buf_init (cbuf);
   new_buf = _everything3_mem_alloc (size_in_bytes);
-
   if (new_buf)
   {
     cbuf->buf = new_buf;
     cbuf->size_in_bytes = size_in_bytes;
     return TRUE;
   }
-
   return FALSE;
 }
 
@@ -4033,7 +3910,6 @@ static BOOL _everything3_utf8_buf_grow_length (_everything3_utf8_buf_t *cbuf, SI
     cbuf->length_in_bytes = length_in_bytes;
     return TRUE;
   }
-
   return FALSE;
 }
 
@@ -4109,7 +3985,7 @@ static EVERYTHING3_UTF8 *_everything3_utf8_string_copy_wchar_string (EVERYTHING3
   if (out_buf)
      *d = '\0';
 
-  return d;
+  return (d);
 }
 
 //
@@ -4163,7 +4039,7 @@ void _everything3_ansi_buf_init (_everything3_ansi_buf_t *acbuf)
 void _everything3_ansi_buf_kill (_everything3_ansi_buf_t *acbuf)
 {
   if (acbuf->buf != acbuf->stack_buf)
-    _everything3_mem_free (acbuf->buf);
+     _everything3_mem_free (acbuf->buf);
 }
 
 void _everything3_ansi_buf_empty (_everything3_ansi_buf_t *acbuf)
@@ -4247,8 +4123,7 @@ SIZE_T Everything3_GetResultListFolderCount (const EVERYTHING3_RESULT_LIST *resu
 {
   if (result_list)
   {
-    SIZE_T result_count;
-    result_count = result_list->folder_result_count;
+    SIZE_T result_count = result_list->folder_result_count;
 
     if (!result_count)
        SetLastError (EVERYTHING3_OK);
@@ -4377,9 +4252,7 @@ SIZE_T Everything3_GetResultListSortCount (const EVERYTHING3_RESULT_LIST *result
 // sort_index MUST be less than Everything3_GetResultListSortCount()
 // sort_index is 0 based.
 //
-DWORD Everything3_GetResultListSortPropertyId (
-  const EVERYTHING3_RESULT_LIST *result_list,
-  EVERYTHING3_SIZE_T sort_index)
+DWORD Everything3_GetResultListSortPropertyId (const EVERYTHING3_RESULT_LIST *result_list, EVERYTHING3_SIZE_T sort_index)
 {
   DWORD ret = EVERYTHING3_INVALID_PROPERTY_ID;
 
@@ -4431,9 +4304,7 @@ SIZE_T Everything3_GetResultListPropertyRequestCount (const EVERYTHING3_RESULT_L
   return 0;
 }
 
-DWORD Everything3_GetResultListPropertyRequestPropertyId (
-    const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T property_index)
+DWORD Everything3_GetResultListPropertyRequestPropertyId (const EVERYTHING3_RESULT_LIST *result_list, EVERYTHING3_SIZE_T property_index)
 {
   DWORD ret = EVERYTHING3_INVALID_PROPERTY_ID;
 
@@ -4451,9 +4322,7 @@ DWORD Everything3_GetResultListPropertyRequestPropertyId (
 // returns a EVERYTHING3_PROPERTY_VALUE_TYPE_* type.
 // returns EVERYTHING3_PROPERTY_VALUE_TYPE_NULL on error.
 //
-DWORD Everything3_GetResultListPropertyRequestValueType (
-    const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T property_index)
+DWORD Everything3_GetResultListPropertyRequestValueType (const EVERYTHING3_RESULT_LIST *result_list, EVERYTHING3_SIZE_T property_index)
 {
   DWORD ret = EVERYTHING3_PROPERTY_VALUE_TYPE_NULL;
 
@@ -4510,8 +4379,8 @@ static void _everything3_stream_kill (_everything3_stream_t *stream)
 //
 static void _everything3_stream_read_data (_everything3_stream_t *stream, void *data, SIZE_T size)
 {
-  BYTE   *d = (BYTE*) data;
-  SIZE_T  run = size;
+  BYTE  *d = (BYTE*) data;
+  SIZE_T run = size;
 
   while (run)
   {
@@ -4543,7 +4412,7 @@ static void _everything3_stream_read_data (_everything3_stream_t *stream, void *
 
       if (recv_header.size)
       {
-        //TODO: don't reallocate
+        // TODO: don't reallocate
         if (stream->buf)
            _everything3_mem_free (stream->buf);
 
@@ -4912,18 +4781,18 @@ static _everything3_result_list_property_request_t *_everything3_find_property_r
 //
 static BOOL _everything3_get_item_property_text (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD  property_id,
-  BOOL   highlight,
-  BOOL   format,
-  _everything3_utf8_pstring_t **pstring)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  BOOL                           highlight,
+  BOOL                           format,
+  _everything3_utf8_pstring_t  **pstring)
 {
   BOOL ret = FALSE;
 
   if (result_list && result_index < result_list->viewport_count)
   {
-    _everything3_result_list_property_request_t *property_request;
-    property_request = _everything3_find_property_request_from_property_id (result_list, property_id, highlight, format);
+    _everything3_result_list_property_request_t *property_request =
+       _everything3_find_property_request_from_property_id (result_list, property_id, highlight, format);
 
     if (property_request)
     {
@@ -4960,12 +4829,12 @@ static BOOL _everything3_get_item_property_text (
 //
 static SIZE_T _everything3_get_item_property_text_utf8 (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD  property_id,
-  BOOL   highlight,
-  BOOL   format,
-  EVERYTHING3_UTF8 *out_buf,
-  EVERYTHING3_SIZE_T bufsize)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  BOOL                           highlight,
+  BOOL                           format,
+  EVERYTHING3_UTF8              *out_buf,
+  EVERYTHING3_SIZE_T             bufsize)
 {
   SIZE_T ret = 0;
   _everything3_utf8_pstring_t *pstring;
@@ -4985,12 +4854,12 @@ static SIZE_T _everything3_get_item_property_text_utf8 (
 
 static SIZE_T _everything3_get_item_property_text_wchar (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD  property_id,
-  BOOL   highlight,
-  BOOL   format,
-  EVERYTHING3_WCHAR *out_wbuf,
-  SIZE_T wbuf_size_in_wchars)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  BOOL                           highlight,
+  BOOL                           format,
+  EVERYTHING3_WCHAR             *out_wbuf,
+  SIZE_T                         wbuf_size_in_wchars)
 {
   SIZE_T ret = 0;
   _everything3_utf8_pstring_t *pstring;
@@ -5010,12 +4879,12 @@ static SIZE_T _everything3_get_item_property_text_wchar (
 
 static SIZE_T _everything3_get_item_property_text_ansi (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD  property_id,
-  BOOL   highlight,
-  BOOL   format,
-  EVERYTHING3_CHAR *out_buf,
-  EVERYTHING3_SIZE_T bufsize)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  BOOL                           highlight,
+  BOOL                           format,
+  EVERYTHING3_CHAR              *out_buf,
+  EVERYTHING3_SIZE_T             bufsize)
 {
   SIZE_T ret = 0;
   _everything3_utf8_pstring_t *pstring;
@@ -5035,40 +4904,40 @@ static SIZE_T _everything3_get_item_property_text_ansi (
 
 SIZE_T Everything3_GetResultPropertyTextUTF8 (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id,
-  EVERYTHING3_UTF8 *out_buf,
-  EVERYTHING3_SIZE_T bufsize)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  EVERYTHING3_UTF8              *out_buf,
+  EVERYTHING3_SIZE_T             bufsize)
 {
   return _everything3_get_item_property_text_utf8 (result_list, result_index, property_id, FALSE, FALSE, out_buf, bufsize);
 }
 
 SIZE_T Everything3_GetResultPropertyTextW (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD  property_id,
-  EVERYTHING3_WCHAR *out_wbuf,
-  SIZE_T wbuf_size_in_wchars)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  EVERYTHING3_WCHAR             *out_wbuf,
+  SIZE_T                         wbuf_size_in_wchars)
 {
   return _everything3_get_item_property_text_wchar (result_list, result_index, property_id, FALSE, FALSE, out_wbuf, wbuf_size_in_wchars);
 }
 
 SIZE_T Everything3_GetResultPropertyTextA (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id,
-  EVERYTHING3_CHAR *out_buf,
-  EVERYTHING3_SIZE_T bufsize)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  EVERYTHING3_CHAR              *out_buf,
+  EVERYTHING3_SIZE_T             bufsize)
 {
   return _everything3_get_item_property_text_ansi (result_list, result_index, property_id, FALSE, FALSE, out_buf, bufsize);
 }
 
 SIZE_T Everything3_GetResultPropertyTextFormattedUTF8 (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id,
-  EVERYTHING3_UTF8 *out_buf,
-  EVERYTHING3_SIZE_T bufsize)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  EVERYTHING3_UTF8              *out_buf,
+  EVERYTHING3_SIZE_T             bufsize)
 {
   return _everything3_get_item_property_text_utf8 (result_list, result_index, property_id, FALSE, TRUE, out_buf, bufsize);
 }
@@ -5081,20 +4950,20 @@ SIZE_T Everything3_GetResultPropertyTextFormattedUTF8 (
 //
 SIZE_T Everything3_GetResultPropertyTextFormattedW (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id,
-  EVERYTHING3_WCHAR *out_wbuf,
-  SIZE_T wbuf_size_in_wchars)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  EVERYTHING3_WCHAR             *out_wbuf,
+  SIZE_T                         wbuf_size_in_wchars)
 {
   return _everything3_get_item_property_text_wchar (result_list, result_index, property_id, FALSE, TRUE, out_wbuf, wbuf_size_in_wchars);
 }
 
 SIZE_T Everything3_GetResultPropertyTextFormattedA (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id,
-  EVERYTHING3_CHAR *out_buf,
-  EVERYTHING3_SIZE_T bufsize)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  EVERYTHING3_CHAR              *out_buf,
+  EVERYTHING3_SIZE_T             bufsize)
 {
   return _everything3_get_item_property_text_ansi (result_list, result_index, property_id, FALSE, TRUE, out_buf, bufsize);
 }
@@ -5104,30 +4973,30 @@ SIZE_T Everything3_GetResultPropertyTextFormattedA (
 //
 SIZE_T Everything3_GetResultPropertyTextHighlightedUTF8 (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id,
-  EVERYTHING3_UTF8 *out_buf,
-  EVERYTHING3_SIZE_T bufsize)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  EVERYTHING3_UTF8              *out_buf,
+  EVERYTHING3_SIZE_T             bufsize)
 {
   return _everything3_get_item_property_text_utf8 (result_list, result_index, property_id, TRUE, TRUE, out_buf, bufsize);
 }
 
 SIZE_T Everything3_GetResultPropertyTextHighlightedW (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id,
-  EVERYTHING3_WCHAR *out_wbuf,
-  SIZE_T wbuf_size_in_wchars)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  EVERYTHING3_WCHAR             *out_wbuf,
+  SIZE_T                         wbuf_size_in_wchars)
 {
   return _everything3_get_item_property_text_wchar (result_list, result_index, property_id, TRUE, TRUE, out_wbuf, wbuf_size_in_wchars);
 }
 
 SIZE_T Everything3_GetResultPropertyTextHighlightedA (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id,
-  EVERYTHING3_CHAR *out_buf,
-  EVERYTHING3_SIZE_T bufsize)
+  SIZE_T                         result_index,
+  DWORD                          property_id,
+  EVERYTHING3_CHAR              *out_buf,
+  EVERYTHING3_SIZE_T             bufsize)
 {
   return _everything3_get_item_property_text_ansi (result_list, result_index, property_id, TRUE, TRUE, out_buf, bufsize);
 }
@@ -5138,8 +5007,8 @@ SIZE_T Everything3_GetResultPropertyTextHighlightedA (
 //
 BYTE Everything3_GetResultPropertyBYTE (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id)
+  SIZE_T                         result_index,
+  DWORD                          property_id)
 {
   BYTE ret = EVERYTHING3_BYTE_MAX;
 
@@ -5211,8 +5080,8 @@ BYTE Everything3_GetResultPropertyBYTE (
 
 WORD Everything3_GetResultPropertyWORD (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id)
+  SIZE_T                         result_index,
+  DWORD                          property_id)
 {
   WORD ret = EVERYTHING3_WORD_MAX;
 
@@ -5273,8 +5142,8 @@ WORD Everything3_GetResultPropertyWORD (
 
 DWORD Everything3_GetResultPropertyDWORD (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id)
+  SIZE_T                         result_index,
+  DWORD                          property_id)
 {
   DWORD ret = EVERYTHING3_DWORD_MAX;
 
@@ -5373,8 +5242,8 @@ DWORD Everything3_GetResultPropertyDWORD (
 
 EVERYTHING3_UINT64 Everything3_GetResultPropertyUINT64 (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id)
+  SIZE_T                         result_index,
+  DWORD                          property_id)
 {
   EVERYTHING3_UINT64 ret = EVERYTHING3_UINT64_MAX;
 
@@ -5392,6 +5261,7 @@ EVERYTHING3_UINT64 Everything3_GetResultPropertyUINT64 (
         case EVERYTHING3_PROPERTY_VALUE_TYPE_UINT64:
           {
             EVERYTHING3_UINT64 uint64_value;
+
             // memory is unaligned.
             _everything3_copy_memory (&uint64_value, property_p, sizeof(EVERYTHING3_UINT64));
             ret = uint64_value;
@@ -5416,9 +5286,9 @@ EVERYTHING3_UINT64 Everything3_GetResultPropertyUINT64 (
 
 EVERYTHING3_BOOL Everything3_GetResultPropertyUINT128 (
     const EVERYTHING3_RESULT_LIST *result_list,
-    SIZE_T result_index,
-    EVERYTHING3_DWORD property_id,
-    EVERYTHING3_UINT128 *out_puint128)
+    SIZE_T                         result_index,
+    EVERYTHING3_DWORD              property_id,
+    EVERYTHING3_UINT128           *out_puint128)
 {
   EVERYTHING3_BOOL ret = FALSE;
 
@@ -5429,7 +5299,6 @@ EVERYTHING3_BOOL Everything3_GetResultPropertyUINT128 (
     out_puint128->hi_uint64 = EVERYTHING3_UINT64_MAX;
     out_puint128->lo_uint64 = EVERYTHING3_UINT64_MAX;
     property_request = _everything3_find_property_request_from_property_id (result_list, property_id, FALSE, FALSE);
-
     if (property_request)
     {
       BYTE *property_p = ((BYTE*) (result_list->item_array[result_index].property_data)) + property_request->offset;
@@ -5437,14 +5306,14 @@ EVERYTHING3_BOOL Everything3_GetResultPropertyUINT128 (
       switch (property_request->value_type)
       {
         case EVERYTHING3_PROPERTY_VALUE_TYPE_UINT128:
-          // memory is unaligned.
-          _everything3_copy_memory (out_puint128, property_p, sizeof(EVERYTHING3_UINT128));
-          ret = TRUE;
-          break;
+             // memory is unaligned.
+             _everything3_copy_memory (out_puint128, property_p, sizeof(EVERYTHING3_UINT128));
+             ret = TRUE;
+             break;
 
         default:
-          SetLastError (EVERYTHING3_ERROR_INVALID_PROPERTY_VALUE_TYPE);
-          break;
+             SetLastError (EVERYTHING3_ERROR_INVALID_PROPERTY_VALUE_TYPE);
+             break;
       }
     }
     else
@@ -5458,9 +5327,9 @@ EVERYTHING3_BOOL Everything3_GetResultPropertyUINT128 (
 
 EVERYTHING3_BOOL Everything3_GetResultPropertyDIMENSIONS (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  EVERYTHING3_DWORD property_id,
-  EVERYTHING3_DIMENSIONS *out_dimensions)
+  SIZE_T                         result_index,
+  EVERYTHING3_DWORD              property_id,
+  EVERYTHING3_DIMENSIONS        *out_dimensions)
 {
   BOOL ret = FALSE;
 
@@ -5479,14 +5348,14 @@ EVERYTHING3_BOOL Everything3_GetResultPropertyDIMENSIONS (
       switch (property_request->value_type)
       {
         case EVERYTHING3_PROPERTY_VALUE_TYPE_DIMENSIONS:
-          // memory is unaligned.
-          _everything3_copy_memory (out_dimensions, property_p, sizeof(EVERYTHING3_DIMENSIONS));
-          ret = TRUE;
-          break;
+             // memory is unaligned.
+             _everything3_copy_memory (out_dimensions, property_p, sizeof(EVERYTHING3_DIMENSIONS));
+             ret = TRUE;
+             break;
 
         default:
-          SetLastError (EVERYTHING3_ERROR_INVALID_PROPERTY_VALUE_TYPE);
-          break;
+             SetLastError (EVERYTHING3_ERROR_INVALID_PROPERTY_VALUE_TYPE);
+             break;
       }
     }
     else
@@ -5500,8 +5369,8 @@ EVERYTHING3_BOOL Everything3_GetResultPropertyDIMENSIONS (
 
 SIZE_T Everything3_GetResultPropertySIZE_T (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  DWORD property_id)
+  SIZE_T                         result_index,
+  DWORD                          property_id)
 {
   SIZE_T ret = SIZE_MAX;
 
@@ -5517,37 +5386,37 @@ SIZE_T Everything3_GetResultPropertySIZE_T (
       switch (property_request->value_type)
       {
         case EVERYTHING3_PROPERTY_VALUE_TYPE_SIZE_T:
-          if (result_list->valid_flags & _EVERYTHING3_SEARCH_FLAG_64BIT)
-          {
-            EVERYTHING3_UINT64 uint64_value;
+             if (result_list->valid_flags & _EVERYTHING3_SEARCH_FLAG_64BIT)
+             {
+               EVERYTHING3_UINT64 uint64_value;
 
-            // memory is unaligned.
-            _everything3_copy_memory (&uint64_value, property_p, sizeof(EVERYTHING3_UINT64));
+               // memory is unaligned.
+               _everything3_copy_memory (&uint64_value, property_p, sizeof(EVERYTHING3_UINT64));
 
 #if (SIZE_MAX == UINT64_SIZE_MAX)
-            ret = uint64_value;
+               ret = uint64_value;
 #elif (SIZE_MAX == UINT32_SIZE_MAX)
-            if (uint64_value <= SIZE_MAX)
-                 ret = (SIZE_T) uint64_value;
-            else ret = SIZE_MAX;
+               if (uint64_value <= SIZE_MAX)
+                    ret = (SIZE_T) uint64_value;
+               else ret = SIZE_MAX;
 #else
 #error "unknown SIZE_MAX"
 #endif
-          }
-          else
-          {
-            DWORD dword_value;
-            // memory is unaligned.
-            _everything3_copy_memory (&dword_value, property_p, sizeof(DWORD));
-            ret = (SIZE_T) dword_value;
-          }
-          if (ret == SIZE_MAX)
-             SetLastError (EVERYTHING3_OK);
-          break;
+             }
+             else
+             {
+               DWORD dword_value;
+               // memory is unaligned.
+               _everything3_copy_memory (&dword_value, property_p, sizeof(DWORD));
+               ret = (SIZE_T) dword_value;
+             }
+             if (ret == SIZE_MAX)
+                SetLastError (EVERYTHING3_OK);
+             break;
 
         default:
-          SetLastError (EVERYTHING3_ERROR_INVALID_PROPERTY_VALUE_TYPE);
-          break;
+             SetLastError (EVERYTHING3_ERROR_INVALID_PROPERTY_VALUE_TYPE);
+             break;
       }
     }
     else
@@ -5561,15 +5430,16 @@ SIZE_T Everything3_GetResultPropertySIZE_T (
 
 EVERYTHING3_INT32 Everything3_GetResultPropertyINT32 (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  EVERYTHING3_DWORD property_id)
+  SIZE_T                         result_index,
+  EVERYTHING3_DWORD              property_id)
 {
   EVERYTHING3_INT32 ret = EVERYTHING3_INT32_MIN;
+  EVERYTHING3_INT32 int32_value;
 
-  if ( (result_list) && (result_index < result_list->viewport_count))
+  if (result_list && result_index < result_list->viewport_count)
   {
-    _everything3_result_list_property_request_t *property_request;
-    property_request = _everything3_find_property_request_from_property_id (result_list, property_id, FALSE, FALSE);
+    _everything3_result_list_property_request_t *property_request =
+       _everything3_find_property_request_from_property_id (result_list, property_id, FALSE, FALSE);
 
     if (property_request)
     {
@@ -5579,19 +5449,16 @@ EVERYTHING3_INT32 Everything3_GetResultPropertyINT32 (
       {
         case EVERYTHING3_PROPERTY_VALUE_TYPE_INT32_FIXED_Q1K:
         case EVERYTHING3_PROPERTY_VALUE_TYPE_INT32_FIXED_Q1M:
-          {
-            EVERYTHING3_INT32 int32_value;
             // memory is unaligned.
             _everything3_copy_memory (&int32_value, property_p, sizeof(EVERYTHING3_INT32));
             ret = int32_value;
             if (ret == EVERYTHING3_INT32_MIN)
                SetLastError (EVERYTHING3_OK);
-          }
-          break;
+            break;
 
         default:
-          SetLastError (EVERYTHING3_ERROR_INVALID_PROPERTY_VALUE_TYPE);
-          break;
+            SetLastError (EVERYTHING3_ERROR_INVALID_PROPERTY_VALUE_TYPE);
+            break;
       }
     }
     else
@@ -5612,20 +5479,19 @@ EVERYTHING3_INT32 Everything3_GetResultPropertyINT32 (
 //
 EVERYTHING3_BOOL Everything3_GetResultPropertyBlob (
   const EVERYTHING3_RESULT_LIST *result_list,
-  SIZE_T result_index,
-  EVERYTHING3_DWORD property_id,
-  EVERYTHING3_BYTE *out_buf,
-  SIZE_T *in_out_pbufsize)
+  SIZE_T                         result_index,
+  EVERYTHING3_DWORD              property_id,
+  EVERYTHING3_BYTE              *out_buf,
+  SIZE_T                        *in_out_pbufsize)
 {
   EVERYTHING3_BOOL ret = FALSE;
 
   if (result_list && result_index < result_list->viewport_count && in_out_pbufsize)
   {
-    _everything3_result_list_property_request_t *property_request;
     SIZE_T old_buf_size = *in_out_pbufsize;
     SIZE_T new_buf_size = 0;
-
-    property_request = _everything3_find_property_request_from_property_id (result_list, property_id, FALSE, FALSE);
+    _everything3_result_list_property_request_t *property_request =
+      _everything3_find_property_request_from_property_id (result_list, property_id, FALSE, FALSE);
 
     if (property_request)
     {
@@ -5635,8 +5501,7 @@ EVERYTHING3_BOOL Everything3_GetResultPropertyBlob (
       {
         case EVERYTHING3_PROPERTY_VALUE_TYPE_BLOB8:
           {
-            _everything3_blob8_t *blob;
-            blob = * (_everything3_blob8_t **) property_p;
+            _everything3_blob8_t *blob = * (_everything3_blob8_t **) property_p;
             if (blob)
             {
               new_buf_size = blob->len;
@@ -5666,8 +5531,7 @@ EVERYTHING3_BOOL Everything3_GetResultPropertyBlob (
 
         case EVERYTHING3_PROPERTY_VALUE_TYPE_BLOB16:
           {
-            _everything3_blob16_t *blob;
-            blob = * (_everything3_blob16_t **) property_p;
+            _everything3_blob16_t *blob = * (_everything3_blob16_t **) property_p;
             if (blob)
             {
               new_buf_size = blob->len;
@@ -5711,56 +5575,83 @@ EVERYTHING3_BOOL Everything3_GetResultPropertyBlob (
   return ret;
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultNameUTF8 (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_UTF8 *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultNameUTF8 (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_UTF8 *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextUTF8 (result_list, result_index, EVERYTHING3_PROPERTY_ID_NAME, out_buf, bufsize);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultNameW (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_WCHAR *out_wbuf, EVERYTHING3_SIZE_T wbuf_size_in_wchars)
+EVERYTHING3_SIZE_T Everything3_GetResultNameW (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_WCHAR *out_wbuf,
+  EVERYTHING3_SIZE_T wbuf_size_in_wchars)
 {
   return Everything3_GetResultPropertyTextW (result_list, result_index, EVERYTHING3_PROPERTY_ID_NAME, out_wbuf, wbuf_size_in_wchars);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultNameA (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_CHAR *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultNameA (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_CHAR *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextA (result_list, result_index, EVERYTHING3_PROPERTY_ID_NAME, out_buf, bufsize);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultPathUTF8 (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_UTF8 *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultPathUTF8 (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_UTF8 *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextUTF8 (result_list, result_index, EVERYTHING3_PROPERTY_ID_PATH, out_buf, bufsize);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultPathW (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_WCHAR *out_wbuf, EVERYTHING3_SIZE_T wbuf_size_in_wchars)
+EVERYTHING3_SIZE_T Everything3_GetResultPathW (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_WCHAR *out_wbuf,
+  EVERYTHING3_SIZE_T wbuf_size_in_wchars)
 {
   return Everything3_GetResultPropertyTextW (result_list, result_index, EVERYTHING3_PROPERTY_ID_PATH, out_wbuf, wbuf_size_in_wchars);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultPathA (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_CHAR *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultPathA (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_CHAR *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextA (result_list, result_index, EVERYTHING3_PROPERTY_ID_PATH, out_buf, bufsize);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultFullPathNameUTF8 (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_UTF8 *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultFullPathNameUTF8 (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_UTF8 *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextUTF8 (result_list, result_index, EVERYTHING3_PROPERTY_ID_PATH_AND_NAME, out_buf, bufsize);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultFullPathNameW (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_WCHAR *out_wbuf, EVERYTHING3_SIZE_T wbuf_size_in_wchars)
+EVERYTHING3_SIZE_T Everything3_GetResultFullPathNameW (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_WCHAR *out_wbuf,
+  EVERYTHING3_SIZE_T wbuf_size_in_wchars)
 {
   return Everything3_GetResultPropertyTextW (result_list, result_index, EVERYTHING3_PROPERTY_ID_PATH_AND_NAME, out_wbuf, wbuf_size_in_wchars);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultFullPathNameA (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_CHAR *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultFullPathNameA (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_CHAR *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextA (result_list, result_index, EVERYTHING3_PROPERTY_ID_PATH_AND_NAME, out_buf, bufsize);
 }
@@ -5770,56 +5661,71 @@ EVERYTHING3_UINT64 Everything3_GetResultSize (const EVERYTHING3_RESULT_LIST *res
   return Everything3_GetResultPropertyUINT64 (result_list, result_index, EVERYTHING3_PROPERTY_ID_SIZE);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultExtensionUTF8 (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_UTF8 *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultExtensionUTF8 (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_UTF8 *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextUTF8 (result_list, result_index, EVERYTHING3_PROPERTY_ID_EXTENSION, out_buf, bufsize);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultExtensionW (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_WCHAR *out_wbuf, EVERYTHING3_SIZE_T wbuf_size_in_wchars)
+EVERYTHING3_SIZE_T Everything3_GetResultExtensionW (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_WCHAR *out_wbuf,
+  EVERYTHING3_SIZE_T wbuf_size_in_wchars)
 {
   return Everything3_GetResultPropertyTextW (result_list, result_index, EVERYTHING3_PROPERTY_ID_EXTENSION, out_wbuf, wbuf_size_in_wchars);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultExtensionA (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_CHAR *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultExtensionA (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_CHAR *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextA (result_list, result_index, EVERYTHING3_PROPERTY_ID_EXTENSION, out_buf, bufsize);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultTypeUTF8 (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_UTF8 *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultTypeUTF8 (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_UTF8 *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextUTF8 (result_list, result_index, EVERYTHING3_PROPERTY_ID_TYPE, out_buf, bufsize);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultTypeW (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_WCHAR *out_wbuf, EVERYTHING3_SIZE_T wbuf_size_in_wchars)
+EVERYTHING3_SIZE_T Everything3_GetResultTypeW (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_WCHAR *out_wbuf,
+  EVERYTHING3_SIZE_T wbuf_size_in_wchars)
 {
   return Everything3_GetResultPropertyTextW (result_list, result_index, EVERYTHING3_PROPERTY_ID_TYPE, out_wbuf, wbuf_size_in_wchars);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultTypeA (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_CHAR *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultTypeA (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_CHAR *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextA (result_list, result_index, EVERYTHING3_PROPERTY_ID_TYPE, out_buf, bufsize);
 }
 
-EVERYTHING3_UINT64 Everything3_GetResultDateModified (const EVERYTHING3_RESULT_LIST *result_list,
-    SIZE_T result_index)
+EVERYTHING3_UINT64 Everything3_GetResultDateModified (const EVERYTHING3_RESULT_LIST *result_list, SIZE_T result_index)
 {
   return Everything3_GetResultPropertyUINT64 (result_list, result_index, EVERYTHING3_PROPERTY_ID_DATE_MODIFIED);
 }
 
-EVERYTHING3_UINT64 Everything3_GetResultDateCreated (const EVERYTHING3_RESULT_LIST *result_list,
-    SIZE_T result_index)
+EVERYTHING3_UINT64 Everything3_GetResultDateCreated (const EVERYTHING3_RESULT_LIST *result_list, SIZE_T result_index)
 {
   return Everything3_GetResultPropertyUINT64 (result_list, result_index, EVERYTHING3_PROPERTY_ID_DATE_CREATED);
 }
 
-EVERYTHING3_UINT64 Everything3_GetResultDateAccessed (const EVERYTHING3_RESULT_LIST *result_list,
-    SIZE_T result_index)
+EVERYTHING3_UINT64 Everything3_GetResultDateAccessed (const EVERYTHING3_RESULT_LIST *result_list, SIZE_T result_index)
 {
   return Everything3_GetResultPropertyUINT64 (result_list, result_index, EVERYTHING3_PROPERTY_ID_DATE_ACCESSED);
 }
@@ -5829,8 +5735,7 @@ DWORD Everything3_GetResultAttributes (const EVERYTHING3_RESULT_LIST *result_lis
   return Everything3_GetResultPropertyDWORD (result_list, result_index, EVERYTHING3_PROPERTY_ID_ATTRIBUTES);
 }
 
-EVERYTHING3_UINT64 Everything3_GetResultDateRecentlyChanged (const EVERYTHING3_RESULT_LIST *result_list,
-    SIZE_T result_index)
+EVERYTHING3_UINT64 Everything3_GetResultDateRecentlyChanged (const EVERYTHING3_RESULT_LIST *result_list, SIZE_T result_index)
 {
   return Everything3_GetResultPropertyUINT64 (result_list, result_index, EVERYTHING3_PROPERTY_ID_DATE_RECENTLY_CHANGED);
 }
@@ -5845,38 +5750,44 @@ EVERYTHING3_UINT64 Everything3_GetResultDateRun (const EVERYTHING3_RESULT_LIST *
   return Everything3_GetResultPropertyUINT64 (result_list, result_index, EVERYTHING3_PROPERTY_ID_DATE_RUN);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultFilelistFilenameUTF8 (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_UTF8 *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultFilelistFilenameUTF8 (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_UTF8 *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextUTF8 (result_list, result_index, EVERYTHING3_PROPERTY_ID_FILE_LIST_PATH_AND_NAME, out_buf, bufsize);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultFilelistFilenameW (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_WCHAR *out_wbuf, EVERYTHING3_SIZE_T wbuf_size_in_wchars)
+EVERYTHING3_SIZE_T Everything3_GetResultFilelistFilenameW (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_WCHAR *out_wbuf,
+  EVERYTHING3_SIZE_T wbuf_size_in_wchars)
 {
   return Everything3_GetResultPropertyTextW (result_list, result_index, EVERYTHING3_PROPERTY_ID_FILE_LIST_PATH_AND_NAME, out_wbuf, wbuf_size_in_wchars);
 }
 
-EVERYTHING3_SIZE_T Everything3_GetResultFilelistFilenameA (const EVERYTHING3_RESULT_LIST *result_list,
-    EVERYTHING3_SIZE_T result_index, EVERYTHING3_CHAR *out_buf, EVERYTHING3_SIZE_T bufsize)
+EVERYTHING3_SIZE_T Everything3_GetResultFilelistFilenameA (
+  const EVERYTHING3_RESULT_LIST *result_list,
+  EVERYTHING3_SIZE_T result_index,
+  EVERYTHING3_CHAR *out_buf,
+  EVERYTHING3_SIZE_T bufsize)
 {
   return Everything3_GetResultPropertyTextA (result_list, result_index, EVERYTHING3_PROPERTY_ID_FILE_LIST_PATH_AND_NAME, out_buf, bufsize);
 }
 
 static DWORD _everything3_get_run_count (EVERYTHING3_CLIENT *client, const EVERYTHING3_UTF8 *filename, SIZE_T filename_length_in_bytes)
 {
-  DWORD ret;
+  DWORD ret = 0;
   DWORD value;
-  ret = 0;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_RUN_COUNT, filename, filename_length_in_bytes, &value, sizeof(DWORD)))
   {
     ret = value;
-
     if (ret == 0)
-      SetLastError (EVERYTHING3_OK);
+       SetLastError (EVERYTHING3_OK);
   }
-
   return ret;
 }
 
@@ -5929,15 +5840,15 @@ EVERYTHING3_DWORD Everything3_GetRunCountFromFilenameA (EVERYTHING3_CLIENT *clie
 }
 
 static BOOL _everything3_set_run_count (
-  EVERYTHING3_CLIENT *client,
+  EVERYTHING3_CLIENT     *client,
   const EVERYTHING3_UTF8 *filename,
-  SIZE_T filename_length_in_bytes,
-  DWORD run_count)
+  SIZE_T                  filename_length_in_bytes,
+  DWORD                   run_count)
 {
   BOOL ret = FALSE;
   _everything3_utf8_buf_t cbuf;
   SIZE_T packet_size;
-  BYTE *d;
+  BYTE  *d;
 
   _everything3_utf8_buf_init (&cbuf);
   packet_size = _everything3_safe_size_add (filename_length_in_bytes, sizeof(DWORD));
@@ -5959,9 +5870,9 @@ static BOOL _everything3_set_run_count (
 // returns FALSE on failure.
 //
 EVERYTHING3_BOOL Everything3_SetRunCountFromFilenameUTF8 (
-  EVERYTHING3_CLIENT *client,
+  EVERYTHING3_CLIENT     *client,
   const EVERYTHING3_UTF8 *lpFilename,
-  EVERYTHING3_DWORD dwRunCount)
+  EVERYTHING3_DWORD       dwRunCount)
 {
   if (lpFilename)
      return _everything3_set_run_count (client, lpFilename, _everything3_utf8_string_get_length_in_bytes (lpFilename), dwRunCount);
@@ -5976,8 +5887,8 @@ EVERYTHING3_BOOL Everything3_SetRunCountFromFilenameUTF8 (
 //
 EVERYTHING3_BOOL Everything3_SetRunCountFromFilenameW (
   EVERYTHING3_CLIENT *client,
-  LPCWSTR lpFilename,
-  EVERYTHING3_DWORD dwRunCount)
+  LPCWSTR             lpFilename,
+  EVERYTHING3_DWORD   dwRunCount)
 {
   EVERYTHING3_BOOL ret = FALSE;
   _everything3_utf8_buf_t filename_cbuf;
@@ -5996,9 +5907,7 @@ EVERYTHING3_BOOL Everything3_SetRunCountFromFilenameW (
 // returns TRUE if successful.
 // returns FALSE on failure.
 //
-EVERYTHING3_BOOL Everything3_SetRunCountFromFilenameA (
-  EVERYTHING3_CLIENT *client, LPCSTR lpFilename,
-  EVERYTHING3_DWORD dwRunCount)
+EVERYTHING3_BOOL Everything3_SetRunCountFromFilenameA (EVERYTHING3_CLIENT *client, LPCSTR lpFilename, EVERYTHING3_DWORD dwRunCount)
 {
   EVERYTHING3_BOOL ret = FALSE;
   _everything3_utf8_buf_t filename_cbuf;
@@ -6031,9 +5940,7 @@ static DWORD _everything3_inc_run_count (EVERYTHING3_CLIENT *client, const EVERY
 // returns the new run count.
 // returns 0 on failure.
 //
-EVERYTHING3_DWORD Everything3_IncRunCountFromFilenameUTF8 (
-  EVERYTHING3_CLIENT *client,
-  const EVERYTHING3_UTF8 *lpFilename)
+EVERYTHING3_DWORD Everything3_IncRunCountFromFilenameUTF8 (EVERYTHING3_CLIENT *client, const EVERYTHING3_UTF8 *lpFilename)
 {
   if (lpFilename)
      return _everything3_inc_run_count (client, lpFilename, _everything3_utf8_string_get_length_in_bytes (lpFilename));
@@ -6101,7 +6008,7 @@ static EVERYTHING3_UINT64 _everything3_get_folder_size (EVERYTHING3_CLIENT *clie
 EVERYTHING3_UINT64 Everything3_GetFolderSizeFromFilenameUTF8 (EVERYTHING3_CLIENT *client, const EVERYTHING3_UTF8 *lpFilename)
 {
   if (lpFilename)
-     return _everything3_get_folder_size (client, lpFilename, _everything3_utf8_string_get_length_in_bytes (lpFilename));
+     return _everything3_get_folder_size (client, lpFilename, _everything3_utf8_string_get_length_in_bytes(lpFilename));
   SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
   return EVERYTHING3_UINT64_MAX;
 }
@@ -6143,9 +6050,9 @@ EVERYTHING3_UINT64 Everything3_GetFolderSizeFromFilenameA (EVERYTHING3_CLIENT *c
 }
 
 static BOOL _everything3_get_file_attributes_ex (
-  EVERYTHING3_CLIENT *client,
-  const EVERYTHING3_UTF8 *filename,
-  SIZE_T filename_length_in_bytes,
+  EVERYTHING3_CLIENT      *client,
+  const EVERYTHING3_UTF8  *filename,
+  SIZE_T                   filename_length_in_bytes,
   _everything3_utf8_buf_t *data_cbuf)
 {
   BOOL ret = FALSE;
@@ -6168,9 +6075,9 @@ static BOOL _everything3_get_file_attributes_ex (
 // cAlternateFileName is always set to an empty string.
 //
 EVERYTHING3_BOOL Everything3_GetFileAttributesExW (
-  EVERYTHING3_CLIENT *client,
+  EVERYTHING3_CLIENT      *client,
   const EVERYTHING3_WCHAR *lpFilename,
-  WIN32_FIND_DATAW *out_pfd)
+  WIN32_FIND_DATAW        *out_pfd)
 {
   EVERYTHING3_BOOL ret = FALSE;
   _everything3_utf8_buf_t filename_cbuf;
@@ -6219,9 +6126,9 @@ EVERYTHING3_BOOL Everything3_GetFileAttributesExW (
 // cAlternateFileName is always set to an empty string.
 //
 EVERYTHING3_BOOL Everything3_GetFileAttributesExA (
-  EVERYTHING3_CLIENT *client,
+  EVERYTHING3_CLIENT     *client,
   const EVERYTHING3_CHAR *lpFilename,
-  WIN32_FIND_DATAA *out_pfd)
+  WIN32_FIND_DATAA       *out_pfd)
 {
   EVERYTHING3_BOOL ret = FALSE;
   _everything3_utf8_buf_t filename_cbuf;
@@ -6262,15 +6169,15 @@ EVERYTHING3_BOOL Everything3_GetFileAttributesExA (
 }
 
 static EVERYTHING3_DWORD _everything3_get_file_attributes (
-  EVERYTHING3_CLIENT *client,
+  EVERYTHING3_CLIENT     *client,
   const EVERYTHING3_UTF8 *filename,
-  SIZE_T filename_length_in_bytes)
+  SIZE_T                  filename_length_in_bytes)
 {
   DWORD ret = INVALID_FILE_ATTRIBUTES;
   DWORD value;
 
-  if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_FILE_ATTRIBUTES, filename, filename_length_in_bytes, &value,
-      sizeof(DWORD)))
+  if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_GET_FILE_ATTRIBUTES, filename,
+        filename_length_in_bytes, &value, sizeof(DWORD)))
   {
     ret = value;
     if (ret == INVALID_FILE_ATTRIBUTES)
@@ -6284,9 +6191,7 @@ static EVERYTHING3_DWORD _everything3_get_file_attributes (
 // returns the file attributes from the specified filename.
 // returns INVALID_FILE_ATTRIBUTES on error. Call GetLastError() for more information.
 //
-EVERYTHING3_DWORD Everything3_GetFileAttributesUTF8 (
-  EVERYTHING3_CLIENT *client,
-  const EVERYTHING3_UTF8 *lpFilename)
+EVERYTHING3_DWORD Everything3_GetFileAttributesUTF8 (EVERYTHING3_CLIENT *client, const EVERYTHING3_UTF8 *lpFilename)
 {
   if (lpFilename)
      return _everything3_get_file_attributes (client, lpFilename, _everything3_utf8_string_get_length_in_bytes (lpFilename));
@@ -6341,16 +6246,16 @@ static void _everything3_find_handle_chunk_free (_everything3_find_handle_chunk_
 // get the directory snapshot.
 //
 static EVERYTHING3_FIND_HANDLE *_everything3_find_first_file (
-  EVERYTHING3_CLIENT *client,
+  EVERYTHING3_CLIENT     *client,
   const EVERYTHING3_UTF8 *filename,
-  SIZE_T filename_length_in_bytes)
+  SIZE_T                  filename_length_in_bytes)
 {
   EVERYTHING3_FIND_HANDLE *ret = NULL;
 
   if (client)
   {
     _everything3_find_handle_chunk_t *chunk_start = NULL;
-    _everything3_find_handle_chunk_t *chunk_last = NULL;
+    _everything3_find_handle_chunk_t *chunk_last  = NULL;
 
     _everything3_Lock (client);
 
@@ -6365,13 +6270,11 @@ static EVERYTHING3_FIND_HANDLE *_everything3_find_first_file (
 
         if (recv_header.size)
         {
-          SIZE_T chunk_size;
           _everything3_find_handle_chunk_t *chunk;
+          SIZE_T                            chunk_size = sizeof(_everything3_find_handle_chunk_t);
 
-          chunk_size = sizeof(_everything3_find_handle_chunk_t);
           chunk_size = _everything3_safe_size_add (chunk_size, recv_header.size);
           chunk = _everything3_mem_alloc (chunk_size);
-
           if (chunk)
           {
             chunk->size = recv_header.size;
@@ -6416,7 +6319,6 @@ static EVERYTHING3_FIND_HANDLE *_everything3_find_first_file (
           }
           else
             SetLastError (EVERYTHING3_ERROR_OUT_OF_MEMORY);
-
           break;
         }
       }
@@ -6463,9 +6365,9 @@ static EVERYTHING3_FIND_HANDLE *_everything3_find_first_file (
 // - doesn't have to be the same thread that called Everything3_FindFirstFileW.
 //
 EVERYTHING3_FIND_HANDLE *Everything3_FindFirstFileW (
-  EVERYTHING3_CLIENT *client,
+  EVERYTHING3_CLIENT      *client,
   const EVERYTHING3_WCHAR *lpFilename,
-  WIN32_FIND_DATAW *out_pfd)
+  WIN32_FIND_DATAW        *out_pfd)
 {
   EVERYTHING3_FIND_HANDLE *ret = NULL;
   _everything3_utf8_buf_t filename_cbuf;
@@ -6508,9 +6410,9 @@ EVERYTHING3_FIND_HANDLE *Everything3_FindFirstFileW (
 // - doesn't have to be the same thread that called Everything3_FindFirstFileW.
 //
 EVERYTHING3_FIND_HANDLE *Everything3_FindFirstFileA (
-  EVERYTHING3_CLIENT *client,
+  EVERYTHING3_CLIENT     *client,
   const EVERYTHING3_CHAR *lpFilename,
-  WIN32_FIND_DATAA *out_pfd)
+  WIN32_FIND_DATAA       *out_pfd)
 {
   EVERYTHING3_FIND_HANDLE *ret = NULL;
   _everything3_utf8_buf_t filename_cbuf;
@@ -6726,7 +6628,7 @@ EVERYTHING3_BOOL Everything3_FindNextFileA (EVERYTHING3_FIND_HANDLE *find_handle
     else
     {
       _everything3_win32_find_data_t fd;
-      SIZE_T filename_len;
+      SIZE_T                  filename_len;
       _everything3_utf8_buf_t filename_cbuf;
 
       _everything3_utf8_buf_init (&filename_cbuf);
@@ -6748,7 +6650,7 @@ EVERYTHING3_BOOL Everything3_FindNextFileA (EVERYTHING3_FIND_HANDLE *find_handle
       {
         _everything3_find_handle_chunk_read_data (find_handle, filename_cbuf.buf, filename_len);
         _everything3_safe_ansi_string_copy_utf8_string_n (out_pfd->cFileName, MAX_PATH, filename_cbuf.buf, filename_cbuf.length_in_bytes);
-        out_pfd->cAlternateFileName[0] = 0;
+        out_pfd->cAlternateFileName [0] = 0;
 
         if (!find_handle->error_code)
              ret = TRUE;
@@ -6784,10 +6686,10 @@ EVERYTHING3_BOOL Everything3_FindClose (EVERYTHING3_FIND_HANDLE *find_handle)
 // safely copy a utf8 string to a wchar buffer.
 //
 static SIZE_T _everything3_safe_wchar_string_copy_utf8_string_n (
-  EVERYTHING3_WCHAR *wbuf,
-  SIZE_T wbuf_size_in_wchars,
+  EVERYTHING3_WCHAR      *wbuf,
+  SIZE_T                  wbuf_size_in_wchars,
   const EVERYTHING3_UTF8 *s,
-  SIZE_T len_in_bytes)
+  SIZE_T                  len_in_bytes)
 {
   if (wbuf_size_in_wchars)
   {
@@ -6813,7 +6715,7 @@ static SIZE_T _everything3_safe_wchar_string_copy_utf8_string_n (
             // 2 byte UTF-8
             if (avail)
             {
-              *d++ = ( (*p & 0x1f) << 6) | (p[1] & 0x3f);
+              *d++ = ((*p & 0x1f) << 6) | (p[1] & 0x3f);
               avail--;
             }
             else
@@ -6827,7 +6729,7 @@ static SIZE_T _everything3_safe_wchar_string_copy_utf8_string_n (
             // 3 byte UTF-8
             if (avail)
             {
-              *d++ = ( (*p & 0x0f) << (12)) | ( (p[1] & 0x3f) << 6) | (p[2] & 0x3f);
+              *d++ = ((*p & 0x0f) << (12)) | ((p[1] & 0x3f) << 6) | (p[2] & 0x3f);
               avail--;
             }
             else
@@ -6841,7 +6743,6 @@ static SIZE_T _everything3_safe_wchar_string_copy_utf8_string_n (
             int c;
             // 4 byte UTF-8
             c = ((*p & 0x07) << 18) | ((p[1] & 0x3f) << 12) | ((p[2] & 0x3f) << 6) | (p[3] & 0x3f);
-
             if (c > 0xFFFF)
             {
               // surrogate.
@@ -6900,14 +6801,10 @@ static SIZE_T _everything3_safe_wchar_string_copy_utf8_string_n (
         // empty string.
         SetLastError (EVERYTHING3_OK);
       }
-
       return len;
     }
-    else
-    {
-      SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
-      return 0;
-    }
+    SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
+    return 0;
   }
   else
   {
@@ -6983,10 +6880,10 @@ static SIZE_T _everything3_safe_wchar_string_copy_utf8_string_n (
 // same behavior as MultiByteToWideChar and other Win32 APIs.
 //
 static SIZE_T _everything3_safe_utf8_string_copy_utf8_string_n (
-  EVERYTHING3_UTF8 *out_buf,
-  SIZE_T bufsize,
+  EVERYTHING3_UTF8       *out_buf,
+  SIZE_T                  bufsize,
   const EVERYTHING3_UTF8 *s,
-  SIZE_T len_in_bytes)
+  SIZE_T                  len_in_bytes)
 {
   if (bufsize)
   {
@@ -7049,11 +6946,8 @@ static SIZE_T _everything3_safe_utf8_string_copy_utf8_string_n (
       }
       return copied_len;
     }
-    else
-    {
-      SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
-      return 0;
-    }
+    SetLastError (EVERYTHING3_ERROR_INVALID_PARAMETER);
+    return 0;
   }
   else
     return _everything3_safe_size_add (len_in_bytes, 1);
@@ -7064,10 +6958,10 @@ static SIZE_T _everything3_safe_utf8_string_copy_utf8_string_n (
 // buf is set to an empty string on failure.
 //
 static SIZE_T _everything3_safe_ansi_string_copy_utf8_string_n (
-  EVERYTHING3_CHAR *out_buf,
-  SIZE_T bufsize,
+  EVERYTHING3_CHAR       *out_buf,
+  SIZE_T                  bufsize,
   const EVERYTHING3_UTF8 *s,
-  SIZE_T len_in_bytes)
+  SIZE_T                  len_in_bytes)
 {
   SIZE_T ret = 0;
   _everything3_wchar_buf_t wcbuf;
@@ -7210,7 +7104,7 @@ static void *_everything3_pool_alloc (_everything3_pool_t *pool, SIZE_T size)
   }
 
   p = pool->p;
-  pool->p += size;
+  pool->p     += size;
   pool->avail -= size;
   return p;
 }
@@ -7263,6 +7157,7 @@ static EVERYTHING3_UTF8 *_everything3_utf8_pstring_init_len (_everything3_utf8_p
     BYTE *p = (BYTE *) (pstring + 1);
 
     pstring->len = 255;
+
     // assume p is unaligned.
     _everything3_copy_memory (p, &len, sizeof(SIZE_T));
     p += sizeof(SIZE_T);
@@ -7335,10 +7230,10 @@ static void _everything3_sort_merge (
   SIZE_T lrun;
   SIZE_T rrun;
 
-  d = dst;
-  l = left;
+  d    = dst;
+  l    = left;
   lrun = left_count;
-  r = right;
+  r    = right;
   rrun = right_count;
 
   for (;;)
@@ -7355,7 +7250,6 @@ static void _everything3_sort_merge (
         _everything3_copy_memory (d, r, rrun * sizeof(void *));
         break;
       }
-
       l++;
     }
     else
@@ -7369,7 +7263,6 @@ static void _everything3_sort_merge (
         _everything3_copy_memory (d, l, lrun * sizeof(void *));
         break;
       }
-
       r++;
     }
   }
@@ -7456,7 +7349,7 @@ static int _everything3_result_list_property_request_compare (
 //
 EVERYTHING3_BOOL Everything3_IsPropertyRightAligned (EVERYTHING3_CLIENT *client, EVERYTHING3_DWORD property_id)
 {
-  EVERYTHING3_BOOL ret = FALSE;
+  EVERYTHING3_BOOL  ret = FALSE;
   EVERYTHING3_DWORD is_right_aligned;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_IS_PROPERTY_RIGHT_ALIGNED, &property_id,
@@ -7478,7 +7371,7 @@ EVERYTHING3_BOOL Everything3_IsPropertyRightAligned (EVERYTHING3_CLIENT *client,
 //
 EVERYTHING3_BOOL Everything3_IsPropertySortDescending (EVERYTHING3_CLIENT *client, EVERYTHING3_DWORD property_id)
 {
-  EVERYTHING3_BOOL ret = FALSE;
+  EVERYTHING3_BOOL  ret = FALSE;
   EVERYTHING3_DWORD is_sort_descending;
 
   if (_everything3_ioctrl_except_out_size (client, _EVERYTHING3_COMMAND_IS_PROPERTY_SORT_DESCENDING, &property_id,
@@ -8421,7 +8314,6 @@ EVERYTHING3_BOOL Everything3_GetResultPropertyPropVariant (
                         SetLastError (EVERYTHING3_ERROR_OUT_OF_MEMORY);
 
 array_error:
-
                       if (pElems)
                       {
                         SIZE_T allocated_index;
