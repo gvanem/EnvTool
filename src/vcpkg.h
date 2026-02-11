@@ -8,7 +8,6 @@
 struct ver_info;
 struct ver_data;
 
-extern void        vcpkg_init (void);
 extern void        vcpkg_exit (void);
 extern bool        vcpkg_get_info (char **exe_p, struct ver_info *ver);
 extern unsigned    vcpkg_get_num_CONTROLS (void);

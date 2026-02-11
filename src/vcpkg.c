@@ -118,7 +118,7 @@
 #define VCPKG_MAX_PLAT      10   /**< Max number of `port_node::platforms[]` */
 #define VCPKG_MAX_STATUS    30   /**< Max size of a `vcpkg_package::status` entry. */
 #define VCPKG_MAX_ARCH      30   /**< Max size of a `vcpkg_package::arch` entry. */
-#define VCPKG_MAX_ABI       45   /**< Max size of a `vcpkg_package::ABI` entry; like "c2b61c4e93998f8f6a036b553c6234688a73dcd4" */
+#define VCPKG_MAX_ABI      150   /**< Max size of a `vcpkg_package::ABI` entry; like "c2b61c4e93998f8f6a036b553c6234688a73dcd4" */
 
 /**
  * \enum VCPKG_platform
@@ -182,11 +182,23 @@ typedef struct vcpkg_package {
         bool             installed;                   /**< At least 1 combination is installed */
         bool             purged;                      /**< Not installed; ready to be removed/updated */
         bool             no_list_file;                /**< No *.list file for package */
+        ULONGLONG        write_time;                  /**< If the `<vcpkg_root>\\buildtrees\\package` was found, this is the write-time for it's directory */
         const port_node *link;                        /**< A link to the corresponding `struct port_node` with more CONTROL/JSON information */
         smartlist_t     *depends;                     /**< What package(s) it depends on; a smartlist of `char *` */
         smartlist_t     *install_info;                /**< A list of `/bin`, `/lib` and `/include` files installed. This is never written/read to/from cache-file */
         smartlist_t     *features;                    /**< The features; a smartlist of `char *` */
       } vcpkg_package;
+
+/**
+ * \typedef buildtrees_node
+ *
+ * The structure of a single VCPKG package present under `<vcpkg_root>/buildtrees`.
+ * To be used for checking weather a cached-entry is valid or not.
+ */
+typedef struct buildtrees_node {
+        char      package [VCPKG_MAX_NAME];
+        ULONGLONG write_time;
+      } buildtrees_node;
 
 /**
  * The list of `CONTROL`, `JSON` and `portfile.cmake` file entries.
@@ -239,6 +251,21 @@ static bool only_installed = true;
 static UINT64 total_size = 0;
 
 /**
+ * Do we have `<vcpkg_root>/buildtrees` directory?
+ *
+ * Used to check whether a cache-entry for a package is valid;
+ * if the time-stamp of `<vcpkg_root>/buildtrees/package-X` is newer
+ * than the cached entry, this entry should be deleted.
+ */
+static bool have_buildtrees;
+
+/**
+ * A list of built packages found
+ * under `<vcpkg_root>/buildtrees`. A smartlist of `struct dirent2`.
+ */
+static smartlist_t *buildtrees_list;
+
+/**
  * The VCPKG version information.
  */
 static ver_info vcpkg_ver;
@@ -263,6 +290,8 @@ static const search_list platforms [] = {
                        { VCPKG_plat_STATIC,  "static"  }
                      };
 
+static void        vcpkg_init (void);
+static char       *vcpkg_set_last_err (const char *fmt, ...);
 static bool        get_control_node (int *index_p, const port_node **node_p, const char *package_spec);
 static const char *get_platform_name (const VCPKG_plat_list p);
 static bool        get_depend_name (const VCPKG_plat_list p_list, const char **name);
@@ -928,7 +957,7 @@ static void build_dir_list (smartlist_t *dir_list, const char *dir, bool check_C
   snprintf (abs_dir, sizeof(abs_dir), "%s\\%s", vcpkg_root, dir);
   if (!is_directory_readable(abs_dir) || (dp = opendir2(abs_dir)) == NULL)
   {
-    snprintf (last_err_str, sizeof(last_err_str), "No such directory %s", abs_dir);
+    vcpkg_set_last_err ("No such directory %s", abs_dir);
     return;
   }
 
@@ -955,6 +984,108 @@ static void build_dir_list (smartlist_t *dir_list, const char *dir, bool check_C
     }
   }
   closedir2 (dp);
+}
+
+/**
+ * Similar to `get_time_str_FILETIME()`, but with milli-seconds resolution.
+ * For the below `TRACE()` only.
+ */
+static const char *get_time_str_msec_FILETIME (const FILETIME *ft)
+{
+  static char buf [50];
+  SYSTEMTIME  st, lt;
+
+  if (!FileTimeToSystemTime(ft, &st) || !SystemTimeToTzSpecificLocalTime(NULL, &st, &lt))
+     return ("?");
+  snprintf (buf, sizeof(buf), "%02d/%02d/%04u - %02u:%02u:%02u:%03u",
+                 lt.wDay, lt.wMonth, lt.wYear, lt.wHour, lt.wMinute, lt.wSecond, lt.wMilliseconds);
+  return (buf);
+}
+
+/**
+ * Traverse `<vcpkg_root>/buildtrees` and build up the `buildtrees_list` smartlist.
+ * A list of `buildtrees_node` structures.
+ */
+static void buildtrees_init (void)
+{
+  struct dirent2  *de;
+  DIR2            *dp;
+  char             abs_dir [_MAX_PATH];
+  size_t           num = 0;
+  size_t           ofs = strlen (vcpkg_root) + strlen("\\buildtrees\\");
+  buildtrees_node *node;
+
+  ASSERT (buildtrees_list == NULL);
+
+  snprintf (abs_dir, sizeof(abs_dir), "%s\\buildtrees", vcpkg_root);
+  dp = opendir2 (abs_dir);
+  TRACE (2, "abs_dir: '%s', dp: 0x%p\n", abs_dir, dp);
+
+  if (!dp)
+  {
+    vcpkg_set_last_err ("No such directory %s", abs_dir);
+    TRACE (1, "last_err_str: '%s'\n", last_err_str);
+    return;
+  }
+
+  buildtrees_list = smartlist_new();
+
+  while ((de = readdir2(dp)) != NULL)
+  {
+    if (de->d_attrib == INVALID_FILE_ATTRIBUTES || !(de->d_attrib & FILE_ATTRIBUTE_DIRECTORY))
+       continue;
+
+    node = CALLOC (sizeof(*node), 1);
+    node->write_time = (((ULONGLONG) de->d_time_write.dwHighDateTime) << 32) + de->d_time_write.dwLowDateTime;
+    _strlcpy (node->package, de->d_name + ofs, sizeof(node->package));
+
+    smartlist_add (buildtrees_list, node);
+    num++;
+    TRACE (1, "node: %-*s, write-time: %s\n",
+           VCPKG_MAX_NAME, node->package,
+           get_time_str_msec_FILETIME((const FILETIME*)&node->write_time));
+  }
+
+  closedir2 (dp);
+  TRACE (1, "Added %zu nodes\n", num);
+}
+
+/**
+ * Report all packages `x` with a `<vcpkg_root>\\buildtrees\\x` directory.
+ */
+static void buildtrees_dump (void)
+{
+}
+
+static void buildtrees_exit (void)
+{
+  smartlist_free_all (buildtrees_list);
+  buildtrees_list = NULL;
+}
+
+static void set_or_check_package_write_time (vcpkg_package *package, bool from_cache)
+{
+  size_t i, max = smartlist_len (buildtrees_list);
+  double dT;
+
+  for (i = 0; i < max; i++)
+  {
+    const buildtrees_node *node = smartlist_get (buildtrees_list, i);
+
+    if (strcmp(node->package, package->package))
+       continue;
+
+    if (node->write_time > 0ULL && !from_cache)
+       package->write_time = node->write_time;
+
+    if (package->write_time > 0ULL && package->write_time < node->write_time)
+    {
+      dT = ((double) node->write_time - (double) package->write_time) / 1E7;
+      TRACE (1, "package: %s write-time behind by %.3f min\n", package->package, dT / 60.0);
+      package->write_time = 0ULL;
+    }
+    break;    /* finished with this package */
+  }
 }
 
 /**
@@ -1129,7 +1260,6 @@ static int get_port_features_from_cache (int max)
   return (i);
 }
 
-
 /**
  * Return a pointer to `last_err_str`.
  */
@@ -1141,6 +1271,16 @@ const char *vcpkg_last_error (void)
 void vcpkg_clear_error (void)
 {
   last_err_str[0] = '\0';
+}
+
+static char *vcpkg_set_last_err (const char *fmt, ...)
+{
+  va_list args;
+
+  va_start (args, fmt);
+  vsnprintf (last_err_str, sizeof(last_err_str), fmt, args);
+  va_end (args);
+  return (NULL);
 }
 
 /**
@@ -1588,8 +1728,7 @@ static int get_all_available (const smartlist_t *port_dirs, bool from_cache)
   }
   max = smartlist_len (ports_list);
   if (max == 0)
-     snprintf (last_err_str, sizeof(last_err_str), "No ~6VCPKG~0 packages found%s",
-               from_cache ? " in cache" : "");
+     vcpkg_set_last_err ("No ~6VCPKG~0 packages found%s", from_cache ? " in cache" : "");
   return (max);
 }
 
@@ -1599,19 +1738,27 @@ static int get_all_available (const smartlist_t *port_dirs, bool from_cache)
 static bool get_base_env (void)
 {
   const char *env = getenv ("VCPKG_ROOT");
+  char  buildtrees [_MAX_PATH];
 
   if (!env)
   {
-    _strlcpy (last_err_str, "Env-var ~5VCPKG_ROOT~0 not defined", sizeof(last_err_str));
+    vcpkg_set_last_err ("Env-var ~5VCPKG_ROOT~0 not defined");
     return (false);
   }
   if (!is_directory_readable(env))
   {
-    _strlcpy (last_err_str, "~5VCPKG_ROOT~0 points to a non-existing directory", sizeof(last_err_str));
+    vcpkg_set_last_err ("~5VCPKG_ROOT~0 points to a non-existing directory");
     return (false);
   }
+
   if (!vcpkg_root)
      vcpkg_root = _fix_path (env, NULL);
+
+  snprintf (buildtrees, sizeof(buildtrees), "%s\\buildtrees", vcpkg_root);
+  if (is_directory_readable(buildtrees))
+     have_buildtrees = true;
+
+  TRACE (1, "have_buildtrees: %d, buildtrees: '%s'\n", have_buildtrees, buildtrees);
   return (true);
 }
 
@@ -1624,7 +1771,7 @@ static bool get_base_exe (const char *exe)
 
   if (!exe)
   {
-    _strlcpy (last_err_str, "vcpkg.exe not found on PATH", sizeof(last_err_str));
+    vcpkg_set_last_err ("vcpkg.exe not found on PATH");
     return (false);
   }
   dir = dirname (exe);
@@ -1797,7 +1944,7 @@ static void free_feature (void *p)
 
 /**
  * Merge package features of 2 packages given by `sl1 *` and `sl2 *`
- * into a unique smartlist at `sl1*`.
+ * into a unique smartlist at `sl1 *`.
  */
 static smartlist_t *add_or_merge_features (smartlist_t *sl1, smartlist_t *sl2)
 {
@@ -1822,7 +1969,7 @@ static smartlist_t *add_or_merge_features (smartlist_t *sl1, smartlist_t *sl2)
 }
 
 /**
- * Cherck if we should add this package or modify an existing package
+ * Check if we should add this package or modify an existing package
  * with some elements of this package.
  *
  * We ignore all without a "install ok installed" status or a
@@ -1864,7 +2011,7 @@ static bool add_or_modify_this_package (vcpkg_package *package, vcpkg_package **
  * Not called if we have this information in the cache-file.
  *
  * The memory for this file is not freed until `vcpkg_exit()` is called since
- * this memory are used in e.g. `installed_packages::package` names.
+ * this memory is used in e.g. `installed_packages::package` names.
  */
 static int vcpkg_parse_status_file (void)
 {
@@ -2049,12 +2196,12 @@ static void put_installed_packages_to_cache (void)
        installed = 0;
 
     dependencies = smartlist_join_str (package->depends, ",");
-    cache_putf (SECTION_VCPKG, "installed_package_%d = %s,%d,%s,%s,%s,%s,\"%s\"", i,
+    cache_putf (SECTION_VCPKG, "installed_package_%d = %s,%d,%s,%s,%s,%s,%llu,\"%s\"", i,
                 package->package, installed,
                 package->version[0] ? package->version : "-",
                 package->status[0]  ? package->status  : "-",
                 package->arch[0]    ? package->arch    : "-",
-                package->ABI[0]     ? package->ABI     : "-",
+                package->ABI[0]     ? package->ABI     : "-", package->write_time,
                 dependencies        ? dependencies     : "-");
     FREE (dependencies);
   }
@@ -2181,12 +2328,12 @@ static int get_installed_packages_from_cache (void)
   for (i = 0;; i++)
   {
     vcpkg_package *package;
-    char  format [100], *pkg_name, *version, *status, *arch, *ABI, *dependencies;
+    char  format [100], *pkg_name, *version, *status, *arch, *ABI, *write_time, *dependencies;
     int   rc, installed;
 
-    snprintf (format, sizeof(format), "installed_package_%d = %%s,%%d,%%s,%%s,%%s,%%s,%%s", i);
-    rc = cache_getf (SECTION_VCPKG, format, &pkg_name, &installed, &version, &status, &arch, &ABI, &dependencies);
-    if (rc != 7)
+    snprintf (format, sizeof(format), "installed_package_%d = %%s,%%d,%%s,%%s,%%s,%%s,%%s,%%s", i);
+    rc = cache_getf (SECTION_VCPKG, format, &pkg_name, &installed, &version, &status, &arch, &ABI, &write_time, &dependencies);
+    if (rc != 8)
        break;
 
     if (!installed || *arch == '-')
@@ -2204,6 +2351,9 @@ static int get_installed_packages_from_cache (void)
 
     if (*status != '-')
        _strlcpy (package->status, status, sizeof(package->status));
+
+    if (*write_time != '-' && *write_time != '0')
+       package->write_time = strtoull (write_time, NULL, 10);
 
     if (strcmp(dependencies, "\"-\""))
        package->depends = smartlist_split_str (dependencies, ", ");
@@ -2258,7 +2408,7 @@ static int get_available_packages_from_cache (void)
  * Initialise VCPKG globals once and build the list of all
  * available and installed packages.
  */
-void vcpkg_init (void)
+static void vcpkg_init (void)
 {
   smartlist_t   *ports_dirs;
   smartlist_t   *packages_dirs;
@@ -2299,7 +2449,10 @@ void vcpkg_init (void)
   installed_packages = smartlist_new();
   ports_list         = smartlist_new();
 
-  last_err_str[0] = '\0';   /* clear any error-string set */
+  vcpkg_clear_error();    /* clear any error-string set */
+
+  if (have_buildtrees)
+     buildtrees_init();
 
   num_cached_available_packages = get_available_packages_from_cache();
   num_cached_packages_dirs      = get_packages_dirs_from_cache (&packages_dirs);
@@ -2339,6 +2492,7 @@ void vcpkg_init (void)
   {
     package = smartlist_get (installed_packages, i);
     get_control_node (&j, &package->link, package->package);
+    set_or_check_package_write_time (package, num_cached_installed_packages > 0);
   }
 
   if (!packages_dirs || num_cached_installed_packages > 0)
@@ -2417,7 +2571,7 @@ unsigned vcpkg_get_num_CONTROLS (void)
 
   num_CONTROLS = vcpkg_get_num (true, false);
   if (num_CONTROLS == 0)
-     _strlcpy (last_err_str, "No CONTROL files for VCPKG found", sizeof(last_err_str));
+     vcpkg_set_last_err ("No CONTROL files for VCPKG found");
   return (num_CONTROLS);
 }
 
@@ -2434,7 +2588,7 @@ unsigned vcpkg_get_num_JSON (void)
 
   num_JSON = vcpkg_get_num (false, true);
   if (num_JSON == 0)
-     _strlcpy (last_err_str, "No JSON files for VCPKG found", sizeof(last_err_str));
+     vcpkg_set_last_err ("No JSON files for VCPKG found");
   return (num_JSON);
 }
 
@@ -2451,7 +2605,7 @@ unsigned vcpkg_get_num_portfile (void)
 
   num_portfiles = vcpkg_get_num (false, false);
   if (num_portfiles == 0)
-     _strlcpy (last_err_str, "No portfiles for VCPKG found", sizeof(last_err_str));
+     vcpkg_set_last_err ("No portfiles for VCPKG found");
   return (num_portfiles);
 }
 
@@ -2540,7 +2694,7 @@ static const char *get_installed_dir (const vcpkg_package *package)
 
   if (!is_directory_readable(dir))
   {
-    snprintf (last_err_str, sizeof(last_err_str), "No status directory '%s'", dir);
+    vcpkg_set_last_err ("No status directory '%s'", dir);
     return (NULL);
   }
 
@@ -2570,10 +2724,8 @@ static const char *get_packages_dir (const vcpkg_package *package)
   TRACE (2, "architecture: '%s', dir: '%s'\n", package->arch, dir);
 
   if (!is_directory_readable(dir))
-  {
-    snprintf (last_err_str, sizeof(last_err_str), "No such directory '%s'", dir);
-    return (NULL);
-  }
+     return vcpkg_set_last_err ("No such directory '%s'", dir);
+
   return (dir + strlen(vcpkg_root) + 1);
 }
 _WUNUSED_FUNC_POP()
@@ -2651,6 +2803,8 @@ static void print_package_brief (const vcpkg_package *package, FMT_buf *fmt_buf,
  *  x86-windows-static/lib/pkgconfig/
  *  x86-windows-static/lib/pkgconfig/zlib.pc
  *  x86-windows-static/lib/zlib.lib
+ *  x64-windows-static-md/include/iconv.h
+ *  x64-windows-static-md/lib/iconv.lib
  * ```
  *
  * Add wanted `char *` elements to this smartlist as we parse the file.
@@ -2954,6 +3108,7 @@ void vcpkg_exit (void)
 
   free_ports_list();
   regex_free();
+  buildtrees_exit();
 
   cache_dir = get_cache_dir();
   FREE (cache_dir);
