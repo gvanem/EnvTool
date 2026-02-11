@@ -327,7 +327,7 @@ int report_file (report *r)
     possible_PE_file = false;
     note = " (5)  ";
   }
-  else if (r->key == HKEY_MAN_FILE || r->key == HKEY_LUA_FILE)
+  else if (r->key == HKEY_MAN_FILE || r->key == HKEY_LUA_FILE || r->key == HKEY_INC_LIB_FILE)
   {
     possible_PE_file = false;
   }

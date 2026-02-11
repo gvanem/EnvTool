@@ -621,7 +621,7 @@ void cache_putf (CacheSections section, _Printf_format_string_ const char *fmt, 
    */
   p = strchr (key_val, '=');
   p[-1] = '\0';
-  cache_put (section, key_val, p +2);
+  cache_put (section, key_val, p + 2);
   va_end (args);
 }
 
