@@ -43,6 +43,7 @@ typedef struct python_path {
         bool exist;            /**< does it exist? */
         bool is_dir;           /**< and is it a dir; `_S_ISDIR()` */
         bool is_zip;           /**< or is it a zip; an .egg, .zip or a .whl file. */
+        bool is_pth;           /**< or is it a Path-hook file. */
       } python_path;
 
 /**
@@ -2012,6 +2013,7 @@ static bool py_add_module (python_info *pi, const python_module *m)
   {
     python_module *m2 = MALLOC (sizeof(*m2));
 
+    TRACE (2, "%s: Adding module '%s'\n", pi->exe_name, m->name);
     memcpy (m2, m, sizeof(*m2));
     smartlist_add (pi->modules, m2);
     return (true);
@@ -2058,8 +2060,21 @@ static void add_sys_path (const char *dir)
     _strlcpy (pp->dir, dir, sizeof(pp->dir));
     memset (&st, '\0', sizeof(st));
     pp->exist  = (stat(dir, &st) == 0);
-    pp->is_dir = pp->exist && _S_ISDIR(st.st_mode);
-    pp->is_zip = pp->exist && _S_ISREG(st.st_mode) && check_if_zip (dir);
+    if (!pp->exist && str_endswith(dir, "__path_hook__"))
+    {
+      /*
+       * A "x.__path_hook__" path should point to these files in `pi->user_site_path`:
+       * '__editable__.x.pth' and
+       * '__editable___x_finder.py'
+       */
+      pp->is_pth = true;
+    }
+    else
+    {
+      pp->is_dir = pp->exist && _S_ISDIR(st.st_mode);
+      pp->is_zip = pp->exist && _S_ISREG(st.st_mode) && check_if_zip (dir);
+    }
+
     smartlist_add (g_pi->sys_path, pp);
   }
 }
@@ -2326,7 +2341,7 @@ static bool check_if_dist_info_dirs (const python_path *pp)
 static int py_search_internal (python_info *pi, bool reinit)
 {
   char *str = NULL;
-  int   i, max, found, found_zip;
+  int   i, max, found, found_pth, found_zip;
   bool  use_cache = (opt.use_cache && smartlist_len(pi->modules) > 0);
 
   ASSERT (pi == g_pi);
@@ -2355,7 +2370,7 @@ static int py_search_internal (python_info *pi, bool reinit)
     get_sys_path (pi);
   }
 
-  found = found_zip = 0;
+  found = found_pth = found_zip = 0;
   max = smartlist_len (pi->sys_path);
 
   for (i = 0; i < max; i++)
@@ -2375,6 +2390,13 @@ static int py_search_internal (python_info *pi, bool reinit)
     {
       rc = process_zip (pi, pp->dir);
       found_zip += rc;
+    }
+    else if (pp->is_pth)
+    {
+#if 0
+      rc = process_pth (pi, pp->dir); /**< \todo process .pth files */
+      found_pth += rc;
+#endif
     }
     else
     {
