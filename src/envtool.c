@@ -2435,6 +2435,7 @@ static int do_check_evry2 (void)
       {
         response_flags |= EVERYTHING_REQUEST_SIZE;
         fsize = ((UINT64)fs.u.HighPart << 32) + fs.u.LowPart;
+        incr_total_size (fsize);
         TRACE (2, "%3lu: Everything_GetResultSize(), %s\n",
                 i, get_file_size_str(fsize));
       }
