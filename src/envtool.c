@@ -578,17 +578,24 @@ static int show_help (void)
           "      For remote FTP search(es) (~6--evry:[host-name|IP-address]~0), a user/password\n"
           "      should be specified in your ~6%APPDATA%/.netrc~0 or ~6%APPDATA%/.authinfo~0 files or\n"
           "      you can use the \"~6user:passwd@host_or_IP-address:~3port~0\" syntax.\n"
-          "      ~0Soundex~0 matches requires ver. 1.5.0.1340a or later.\n"
-          "\n"
+          "      ~0Soundex~0 matches requires ver. 1.5.0.1340a or later.\n");
+
+#if defined(USE_EVERYTHING3)
+  C_puts ("      To select API version 2 or 3:\n"
+          "        ~6envtool --evry:2~0 - this is default.\n"
+          "        ~6envtool --evry:3~0 - needs ver. 1.5.0.1397a+. Ref. ~3[EveryThing:use_evry3=1]~0\n");
+#endif
+
+  C_puts ("\n"
           "      To perform raw searches, append a modifier like:\n"
-          "        envtool ~6--evry~0 -s ~3* \"size:>2GB\"~0                   - find all >2GByte files on all drives.\n"
-          "        envtool ~6--evry~0 ~3*.exe~0 rc:today                     - find all ~3*.exe~0 files changed today.\n"
-          "        envtool ~6--evry~0 ~3*.mp3~0 title:Hello                  - find all ~3*.mp3~0 files with a title starting with Hello.\n"
-          "        envtool ~6--evry~0 ~3f*~0 empty:                          - find all empty directories matching ~3f*~0.\n"
-          "        envtool ~6--evry~0 ~3*.cpp~0 soundex:deamon               - find all *.cpp files that ~3Soundex~0 matches ~3deamon~0, ~3daemon~0 or even ~3domain~0.\n"
-          "        envtool ~6--evry~0 ~3Makefile.am~0 content:pod2man        - find all ~3Makefile.am~0 containing ~3pod2man~0.\n"
-          "        envtool ~6--evry~0 ~3M*.mp3~0 artist:Madonna \"year:<2002\" - find all Madonna ~3M*.mp3~0 titles issued prior to 2002.\n"
-          "        envtool ~6--evry~0 ~3-Ds .vs~0                            - find the size occupied in all ~3.vs~0 directories.\n"
+          "        ~6envtool --evry -s * \"~3size:>2GB~0\"                   - find all ~3>2GByte~0 files on all drives.\n"
+          "        ~6envtool --evry ~3*.exe ~6rc:today~0                     - find all ~3*.exe~0 files changed today.\n"
+          "        ~6envtool --evry ~3*.mp3 ~6title:Hello~0                  - find all ~3*.mp3~0 files with a title starting with Hello.\n"
+          "        ~6envtool --evry ~3f* ~6empty:~0                          - find all empty directories matching ~3f*~0.\n"
+          "        ~6envtool --evry ~3*.cpp ~6soundex:deamon~0               - find all ~3*.cpp~0 files that ~3Soundex~0 matches ~3deamon~0, ~3daemon~0 or even ~3domain~0.\n"
+          "        ~6envtool --evry ~3Makefile.am ~6content:pod2man~0        - find all ~3Makefile.am~0 containing ~3pod2man~0.\n"
+          "        ~6envtool --evry ~3M*.mp3 ~6artist:Madonna \"year:<2002\"~0 - find all Madonna ~3M*.mp3~0 titles issued prior to 2002.\n"
+          "        ~6envtool --evry -Ds ~3.vs~0                            - find the size occupied in all ~3.vs~0 directories.\n"
           "\n"
           "      Ref: https://www.voidtools.com/support/everything/recent_changes/\n"
           "           https://www.voidtools.com/support/everything/searching/#functions\n"
@@ -629,7 +636,7 @@ static int show_help (void)
 
   C_puts ("\n  ~2[4]~0 This needs the ~6vcpkg.exe~0 program on ~3%PATH%~0 with a set of ~6ports~0 and ~6CONTROL~0 files.\n"
           "      Used as ~6--vcpkg=all~0, it will list install status of any packages matching ~6<file-spec>~0.\n"
-          "      ~3Ref: https://github.com/Microsoft/vcpkg.git~0\n");
+          "      ~3Ref: https://githu3b.com/Microsoft/vcpkg.git~0\n");
 
   C_puts ("\n"
           "  Notes:\n"
@@ -696,7 +703,7 @@ static directory_array *dir_array_add_or_insert (const char *dir, bool is_cwd, b
   }
 #else
   if (d->is_native && !have_sys_native_dir)
-     TRACE (2, "Native dir '%s' doesn't exist.\n", dir);
+     TRACE (2, "Native dir '%s' does not exist.\n", dir);
   else if (!d->exist)
   {
     /* An issue with 'stat()' on MSVC-2013. So just pretend it
@@ -704,7 +711,7 @@ static directory_array *dir_array_add_or_insert (const char *dir, bool is_cwd, b
      */
     if (d->is_native && have_sys_native_dir)
          d->exist = d->is_dir = true;
-    else TRACE (2, "'%s' doesn't exist.\n", dir);
+    else TRACE (2, "'%s' does not exist.\n", dir);
   }
 #endif
 
@@ -785,7 +792,7 @@ void dir_array_wiper (void *_d)
  * Note: `basename (fqfn)` may NOT be equal to `fname` (aliasing). That's the reason
  *       we store `real_fname` too.
  */
-registry_array  *reg_array_add (HKEY key, const char *fname, const char *fqfn)
+registry_array *reg_array_add (HKEY key, const char *fname, const char *fqfn)
 {
   registry_array *reg;
   struct stat    st;
@@ -1587,7 +1594,7 @@ int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
      end[-1] = '\0';
 
   if (prefix && !stricmp(prefix, "PATH"))
-     ignore = cfg_ignore_lookup("[Path]", _path);
+     ignore = cfg_ignore_lookup ("[Path]", _path);
 
   if (num_dup > 0)
   {
@@ -1607,7 +1614,7 @@ int process_dir (const char *path, int num_dup, bool exist, bool check_empty,
 
   if (!exist)
   {
-    WARN2 ("%s: directory \"%s\" doesn't exist.\n", prefix, _path);
+    WARN2 ("%s: directory \"%s\" does not exist.\n", prefix, _path);
     return (0);
   }
 
@@ -2177,7 +2184,14 @@ static int do_check_evry3 (void)
 
     if (safe_stat(file, &st, NULL) == 0)
     {
-      mtime = st.st_mtime;
+      if (st.st_ctime > st.st_mtime)
+      {
+        mtime = st.st_ctime;
+        TRACE (1, "%s: using st_ctime\n", file);
+      }
+      else
+        mtime = st.st_mtime;
+
       if (opt.show_size)
          fsize = st.st_size;
     }
@@ -2439,7 +2453,14 @@ static int do_check_evry2 (void)
 
       if (safe_stat(file, &st, NULL) == 0)
       {
-        mtime = st.st_mtime;
+        if (st.st_ctime > st.st_mtime)
+        {
+          mtime = st.st_ctime;
+          TRACE (1, "%s: using st_ctime\n", file);
+        }
+        else
+          mtime = st.st_mtime;
+
         if (opt.show_size)
            fsize = st.st_size;
       }
@@ -2603,7 +2624,7 @@ static int do_check_manpath (void)
     arr = smartlist_get (list, i);
     if (!arr->exist)
     {
-      WARN ("%s: directory \"%s\" doesn't exist.\n", env_name, arr->dir);
+      WARN ("%s: directory \"%s\" does not exist.\n", env_name, arr->dir);
       continue;
     }
 
