@@ -908,7 +908,7 @@ static int CONTROL_parse (port_node *node, const char *file)
  */
 static int portfile_cmake_parse (port_node *node, const char *file)
 {
-  int         rc = 0;
+  int         len, rc = 0;
   size_t      f_size;
   char       *f_mem = fopen_mem (file, &f_size);
   char       *repo, *new_line, *end;
@@ -926,8 +926,9 @@ static int portfile_cmake_parse (port_node *node, const char *file)
        new_line = f_mem + f_size - 1;
     *new_line = '\0';
 
-    TRACE (2, "At github: \"%.*s\".\n", (int)(new_line - repo - 1), repo);
-    snprintf (node->homepage, sizeof(node->homepage), "https://github.com/%.*s", (int)(new_line - repo - 1), repo);
+    len = new_line - repo;
+    TRACE (1, "At github: \"%.*s\".\n", len, repo);
+    snprintf (node->homepage, sizeof(node->homepage), "https://github.com/%.*s", len, repo);
     end = strchr (node->homepage, '\0');
     if (end[-1] == '"')
        end[-1] = '\0';
@@ -1065,7 +1066,7 @@ static void buildtrees_exit (void)
 
 static void set_or_check_package_write_time (vcpkg_package *package, bool from_cache)
 {
-  size_t i, max = smartlist_len (buildtrees_list);
+  int    i, max = smartlist_len (buildtrees_list);
   double dT;
 
   for (i = 0; i < max; i++)
