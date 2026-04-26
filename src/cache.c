@@ -786,9 +786,9 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
        this_fmt && i < DIM(state->vec);
        pp = va_arg(args, char**), this_fmt = _strtok_r(NULL, ",", &tok_end), i++)
   {
-    state->vec[i]   = pp;   /* the address to store a "%d", "%u" or "%s" value into */
-    state->d_val[i] = 0;
-    state->s_val[i] = NULL;
+    state->vec [i]   = pp;   /* the address to store a "%d", "%u" or "%s" value into */
+    state->d_val [i] = 0;
+    state->s_val [i] = NULL;
     TRACE (4, "vec[%d]: 0x%p, this_fmt: '%s'.\n", i, state->vec[i], this_fmt);
     if (*tok_end == '\0')
     {
@@ -799,7 +799,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
 
   key = strdupa (fmt);
   values = strchr (key, '=');
-  values[-1] = '\0';                 /* terminate 'key' */
+  values [-1] = '\0';                /* terminate 'key' */
   values++;
 
   value = cache_get (section, key);  /* Get the value for the key */
@@ -820,7 +820,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
   v_end = strchr (v, '\0');
   while ((rc = get_next_value(&v, v_end)) > 0 && i < i_max)
   {
-    TRACE (3, "i: %d, v: '%s'.\n", i, v);
+    TRACE (2, "i: %d, v: '%s'.\n", i, v);
     state->s_val [i++] = v;
     v += rc;
     if (v >= v_end)
@@ -837,7 +837,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
 
     if (!strcmp(v, "%d") || !strcmp(v, "%u"))
     {
-      state->d_val[i] = strtoul (state->s_val[i], &v_end, 10);
+      state->d_val [i] = strtoul (state->s_val[i], &v_end, 10);
 
       if (v_end == state->s_val[i])
          TRACE (2, "EINVAL; s_val[%d]: '%s'.\n", i, state->s_val[i]);
@@ -847,7 +847,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
 #ifdef USE_UBSAN
         UNALIGNED_STORE_INT (&state->vec[i], state->d_val[i]);
 #else
-        *(int*) state->vec[i] = state->d_val[i];
+        *(int*) state->vec [i] = state->d_val[i];
 #endif
       }
       i++;
@@ -855,7 +855,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
     else if (!strcmp(v, "%s"))
     {
       TRACE (3, "s_val[%d]: '%s'.\n", i, state->s_val[i]);
-      *state->vec[i] = state->s_val[i];
+      *state->vec [i] = state->s_val [i];
       i++;
     }
     else
@@ -946,14 +946,15 @@ static void cache_test_dump (void)
   const cache_node *c;
   int   i, max = cache.entries ? smartlist_len (cache.entries) : 0;
 
-  debug_printf ("%s():\n  section: %s\n", __FUNCTION__, sections[SECTION_TEST].name);
+  C_printf ("~3%s():~0\n  section: %s\n", __FUNCTION__, sections[SECTION_TEST].name);
 
   for (i = 0; i < max; i++)
   {
     c = smartlist_get (cache.entries, i);
     if (c->section == SECTION_TEST)
-       debug_printf ("  %-30s -> %s.\n", c->key, c->value);
+       printf ("  %-20s -> %s.\n", c->key, c->value);
   }
+  C_putc ('\n');
 }
 
 struct test_table {
@@ -1064,7 +1065,7 @@ static void cache_test_init (void)
   {
     t = tests + 0;
     for (i = 0; i < DIM(tests); i++, t++)
-        debug_printf ("  rc: %d, getf_value: '%.50s' ...\n", t->rc, t->getf_value);
+        printf ("  rc: %d, getf_value: '%.50s' ...\n", t->rc, t->getf_value);
     C_putc ('\n');
   }
 }
@@ -1075,7 +1076,7 @@ static size_t cache_test_getf (void)
   size_t      i, num_ok = 0;
   char       *args [CACHE_MAX_ARGS+1];
 
-  TRACE (2, "%s():\n", __FUNCTION__);
+  TRACE (2, "  %s():\n", __FUNCTION__);
   for (i = 0; i < DIM(tests); i++, t++)
   {
     char   key_value  [CACHE_MAX_KEY + CACHE_MAX_VALUE + 4];
@@ -1094,7 +1095,8 @@ static size_t cache_test_getf (void)
                      &args[4], &args[5], &args[6],  &args[7],
                      &args[8], &args[9], &args[10], &args[11]);
 
-    getf_value[0] = '\0';
+    *buf = '\0';
+
     for (j = 0; j < rc; j++)
     {
       fmt[2] = '\0';
@@ -1115,10 +1117,11 @@ static size_t cache_test_getf (void)
     if (rc == t->rc && equal)
        num_ok++;
 
-    debug_printf ("  key_value: '%s'...\n", key_value);
+    printf ("  rc: %d, t->rc: %d, equal: %d, key_value: '%s'...\n",
+            rc, t->rc, equal, key_value);
 
-    debug_printf ("  rc: %d, t->rc: %d, equal: %d, t->getf_value: '%s', getf_value: '%s'\n",
-                  rc, t->rc, equal, t->getf_value, getf_value);
+    printf ("  t->getf_value: '%s'\n"
+            "  getf_value:    '%s'\n", t->getf_value, getf_value);
   }
 
   if (num_ok == i)
@@ -1135,6 +1138,10 @@ void cache_test (void)
   int save = opt.debug;
 
   C_puts ("~3cache_test()~0:\n");
+
+  if (!opt.use_cache)
+     cache.entries = smartlist_new();
+
   cache_test_init();
   opt.debug = 3;
 
