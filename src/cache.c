@@ -847,7 +847,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
 #ifdef USE_UBSAN
         UNALIGNED_STORE_INT (&state->vec[i], state->d_val[i]);
 #else
-        *(int*) state->vec [i] = state->d_val[i];
+        *(int*) state->vec [i] = state->d_val [i];
 #endif
       }
       i++;
@@ -952,7 +952,7 @@ static void cache_test_dump (void)
   {
     c = smartlist_get (cache.entries, i);
     if (c->section == SECTION_TEST)
-       printf ("  %-20s -> %s.\n", c->key, c->value);
+       printf ("  %-10s -> %s.\n", c->key, c->value);
   }
   C_putc ('\n');
 }
@@ -1061,13 +1061,10 @@ static void cache_test_init (void)
        snprintf (t->getf_value, sizeof(t->getf_value), "%s = %s", t->key, t->put_value);
   }
 
-  if (opt.debug >= 2)
-  {
-    t = tests + 0;
-    for (i = 0; i < DIM(tests); i++, t++)
-        printf ("  rc: %d, getf_value: '%.50s' ...\n", t->rc, t->getf_value);
-    C_putc ('\n');
-  }
+  t = tests + 0;
+  for (i = 0; i < DIM(tests); i++, t++)
+      printf ("  rc: %d, getf_value: '%.50s' ...\n", t->rc, t->getf_value);
+  C_putc ('\n');
 }
 
 static size_t cache_test_getf (void)
@@ -1135,15 +1132,12 @@ static size_t cache_test_getf (void)
  */
 void cache_test (void)
 {
-  int save = opt.debug;
-
   C_puts ("~3cache_test()~0:\n");
 
   if (!opt.use_cache)
      cache.entries = smartlist_new();
 
   cache_test_init();
-  opt.debug = 3;
 
   cache_test_getf();   /* Now, read them back */
   cache_test_dump();   /* and dump the entries in SECTION_TEST */
@@ -1188,6 +1182,4 @@ void cache_test (void)
            str[8], str[9], str[10], str[11],
            str[12]);
   }
-
-  opt.debug = save;
 }
