@@ -316,18 +316,18 @@ DEF_FUNC (int,         Py_IsInitialized,       (void));
 DEF_FUNC (void,        Py_Finalize,            (void));
 DEF_FUNC (void,        PySys_SetArgvEx,        (int argc, wchar_t **argv, int update_path));
 DEF_FUNC (void,        Py_FatalError,          (const char *message));
-DEF_FUNC (void,        Py_SetProgramName,      (char *name));
-DEF_FUNC (void,        Py_SetPythonHome,       (void *home));
+DEF_FUNC (void,        Py_SetProgramName,      (const char *name));   /* Is `const wchar_t *` in Python 3.x */
+DEF_FUNC (void,        Py_SetPythonHome,       (const char *home));   /* Is `const wchar_t *` in Python 3.x */
 DEF_FUNC (int,         PyRun_SimpleString,     (const char *cmd));
 DEF_FUNC (PyObject*,   PyImport_AddModule,     (const char *name));
-DEF_FUNC (PyObject*,   PyObject_GetAttrString, (PyObject *o, char *attr));
+DEF_FUNC (PyObject*,   PyObject_GetAttrString, (PyObject *o, const char *attr));
 DEF_FUNC (char *,      PyString_AsString,      (PyObject *o));
 DEF_FUNC (char *,      PyBytes_AsString,       (PyObject *o));
 DEF_FUNC (Py_ssize_t,  PyString_Size,          (PyObject *o));
 DEF_FUNC (Py_ssize_t,  PyBytes_Size,           (PyObject *o));
 DEF_FUNC (void,        PyObject_Free,          (PyObject *o));
 DEF_FUNC (void,        Py_DecRef,              (PyObject *o));
-DEF_FUNC (PyObject*,   PyObject_CallMethod,    (PyObject *o, char *method, char *fmt, ...));
+DEF_FUNC (PyObject*,   PyObject_CallMethod,    (PyObject *o, const char *method, const char *fmt, ...));
 DEF_FUNC (wchar_t*,    Py_DecodeLocale,        (const char *arg, size_t *size));
 DEF_FUNC (void,        PyMem_RawFree,          (void *ptr));
 DEF_FUNC (void,        PyErr_PrintEx,          (int set_sys_last_vars));
@@ -848,7 +848,7 @@ void py_exit (void)
 
 /**
  * Setup a class-instance for catching all output written
- * using `sys.stdout`. I.e. `print(...)` and `os.write(1,...)`.
+ * using `sys.stdout`. I.e. `print(...)` and `os.write(1, ...)`.
  *
  * This instance must reside at the global `__main__` level.
  *
@@ -858,6 +858,7 @@ void py_exit (void)
  *
  * \todo
  *   Use `StringIO()` class instead?
+ *   https://www.thecodingforums.com/threads/how-to-get-string-printed-by-pyerr_print.562234/
  *
  * \note
  *   The line-endings in the `self.value` are normally Unix-type `"\n"`.
@@ -869,30 +870,30 @@ void py_exit (void)
  */
 static PyObject *setup_stdout_catcher (void)
 {
-  static char code[] = "import sys\n"                                 \
-                       "PY3 = (sys.version_info[0] >= 3)\n"           \
-                       "Empty = ['', b''][PY3]\n"                     \
-                       "\n"                                           \
-                       "class catch_stdout:\n"                        \
-                       "  def __init__ (self):\n"                     \
-                       "    self.value = Empty\n"                     \
-                       "    self.exit_code = 0\n"                     \
-                       "  def write (self, txt):\n"                   \
-                       "    if PY3:\n"                                \
-                       "      self.value += bytes (txt, \"UTF-8\")\n" \
-                       "    else:\n"                                  \
-                       "      self.value += txt\n"                    \
-                       "  def reset (self):\n"                        \
-                       "    self.value = Empty\n"                     \
-                       "  def flush (self):\n"                        \
-                       "    self.reset()\n"                           \
-                       "  def exit (self, x):\n"                      \
-                       "    self.exit_code = x\n"                     \
-                       "\n"                                           \
-                       "old_sys_exit = sys.exit\n"                    \
-                       "old_stdout = sys.stdout\n"                    \
-                       "sys.stdout = catcher = catch_stdout()\n"      \
-                       "sys.exit   = catcher.exit\n";
+  static char code[] = "import sys\n"                                  \
+                       "PY3 = (sys.version_info[0] >= 3)\n"            \
+                       "Empty = ['', b''][PY3]\n"                      \
+                       "\n"                                            \
+                       "class catch_stdout:\n"                         \
+                       "  def __init__ (self):\n"                      \
+                       "    self.value = Empty\n"                      \
+                       "    self.exit_code = 0\n"                      \
+                       "  def write (self, txt):\n"                    \
+                       "    if PY3:\n"                                 \
+                       "       self.value += bytes (txt, \"UTF-8\")\n" \
+                       "    else:\n"                                   \
+                       "       self.value += txt\n"                    \
+                       "  def reset (self):\n"                         \
+                       "    self.value = Empty\n"                      \
+                       "  def flush (self):\n"                         \
+                       "    self.reset()\n"                            \
+                       "  def exit (self, x):\n"                       \
+                       "    self.exit_code = x\n"                      \
+                       "\n"                                            \
+                       "old_sys_exit = sys.exit\n"                     \
+                       "old_stdout   = sys.stdout\n"                   \
+                       "sys.stdout   = catcher = catch_stdout()\n"     \
+                       "sys.exit     = catcher.exit\n";
 
   PyObject *mod = (*PyImport_AddModule) ("__main__");          /* create `__main__` module */
   int       rc  = (*PyRun_SimpleString) (code);                /* invoke code to redirect */
@@ -969,10 +970,10 @@ static bool py_init_embedding (python_info *pi)
     PyString_Size     = PyBytes_Size;
 
     TRACE (2, "Py_SetProgramName (\"%" WIDESTR_FMT "\")\n", pi->prog_w);
-    (*Py_SetProgramName) ((char*)pi->prog_w);
+    (*Py_SetProgramName) ((const char*)pi->prog_w);
 
     TRACE (2, "Py_SetPythonHome (\"%" WIDESTR_FMT "\")\n", pi->home_w);
-    (*Py_SetPythonHome) (pi->home_w);
+    (*Py_SetPythonHome) ((const char*)pi->home_w);
   }
   else
   {
@@ -1592,11 +1593,11 @@ static int py_print_modinfo (const char *spec, bool get_details)
         "  package_list = []\n"                                                        \
         "  for p in packages:\n"                                                       \
         "    if os.path.isdir (p.location):\n"                                         \
-        "      loc = p.location + '\\\\'\n"                                            \
+        "       loc = p.location + '\\\\'\n"                                           \
         "    elif zipfile.is_zipfile (p.location):\n"                                  \
-        "      loc = p.location + ' (ZIP)\'\n"                                         \
+        "       loc = p.location + ' (ZIP)\'\n"                                        \
         "    else:\n"                                                                  \
-        "      loc = p.location\n"                                                     \
+        "       loc = p.location\n"                                                    \
         "    ver = \"%.40s\" % p.version\n"                                            \
         "    try:\n"                                                                   \
         "      meta = p._get_metadata_path_for_display (p.PKG_INFO)\n"                 \
@@ -1605,7 +1606,7 @@ static int py_print_modinfo (const char *spec, bool get_details)
         "    package_list.append ('%s;%s;%s;%s' % (p.key, ver, loc, meta))\n"          \
         "\n"                                                                           \
         "  for p in sorted (package_list):\n"                                          \
-        "    print (p)\n"                                                              \
+        "      print (p)\n"                                                            \
         "\n"                                                                           \
         "list_modules (\"*\")\n"
 
@@ -2866,6 +2867,7 @@ static void py_test_internal (python_info *pi)
   else if (Anaconda_GetVersion)
      C_printf ("\nAnacondaGetVersion(): \"%s\"\n\n", (*Anaconda_GetVersion)());
 
+  C_putc ('\n');
   C_printf ("~6List of modules for %s:~0\n", py_filename(pi->exe_name));
   py_print_modinfo ("*", opt.verbose ? true : false);
   C_putc ('\n');
@@ -3166,6 +3168,7 @@ void py_init (void)
 
   SetEnvironmentVariable ("PYTHONINSPECT", NULL);
   SetEnvironmentVariable ("PYTHON_COLORS", "0");
+  SetEnvironmentVariable ("PYTHONWARNINGS", "ignore::UserWarning");
 
   py_programs = smartlist_new();
 
@@ -3267,8 +3270,8 @@ static int make_arg_vector (arg_vector *av, const char **argv, bool wide)
   for (i = 0; i < av->argc; i++)
   {
     if (wide)
-         av->wide[i]  = (*Py_DecodeLocale) (argv[i], NULL);
-    else av->ascii[i] = STRDUP (argv[i]);
+         av->wide [i]  = (*Py_DecodeLocale) (argv[i], NULL);
+    else av->ascii [i] = STRDUP (argv[i]);
   }
 
   TRACE (1, "av->argc: %d\n", av->argc);
@@ -3339,6 +3342,7 @@ static char *py_exec_internal (python_info *pi, const char **py_argv, bool captu
   arg_vector  av = { 0, NULL, NULL };
 
   C_printf ("Executing ~6%s~0 using ~6%s~0: ", py_argv[0], pi->dll_name);
+  TRACE (1, "as_import: %d\n", as_import);
 
   if (!pi->is_embeddable)
   {
@@ -3382,7 +3386,8 @@ static char *py_exec_internal (python_info *pi, const char **py_argv, bool captu
   if (as_import)
   {
     prog = alloca (1000);
-    snprintf (prog, 1000, "sys.path.append (\"%s\")\n%s%s", current_dir, prog0, py_argv[0]);
+    snprintf (prog, 1000, "sys.path.append (r\"%s\")\n%s%s", current_dir, prog0, py_argv[0]);
+    TRACE (1, "prog: '%s'\n", prog);
   }
   else
   {
@@ -3391,6 +3396,7 @@ static char *py_exec_internal (python_info *pi, const char **py_argv, bool captu
 
     strcpy (prog, prog0);
     snprintf (prog + strlen(prog0), size, fmt, py_argv[0], py_argv[0]);
+    TRACE (1, "prog: '%s'\n", prog);
   }
 
   str = call_python_func (pi, prog, __LINE__);
@@ -3401,7 +3407,7 @@ static char *py_exec_internal (python_info *pi, const char **py_argv, bool captu
    *
    * Otherwise, if `capture == false`, the `str` should now be NULL.
    */
-  TRACE (2, "capture: %d, str:\n'%s'\n", capture, str ? str : "<none>");
+  TRACE (2, "\ncapture: %d, str:\n'%s'\n", capture, str ? str : "<none>");
 
   free_arg_vector (&av);
   return (str);
