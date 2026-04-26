@@ -906,22 +906,25 @@ static int CONTROL_parse (port_node *node, const char *file)
 /**
  * Parse `file` for a Github " REPO " relative link.
  */
-static int portfile_cmake_parse (port_node *node, const char *file)
+static bool portfile_cmake_parse (port_node *node, const char *file)
 {
-  int         len, rc = 0;
+  int         len;
+  bool        rc = false;
   size_t      f_size;
   char       *f_mem = fopen_mem (file, &f_size);
   char       *repo, *new_line, *end;
   const char *github;
 
   if (!f_mem)
-     return (0);
+     return (false);
 
   github = strstr (f_mem, VCPKG_GH_FUNC);
   if (github && (repo = strstr(f_mem, VCPKG_GH_REPO)) > github + sizeof(VCPKG_GH_FUNC))
   {
     repo = str_unquote (repo + sizeof(VCPKG_GH_REPO) - 1);
-    new_line = strchr (repo, '\n');
+    new_line = strchr (repo, '\r');
+    if (!new_line)
+       new_line = strchr (repo, '\n');
     if (!new_line)
        new_line = f_mem + f_size - 1;
     *new_line = '\0';
@@ -932,7 +935,7 @@ static int portfile_cmake_parse (port_node *node, const char *file)
     end = strchr (node->homepage, '\0');
     if (end[-1] == '"')
        end[-1] = '\0';
-    rc = 1;
+    rc = true;
   }
   FREE (f_mem);
   return (rc);
@@ -1174,9 +1177,9 @@ static int get_ports_list_from_cache (void)
      */
     snprintf (format, sizeof(format), "port_node_%d = %%s,%%d,%%d,%%s,%%s,%%s", i);
     rc = cache_getf (SECTION_VCPKG, format, &package, &have_CONTROL, &have_JSON, &version, &homepage, &description);
-    TRACE (2, "port_node from cache, rc: %d: (%s\\%s):\n"
+    TRACE (2, "port_node_%d from cache, rc: %d: (%s\\%s):\n"
                "     package: '%s', have_CONTROL: %d, have_JSON: %d, version: '%s', homepage: '%s', description: '%s'.\n",
-            rc, vcpkg_root, package, package, have_CONTROL, have_JSON, version, homepage, description);
+            i, rc, vcpkg_root, package, package, have_CONTROL, have_JSON, version, homepage, description);
 
     if (rc != 6)
        break;
@@ -2694,10 +2697,7 @@ static const char *get_installed_dir (const vcpkg_package *package)
     snprintf (dir, sizeof(dir), "%s\\installed", vcpkg_root);
 
   if (!is_directory_readable(dir))
-  {
-    vcpkg_set_last_err ("No status directory '%s'", dir);
-    return (NULL);
-  }
+     return vcpkg_set_last_err ("No status directory '%s'", dir);
 
   if (opt.show_unix_paths)
      slashify2 (dir, dir, '/');
@@ -3711,7 +3711,7 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
 static int json_parse_status_buf (smartlist_t *packages, const char *file, char *buf, size_t buf_len)
 {
   JSON_parser p;
-  JSON_tok_t  t [5000];
+  JSON_tok_t  t [10000];
   size_t      len;
   int         i, rc;
   char       *str;
@@ -3758,16 +3758,16 @@ static int json_parse_status_file (smartlist_t *packages, const char *file)
 
 static int json_parse_ports_file (port_node *node, const char *file)
 {
-  int    r = 0;
+  int    rc = 0;
   size_t f_size;
   char  *f_mem = fopen_mem (file, &f_size);
 
   if (f_mem)
   {
-    r = json_parse_ports_buf (node, file, f_mem, f_size);
+    rc = json_parse_ports_buf (node, file, f_mem, f_size);
     FREE (f_mem);
   }
-  return (r);
+  return (rc);
 }
 
 static void json_port_node_dump (const port_node *node)
@@ -3781,7 +3781,7 @@ static void json_port_node_dump (const port_node *node)
 
   //-------------------------------------------------------------------------
 
-  len0 = C_puts ("~3  description:~0  ") - 2;
+  len0 = C_puts ("~3  description:~0  ");
   save = C_setraw (1);
 
   if (node->description)
@@ -3810,7 +3810,7 @@ static void json_port_node_dump (const port_node *node)
     int         supported = get_plat_value (val, i, &name);
 
     if (i > 0)
-       C_printf ("%*s", len0, "");
+       C_printf ("%*s", len0 + 2, "");
     if (supported >= 0)
        C_printf ("0x%04X: %s%s\n", val, supported ? "" : "!", name);
   }
