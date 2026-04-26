@@ -231,10 +231,10 @@ static void test_misc (void)
 
   C_printf ("~3%s():~0\n", __FUNCTION__);
 
-  C_printf ("  check_if_cwd_in_search_path(~6\"envtool.exe\"~0):   %s~0\n",
+  C_printf ("  check_if_cwd_in_search_path (~6\"envtool.exe\"~0):   %s~0\n",
             check_if_cwd_in_search_path("envtool.exe") ? "~2YES" : "~5NO");
 
-  C_printf ("  check_if_cwd_in_search_path(~6\".\\envtool.exe\"~0): %s~0\n\n",
+  C_printf ("  check_if_cwd_in_search_path (~6\".\\envtool.exe\"~0): %s~0\n\n",
             check_if_cwd_in_search_path(".\\envtool.exe") ? "~2YES" : "~5NO");
 
   i = 0;
@@ -347,6 +347,8 @@ static void test_fix_path (void)
 
 /*
  * The `CSIDL_LOCAL_APPDATA` folder.
+ * Normally with Hidden + System attributes.
+ *
  * Save it's value to build up the path for `test_AppxReparsePoints()` later.
  */
 static char win_apps [_MAX_PATH];
@@ -419,7 +421,7 @@ static void test_SHGetFolderPath (void)
     #define CSIDL_COMMON_DESKTOPDIRECTORY   0x0019        /* All Users\Desktop */
     #define CSIDL_APPDATA                   0x001a        /* <user name>\Application Data */
     #define CSIDL_PRINTHOOD                 0x001b        /* <user name>\PrintHood */
-    #define CSIDL_LOCAL_APPDATA             0x001c        /* <user name>\Local Settings\Applicaiton Data (non roaming) */
+    #define CSIDL_LOCAL_APPDATA             0x001c        /* <user name>\Local Settings\Application Data (non roaming) */
     #define CSIDL_ALTSTARTUP                0x001d        /* non localized startup */
     #define CSIDL_COMMON_ALTSTARTUP         0x001e        /* non localized common startup */
     #define CSIDL_COMMON_FAVORITES          0x001f
@@ -566,9 +568,10 @@ static void test_AppxReparsePoints (void)
   while (num < max)
   {
     struct dirent2 *de = readdir2 (dp);
-    char   result [_MAX_PATH];
-    char  *file;
-    bool   rc;
+    char        result [_MAX_PATH];
+    char       *file;
+    const char *indent = num < 10 ? "" : " ";
+    bool        rc;
 
     TRACE (1, "de->d_name: '%s'\n", de ? de->d_name : "<none>");
 
@@ -583,7 +586,7 @@ static void test_AppxReparsePoints (void)
     file = slashify2 (de->d_name, de->d_name, slash);
     rc = get_reparse_point (file, result, sizeof(result));
 
-    C_printf ("  %d: \"%s\" ->\n", num, file);
+    C_printf ("  %d: \"%s\" ->\n%s", num, file, indent);
     if (!rc)
          C_printf ("     ~5%s~0\n", last_reparse_err);
     else C_printf ("     \"%s\"\n", slashify2(result, result, slash));
@@ -851,6 +854,7 @@ int do_tests (void)
   test_SHGetFolderPath();
   test_ReparsePoints();
   test_AppxReparsePoints();
+  cache_test();
 
   if (opt.under_appveyor || opt.under_github)
      test_AppVeyor_GitHub();
