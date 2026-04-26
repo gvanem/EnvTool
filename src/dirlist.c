@@ -158,6 +158,18 @@ int make_dir_spec (const char *arg, char *dir, char *spec)
 
 quit:
   FREE (a_copy);
+
+  /* Remove trailing slash if not on UNC form
+   */
+  if (!unc)
+  {
+    end = strchr (dir, '\0');
+    if (end - dir >= 2 && IS_SLASH(end[-1]))
+    {
+      end [-1] = '\0';
+      TRACE (1, "dir: '%s', spec: '%s'\n", dir, spec);
+    }
+  }
   TRACE (2, "dir: '%s', spec: '%s'\n", dir, spec);
   return (1);
 }
@@ -1047,6 +1059,9 @@ static UINT64 do_disk_usage (const char *dir, const struct od2x_options *opts)
    *
    *   echo %@filesize[/s w:\gv\*,b,a]  -> 3951603712
    *   du -ba w:\gv                     -> 3951603712
+   *
+   * On the subject of "used space" and "size on disk":
+   *   https://superuser.com/questions/241492/what-is-the-difference-between-used-space-size-and-size-on-disk
    */
 
   if ((double)disk_usage_sum_raw > 1E8)
