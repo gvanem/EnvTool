@@ -922,9 +922,7 @@ static bool portfile_cmake_parse (port_node *node, const char *file)
   if (github && (repo = strstr(f_mem, VCPKG_GH_REPO)) > github + sizeof(VCPKG_GH_FUNC))
   {
     repo = str_unquote (repo + sizeof(VCPKG_GH_REPO) - 1);
-    new_line = strchr (repo, '\r');
-    if (!new_line)
-       new_line = strchr (repo, '\n');
+    new_line = strpbrk (repo, "\r\n");
     if (!new_line)
        new_line = f_mem + f_size - 1;
     *new_line = '\0';
