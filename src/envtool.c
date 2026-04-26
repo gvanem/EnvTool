@@ -2095,7 +2095,10 @@ static char *evry_common_init (void)
   return (query_buf);
 }
 
+typedef BOOL (EVERYTHINGAPI *date2_func_t) (DWORD dwIndex, FILETIME *lpDateAccessed);
+
 #if defined(USE_EVERYTHING3)
+
 static int do_check_evry3 (void)
 {
   DWORD  err;
@@ -2121,7 +2124,6 @@ static int do_check_evry3 (void)
     WARN ("Failed to create Everything3 search-state: %s\n", evry_strerror(err));
     goto quit;
   }
-
   query = evry_common_init();
 
   Everything3_SetSearchText (search, query);
@@ -2182,6 +2184,19 @@ static int do_check_evry3 (void)
       continue;
     }
 
+#if 0
+    EVERYTHING3_UINT64 _ft = Everything3_GetResultDateRecentlyChanged (result, i);
+    if (_ft > 0ULL)
+    {
+      FILETIME ft;
+
+      *(EVERYTHING3_UINT64*) &ft = _ft;
+      mtime = FILETIME_to_time_t (&ft);
+      TRACE (2, "%3d: Everything3_GetResultDateRecentlyChanged(), mtime: %.24s\n",
+              i, mtime ? ctime(&mtime) : "<N/A>");
+    }
+    else
+#endif
     if (safe_stat(file, &st, NULL) == 0)
     {
       if (st.st_ctime > st.st_mtime)
@@ -2230,6 +2245,10 @@ static int do_check_evry2 (void)
   HWND   wnd;
   struct ver_info evry_ver = { 0, 0, 0, 0 };
 
+  DWORD        date_flag      = EVERYTHING_REQUEST_DATE_MODIFIED;
+  date2_func_t date_func      = Everything_GetResultDateAccessed;
+  const char  *date_func_name = "Everything_GetResultDateAccessed";
+
   wnd = FindWindow (EVERYTHING_IPC_WNDCLASS, 0);
   if (!wnd)
   {
@@ -2259,13 +2278,15 @@ static int do_check_evry2 (void)
          Everything_SetSort (EVERYTHING_SORT_PATH_ASCENDING);
          break;
 
-    case SORT_FILE_DATE:
-    case SORT_FILE_TIME:
-         Everything_SetSort (EVERYTHING_SORT_DATE_MODIFIED_ASCENDING);
-         break;
-
     case SORT_FILE_SIZE:
          Everything_SetSort (EVERYTHING_SORT_SIZE_ASCENDING);
+         break;
+
+    case SORT_FILE_DATE:
+    case SORT_FILE_TIME:
+         Everything_SetSort (version >= 0x010401 ?
+                             EVERYTHING_SORT_DATE_RECENTLY_CHANGED_ASCENDING :
+                             EVERYTHING_SORT_DATE_MODIFIED_ASCENDING);
          break;
 
     default:
@@ -2274,8 +2295,8 @@ static int do_check_evry2 (void)
 
   request_flags = Everything_GetRequestFlags();
 
-  /* The request flags: EVERYTHING_REQUEST_SIZE and/or EVERYTHING_REQUEST_DATE_MODIFIED
-   * needs v. 1.4.1 or later.
+  /* The request flags: EVERYTHING_REQUEST_SIZE, EVERYTHING_REQUEST_DATE_MODIFIED
+   * and/or EVERYTHING_REQUEST_DATE_RECENTLY_CHANGED needs v. 1.4.1 or later.
    * Ref:
    *   https://www.voidtools.com/support/everything/sdk/everything_setrequestflags/
    *
@@ -2284,7 +2305,13 @@ static int do_check_evry2 (void)
    */
   if (version >= 0x010401)
   {
-    request_flags |= EVERYTHING_REQUEST_SIZE | EVERYTHING_REQUEST_DATE_MODIFIED;
+    /* Use the 'Everything_GetResultDateRecentlyChanged()' function insteead
+     */
+    date_flag      = EVERYTHING_REQUEST_DATE_RECENTLY_CHANGED;
+    date_func      = Everything_GetResultDateRecentlyChanged;
+    date_func_name = "Everything_GetResultDateRecentlyChanged";
+
+    request_flags |= EVERYTHING_REQUEST_SIZE | date_flag;
     Everything_SetRequestFlags (request_flags);
     request_flags = Everything_GetRequestFlags();  /* should be the same as set above */
   }
@@ -2351,8 +2378,8 @@ static int do_check_evry2 (void)
 
   /* Sort results by path (ignore case).
    * This will fail if `request_flags` has either `EVERYTHING_REQUEST_SIZE`
-   * or `EVERYTHING_REQUEST_DATE_MODIFIED` since version 2 of the query protocol
-   * is used.
+   * or `date_flag` since version 2 of the query protocol is used.
+   *
    * Ref: The comment in Everything.c; "//TODO: sort list2"
    */
   Everything_SortResultsByPath();
@@ -2409,22 +2436,22 @@ static int do_check_evry2 (void)
 
     response_flags = 0;
 
-    if (request_flags & EVERYTHING_REQUEST_DATE_MODIFIED)
+    if (request_flags & date_flag)
     {
       FILETIME ft;
 
-      if (Everything_GetResultDateAccessed(i, &ft))
+      if ((*date_func)(i, &ft))
       {
-        response_flags |= EVERYTHING_REQUEST_DATE_MODIFIED;
+        response_flags |= date_flag;
         mtime = FILETIME_to_time_t (&ft);
-        TRACE (2, "%3lu: Everything_GetResultDateAccessed(), mtime: %.24s\n",
-                i, mtime ? ctime(&mtime) : "<N/A>");
+        TRACE (2, "%3lu: %s(), mtime: %.24s\n",
+                i, date_func_name, mtime ? ctime(&mtime) : "<N/A>");
       }
       else
       {
         err = Everything_GetLastError();
-        TRACE (2, "%3lu: Everything_GetResultDateAccessed(), err: %s\n",
-                i, evry_strerror(err));
+        TRACE (2, "%3lu: %s(), err: %s\n",
+                i, date_func_name, evry_strerror(err));
       }
     }
     if (request_flags & EVERYTHING_REQUEST_SIZE)
@@ -2447,7 +2474,7 @@ static int do_check_evry2 (void)
       }
     }
 
-    if ((response_flags & EVERYTHING_REQUEST_DATE_MODIFIED) == 0 ||
+    if ((response_flags & date_flag) == 0 ||
         (response_flags & EVERYTHING_REQUEST_SIZE) == 0 )
     {
       struct stat st;
@@ -3120,6 +3147,7 @@ static void parse_cmdline (void)
   TRACE (2, "c->argc0:       %d\n", c->argc0);
   TRACE (2, "opt.file_spec:  '%s'\n", opt.file_spec);
   TRACE (2, "opt.evry_raw:   %d\n", opt.evry_raw);
+  TRACE (2, "opt.use_evry3:  %d\n", opt.use_evry3);
   TRACE (2, "opt.force_evry: %d\n", opt.force_evry);
 }
 
