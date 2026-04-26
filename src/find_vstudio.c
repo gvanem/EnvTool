@@ -519,8 +519,8 @@ bool find_vstudio_init (void)
     if (g_crashinfo)
        rc = false;
 
-    FREE (g_crashinfo);
     SetUnhandledExceptionFilter (NULL);
+    FREE (g_crashinfo);
   }
   TRACE_NL (1);
 

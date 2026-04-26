@@ -89,11 +89,12 @@ found:
     parser->pos--;
     return (0);
   }
+
   token = JSON_alloc_token (parser, tokens, num_tokens);
   if (!token)
   {
     parser->pos = start;
-    TRACE (2, "No more tokens\n");
+    TRACE (2, "No more tokens; parser->tok_next: %u, num_tokens: %zu\n", parser->tok_next, num_tokens);
     return (JSON_ERROR_NO_TOK);
   }
   JSON_fill_token (token, JSON_PRIMITIVE, start, parser->pos);
@@ -127,7 +128,7 @@ static int JSON_parse_string (JSON_parser *parser, const char *js, size_t len, J
       if (!token)
       {
         parser->pos = start;
-        TRACE (2, "No more tokens\n");
+        TRACE (2, "No more tokens; parser->tok_next: %u, num_tokens: %zu\n", parser->tok_next, num_tokens);
         return (JSON_ERROR_NO_TOK);
       }
       JSON_fill_token (token, JSON_STRING, start+1, parser->pos);
@@ -204,7 +205,7 @@ int JSON_parse (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tok
            token = JSON_alloc_token (parser, tokens, num_tokens);
            if (!token)
            {
-             TRACE (2, "No more tokens\n");
+             TRACE (2, "No more tokens; parser->tok_next: %u, num_tokens: %zu\n", parser->tok_next, num_tokens);
              return (JSON_ERROR_NO_TOK);
            }
            if (parser->tok_super != -1)
@@ -236,6 +237,7 @@ int JSON_parse (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tok
            /* Error if unmatched closing bracket */
            if (i == -1)
               return (JSON_ERROR_INVAL);
+
            for (; i >= 0; i--)
            {
              token = &tokens[i];
@@ -251,9 +253,10 @@ int JSON_parse (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tok
            r = JSON_parse_string (parser, js, len, tokens, num_tokens);
            if (r < 0)
               return (r);
+
            count++;
            if (parser->tok_super != -1 && tokens)
-              tokens[parser->tok_super].size++;
+              tokens [parser->tok_super].size++;
            break;
 
       case '\n':
@@ -297,9 +300,10 @@ int JSON_parse (JSON_parser *parser, const char *js, size_t len, JSON_tok_t *tok
            r = JSON_parse_primitive (parser, js, len, tokens, num_tokens);
            if (r < 0)
               return (r);
+
            count++;
            if (tokens && parser->tok_super != -1)
-              tokens[parser->tok_super].size++;
+              tokens [parser->tok_super].size++;
            break;
     }
   }

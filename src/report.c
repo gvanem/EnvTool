@@ -397,8 +397,13 @@ int report_file (report *r)
   if (opt.show_size && show_dir_size && (opt.dir_mode || r->key == HKEY_PYTHON_PATH))
   {
     if (r->is_dir)
-         fsize = get_directory_size (r->file);
-    else fsize = r->fsize;
+    {
+      fsize = get_directory_size (r->file);
+      TRACE (1, "size: %llu\n", fsize);
+    }
+    else
+      fsize = r->fsize;
+
     snprintf (size, sizeof(size), " - %s", get_file_size_str(fsize));
     incr_total_size (fsize);
   }

@@ -3180,7 +3180,6 @@ char *ws2_strerror (int err)
     snprintf (buf, sizeof(buf), "(%d) %s", err, err_buf);
     return (buf);
   }
-
   snprintf (buf, sizeof(buf), "%d?", err);
   return (buf);
 }
