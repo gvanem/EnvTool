@@ -329,10 +329,12 @@ Gisle Vanem [gvanem@yahoo.no](mailto:gvanem@yahoo.no).
           envtool --evry Makefile.am content:pod2man        - find Makefile.am with pod2man commands.
           envtool --evry M*.mp3 artist:Madonna "year:<2002" - find all Madonna M*.mp3 titles issued prior to 2002.
 
-   1.3: Enhanced "envtool --check -v" to look for shadowed files in important environment variables
+  1.3:  Enhanced "envtool --check -v" to look for shadowed files in important environment variables
         like PATH, INCLUDE and LIB. See E.g. 10. above.
 
-   1.4: Added a "--lua" option.
+  1.4:  Added a "--lua" option.
+
+  1.5:  Bumped version.
 
 ```
 
