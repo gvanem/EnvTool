@@ -260,7 +260,7 @@ void lua_exit (void)
 }
 
 /**
- * Called from `do_check()` to check `%LUA_PATH` and `%LUA_CPATH`
+ * Called from `check_handler()` to check `%LUA_PATH` and `%LUA_CPATH`
  * for missing directories.
  */
 void lua_check_env (const char *env, int *num, char *status, size_t status_sz)

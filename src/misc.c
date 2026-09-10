@@ -3523,11 +3523,13 @@ void crtdbug_exit (void)
 
   _CrtCheckMemory();
   _CrtSetDbgFlag (0);
+
 #if 0
   if (opt.debug)
        _CrtMemDumpStatistics (&last_state);
   else _CrtMemDumpAllObjectsSince (&last_state);
 #endif
+
   _CrtDumpMemoryLeaks();
 }
 
@@ -3535,6 +3537,7 @@ void crtdbug_exit (void)
 void crtdbug_init (void)
 {
 }
+
 void crtdbug_exit (void)
 {
 }
@@ -4561,7 +4564,7 @@ char *getenv_expand_sys (const char *variable)
 /**
  * Get the values from the System environment block.
  *
- * Should later be called from `do_check()` to check for mismatches
+ * Should later be called from `check_handler()` to check for mismatches
  * in the User environment block.
  */
 bool getenv_system (smartlist_t **sl)

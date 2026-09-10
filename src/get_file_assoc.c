@@ -229,12 +229,12 @@ int MS_CDECL main (int argc, char **argv)
   C_init();
   crtdbug_init();
 
-   if (argc >= 2 && !strcmp(argv[1], "-d"))
-   {
-     opt.debug = 1;
-     argc--;
-     argv++;
-   }
+  if (argc >= 2 && !strcmp(argv[1], "-d"))
+  {
+    opt.debug = 1;
+    argc--;
+    argv++;
+  }
 
   if (argc == 2 && (argv[1][0] == '.' || argv[1][0] == '*'))
        extension_to_test = argv[1];

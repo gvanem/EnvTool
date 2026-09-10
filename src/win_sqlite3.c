@@ -27,7 +27,7 @@
 #if !defined(HAVE_WINSQLITE3_H) || (_WIN32_WINNT < 0x0A00)
   typedef struct sqlite3         sqlite3;
   typedef struct sqlite3_vfs     sqlite3_vfs;
-  typedef int (SQLITE_CALLBACK*  sqlite3_callback) (void *cb_arg, int argc, char **argv, char **col_name);
+  typedef int (SQLITE_CALLBACK *sqlite3_callback) (void *cb_arg, int argc, char **argv, char **col_name);
 #endif
 
 #if defined(HAVE_WINSQLITE3_H) && (_WIN32_WINNT >= 0x0A00)

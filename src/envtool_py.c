@@ -1252,7 +1252,7 @@ static void py_get_meta_details (python_module *m)
           m->author_email = str_ndup (p+1, q - p);
           FREE (email);
         }
-        if (m->author && p)
+        if (m->author && p > m->author)
         {
           author = m->author;
           m->author = str_ndup (m->author, p - m->author);
