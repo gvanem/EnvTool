@@ -72,6 +72,7 @@ OBJECTS = $(OBJ_DIR)\auth.obj           \
           $(OBJ_DIR)\envtool_py.obj     \
           $(OBJ_DIR)\cache.obj          \
           $(OBJ_DIR)\cfg_file.obj       \
+          $(OBJ_DIR)\check.obj          \
           $(OBJ_DIR)\cmake.obj          \
           $(OBJ_DIR)\compiler.obj       \
           $(OBJ_DIR)\color.obj          \
@@ -234,6 +235,8 @@ msclean: clean
 $(OBJ_DIR)\auth.obj:           auth.c color.h envtool.h getopt_long.h sort.h smartlist.h auth.h
 $(OBJ_DIR)\cache.obj:          cache.c envtool.h getopt_long.h sort.h smartlist.h color.h cache.h
 $(OBJ_DIR)\cfg_file.obj:       cfg_file.c color.h cfg_file.h envtool.h getopt_long.h sort.h smartlist.h
+$(OBJ_DIR)\check.obj:          check.c check.h envtool.h ignore.h lua.h get_file_assoc.h dirlist.h \
+                               cache.h color.h cmake.h
 $(OBJ_DIR)\envtool.res:        envtool.h
 $(OBJ_DIR)\envtool.obj:        envtool.c getopt_long.h Everything.h Everything_IPC.h Everything_ETP.h \
                                envtool.h envtool_py.h dirlist.h auth.h color.h smartlist.h \
