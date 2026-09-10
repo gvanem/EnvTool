@@ -20,7 +20,7 @@ USE_CRT_STATIC ?= 1
 #
 # Use 'win_sqlite3.c' for caching.
 #
-USE_SQLITE3 ?= 1
+USE_SQLITE3 ?= 0
 
 #
 # Use wsock_trace library.
