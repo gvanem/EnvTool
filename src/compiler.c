@@ -1841,11 +1841,7 @@ static const char *gcc_version (void)
 #endif
 
 /**
- * 'clang-cl', 'icx' and 'zig' should have `__clang_version__` as a built-in.
- * E.g. zig has:
- * ```
- *  __clang_version__ = "17.0.3 (https://github.com/ziglang/zig-bootstrap a97ca22b417b799e29f87d1b054d65bbff8a264e)"
- * ```
+ * 'clang-cl' and 'icx' should have `__clang_version__` as a built-in.
  */
 const char *compiler_clang_version (void)
 {
@@ -1875,7 +1871,7 @@ const char *compiler_clang_version (void)
 static char cc_info_buf [100];
 
 /*
- * Since 'icx' + 'zig' also defines '__clang__', put this #if-test here.
+ * Since 'icx' also defines '__clang__', put this #if-test here.
  */
 #if defined(__INTEL_LLVM_COMPILER)
   #include <mkl_version.h>
@@ -1898,15 +1894,6 @@ static char cc_info_buf [100];
   #endif
 
     p += snprintf (p, left, ", %s", DBG_REL);
-    return (cc_info_buf);
-  }
-
-#elif defined(IS_ZIG_CC)
-  #include "zig_version.h"
-
-  const char *compiler_version (void)
-  {
-    snprintf (cc_info_buf, sizeof(cc_info_buf), "zig %s/gcc %s", zig_version, gcc_version());
     return (cc_info_buf);
   }
 
@@ -1977,10 +1964,6 @@ static char cc_info_buf [100];
 #if defined(__INTEL_LLVM_COMPILER)
   #define CFLAGS   "cflags_icx.h"
   #define LDFLAGS  "ldflags_icx.h"
-
-#elif defined(IS_ZIG_CC)
-  #define CFLAGS   "cflags_zig.h"
-  #define LDFLAGS  "ldflags_zig.h"
 
 #elif defined(__clang__)
   #define CFLAGS   "cflags_clang-cl.h"

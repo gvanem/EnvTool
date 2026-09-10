@@ -3,9 +3,9 @@
 #ifndef _ENVTOOL_H
 #define _ENVTOOL_H
 
-#define VER_STRING  "1.5"
+#define VER_STRING  "1.6"
 #define MAJOR_VER   1
-#define MINOR_VER   5
+#define MINOR_VER   6
 
 #define AUTHOR_STR    "Gisle Vanem <gvanem@yahoo.no>"
 #define GITHUB_STR    "https://github.com/gvanem/EnvTool"
@@ -14,13 +14,7 @@
 #error "This program is not longer UNICODE compatible. Good riddance Microsoft."
 #endif
 
-#if defined(IS_ZIG_CC)
-  /*
-   * No 'Debug' mode in zig-lang
-   */
-  #define BUILDER  "zig-lang, release"
-
-#elif defined(__INTEL_LLVM_COMPILER)
+#if defined(__INTEL_LLVM_COMPILER)
   #ifdef _DEBUG
     #define BUILDER  "Intel oneAPI DPC++, debug"
   #else
@@ -100,8 +94,6 @@
   #undef  _CRTDBG_MAP_ALLOC
   #define _POSIX_PATH_MAX  256
 #endif
-
-#include "getopt_long.h"
 
 #if defined(_DEBUG)
   #define ASSERT(expr) do {                                            \
@@ -183,35 +175,29 @@
  * Strip the directory part.
  */
 #if defined(_MSC_VER)
-  #define __FILE()           basename (__FILE__)
-  #define snprintf           _snprintf
+  #define __FILE()         basename (__FILE__)
+  #define snprintf         _snprintf
 #else
-  #define __FILE()           __FILE__
+  #define __FILE()         __FILE__
 #endif
 
 #define DIR_SEP            '\\'
+#define _S_ISDIR(mode)     (((mode) & _S_IFMT) == _S_IFDIR)
+#define _S_ISREG(mode)     (((mode) & _S_IFMT) == _S_IFREG)
 
-#ifndef _S_ISDIR
-  #define _S_ISDIR(mode)     (((mode) & _S_IFMT) == _S_IFDIR)
-#endif
-
-#ifndef _S_ISREG
-  #define _S_ISREG(mode)     (((mode) & _S_IFMT) == _S_IFREG)
-#endif
+#define FILE_EXISTS(f)     _file_exists (f)
+#define IS_SLASH(c)        ((c) == '\\' || (c) == '/')
 
 #ifndef _tzname
-  #define _tzname tzname
+#define _tzname tzname
 #endif
 
-#define FILE_EXISTS(f)       _file_exists (f)
-#define IS_SLASH(c)          ((c) == '\\' || (c) == '/')
-
 #if defined(__clang__)
-  #define ATTR_PRINTF(_1,_2) __attribute__((format(printf,_1,_2)))
-  #define ATTR_UNUSED()      __attribute__((unused))
-  #define WIDESTR_FMT        "S"
+  #define ATTR_PRINTF(a, b) __attribute__((format(printf,a, b)))
+  #define ATTR_UNUSED()     __attribute__((unused))
+  #define WIDESTR_FMT       "S"
 #else
-  #define ATTR_PRINTF(_1,_2)
+  #define ATTR_PRINTF(a, b)
   #define ATTR_UNUSED()
   #define WIDESTR_FMT      "ws"
 #endif
@@ -219,24 +205,14 @@
 #define S64_FMT "I64d"
 #define U64_FMT "I64u"
 
-#ifndef _I64_MIN
-#define _I64_MIN  -9223372036854775806LL
-#endif
-
-#ifndef _I64_MAX
-#define _I64_MAX  9223372036854775807LL
-#endif
-
-#ifndef ALIGN_4
-#define ALIGN_4  __declspec (align (4))
-#endif
+#define STDOUT_FILENO  1
 
 /*
  * Format for printing an hex linear address.
  * E.g. printf (buf, "0x%"ADDR_FMT, ADDR_CAST(ptr));
  */
-#if defined(__x86_64__) || defined(_M_X64)     /* 64-bit targets */
-  #if defined(__clang__) || defined(__GNUC__)  /* clang or zig */
+#if defined(__x86_64__) || defined(_M_X64)    /* 64-bit targets */
+  #if defined(__clang__)                      /* clang */
     #define ADDR_FMT      "016llX"
   #elif defined(_MSC_VER)
     #define ADDR_FMT      "016I64X"
@@ -261,18 +237,6 @@
   #define MS_CDECL
 #endif
 
-#ifndef STDOUT_FILENO
-#define STDOUT_FILENO  1
-#endif
-
-#ifndef UINT64
-#define UINT64  unsigned __int64
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define HKEY_PYTHON_PATH               (HKEY) 0x7FF0
 #define HKEY_PYTHON_EGG                (HKEY) 0x7FF1
 #define HKEY_EVERYTHING                (HKEY) 0x7FF2
@@ -285,6 +249,10 @@ extern "C" {
 #define HKEY_LUA_DLL                   (HKEY) 0x7FF9  /* A .dll for Lua */
 #define HKEY_LOCAL_MACHINE_SESSION_MAN (HKEY) (HKEY_LOCAL_MACHINE + 0xFF) /* HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment */
 #define HKEY_CURRENT_USER_ENV          (HKEY) (HKEY_CURRENT_USER + 0xFF)  /* HKCU\Environment */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** \enum SignStatus
  *  Used with the `--pe` and `--signed[=0|1]` options to filter PE-files
@@ -314,6 +282,7 @@ typedef enum SignStatus {
         SIGN_CHECK_SIGNED
       } SignStatus;
 
+#include "getopt_long.h"
 #include "sort.h"
 #include "smartlist.h"
 #include "report.h"
@@ -362,6 +331,7 @@ typedef struct prog_options {
         int             use_buffered_io;
         int             use_nonblock_io;
         int             dir_mode;
+        int             file_mode;
         int             lua_mode;
         int             man_mode;
         int             PE_check;
@@ -413,6 +383,7 @@ typedef struct prog_options {
 
 extern prog_options opt;
 extern char  *program_name;       /* used by getopt_long.c */
+extern char  *where_am_I;         /* used by vcpkg.c */
 
 extern bool have_sys_native_dir, have_sys_wow64_dir;
 
@@ -474,12 +445,17 @@ extern registry_array  *reg_array_add (HKEY key, const char *fname, const char *
 extern smartlist_t *dir_array_head (void);
 extern void         dir_array_free (void);
 extern void         dir_array_wiper (void *);
+extern bool         dir_is_empty (const char *dir);
 
 extern smartlist_t *reg_array_head (void);
 extern void         reg_array_free (void);
 
+extern void         build_reg_array_app_path (HKEY top_key);
 extern smartlist_t *get_matching_files (const char *dir, const char *file_spec);
 extern int          do_check_env (const char *env_name);
+
+extern void scan_reg_environment (HKEY top_key, const char *sub_key,
+                                  char **path, char **inc, char **lib);
 
 /**
  * \def REG_APP_PATH
@@ -507,7 +483,7 @@ struct shadow_entry {
 
 /* Stuff in misc.c:
  */
-int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1,2);
+int debug_printf (_Printf_format_string_ const char *format, ...) ATTR_PRINTF (1, 2);
 
 /*
  * According to:
@@ -800,7 +776,7 @@ typedef struct FMT_buf {
            FREE (_buf->buffer);  \
       } while (0)
 
-int  buf_printf         (const char *file, unsigned line, FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...) ATTR_PRINTF (4,5);
+int  buf_printf         (const char *file, unsigned line, FMT_buf *fmt_buf, _Printf_format_string_ const char *format, ...) ATTR_PRINTF (4, 5);
 void buf_puts_long_line (const char *file, unsigned line, FMT_buf *fmt_buf, const char *str, size_t indent);
 int  buf_puts           (const char *file, unsigned line, FMT_buf *fmt_buf, const char *string);
 int  buf_putc           (const char *file, unsigned line, FMT_buf *fmt_buf, int ch);
@@ -865,19 +841,19 @@ extern void     free_at    (void *ptr, const char *file, unsigned line);
 extern void     mem_report (void);
 
 #if defined(_CRTDBG_MAP_ALLOC)
-  #define MALLOC        malloc
-  #define CALLOC        calloc
-  #define REALLOC       realloc
-  #define STRDUP        strdup
-  #define WCSDUP        wcsdup
-  #define FREE(p)       (p ? (void) (free(p), p = NULL) : (void)0)  // -V595
+  #define MALLOC(sz)       malloc (sz)
+  #define CALLOC(elem,sz)  calloc (elem,sz)
+  #define REALLOC(p,sz)    realloc (p,sz)
+  #define STRDUP(s)        strdup (s)
+  #define WCSDUP(s)        wcsdup (s)
+  #define FREE(p)          (p ? (void) (free(p), p = NULL) : (void)0)  // -V595
 #else
-  #define MALLOC(s)     malloc_at (s, __FILE(), __LINE__)
-  #define CALLOC(n,s)   calloc_at (n, s, __FILE(), __LINE__)
-  #define REALLOC(p,s)  realloc_at (p, s, __FILE(), __LINE__)
-  #define STRDUP(s)     strdup_at (s, __FILE(), __LINE__)
-  #define WCSDUP(s)     wcsdup_at (s, __FILE(), __LINE__)
-  #define FREE(p)       (p ? (void) (free_at((void*)p, __FILE(), __LINE__), p = NULL) : (void)0)
+  #define MALLOC(s)        malloc_at (s, __FILE(), __LINE__)
+  #define CALLOC(n,s)      calloc_at (n, s, __FILE(), __LINE__)
+  #define REALLOC(p,s)     realloc_at (p, s, __FILE(), __LINE__)
+  #define STRDUP(s)        strdup_at (s, __FILE(), __LINE__)
+  #define WCSDUP(s)        wcsdup_at (s, __FILE(), __LINE__)
+  #define FREE(p)          (p ? (void) (free_at((void*)p, __FILE(), __LINE__), p = NULL) : (void)0)
 #endif
 
 /* Wrapper for popen().
@@ -928,7 +904,7 @@ extern char *fnmatch_res  (int rc);
  *   \param ...   a var-arg list of format an arguments (just like `printf()`).
  */
 #define DIM(arr)       (int) (sizeof(arr) / sizeof(arr[0]))
-#define ARGSUSED(foo)  (void)foo
+#define ARGSUSED(foo)  (void) foo
 
 #define TRACE(level, ...)  do {                                    \
                              if (opt.debug >= level) {             \
@@ -945,18 +921,6 @@ extern char *fnmatch_res  (int rc);
 
 #define WARN(...)           do {                                        \
                               if (!opt.quiet) {                         \
-                                 C_puts ("~5");                         \
-                                 C_printf (__VA_ARGS__);                \
-                                 C_puts ("~0");                         \
-                                 C_flush();                             \
-                              }                                         \
-                            } while (0)
-
-/*
- * As above, but must be used with a local 'ignore' variable:
- */
-#define WARN2(...)          do {                                        \
-                              if (!ignore && !opt.quiet) {              \
                                  C_puts ("~5");                         \
                                  C_printf (__VA_ARGS__);                \
                                  C_puts ("~0");                         \
