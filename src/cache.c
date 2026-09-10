@@ -814,7 +814,7 @@ static int cache_vgetf (CacheSections section, const char *fmt, va_list args, vg
   state->value = STRDUP (value);
 
   i = 0;
-  i_max = DIM(state->s_val);
+  i_max = DIM (state->s_val);
 
   v     = state->value;
   v_end = strchr (v, '\0');
@@ -946,13 +946,15 @@ static void cache_test_dump (void)
   const cache_node *c;
   int   i, max = cache.entries ? smartlist_len (cache.entries) : 0;
 
+  C_setraw (0);
   C_printf ("~3%s():~0\n  section: %s\n", __FUNCTION__, sections[SECTION_TEST].name);
+  C_setraw (1);
 
   for (i = 0; i < max; i++)
   {
     c = smartlist_get (cache.entries, i);
     if (c->section == SECTION_TEST)
-       printf ("  %-10s -> %s.\n", c->key, c->value);
+       C_printf ("  %-10s -> %s.\n", c->key, c->value);
   }
   C_putc ('\n');
 }
@@ -1063,7 +1065,7 @@ static void cache_test_init (void)
 
   t = tests + 0;
   for (i = 0; i < DIM(tests); i++, t++)
-      printf ("  rc: %d, getf_value: '%.50s' ...\n", t->rc, t->getf_value);
+      C_printf ("  rc: %d, getf_value: '%.50s' ...\n", t->rc, t->getf_value);
   C_putc ('\n');
 }
 
@@ -1104,9 +1106,15 @@ static size_t cache_test_getf (void)
       if (j < rc - 1)
       {
         *buf++ = ',';
-        *buf++ = '\0';
-        left -= 2;
+        left--;
       }
+      *buf++ = '\0';
+
+      if (!strcmp(fmt, "%s"))
+           TRACE (1, "getf_value: '%s', args[%d]: '%s', left: %zu\n",
+                  getf_value, j, args[j] ? args[j] : "NULL", left);
+      else TRACE (1, "getf_value: '%s', args[%d]: '%zd', left: %zu\n",
+                  getf_value, j, (intptr_t)args[j], left);
     }
 
     equal = (strcmp (t->getf_value, getf_value) == 0);
@@ -1114,16 +1122,20 @@ static size_t cache_test_getf (void)
     if (rc == t->rc && equal)
        num_ok++;
 
-    printf ("  rc: %d, t->rc: %d, equal: %d, key_value: '%s'...\n",
-            rc, t->rc, equal, key_value);
+    C_printf ("  rc: %d, t->rc: %d, equal: %d, key_value: '%s'...\n",
+              rc, t->rc, equal, key_value);
 
-    printf ("  t->getf_value: '%s'\n"
-            "  getf_value:    '%s'\n", t->getf_value, getf_value);
+    C_printf ("  t->getf_value: '%s'\n"
+              "  getf_value:    '%s'\n", t->getf_value, getf_value);
   }
+
+  C_setraw (0);
 
   if (num_ok == i)
        C_printf ("  All tests ran ~2OKAY~0.\n\n");
   else C_printf ("  %zu out of %d tests ~5FAILED~0.\n\n", i - num_ok, DIM(tests));
+
+  C_setraw (1);
   return (num_ok);
 }
 
@@ -1132,11 +1144,14 @@ static size_t cache_test_getf (void)
  */
 void cache_test (void)
 {
+  int raw;
+
   C_puts ("~3cache_test()~0:\n");
 
   if (!opt.use_cache)
      cache.entries = smartlist_new();
 
+  raw = C_setraw (1);
   cache_test_init();
 
   cache_test_getf();   /* Now, read them back */
@@ -1182,4 +1197,5 @@ void cache_test (void)
            str[8], str[9], str[10], str[11],
            str[12]);
   }
+  C_setraw (raw);
 }

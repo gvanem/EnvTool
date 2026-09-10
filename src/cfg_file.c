@@ -210,8 +210,12 @@ static void parse_config_file (CFG_FILE *cf)
     snprintf (cfg->section, p_size - sizeof(*cfg), "[%s] %s", cf->section, cf->keyword);
     p = strchr (cfg->section, ']');
     p[1] = '\0';
-    cfg->key   = p + 2;
-    cfg->value = getenv_expand2 (cf->value);   /* Allocates memory */
+    cfg->key = p + 2;
+
+    if (strchr(cf->value, '%'))
+         cfg->value = getenv_expand2 (cf->value);   /* Allocates memory */
+    else cfg->value = STRDUP (cf->value);
+
     smartlist_add (cf->list, cfg);
 
     handler = lookup_section_handler (cf, cfg->section);
