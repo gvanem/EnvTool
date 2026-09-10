@@ -9,6 +9,12 @@
  * @}
  */
 
+/**\addtogroup Check `envtool --check` functions
+ * @{
+ *
+ * @}
+ */
+
 /**\addtogroup Color  printf()-style printing with colours
  * @{
  *

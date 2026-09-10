@@ -766,6 +766,7 @@ INPUT = main_page.dox           \
         ../src/envtool_py.c     \
         ../src/cache.c          \
         ../src/cfg_file.c       \
+        ../src/check.c          \
         ../src/color.c          \
         ../src/compiler.c       \
         ../src/Everything.c     \
@@ -791,6 +792,8 @@ INPUT = main_page.dox           \
         ../src/win_ver.c        \
         ../src/auth.h           \
         ../src/cache.h          \
+        ../src/cfg_file.h       \
+        ../src/check.h          \
         ../src/color.h          \
         ../src/compiler.h       \
         ../src/description.h    \
