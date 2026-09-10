@@ -60,6 +60,7 @@ char        *smartlist_join_str (smartlist_t *sl, const char *sep);
   /*
    * Some helpful bug-hunter versions and macros.
    */
+  void     smartlist_del_dbg        (smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line);
   int      smartlist_len_dbg        (const smartlist_t *sl, const char *sl_name, const char *file, unsigned line);
   void    *smartlist_get_dbg        (const smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line);
   unsigned smartlist_getu_dbg       (const smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line);
@@ -67,6 +68,7 @@ char        *smartlist_join_str (smartlist_t *sl, const char *sep);
   unsigned smartlist_addu_dbg       (smartlist_t *sl, unsigned element, const char *sl_name, const char *file, unsigned line);
   char    *smartlist_add_strdup_dbg (smartlist_t *sl, const char *string, const char *sl_name, const char *file, unsigned line);
 
+  #define smartlist_del(sl, idx)        smartlist_del_dbg (sl, idx, #sl, __FILE(), __LINE__)
   #define smartlist_len(sl)             smartlist_len_dbg (sl, #sl, __FILE(), __LINE__)
   #define smartlist_get(sl, idx)        smartlist_get_dbg (sl, idx, #sl, __FILE(), __LINE__)
   #define smartlist_getu(sl, idx)       smartlist_getu_dbg (sl, idx, #sl, __FILE(), __LINE__)

@@ -69,6 +69,7 @@ typedef struct smartlist_t {
   #define ASSERT_VAL(ptr) (void) 0
 #endif
 
+#undef smartlist_del
 #undef smartlist_len
 #undef smartlist_get
 #undef smartlist_getu
@@ -855,10 +856,21 @@ char *smartlist_join_str (smartlist_t *sl, const char *sep)
 
 #ifdef _DEBUG
 /*
- * Some helpful versions of 'smartlist_len()' and 'smartlist_get()' for
+ * Some helpful versions of 'smartlist_del()', 'smartlist_len()' and 'smartlist_get()' for
  * '_DEBUG' (and '_CRTDBG_MAP_ALLOC'). These give a clue as to where these
  * were wrongly used.
  */
+void smartlist_del_dbg (smartlist_t *sl, int idx, const char *sl_name, const char *file, unsigned line)
+{
+  if (!sl)
+     FATAL ("Illegal use of 'smartlist_del (%s, %d)' from %s(%u).\n", sl_name, idx, file, line);
+  if (idx >= sl->num_used)
+     FATAL ("Illegal use of 'smartlist_del (%s, %d)' from %s(%u); idx: %d, sl->num_used: %d\n",
+            sl_name, idx, file, line, idx, sl->num_used);
+
+  smartlist_del (sl, idx);
+}
+
 int smartlist_len_dbg (const smartlist_t *sl, const char *sl_name, const char *file, unsigned line)
 {
   if (!sl)
@@ -871,6 +883,9 @@ void *smartlist_get_dbg (const smartlist_t *sl, int idx, const char *sl_name, co
 {
   if (!sl)
      FATAL ("Illegal use of 'smartlist_get (%s, %d)' from %s(%u).\n", sl_name, idx, file, line);
+  if (idx >= sl->num_used)
+     FATAL ("Illegal use of 'smartlist_get (%s, %d)' from %s(%u); idx: %d, sl->num_used: %d\n",
+            sl_name, idx, file, line, idx, sl->num_used);
   ASSERT_VAL (sl);
   return (sl->list[idx]);
 }
@@ -879,6 +894,12 @@ unsigned smartlist_getu_dbg (const smartlist_t *sl, int idx, const char *sl_name
 {
   if (!sl)
      FATAL ("Illegal use of 'smartlist_getu (%s, %d)' from %s(%u).\n", sl_name, idx, file, line);
+
+  if (idx >= sl->num_used)
+     FATAL ("Illegal use of 'smartlist_getu (%s, %d)' from %s(%u); idx: %d, sl->num_used: %d\n",
+            sl_name, idx, file, line, idx, sl->num_used);
+
+  ASSERT (idx >= 0);
   ASSERT_VAL (sl);
   return (unsigned) (intptr_t) sl->list[idx];
 }
