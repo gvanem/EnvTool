@@ -3646,7 +3646,8 @@ static int json_parse_ports_buf (port_node *node, const char *file, char *buf, s
     }
     else if (JSON_str_eq(&t[i], buf, "supports"))
     {
-      if (smartlist_getu(node->supports, 0) == VCPKG_plat_ALL)
+      if (smartlist_len(node->supports) > 0 &&
+          smartlist_getu(node->supports, 0) == VCPKG_plat_ALL)
          smartlist_del (node->supports, 0);
 
 #if !defined(JSON_TEST) || 1
@@ -3869,8 +3870,11 @@ int vcpkg_json_parser_test (void)
   }
   else
   {
+    char test_json [_MAX_PATH];
+
+    snprintf (test_json, sizeof(test_json), "%s\\test.json", where_am_I);
     smartlist_addu (node.supports, VCPKG_plat_ALL);
-    json_parse_ports_file (&node, "test.json");
+    json_parse_ports_file (&node, test_json);
     json_port_node_dump (&node);
     FREE (node.description);
   }
