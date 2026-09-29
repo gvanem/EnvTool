@@ -238,7 +238,7 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
 
   for (i = errors = 0; i < max; i++)
   {
-    bool  is_cygdrive = false;
+    bool  is_posix = false;
     char  fbuf [_MAX_PATH];
     const char *start, *end;
 
@@ -256,10 +256,10 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
     while (*end == ' ' || *end == '\t')
        end--;
 
-    if (str_equal_n("/cygdrive/", arr->dir, 10))
+    if (looks_like_cygwin_msys_or_wsl(arr->dir))
     {
       _strlcpy (fbuf, arr->dir, sizeof(fbuf));
-      is_cygdrive = true;
+      is_posix = true;
     }
     else
       slashify2 (fbuf, arr->dir, opt.show_unix_paths ? '/' : '\\');
@@ -267,7 +267,7 @@ static void check_env_val (const char *env, const char *file_spec, int *num, cha
     if (!stricmp("PATH", env))
        ignored = cfg_ignore_lookup ("[Path]", arr->dir);
 
-    if (!opt.file_mode && !is_cygdrive && !isalpha(arr->dir[0]))
+    if (!opt.file_mode && !is_posix && !isalpha(arr->dir[0]))
     {
       snprintf (status, status_sz, "~5Missing drive~0: ~3\"%s\"~0", fbuf);
       errors++;
@@ -960,7 +960,7 @@ bool check_cfg_handler (const char *section, const char *key, const char *value)
 
     smartlist_add (extra_checks, check);
 
-    TRACE (0, "Added check for env-var: '%s'\n", check->what);
+    TRACE (1, "Added check for env-var: '%s'\n", check->what);
     return (true);
   }
 
@@ -1018,7 +1018,7 @@ bool check_cfg_handler (const char *section, const char *key, const char *value)
     if (len > longest_key_name)
        longest_key_name = len;
 
-    TRACE (0, "Added check for reg-key: '%s\\%s'\n", top_key_name_short(check->reg_key), check->what);
+    TRACE (1, "Added check for reg-key: '%s\\%s'\n", top_key_name_short(check->reg_key), check->what);
     smartlist_add (extra_checks, check);
     return (true);
   }
@@ -1030,26 +1030,31 @@ bool check_cfg_handler (const char *section, const char *key, const char *value)
  * Similar to e.g.:
  *   reg.exe query HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Defaults\FirewallPolicy /s
  */
-static int get_reg_vals (HKEY top_key, const char *key_name)
+static int get_reg_key_vals (HKEY top_key, const char *key_name)
 {
   HKEY  key = NULL;
   int   num = 0;
   DWORD rc = RegOpenKeyEx (top_key, key_name, 0, KEY_READ, &key);
 
   if (rc != ERROR_SUCCESS)
-      TRACE (1, "RegOpenKeyEx (\"%s\\%s\"): rc: %lu / %s\n",
-             top_key_name_short(top_key), key_name, rc, win_strerror(GetLastError()));
-  else num++;
+  {
+    TRACE (1, "RegOpenKeyEx (\"%s\\%s\"): rc: %lu / %s\n",
+           top_key_name_short(top_key), key_name, rc, win_strerror(GetLastError()));
+    return (-1);
+  }
 
   while (rc == ERROR_SUCCESS)
   {
     char  value [1000] = { "?" };
     DWORD size = sizeof(value);
 
-    rc = RegEnumKeyEx (key, num - 1, value, &size, NULL, NULL, NULL, NULL);
-    TRACE (1, "RegEnumKeyEx(%d): rc: %lu, '%s'\n", num - 1, rc, value);
+    rc = RegEnumKeyEx (key, num, value, &size, NULL, NULL, NULL, NULL);
+    TRACE (1, "RegEnumKeyEx(%d): rc: %lu, '%s'\n", num, rc, value);
     if (rc == ERROR_NO_MORE_ITEMS)
        break;
+
+    if (opt.verbose)
+       C_printf (CHECK_FMT "%s~0\n", num, value);
     num++;
   }
   if (key)
@@ -1059,18 +1064,22 @@ static int get_reg_vals (HKEY top_key, const char *key_name)
 
 static int check_reg_var (const extra_check *check)
 {
-  const char *indent = "\n    ";
-  int         num = 0;
+  const char *indent;
+  int         num;
   size_t      len;
 
-  C_puts ("  Checking ");
+  C_puts ("  Checking! ");
   len = (size_t) C_printf ("~3%s\\%s~0:", top_key_name_short(check->reg_key), check->what) - 1;
-  num = get_reg_vals (check->reg_key, check->what);
+  if (opt.verbose)
+     C_putc ('\n');
 
-  if (!opt.verbose)
-     indent = str_repeat (' ', longest_key_name - len + 1);
+  num = get_reg_key_vals (check->reg_key, check->what);
 
-  if (num == 0)
+  if (opt.verbose)
+       indent = "    ";
+  else indent = str_repeat (' ', longest_key_name - len + 1);
+
+  if (num < 0)
        C_printf ("%s~5Does not exists~0\n", indent);
   else C_printf ("%s~2OK~0, %d elements\n", indent, num);
 

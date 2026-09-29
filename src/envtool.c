@@ -884,6 +884,22 @@ void dir_array_free (void)
   smartlist_wipe (dir_array, dir_array_wiper);
 }
 
+bool looks_like_cygwin_msys_or_wsl (const char *str)
+{
+  if (!IS_SLASH(str[0]))
+     return (false);
+
+  if (!strncmp(str, "/cygdrive/", 10) || !strncmp(str, "\\\\wsl.", 6))
+     return (true);
+
+  /* E.g. str == "/x/???"
+   */
+  if (strlen(str) > 3 && isalpha((int)str[1]) && IS_SLASH(str[2]))
+     return (true);
+
+  return (false);
+}
+
 /**
  * Check and warn when a component on form `c:\dir with space` is found.
  * I.e. a path without quotes `"c:\dir with space"`.
@@ -900,7 +916,7 @@ static void check_component (const char *env_name, char *tok, int is_cwd)
 
     /* Check for missing drive-letter (`x:`) in component.
      */
-    if (!is_cwd && IS_SLASH(tok[0]) && !str_equal_n(tok, "/cygdrive/", 10) && strnicmp(tok, "\\\\wsl.", 6))
+    if (!is_cwd && IS_SLASH(tok[0]) && !looks_like_cygwin_msys_or_wsl(tok))
        WARN ("%s: \"%s\" is missing a drive letter.\n", env_name, tok);
 
     /* Warn on `x:` (a missing trailing slash)
@@ -924,15 +940,15 @@ static void check_component (const char *env_name, char *tok, int is_cwd)
  * Add current working directory first if `opt.no_cwd == 0` and
  * environment variable does NOT starts with `"."` or `".\"`.
  *
- * Convert CygWin style paths to Windows paths: <br>
+ * Convert CygWin / MSys style paths to Windows paths: <br>
  * <tt>".:"</tt>             -> <tt>".;"</tt>.
  * <tt>"/cygdrive/x/.."</tt> -> <tt>"x:/.."</tt>.
+ * <tt>"/x/.."</tt>          -> <tt>"x:/.."</tt>.
  */
 smartlist_t *split_env_var (const char *env_name, const char *value)
 {
-  char *tok, *val, *_end;
+  char *tok, *val, *_end, sep [2];
   int   is_cwd, max, i;
-  char  sep [2];
   bool  cwd_added = false;
 
   if (!value)
@@ -944,12 +960,12 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
   val = STRDUP (value);  /* Freed before we return */
   dir_array_free();
 
-  if (str_equal_n(val, ".:", 2) || str_equal_n(val, "/cygdrive/", 10))
+  if (!strncmp(val, ".:", 2) || looks_like_cygwin_msys_or_wsl(val))
   {
     const char *p = strchr (val, ';');
 
     if (p && !opt.quiet)
-       WARN ("%s: Using ';' and \"/cygdrive\" together is suspisious.\n", env_name);
+       WARN ("%s: Using ';' with \"/cygdrive\" is suspisious.\n", env_name);
 
     path_separator = ':';    /* Assume all components are separated by ':' */
   }
@@ -984,13 +1000,14 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
      * unless it's a simple `"c:\"`.
      */
     char *end = strchr (tok, '\0');
+    bool is_cygwin, is_msys;
 
     if (end > tok + 3)
     {
       if (end[-1] == '\\' || end[-1] == '/')
-        end[-1] = '\0';
+         end[-1] = '\0';
       else if (end[-2] == '\\' && end[-1] == '"')
-        end[-2] = '\0';
+         end[-2] = '\0';
     }
 
     if (!opt.file_mode)
@@ -1004,20 +1021,27 @@ smartlist_t *split_env_var (const char *env_name, const char *value)
 
     /* _stati64(".") doesn't work. Hence turn "." into `current_dir`.
      */
-    is_cwd = (!strcmp(tok, ".") || !strcmp(tok, ".\\") || !strcmp(tok, "./"));
+    is_cwd    = (!strcmp(tok, ".") || !strcmp(tok, ".\\") || !strcmp(tok, "./"));
+    is_msys   = (strlen(tok) >= 3 && IS_SLASH(tok[0]) && isalpha((int)tok[1]) && IS_SLASH(tok[2]));
+    is_cygwin = (strlen(tok) >= 12 && !strncmp(tok, "/cygdrive/", 10));
+
     if (is_cwd)
     {
       if (i > 0 && !opt.under_conemu)
          WARN ("Having \"%s\" not first in \"%s\" is asking for trouble.\n", tok, env_name);
       tok = current_dir;
     }
-    else if (strlen(tok) >= 12 && str_equal_n(tok, "/cygdrive/", 10))
+    else if (is_msys || is_cygwin)
     {
       static char buf [_MAX_PATH];  /* static since it could be used after we return */
 
-      snprintf (buf, sizeof(buf), "%c:/%s", tok[10], tok+12);
-      slashify2 (buf, buf, DIR_SEP);
+      TRACE (1, "is_cygwin: %d, is_msys: %d, 'tok': \"%s\"\n", is_cygwin, is_msys, tok);
+
+      if (is_cygwin)
+           snprintf (buf, sizeof(buf), "%c:/%s", tok[10], tok+12);
+      else snprintf (buf, sizeof(buf), "%c:/%s", tok[1], tok+3);
       TRACE (1, "%s ->\n                 %s\n", tok, buf);
+      slashify2 (buf, buf, DIR_SEP);
       tok = buf;
     }
 

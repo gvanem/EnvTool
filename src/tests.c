@@ -746,13 +746,13 @@ static void test_AppVeyor_GitHub (void)
 
   if (!cmake)
   {
-    C_printf ("cmake.exe not on %%PATH.\n");
+    C_printf ("  cmake.exe not on %%PATH.\n");
     return;
   }
   save = opt.debug;
   opt.debug = 3;
   rc = popen_run (cmake_version_cb, cmake, "-version");
-  C_printf ("popen_run() reported %d: %s\n\n", rc, cmake);
+  C_printf ("  popen_run() reported %d: %s\n\n", rc, cmake);
   opt.debug = save;
 }
 
