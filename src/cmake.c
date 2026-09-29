@@ -219,6 +219,7 @@ bool cmake_get_info (char **exe, ver_info *ver)
  * Search along these directories:
  *  \li the builtin `modules_dir`
  *  \li the environment variable `CMAKE_MODULE_PATH`.
+ *  \li the environment variable `CMAKE_PREFIX_PATH`.
  *  \li the directories from the Registry.
  */
 int cmake_search (void)
@@ -257,6 +258,11 @@ int cmake_search (void)
   FREE (bin);
   FREE (root);
 
+  report_header_set ("Matches in %%%s:\n", env_name);
+  found += do_check_env (env_name);
+  report_header_set (NULL);
+
+  env_name = "CMAKE_PREFIX_PATH";
   report_header_set ("Matches in %%%s:\n", env_name);
   found += do_check_env (env_name);
   report_header_set (NULL);
